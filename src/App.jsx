@@ -19,6 +19,8 @@ import MarsImageryModal from './components/MarsImageryModal';
 import HomeHero from './components/HomeHero';
 import AuthModal from './components/AuthModal';
 import UserProfileDashboard from './components/UserProfileDashboard';
+import AresCopilotModal from './components/AresCopilotModal';
+import AresFloatingButton from './components/AresFloatingButton';
 import { supabase } from './lib/supabase';
 
 import { Radar, ChevronLeft, Camera, FlaskConical, Sparkles, Image } from 'lucide-react';
@@ -305,6 +307,10 @@ function App() {
       <ErrorBoundary>
         <ContingencySimulator />
       </ErrorBoundary>
+      <ErrorBoundary>
+        <AresCopilotModal />
+      </ErrorBoundary>
+      <AresFloatingButton />
     </div>
   );
 }

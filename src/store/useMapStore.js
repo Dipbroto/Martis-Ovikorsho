@@ -502,11 +502,15 @@ const useMapStore = create((set, get) => ({
   profile: null,
   isAuthModalOpen: false,
   isProfileModalOpen: false,
+  isAresCopilotOpen: false,
   
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
   setAuthModalOpen: (val) => set({ isAuthModalOpen: val }),
   setProfileModalOpen: (val) => set({ isProfileModalOpen: val }),
+  setAresCopilotOpen: (val) => set((state) => ({
+    isAresCopilotOpen: typeof val === 'boolean' ? val : !state.isAresCopilotOpen
+  })),
 }));
 
 export default useMapStore;

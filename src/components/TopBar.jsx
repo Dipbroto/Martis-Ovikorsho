@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   Menu, Hexagon, Maximize, Minimize, ShieldAlert,
   Play, X, Radar, Map as MapIcon, Image as ImageIcon, Sparkles,
-  Volume2, VolumeX, FileText, Compass, ArrowRight, User
+  Volume2, VolumeX, FileText, Compass, ArrowRight, User, Bot
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useMapStore from '../store/useMapStore';
@@ -24,6 +24,8 @@ export default function TopBar({ isMapActive = false, activeSection = 'home' }) 
   const profile = useMapStore(s => s.profile);
   const setAuthModalOpen = useMapStore(s => s.setAuthModalOpen);
   const setProfileModalOpen = useMapStore(s => s.setProfileModalOpen);
+  const isAresCopilotOpen = useMapStore(s => s.isAresCopilotOpen);
+  const setAresCopilotOpen = useMapStore(s => s.setAresCopilotOpen);
 
   const [isFullscreen, setIsFullscreen] = React.useState(false);
 
@@ -223,6 +225,27 @@ export default function TopBar({ isMapActive = false, activeSection = 'home' }) 
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* A.R.E.S. Autonomous AI Agent Launcher */}
+          <button
+            onClick={() => {
+              marsAudio.playUiClick?.();
+              setAresCopilotOpen(!isAresCopilotOpen);
+            }}
+            className={`px-3 py-1.5 border rounded-xl text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-2 transition-all backdrop-blur-md cursor-pointer whitespace-nowrap shadow-sm group ${
+              isAresCopilotOpen
+                ? 'bg-purple-600/35 text-white border-purple-400 shadow-[0_0_16px_rgba(168,85,247,0.45)]'
+                : 'bg-purple-950/25 hover:bg-purple-900/40 text-purple-300 hover:text-white border-purple-500/40 hover:border-purple-400 hover:shadow-[0_0_12px_rgba(168,85,247,0.25)]'
+            }`}
+            title="Launch Autonomous A.R.E.S. Mission Agent (Controls Maps, Routes & Telemetry)"
+          >
+            <div className="relative flex items-center justify-center">
+              <Bot className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+              <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            </div>
+            <span className="font-display font-bold tracking-wider">A.R.E.S. AI</span>
+          </button>
 
           {/* User Profile / Auth Button */}
           <button

@@ -3,11 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Radar, Radio, Activity, Wind, Thermometer, Gauge, Sun, 
   ChevronRight, ChevronLeft, AlertCircle, Eye, Satellite, 
-  Crosshair, ShieldAlert, Zap, Compass, RefreshCw
+  Crosshair, ShieldAlert, Zap, Compass, RefreshCw, Bot, Sparkles
 } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
-import MissionControlChat from './MissionControlChat';
 
 // Mini Atmospheric Area Graph (SVG)
 const AreaGraph = ({ data, color = '#00FFCC', height = 36, unit = '', label = '' }) => {
@@ -52,7 +51,8 @@ export default function RightSidebar() {
     rightSidebarOpen = true, 
     setRightSidebarOpen,
     weather,
-    activeContingency 
+    activeContingency,
+    setAresCopilotOpen
   } = useMapStore();
 
   const isOpen = rightSidebarOpen !== undefined ? rightSidebarOpen : true;
@@ -292,7 +292,29 @@ export default function RightSidebar() {
             </div>
           </div>
 
-          <MissionControlChat />
+          {/* A.R.E.S. AI Copilot Launch Button */}
+          <button
+            onClick={() => {
+              if (setAresCopilotOpen) setAresCopilotOpen(true);
+              marsAudio.playUiClick?.();
+            }}
+            className="w-full mt-2 p-3 rounded-xl bg-purple-950/40 hover:bg-purple-900/50 border border-purple-500/40 hover:border-purple-400 text-left transition-all duration-300 shadow-[0_0_15px_rgba(168,85,247,0.15)] group cursor-pointer"
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300 group-hover:scale-110 transition-transform">
+                  <Bot className="w-3.5 h-3.5" />
+                </div>
+                <span className="text-[11px] font-mono font-bold text-white tracking-wider uppercase">A.R.E.S. AI AGENT</span>
+              </div>
+              <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
+                AUTONOMOUS
+              </span>
+            </div>
+            <p className="text-[10px] text-purple-200/70 font-mono leading-relaxed">
+              Launch dedicated autonomous copilot. Controls maps, routes, and telemetry via natural voice commands.
+            </p>
+          </button>
         </div>
       </div>
     </motion.div>
