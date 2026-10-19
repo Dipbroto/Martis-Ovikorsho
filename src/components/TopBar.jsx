@@ -1,14 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
-  Menu, Hexagon, Maximize, Minimize, ShieldAlert,
-  Play, X, Radar, Map as MapIcon, Image as ImageIcon, Sparkles,
-  Volume2, VolumeX, FileText, Compass, ArrowRight, User, Bot
+  Menu, X, Volume2, VolumeX, Bot, User, Maximize, Minimize,
+  Compass, Map as MapIcon, FlaskConical, Sparkles, ShieldAlert, Image as ImageIcon,
+  FileText, Radar, Play, Hexagon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
 
-export default function TopBar({ isMapActive = false, activeSection = 'home' }) {
+export default function TopBar({ onSelectTab }) {
+  const activeTab = useMapStore(s => s.activeTab);
+  const setActiveTab = useMapStore(s => s.setActiveTab);
+  const isMapActive = activeTab === 'map';
+
   const viewMode = useMapStore(s => s.viewMode);
   const setViewMode = useMapStore(s => s.setViewMode);
   const isEVASimulating = useMapStore(s => s.isEVASimulating);
@@ -27,7 +31,8 @@ export default function TopBar({ isMapActive = false, activeSection = 'home' }) 
   const isAresCopilotOpen = useMapStore(s => s.isAresCopilotOpen);
   const setAresCopilotOpen = useMapStore(s => s.setAresCopilotOpen);
 
-  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -41,13 +46,21 @@ export default function TopBar({ isMapActive = false, activeSection = 'home' }) 
     }
   };
 
-  const scrollToSection = (id) => {
+  const handleTabClick = (key) => {
     marsAudio.playUiClick?.();
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+    setActiveTab(key);
+    if (onSelectTab) onSelectTab(key);
+    setMobileMenuOpen(false);
   };
+
+  const navItems = [
+    { key: 'home', label: 'MISSION' },
+    { key: 'map', label: 'CARTOGRAPHY' },
+    { key: 'science', label: 'SCIENCE' },
+    { key: 'sky', label: 'SKY WATCH' },
+    { key: 'contingency', label: 'CONTINGENCY' },
+    { key: 'imagery', label: 'GALLERY' },
+  ];
 
   const viewModes = [
     { id: '2d', icon: Hexagon, label: '2D' },
@@ -55,222 +68,230 @@ export default function TopBar({ isMapActive = false, activeSection = 'home' }) 
     { id: 'split', icon: Menu, label: 'SPLIT' }
   ];
 
-  const navItems = [
-    { id: 'section-home', key: 'home', label: 'Mission Overview', shortLabel: 'Overview', icon: Compass, accent: 'text-cyan-400' },
-    { id: 'section-map', key: 'map', label: 'Telemetry & Map', shortLabel: 'Map', icon: MapIcon, accent: 'text-[#F16938]' },
-    { id: 'section-imagery', key: 'imagery', label: 'Science & Imagery', shortLabel: 'Science', icon: ImageIcon, accent: 'text-purple-400' },
-    { id: 'section-sky', key: 'sky', label: 'Deep Space & Sky', shortLabel: 'Sky', icon: Sparkles, accent: 'text-amber-400' },
-  ];
-
   return (
-    <header className="relative z-50 pointer-events-none w-full">
-      <div className="mt-3.5 mx-auto max-w-[1400px] h-14 w-[calc(100%-2rem)] rounded-2xl border border-white/[0.08] flex items-center justify-between px-3.5 z-50 shrink-0 bg-[#07090E]/85 backdrop-blur-2xl relative shadow-[0_8px_32px_rgba(0,0,0,0.65),inset_0_1px_0_rgba(255,255,255,0.06)] gap-3 transition-all hover:bg-[#07090E]/95 pointer-events-auto">
-        
-        {/* Left: Brand Identity */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div 
-            className="flex items-center gap-2.5 cursor-pointer group" 
-            onClick={() => {
-              marsAudio.playQuindarTone?.(false);
-              scrollToSection('section-home');
-            }} 
-            title="Return to Mission Overview"
-          >
-            <img src="/mars-logo.svg" alt="NASA" className="h-6 w-auto drop-shadow-[0_0_8px_rgba(244,112,80,0.8)] group-hover:scale-105 transition-transform" />
-            <div className="flex flex-col hidden sm:flex">
-              <h1 className="text-stone-100 font-display font-black text-sm leading-tight tracking-[0.18em] uppercase group-hover:text-white transition-colors">
-                MarsWalk
-              </h1>
-              <span className="text-[#F16938] font-mono font-semibold text-[9px] tracking-[0.25em] uppercase">
-                Explorer
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Center: Main Section Navigation (Clean, single-line, active-highlighted) */}
-        <div className="flex-1 flex justify-center items-center gap-1.5 sm:gap-2 px-1 overflow-hidden">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeSection === item.key;
-            return (
-              <button
-                key={item.id}
-                onClick={() => scrollToSection(item.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-[0.08em] flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 border cursor-pointer ${
-                  isActive
-                    ? 'bg-[#F16938]/20 text-stone-100 border-[#F16938]/60 shadow-[0_0_12px_rgba(241,105,56,0.25)] font-bold'
-                    : 'bg-white/[0.02] hover:bg-[#101522]/80 text-stone-400 hover:text-white border-white/[0.05] hover:border-white/15 font-medium'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#F16938]' : item.accent}`} />
-                <span className="hidden md:inline">{item.label}</span>
-                <span className="inline md:hidden">{item.shortLabel}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Right: Contextual Tools (Map-only tools hidden when outside map) */}
-        <div className="flex items-center gap-2 shrink-0">
+    <header className="fixed top-0 left-0 right-0 z-50 pointer-events-auto">
+      {/* Primary Minimalist Navigation Bar (Orbita Style) */}
+      <div className="w-full bg-[#050608]/70 backdrop-blur-xl border-b border-white/[0.08] transition-all">
+        <div className="max-w-[1700px] mx-auto px-6 sm:px-10 lg:px-14 h-16 flex items-center justify-between">
           
-          {/* Universal Ambient Audio Toggle */}
-          <button
-            onClick={toggleAudio}
-            className={`px-2.5 py-1.5 border rounded-xl text-xs font-mono font-medium uppercase tracking-wider flex items-center gap-1.5 transition-all backdrop-blur-md cursor-pointer ${
-              isAudioActive
-                ? 'bg-amber-950/40 text-amber-300 border-amber-500/40 shadow-[0_0_12px_rgba(245,166,35,0.2)] font-semibold'
-                : 'bg-white/[0.02] hover:bg-[#101522]/85 border-white/[0.06] hover:border-white/15 text-stone-400 hover:text-stone-200'
-            }`}
-            title={isAudioActive ? 'Mute Martian Soundscape' : 'Enable Ambient Martian Soundscape'}
+          {/* Left: Brand Logo (Minimalist uppercase with registered symbol) */}
+          <div 
+            onClick={() => handleTabClick('home')}
+            className="flex items-center gap-2 cursor-pointer group shrink-0 select-none"
+            title="Mars Walk Explorer"
           >
-            {isAudioActive ? <Volume2 className="w-3.5 h-3.5 text-amber-400 animate-pulse" /> : <VolumeX className="w-3.5 h-3.5" />}
-            <span className="hidden lg:inline">{isAudioActive ? 'Sound ON' : 'Sound'}</span>
-          </button>
+            <span className="text-white font-display font-black text-lg sm:text-xl lg:text-2xl tracking-[0.16em] uppercase group-hover:text-zinc-200 transition-colors">
+              MARS WALK EXPLORER<sup className="text-[10px] font-sans font-normal text-zinc-400 ml-0.5">®</sup>
+            </span>
+          </div>
 
-          {/* OUTSIDE MAP: Sleek Direct "Launch Map" CTA */}
-          {!isMapActive && (
+          {/* Center: Minimalist Text Navigation Links */}
+          <nav className="hidden md:flex items-center gap-6 lg:gap-10">
+            {navItems.map((item) => {
+              const isActive = activeTab === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => handleTabClick(item.key)}
+                  className={`relative py-1 text-[11px] lg:text-xs font-mono uppercase tracking-[0.2em] transition-all cursor-pointer ${
+                    isActive 
+                      ? 'text-white font-bold' 
+                      : 'text-zinc-400 hover:text-white font-medium'
+                  }`}
+                >
+                  {item.label}
+                  {isActive && (
+                    <motion.div 
+                      layoutId="activeTabUnderline"
+                      className="absolute -bottom-1.5 left-0 right-0 h-[1.5px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+                      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Right: Actions & Tools */}
+          <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+            
+            {/* Ambient Soundscape Toggle */}
+            <button
+              onClick={toggleAudio}
+              className="text-zinc-400 hover:text-white transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-white/[0.05]"
+              title={isAudioActive ? 'Mute Martian Atmosphere' : 'Play Martian Soundscape'}
+            >
+              {isAudioActive ? <Volume2 className="w-4 h-4 text-[#ff7b4d] animate-pulse" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+
+            {/* A.R.E.S. AI Agent Launcher */}
+            <button
+              onClick={() => {
+                marsAudio.playUiClick?.();
+                setAresCopilotOpen(!isAresCopilotOpen);
+              }}
+              className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-sm border text-[11px] font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                isAresCopilotOpen
+                  ? 'bg-purple-950/60 border-purple-400 text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
+                  : 'bg-white/[0.03] hover:bg-white/[0.08] border-white/10 text-zinc-300 hover:text-white'
+              }`}
+              title="Launch Autonomous EVA Mission Copilot"
+            >
+              <div className="relative flex items-center justify-center shrink-0">
+                <div className="w-4 h-4 rounded-full overflow-hidden border border-cyan-400/60 shadow-[0_0_8px_rgba(6,182,212,0.4)] bg-[#07090E] shrink-0">
+                  <img src="/ares-mascot.jpg" alt="EVA" className="w-full h-full object-cover" />
+                </div>
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-1 ring-[#07090E]" />
+              </div>
+              <span>EVA COPILOT</span>
+            </button>
+
+            {/* Clean White CTA Button (Exact Orbita Style: BECOME A PARTNER ↗) */}
             <button
               onClick={() => {
                 marsAudio.playQuindarTone?.(true);
-                scrollToSection('section-map');
+                handleTabClick('map');
               }}
-              className="group px-3.5 py-1.5 rounded-xl bg-[#F16938]/15 hover:bg-[#F16938]/30 border border-[#F16938]/40 hover:border-[#F16938]/80 text-stone-100 font-mono text-xs font-semibold uppercase tracking-[0.1em] flex items-center gap-1.5 shadow-[0_0_12px_rgba(241,105,56,0.18)] transition-all cursor-pointer backdrop-blur-md"
+              className="bg-white hover:bg-zinc-200 text-black px-4 sm:px-5 py-2 text-[10px] sm:text-[11px] font-mono font-bold uppercase tracking-[0.16em] transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_20px_rgba(255,255,255,0.2)] active:scale-95"
             >
-              <Compass className="w-3.5 h-3.5 text-[#F16938] group-hover:rotate-45 transition-transform" />
-              <span className="hidden sm:inline">Launch Map</span>
-              <ArrowRight className="w-3.5 h-3.5 text-stone-400 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+              <span>{isMapActive ? 'EVA SIMULATOR' : 'LAUNCH MISSION'}</span>
+              <span className="text-xs font-sans">↗</span>
             </button>
-          )}
 
-          {/* INSIDE MAP: Contextual Map & Flight Operations Tools */}
-          <AnimatePresence>
-            {isMapActive && (
-              <motion.div
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-1.5 sm:gap-2"
-              >
-                {/* NASA Flight Plan Briefing */}
-                <button
-                  onClick={() => setFlightPlanOpen(true)}
-                  className="px-2.5 py-1.5 border rounded-xl text-xs font-mono font-medium uppercase tracking-wider flex items-center gap-1.5 transition-all bg-white/[0.02] hover:bg-[#101522]/85 border-white/[0.06] hover:border-cyan-500/40 text-stone-300 hover:text-white backdrop-blur-md cursor-pointer whitespace-nowrap"
-                  title="Open NASA Astronaut Flight Plan & Briefing Package"
-                >
-                  <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                  <span className="hidden xl:inline">Briefing</span>
-                </button>
+            {/* Astronaut Profile Avatar / Auth */}
+            <button
+              onClick={() => user ? setProfileModalOpen(true) : setAuthModalOpen(true)}
+              className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-zinc-400 hover:text-white hover:border-white/50 transition-all cursor-pointer"
+              title={user ? (profile?.callsign || user?.email) : "Astronaut Sign In"}
+            >
+              <User className="w-3.5 h-3.5" />
+            </button>
 
-                {/* Contingency Simulator */}
-                <button
-                  onClick={() => setContingencyModalOpen(true)}
-                  className={`px-2.5 py-1.5 border rounded-xl text-xs font-mono font-medium uppercase tracking-wider flex items-center gap-1.5 transition-all backdrop-blur-md cursor-pointer whitespace-nowrap ${
-                    activeContingency
-                      ? 'bg-rose-950/60 text-rose-200 border-rose-500/60 shadow-[0_0_16px_rgba(244,63,94,0.4)] animate-pulse font-semibold'
-                      : 'bg-white/[0.02] hover:bg-[#101522]/85 border-white/[0.06] hover:border-rose-500/40 text-stone-300 hover:text-white'
-                  }`}
-                  title="NASA What-If Contingency Simulator"
-                >
-                  <ShieldAlert className={`w-3.5 h-3.5 ${activeContingency ? 'text-rose-200' : 'text-rose-400'}`} />
-                  <span className="hidden xl:inline">{activeContingency ? 'ALERT ACTIVE' : 'Contingency'}</span>
-                </button>
+            {/* Fullscreen Toggle */}
+            <button
+              onClick={toggleFullscreen}
+              className="hidden lg:flex w-8 h-8 rounded-lg items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              title="Toggle Fullscreen"
+            >
+              {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+            </button>
 
-                {/* HUD Telemetry Feed Toggle */}
-                <button
-                  onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
-                  className={`px-2.5 py-1.5 border rounded-xl text-xs font-mono font-medium uppercase tracking-wider flex items-center gap-1.5 transition-all backdrop-blur-md cursor-pointer whitespace-nowrap ${
-                    rightSidebarOpen
-                      ? 'bg-cyan-950/40 text-cyan-300 border-cyan-500/40 shadow-[0_0_12px_rgba(0,255,204,0.2)] font-semibold'
-                      : 'bg-white/[0.02] hover:bg-[#101522]/85 border-white/[0.06] hover:border-cyan-500/40 text-stone-300 hover:text-white'
-                  }`}
-                  title="Toggle Right HUD Telemetry"
-                >
-                  <Radar className="w-3.5 h-3.5 text-cyber-cyan" />
-                  <span className="hidden lg:inline">HUD Feed</span>
-                </button>
+            {/* Mobile Hamburger Toggle */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden text-zinc-400 hover:text-white p-1"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
 
-                {/* EVA HUD */}
-                <button
-                  onClick={() => setEVASimulating(!isEVASimulating)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-display font-bold uppercase tracking-[0.14em] flex items-center gap-1.5 transition-all backdrop-blur-md border cursor-pointer whitespace-nowrap ${
-                    isEVASimulating
-                      ? 'bg-rose-950/70 hover:bg-rose-900/80 text-white shadow-[0_0_16px_rgba(244,63,94,0.4)] border-rose-500/60 animate-pulse'
-                      : 'bg-[#F16938]/20 hover:bg-[#F16938]/35 text-stone-100 border-[#F16938]/50 hover:border-[#F16938]/80 shadow-[0_0_12px_rgba(241,105,56,0.18)]'
-                  }`}
-                >
-                  {isEVASimulating ? <X className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current text-[#F16938]" />}
-                  <span className="hidden sm:inline">EVA HUD</span>
-                </button>
-
-                {/* Viewport Segmented Switcher (2D / 3D / Split) */}
-                <div className="hidden lg:flex items-center bg-[#0B0E17]/80 rounded-xl p-0.5 border border-white/[0.06] shrink-0 whitespace-nowrap backdrop-blur-md">
-                  {viewModes.map(({ id, icon: Icon, label }) => (
-                    <button
-                      key={id}
-                      onClick={() => setViewMode(id)}
-                      className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all text-[11px] font-mono uppercase tracking-wider font-semibold shrink-0 border cursor-pointer ${
-                        viewMode === id
-                          ? 'bg-[#F16938]/20 text-stone-100 border-[#F16938]/50 shadow-[0_0_8px_rgba(241,105,56,0.2)]'
-                          : 'text-stone-400 hover:text-white hover:bg-white/[0.03] border-transparent'
-                      }`}
-                      title={label}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* A.R.E.S. Autonomous AI Agent Launcher */}
-          <button
-            onClick={() => {
-              marsAudio.playUiClick?.();
-              setAresCopilotOpen(!isAresCopilotOpen);
-            }}
-            className={`px-3 py-1.5 border rounded-xl text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-2 transition-all backdrop-blur-md cursor-pointer whitespace-nowrap shadow-sm group ${
-              isAresCopilotOpen
-                ? 'bg-purple-600/35 text-white border-purple-400 shadow-[0_0_16px_rgba(168,85,247,0.45)]'
-                : 'bg-purple-950/25 hover:bg-purple-900/40 text-purple-300 hover:text-white border-purple-500/40 hover:border-purple-400 hover:shadow-[0_0_12px_rgba(168,85,247,0.25)]'
-            }`}
-            title="Launch Autonomous A.R.E.S. Mission Agent (Controls Maps, Routes & Telemetry)"
-          >
-            <div className="relative flex items-center justify-center">
-              <Bot className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
-              <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            </div>
-            <span className="font-display font-bold tracking-wider">A.R.E.S. AI</span>
-          </button>
-
-          {/* User Profile / Auth Button */}
-          <button
-            onClick={() => user ? setProfileModalOpen(true) : setAuthModalOpen(true)}
-            className={`px-2.5 py-1.5 border rounded-xl text-xs font-mono font-medium uppercase tracking-wider flex items-center gap-1.5 transition-all backdrop-blur-md cursor-pointer whitespace-nowrap ${
-              user 
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20' 
-                : 'bg-white/[0.02] hover:bg-[#101522]/85 border-white/[0.06] hover:border-mars-500/40 text-stone-300 hover:text-white'
-            }`}
-            title={user ? 'Astronaut Profile Active' : 'Authenticate Commander'}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">{profile?.username || (user ? 'Authenticated' : 'Login')}</span>
-          </button>
-
-          {/* Universal Fullscreen Toggle */}
-          <button
-            onClick={toggleFullscreen}
-            className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/[0.02] hover:bg-[#101522]/85 text-stone-400 hover:text-white transition-colors border border-white/[0.06] hover:border-white/15 backdrop-blur-md shrink-0 cursor-pointer"
-            title="Toggle Fullscreen"
-          >
-            {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
-          </button>
         </div>
       </div>
+
+      {/* Mobile Drawer Menu */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="md:hidden bg-[#050608]/95 backdrop-blur-2xl border-b border-white/10 px-6 py-6 flex flex-col gap-4"
+          >
+            {navItems.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => handleTabClick(item.key)}
+                className={`text-left text-sm font-mono tracking-widest py-2 border-b border-white/[0.04] ${
+                  activeTab === item.key ? 'text-white font-bold' : 'text-zinc-400'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Contextual Secondary Dock for Cartography Map (Sleek floating sub-bar) */}
+      <AnimatePresence>
+        {isMapActive && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="w-full flex justify-center pt-2 pointer-events-none"
+          >
+            <div className="pointer-events-auto bg-[#07090E]/90 backdrop-blur-xl border border-white/10 rounded-full px-4 py-1.5 flex items-center gap-2 sm:gap-3 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+              {/* View Mode Switcher */}
+              <div className="flex items-center gap-1 bg-white/[0.04] p-0.5 rounded-full border border-white/[0.06]">
+                {viewModes.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    onClick={() => setViewMode(id)}
+                    className={`px-3 py-1 rounded-full text-[10px] font-mono tracking-wider font-semibold transition-all cursor-pointer ${
+                      viewMode === id
+                        ? 'bg-white text-black shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="w-[1px] h-4 bg-white/15" />
+
+              {/* EVA HUD */}
+              <button
+                onClick={() => setEVASimulating(!isEVASimulating)}
+                className={`px-3 py-1 rounded-full text-[10px] font-mono tracking-wider font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                  isEVASimulating 
+                    ? 'bg-rose-500 text-white animate-pulse'
+                    : 'bg-white/[0.06] hover:bg-white/15 text-zinc-300'
+                }`}
+              >
+                <Play className="w-2.5 h-2.5 fill-current" />
+                <span>EVA HUD</span>
+              </button>
+
+              {/* Flight Plan Briefing */}
+              <button
+                onClick={() => setFlightPlanOpen(true)}
+                className="px-3 py-1 rounded-full text-[10px] font-mono tracking-wider text-zinc-300 hover:text-white bg-white/[0.06] hover:bg-white/15 transition-all flex items-center gap-1 cursor-pointer"
+              >
+                <FileText className="w-2.5 h-2.5" />
+                <span className="hidden sm:inline">BRIEFING</span>
+              </button>
+
+              {/* Contingency Simulator */}
+              <button
+                onClick={() => setContingencyModalOpen(true)}
+                className={`px-3 py-1 rounded-full text-[10px] font-mono tracking-wider font-semibold uppercase transition-all flex items-center gap-1 cursor-pointer ${
+                  activeContingency 
+                    ? 'bg-rose-500 text-white animate-pulse'
+                    : 'text-zinc-300 hover:text-white bg-white/[0.06] hover:bg-white/15'
+                }`}
+              >
+                <ShieldAlert className="w-2.5 h-2.5" />
+                <span className="hidden sm:inline">CONTINGENCY</span>
+              </button>
+
+              {/* HUD Telemetry Feed */}
+              <button
+                onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
+                className={`px-3 py-1 rounded-full text-[10px] font-mono tracking-wider uppercase transition-all flex items-center gap-1 cursor-pointer ${
+                  rightSidebarOpen
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                    : 'text-zinc-300 hover:text-white bg-white/[0.06] hover:bg-white/15'
+                }`}
+              >
+                <Radar className="w-2.5 h-2.5 text-cyber-cyan" />
+                <span className="hidden sm:inline">TELEMETRY</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }

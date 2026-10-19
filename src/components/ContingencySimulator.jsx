@@ -1,44 +1,47 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  AlertTriangle, ShieldAlert, Radio, Wind, HeartPulse, 
-  RotateCcw, Compass, ArrowRight, X, Activity, CheckCircle2 
+  AlertTriangle, ShieldAlert, Wind, HeartPulse, 
+  RotateCcw, ArrowRight, X, Activity, CheckCircle2 
 } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
-import ProvenanceBadge from './ProvenanceBadge';
 
 const SCENARIO_BUTTONS = [
   {
     type: 'spe',
+    number: '01',
     title: 'Solar Flare (SPE)',
     icon: ShieldAlert,
     tag: 'RAD CRITICAL',
-    desc: 'Coronal particle surge, 14.5 mSv/hr',
-    color: 'from-purple-900/60 to-purple-800/40 hover:border-purple-400 text-purple-200 border-purple-600/50',
+    desc: 'Coronal particle surge, 14.5 mSv/hr. Immediate underground shelter required.',
+    accent: '#f43f5e',
   },
   {
     type: 'dust_storm',
+    number: '02',
     title: 'Dust Storm Inflow',
     icon: Wind,
     tag: 'TAU > 2.8',
-    desc: 'Vis < 40m, 28 m/s turbulent winds',
-    color: 'from-amber-900/60 to-amber-800/40 hover:border-amber-400 text-amber-200 border-amber-600/50',
+    desc: 'Vis < 40m, 28 m/s turbulent winds. Solar array opacity drop 85%.',
+    accent: '#f59e0b',
   },
   {
     type: 'o2_leak',
+    number: '03',
     title: 'Suit O₂ Regulator Anomaly',
     icon: HeartPulse,
     tag: 'LIFE SUPPORT',
-    desc: 'Secondary tank decay, walkback cut 60%',
-    color: 'from-red-900/60 to-red-800/40 hover:border-red-400 text-red-200 border-red-600/50',
+    desc: 'Secondary tank decay, walkback margin cut 60%. Abort to Hab airlock.',
+    accent: '#ef4444',
   },
   {
     type: 'rockfall',
+    number: '04',
     title: 'Talus Rim Rockfall',
     icon: AlertTriangle,
     tag: 'SLOPE > 28°',
-    desc: 'Crater pass impassable, boulder field',
-    color: 'from-orange-900/60 to-orange-800/40 hover:border-orange-400 text-orange-200 border-orange-600/50',
+    desc: 'Crater pass impassable, boulder field blocking primary return corridor.',
+    accent: '#f97316',
   },
 ];
 
@@ -51,7 +54,6 @@ export default function ContingencySimulator() {
     triggerContingency,
     clearContingency,
     executeEmergencyReturn,
-    waypoints
   } = useMapStore();
 
   return (
@@ -63,22 +65,20 @@ export default function ContingencySimulator() {
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -50, opacity: 0 }}
-            className={`fixed top-14 left-1/2 -translate-x-1/2 z-[1050] max-w-3xl w-[94%] px-4 py-2.5 rounded-xl border-2 shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 ${contingencyDetails.bgColor} ${contingencyDetails.borderColor}`}
+            className="fixed top-16 left-1/2 -translate-x-1/2 z-[1050] max-w-4xl w-[94%] px-5 py-3 rounded-sm border border-rose-500/50 shadow-2xl backdrop-blur-xl bg-[#090507]/95 flex items-center justify-between gap-4 font-mono"
           >
-            <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className="w-8 h-8 rounded-lg bg-red-600/40 border border-red-500 flex items-center justify-center shrink-0 animate-pulse">
-                <AlertTriangle className="w-4 h-4 text-red-300" />
-              </div>
+            <div className="flex items-center gap-3 overflow-hidden">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-white uppercase tracking-wider truncate">
-                    CONTINGENCY: {contingencyDetails.title}
+                  <span className="text-xs font-bold text-white uppercase tracking-wider truncate">
+                    CONTINGENCY ACTIVE: {contingencyDetails.title}
                   </span>
-                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded font-bold bg-red-500/20 text-red-300 border border-red-500/40 shrink-0">
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-sm font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 shrink-0">
                     {contingencyDetails.badge}
                   </span>
                 </div>
-                <p className="text-[10px] text-space-300 truncate">
+                <p className="text-[10px] text-zinc-400 truncate">
                   {contingencyDetails.actionRequired}
                 </p>
               </div>
@@ -87,24 +87,23 @@ export default function ContingencySimulator() {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={executeEmergencyReturn}
-                className="px-3 py-1.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-mono text-xs font-bold rounded-lg shadow-lg flex items-center gap-1.5 transition-all hover:scale-105"
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-mono text-xs font-bold uppercase tracking-wider rounded-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5"
                 title="Immediately route return to Basecamp"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3 h-3" />
                 <span>ABORT TRAVERSE</span>
               </button>
 
               <button
                 onClick={() => setContingencyModalOpen(true)}
-                className="px-2.5 py-1.5 bg-space-800 hover:bg-space-700 text-space-200 text-xs rounded-lg border border-space-700 font-mono transition-colors"
-                title="View Full Contingency Delta Analysis"
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs rounded-sm border border-white/10 font-mono transition-colors cursor-pointer"
               >
                 Inspect
               </button>
 
               <button
                 onClick={clearContingency}
-                className="p-1.5 text-space-400 hover:text-white rounded-lg hover:bg-space-800 transition-colors"
+                className="p-1.5 text-zinc-400 hover:text-white rounded-sm hover:bg-white/10 transition-colors cursor-pointer"
                 title="Clear simulation alert"
               >
                 <X className="w-4 h-4" />
@@ -114,155 +113,144 @@ export default function ContingencySimulator() {
         )}
       </AnimatePresence>
 
-      {/* Contingency Modal & Control Panel */}
+      {/* Contingency Modal & Control Panel (Orbita Style) */}
       <AnimatePresence>
         {isContingencyModalOpen && (
           <div 
             onClick={(e) => {
               if (e.target === e.currentTarget) setContingencyModalOpen(false);
             }}
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md font-mono text-xs"
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md font-sans"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-panel-solid w-full max-w-2xl max-h-[92vh] rounded-2xl border-2 border-red-500/60 bg-space-950 shadow-2xl flex flex-col overflow-hidden text-primary"
+              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 10 }}
+              className="w-full max-w-3xl max-h-[92vh] rounded-sm border border-white/10 bg-[#040508]/95 shadow-[0_30px_100px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden text-white"
             >
-              {/* Modal Header (Horizontal Scrollable Menu Bar) */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-space-800 bg-space-900/60 shrink-0 overflow-x-auto overflow-y-hidden custom-scrollbar-x gap-3">
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="w-9 h-9 rounded-full bg-red-600/30 border border-red-500 flex items-center justify-center text-red-400 shrink-0">
-                    <ShieldAlert className="w-5 h-5" />
+              {/* Header Bar */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08] bg-[#07090e]/80 shrink-0 gap-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-zinc-400 text-xs font-mono">✦</span>
+                    <span className="text-[10px] font-mono uppercase tracking-[0.22em] text-[#ff8c69] font-medium">
+                      MARS WALK EXPLORER / CRISIS MITIGATION
+                    </span>
                   </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-white tracking-widest uppercase flex items-center gap-2 whitespace-nowrap">
-                      <span>NASA What-If Mission Simulator</span>
-                      <ProvenanceBadge type="SIMULATED" size="xs" detail="Contingency Model" />
-                    </h2>
-                    <p className="text-[10px] text-space-400 whitespace-nowrap">
-                      DYNAMIC MARSWALK RISK & ABORT DECISION SUPPORT
-                    </p>
-                  </div>
+                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                    Contingency Simulator & Risk Decision Support
+                  </h2>
                 </div>
 
                 <button
                   onClick={() => setContingencyModalOpen(false)}
-                  className="px-3 py-1.5 bg-rose-500/25 hover:bg-rose-500/40 text-rose-200 rounded-xl flex items-center gap-1.5 transition-all border border-rose-400/60 cursor-pointer shadow-neon-mars backdrop-blur-md font-bold shrink-0 whitespace-nowrap"
+                  className="px-3 py-1 text-[11px] font-mono uppercase tracking-wider text-zinc-400 hover:text-white border border-white/10 hover:border-white/30 rounded-sm hover:bg-white/5 transition-all cursor-pointer flex items-center gap-1.5"
                 >
-                  <X className="w-4 h-4" />
-                  <span>CLOSE (ESC)</span>
+                  <span>CLOSE</span>
+                  <span className="text-xs">✕</span>
                 </button>
               </div>
 
-              {/* Modal Content (Vertical Scrollable) */}
-              <div className="flex-1 p-6 overflow-y-auto overflow-x-hidden custom-scrollbar-y space-y-5">
-                {/* Select Contingency Scenario */}
+              {/* Modal Content */}
+              <div className="flex-1 p-6 sm:p-8 overflow-y-auto space-y-6 custom-scrollbar">
+                
+                {/* Scenario Selection */}
                 <div>
-                  <div className="text-[11px] font-bold text-space-300 uppercase tracking-wider mb-2 flex items-center justify-between">
-                    <span>1. Inject Operational Contingency Scenario</span>
-                    <span className="text-[10px] text-space-500 font-normal">Select an anomaly to test traverse response</span>
+                  <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-400 mb-3 flex items-center justify-between">
+                    <span>01 / INJECT OPERATIONAL CONTINGENCY SCENARIO</span>
+                    <span className="text-zinc-500">SELECT ANOMALY</span>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {SCENARIO_BUTTONS.map((btn) => {
                       const Icon = btn.icon;
                       const isSelected = activeContingency === btn.type;
                       return (
-                        <button
+                        <div
                           key={btn.type}
                           onClick={() => triggerContingency(btn.type)}
-                          className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all ${btn.color} ${
-                            isSelected ? 'ring-2 ring-red-400 border-red-400 shadow-lg' : 'bg-space-900/40'
+                          className={`p-4 rounded-sm border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[120px] ${
+                            isSelected
+                              ? 'bg-white/[0.06] border-l-2 border-l-white border-y-white/20 border-r-white/20 text-white shadow-md'
+                              : 'bg-[#07090e]/80 border-white/[0.07] hover:border-white/20 text-zinc-400 hover:text-white'
                           }`}
                         >
-                          <div className="w-8 h-8 rounded-lg bg-black/40 flex items-center justify-center shrink-0 mt-0.5">
-                            <Icon className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="font-bold text-xs text-white">{btn.title}</span>
-                              <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-black/50 border border-white/10 text-space-300">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] font-mono text-zinc-500 font-bold">{btn.number}</span>
+                              <span className="text-[9px] font-mono px-2 py-0.5 rounded-sm border border-white/10 text-zinc-300">
                                 {btn.tag}
                               </span>
                             </div>
-                            <p className="text-[10px] text-space-300 mt-1 leading-tight">{btn.desc}</p>
+                            <h4 className="text-sm font-bold text-white mb-1 font-sans">{btn.title}</h4>
+                            <p className="text-xs text-zinc-400 font-light leading-relaxed">{btn.desc}</p>
                           </div>
-                        </button>
+
+                          <div className="pt-2 mt-2 border-t border-white/[0.04] text-[10px] font-mono uppercase tracking-wider text-zinc-500 flex items-center justify-between">
+                            <span>{isSelected ? '● ACTIVE DRILL' : 'Click to Trigger'}</span>
+                            <ArrowRight className="w-3 h-3 text-zinc-500" />
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Active Impact Delta Box */}
-                {contingencyDetails ? (
-                  <div className={`p-4 rounded-xl border ${contingencyDetails.bgColor} ${contingencyDetails.borderColor} space-y-3`}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-white uppercase flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-red-400" />
-                        <span>Active Telemetry Delta: {contingencyDetails.title}</span>
-                      </span>
-                      <span className="text-[10px] font-bold text-red-400 font-mono animate-pulse">
-                        SHELTER DEADLINE: {contingencyDetails.deadlineMinutes} MIN
-                      </span>
-                    </div>
-
-                    <p className="text-[11px] text-space-200 leading-relaxed">
-                      {contingencyDetails.description}
-                    </p>
-
-                    {/* Operational Delta Matrix */}
-                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-space-800">
-                      <div className="p-2 bg-black/40 rounded-lg">
-                        <span className="text-[9px] text-space-400 block uppercase">Radiation Rate</span>
-                        <span className="text-sm font-bold text-purple-400 font-mono">
-                          {activeContingency === 'spe' ? '14.5 mSv/h (+250x)' : '0.028 mSv/h'}
-                        </span>
-                      </div>
-                      <div className="p-2 bg-black/40 rounded-lg">
-                        <span className="text-[9px] text-space-400 block uppercase">Dust Opacity (τ)</span>
-                        <span className="text-sm font-bold text-amber-400 font-mono">
-                          {activeContingency === 'dust_storm' ? 'τ 2.9 (Severe)' : 'τ 0.5 (Nominal)'}
-                        </span>
-                      </div>
-                      <div className="p-2 bg-black/40 rounded-lg">
-                        <span className="text-[9px] text-space-400 block uppercase">Walkback Margin</span>
-                        <span className="text-sm font-bold text-red-400 font-mono">
-                          {activeContingency === 'o2_leak' ? '1.8 km (Degraded)' : '5.0 km (Nominal)'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Action Execution Footer */}
-                    <div className="pt-2 flex items-center justify-between gap-3">
-                      <div className="text-[10px] text-space-400">
-                        Recommendation: <strong>Immediate Return to Basecamp</strong>
-                      </div>
+                {/* Active Contingency Analysis */}
+                {activeContingency && contingencyDetails ? (
+                  <div className="border border-white/10 bg-[#07090e]/90 p-5 rounded-sm space-y-4">
+                    <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={clearContingency}
-                          className="px-3 py-1.5 rounded-lg bg-space-800 hover:bg-space-700 text-space-300 text-xs border border-space-700"
-                        >
-                          Clear Alert
-                        </button>
-                        <button
-                          onClick={executeEmergencyReturn}
-                          className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-red-600/40"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Execute Abort & Safe Return</span>
-                        </button>
+                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                        <h4 className="text-sm font-bold font-mono text-white uppercase tracking-wider">
+                          Active Anomaly Diagnostics: {contingencyDetails.title}
+                        </h4>
                       </div>
+                      <span className="text-[10px] font-mono text-zinc-400">PROTOCOL: {contingencyDetails.protocolCode || 'NASA-ECLSS-04'}</span>
+                    </div>
+
+                    <div className="text-xs text-zinc-300 font-light leading-relaxed">
+                      {contingencyDetails.narrative}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2 font-mono text-xs">
+                      <div className="p-3 bg-black/40 border border-white/[0.06] rounded-sm">
+                        <div className="text-[9px] text-zinc-400 uppercase tracking-widest">Walkback Margin</div>
+                        <div className="text-sm font-bold text-rose-400 mt-1">{contingencyDetails.walkbackImpact || '-45%'}</div>
+                      </div>
+                      <div className="p-3 bg-black/40 border border-white/[0.06] rounded-sm">
+                        <div className="text-[9px] text-zinc-400 uppercase tracking-widest">Time to Intercept</div>
+                        <div className="text-sm font-bold text-amber-400 mt-1">{contingencyDetails.timeToImpact || '18 MIN'}</div>
+                      </div>
+                      <div className="p-3 bg-black/40 border border-white/[0.06] rounded-sm col-span-2 sm:col-span-1">
+                        <div className="text-[9px] text-zinc-400 uppercase tracking-widest">Severity Tier</div>
+                        <div className="text-sm font-bold text-white mt-1">CLASS 4 ANOMALY</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-3 border-t border-white/[0.08]">
+                      <button
+                        onClick={executeEmergencyReturn}
+                        className="bg-white hover:bg-zinc-200 text-black px-5 py-2.5 text-xs font-mono font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-2 cursor-pointer shadow-md"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>RE-ROUTE TO NEAREST AIRLOCK</span>
+                      </button>
+
+                      <button
+                        onClick={clearContingency}
+                        className="border border-white/10 hover:border-white/20 text-zinc-300 hover:text-white px-4 py-2.5 text-xs font-mono uppercase tracking-wider rounded-sm transition-all cursor-pointer"
+                      >
+                        STAND DOWN DRILL
+                      </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="p-6 rounded-xl border border-dashed border-space-800 text-center text-space-400">
-                    <CheckCircle2 className="w-8 h-8 text-green-500/60 mx-auto mb-2" />
-                    <p className="font-bold text-white text-xs">Traverse Parameters Nominal</p>
-                    <p className="text-[11px] mt-1 text-space-400">
-                      Select one of the 4 contingency buttons above to inject simulated Martian anomalies.
-                    </p>
+                  <div className="p-6 rounded-sm border border-dashed border-white/10 text-center font-mono text-xs text-zinc-400">
+                    All environmental parameters nominal. Select any scenario above to inject a simulated Martian surface crisis.
                   </div>
                 )}
+
               </div>
             </motion.div>
           </div>
