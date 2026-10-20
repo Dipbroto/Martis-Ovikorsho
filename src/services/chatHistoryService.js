@@ -4,7 +4,7 @@ const STORAGE_PREFIX = 'ares_chat_history_';
 
 const DEFAULT_GREETING = {
   role: 'model',
-  text: "A.R.E.S. Autonomous Uplink Online. I am authorized to operate surface navigation, plot EVA traverses, control 2D/3D orbital viewports, and execute mission contingencies. State your objective, Commander.",
+  text: "EVA Autonomous Uplink Online. I am authorized to operate surface navigation, plot EVA traverses, control 2D/3D viewports, and execute mission contingencies. State your objective, Commander.",
   timestamp: new Date().toISOString()
 };
 

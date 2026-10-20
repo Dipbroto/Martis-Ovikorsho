@@ -7,6 +7,13 @@ const initialSol = getSolFromDate();
 
 const useMapStore = create((set, get) => ({
   // ========================
+  // ========================
+  // NAVIGATION & TAB STATE
+  // ========================
+  activeTab: 'home', // 'home' | 'map' | 'science' | 'sky' | 'contingency' | 'imagery'
+  setActiveTab: (tab) => set({ activeTab: tab }),
+
+  // ========================
   // MAP STATE
   // ========================
   mapCenter: [0, 0], // Global Mars Equator & Prime Meridian

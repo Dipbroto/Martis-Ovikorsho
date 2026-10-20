@@ -258,20 +258,20 @@ export default function AresCopilotModal() {
           <div className="p-4 border-b border-purple-500/25 bg-purple-950/20 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className="w-10 h-10 rounded-2xl bg-purple-600/20 border border-purple-400/50 flex items-center justify-center text-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.3)]">
-                  <Bot className="w-5 h-5" />
+                <div className="w-11 h-11 rounded-2xl overflow-hidden border-2 border-cyan-400/60 shadow-[0_0_18px_rgba(6,182,212,0.45)] bg-[#04060b] flex items-center justify-center shrink-0">
+                  <img src="/ares-mascot.jpg" alt="EVA Mascot" className="w-full h-full object-cover" />
                 </div>
-                <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#07090E] animate-pulse" />
+                <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#07090E] animate-pulse" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-display font-black text-sm tracking-widest text-white uppercase">A.R.E.S. Copilot</h3>
-                  <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  <h3 className="font-display font-black text-sm tracking-widest text-white uppercase">EVA COPILOT</h3>
+                  <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
                     AUTONOMOUS
                   </span>
                 </div>
-                <p className="text-[10px] font-mono text-purple-300/70">
-                  {user ? `Connected: ${user.email}` : 'Autonomous Martian Flight Agent'}
+                <p className="text-[10px] font-mono text-cyan-300/80">
+                  {user ? `Connected: ${user.email}` : 'Autonomous Martian Flight Agent · EVA AI'}
                 </p>
               </div>
             </div>
@@ -333,12 +333,15 @@ export default function AresCopilotModal() {
                 key={msg.id || idx} 
                 className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} max-w-full`}
               >
-                <div className="flex items-center gap-1.5 mb-1 text-[9px] font-mono tracking-wider opacity-60">
+                <div className="flex items-center gap-1.5 mb-1.5 text-[9px] font-mono tracking-wider opacity-90">
                   {msg.role === 'user' ? (
                     <span className="text-cyan-400 uppercase font-semibold">COMMANDER</span>
                   ) : (
-                    <span className="text-purple-400 uppercase font-semibold flex items-center gap-1">
-                      <Sparkles className="w-2.5 h-2.5 text-purple-400" /> A.R.E.S. MISSION CONTROL
+                    <span className="text-cyan-300 uppercase font-semibold flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded-full overflow-hidden border border-cyan-400/60 shadow-[0_0_8px_rgba(6,182,212,0.4)] shrink-0">
+                        <img src="/ares-mascot.jpg" alt="EVA" className="w-full h-full object-cover" />
+                      </div>
+                      <span>EVA · MISSION COPILOT</span>
                     </span>
                   )}
                 </div>
@@ -372,7 +375,7 @@ export default function AresCopilotModal() {
             {isProcessing && (
               <div className="flex flex-col items-start">
                 <span className="text-[9px] font-mono tracking-wider text-purple-400 opacity-60 mb-1 flex items-center gap-1">
-                  <Sparkles className="w-2.5 h-2.5" /> A.R.E.S. PROCESSING
+                  <Sparkles className="w-2.5 h-2.5" /> EVA PROCESSING
                 </span>
                 <div className="p-3.5 rounded-2xl bg-purple-950/25 border border-purple-500/30 text-purple-200 text-xs font-mono flex items-center gap-2.5 shadow-md">
                   <Loader2 className="w-3.5 h-3.5 text-purple-400 animate-spin" />

@@ -250,7 +250,7 @@ export async function generateFlightBrief(waypoints, distance, weatherInfo) {
 export async function chatWithMissionControl(message, history = [], appState = {}) {
   if (!API_KEY) {
     return {
-      text: "A.R.E.S. Offline: Missing Gemini API Key. Please verify .env.local configuration.",
+      text: "EVA Offline: Missing Gemini API Key. Please verify .env configuration.",
       action: null
     };
   }
@@ -261,7 +261,7 @@ export async function chatWithMissionControl(message, history = [], appState = {
   });
 
   const systemInstruction = `
-You are 'A.R.E.S.' (Automated Reconnaissance & Exploration Specialist), the autonomous AI Mission Controller for the NASA MarsWalk Explorer program.
+You are 'EVA' (Exploration Virtual Assistant), the cute, intelligent, and autonomous AI Mission Copilot & Mascot for the NASA MarsWalk Explorer program.
 You are directly integrated into the MarsWalk Explorer web platform and possess FULL AUTONOMOUS CONTROL over the application interface.
 
 ${MARS_KNOWLEDGE}
