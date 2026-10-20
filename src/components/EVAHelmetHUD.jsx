@@ -1,10 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { 
-  X, Compass, Heart, Wind, ShieldAlert, Navigation, 
-  ChevronRight, ChevronLeft, Play, Pause, Radio, Eye, CheckCircle2, AlertTriangle, Mountain,
-  Minimize2, Maximize2, ChevronUp, ChevronDown
-} from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { X, Compass, Heart, Navigation, ChevronRight, ChevronLeft, Play, Pause, Radio, ChevronUp, ChevronDown } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { marsAudio } from '../utils/audioSynthesizer';
 import { marsDistance, calculateSlope } from '../utils/marsUtils';
 
@@ -15,7 +12,6 @@ export default function EVAHelmetHUD() {
     waypoints, 
     evaCurrentWaypointIndex, 
     setEVACurrentWaypointIndex,
-    weather,
     currentSol,
     isRoverDriving,
     setRoverDriving,
@@ -23,7 +19,7 @@ export default function EVAHelmetHUD() {
     setRoverProgress,
     roverBatterySoC,
     setDriveTargetWaypointId,
-  } = useMapStore();
+  } = useMapStore(useShallow((s) => ({ isEVASimulating: s.isEVASimulating, setEVASimulating: s.setEVASimulating, waypoints: s.waypoints, evaCurrentWaypointIndex: s.evaCurrentWaypointIndex, setEVACurrentWaypointIndex: s.setEVACurrentWaypointIndex, currentSol: s.currentSol, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, roverBatterySoC: s.roverBatterySoC, setDriveTargetWaypointId: s.setDriveTargetWaypointId })));
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [lidarEnabled, setLidarEnabled] = useState(true);

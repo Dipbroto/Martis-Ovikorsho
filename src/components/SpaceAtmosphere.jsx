@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function SpaceAtmosphere() {
   const canvasRef = useRef(null);
@@ -39,9 +39,15 @@ export default function SpaceAtmosphere() {
       color: Math.random() > 0.5 ? '#E27B58' : '#FF4C29'
     }));
 
+    // Decorative layer: cap at ~30fps and stop entirely while the tab is hidden
+    const FRAME_MS = 1000 / 30;
+    let lastFrame = 0;
     let t = 0;
-    const render = () => {
-      t += 0.016;
+    const render = (now = 0) => {
+      animId = requestAnimationFrame(render);
+      if (document.hidden || now - lastFrame < FRAME_MS) return;
+      lastFrame = now;
+      t += 0.033;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       for (let i = 0; i < stars.length; i++) {
@@ -72,10 +78,9 @@ export default function SpaceAtmosphere() {
       }
 
       ctx.globalAlpha = 1.0;
-      animId = requestAnimationFrame(render);
     };
 
-    render();
+    animId = requestAnimationFrame(render);
 
     return () => {
       cancelAnimationFrame(animId);

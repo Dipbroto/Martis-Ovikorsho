@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import useMapStore from '../store/useMapStore';
 import { Layers, Eye, EyeOff, Info, ChevronDown, ChevronRight, Mountain, Thermometer, FlaskConical, Map as MapIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProvenanceBadge from './ProvenanceBadge';
+import { marsLayers, LAYER_CATEGORIES } from '../data/marsLayers';
 
 const categoryIcons = {
   'topography': Mountain,
-  'temperature': Thermometer,
+  'thermal': Thermometer,
   'composition': FlaskConical,
   'imagery': MapIcon
 };
+
+// Layers are grouped by the category labels defined in the layer data
+const CATEGORY_LIST = Object.values(LAYER_CATEGORIES);
 
 const LayerItem = ({ layer, isActive, opacity, onToggle, onOpacityChange }) => {
   const [showInfo, setShowInfo] = useState(false);
@@ -95,7 +99,7 @@ const LayerCategory = ({ categoryId, categoryName, layers }) => {
   const toggleLayer = useMapStore(state => state.toggleLayer);
   const setLayerOpacity = useMapStore(state => state.setLayerOpacity);
 
-  const Icon = categoryIcons[categoryId] || Layers;
+  const Icon = categoryIcons[String(categoryId).toLowerCase()] || Layers;
 
   return (
     <div className="mb-4 border-b border-white/[0.04] pb-3 last:border-0">
@@ -138,26 +142,8 @@ const LayerCategory = ({ categoryId, categoryName, layers }) => {
 };
 
 const LayerPanel = () => {
-  let LAYER_CATEGORIES = [];
-  let marsLayers = [];
-  try {
-    const data = require('../data/marsLayers');
-    marsLayers = data.marsLayers || [];
-    LAYER_CATEGORIES = data.LAYER_CATEGORIES || [
-      { id: 'imagery', name: 'Global Imagery' },
-      { id: 'topography', name: 'Topography & Elevation' },
-      { id: 'composition', name: 'Mineral Composition' }
-    ];
-  } catch (e) {
-    LAYER_CATEGORIES = [
-      { id: 'imagery', name: 'Global Imagery' },
-      { id: 'topography', name: 'Topography & Elevation' },
-      { id: 'composition', name: 'Mineral Composition' }
-    ];
-  }
-
   const getLayersForCategory = (categoryId) => {
-    return marsLayers.filter(l => l.category === categoryId || l.categoryId === categoryId);
+    return marsLayers.filter(l => l.category === categoryId);
   };
 
   return (
@@ -172,15 +158,15 @@ const LayerPanel = () => {
         </div>
       </div>
       
-      {LAYER_CATEGORIES.map(cat => {
-        const catLayers = getLayersForCategory(cat.id);
+      {CATEGORY_LIST.map(category => {
+        const catLayers = getLayersForCategory(category);
         if (catLayers.length === 0) return null;
         
         return (
           <LayerCategory 
-            key={cat.id} 
-            categoryId={cat.id} 
-            categoryName={cat.name} 
+            key={category} 
+            categoryId={category} 
+            categoryName={category} 
             layers={catLayers} 
           />
         );

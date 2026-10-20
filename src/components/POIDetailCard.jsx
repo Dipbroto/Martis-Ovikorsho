@@ -1,10 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, MapPin, Navigation, Rocket, Mountain, Info, Target, 
-  Calendar, User, FlaskConical, Camera, Search, Compass, ExternalLink 
-} from 'lucide-react';
+import { X, MapPin, Navigation, Mountain, Target, FlaskConical, Camera, Search, Compass } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { landingSites } from '../data/landingSites';
 import { geologicalFeatures } from '../data/geologicalFeatures';
 import { marsAudio } from '../utils/audioSynthesizer';
@@ -18,7 +16,7 @@ const POIDetailCard = () => {
     setScienceLabOpen,
     setImageryModalOpen,
     flyToCoordinate
-  } = useMapStore();
+  } = useMapStore(useShallow((s) => ({ selectedPOI: s.selectedPOI, setSelectedPOI: s.setSelectedPOI, addWaypoint: s.addWaypoint, setScienceLabOpen: s.setScienceLabOpen, setImageryModalOpen: s.setImageryModalOpen, flyToCoordinate: s.flyToCoordinate })));
 
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'landing' | 'geology'
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,14 +42,13 @@ const POIDetailCard = () => {
   const handleSelectPOI = (poi) => {
     marsAudio.playUiClick?.();
     setSelectedPOI(poi);
-    const lon = poi.lon !== undefined ? poi.lon : (poi.lng !== undefined ? poi.lng : 0);
+    const lon = poi.lon;
     flyToCoordinate(poi.lat, lon, 5);
-    document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleNavigate = () => {
     if (!selectedPOI) return;
-    const lon = selectedPOI.lon !== undefined ? selectedPOI.lon : (selectedPOI.lng !== undefined ? selectedPOI.lng : 0);
+    const lon = selectedPOI.lon;
     addWaypoint({
       id: Date.now().toString(),
       lat: selectedPOI.lat,
@@ -174,7 +171,7 @@ const POIDetailCard = () => {
 
                 <div className="flex items-center justify-between text-[9px] font-mono text-space-400 mt-1">
                   <span>
-                    {(poi.lat || 0).toFixed(2)}°, {(poi.lon !== undefined ? poi.lon : (poi.lng || 0)).toFixed(2)}°
+                    {(poi.lat || 0).toFixed(2)}°, {poi.lon.toFixed(2)}°
                   </span>
                   <span className={`px-1.5 py-0.2 rounded ${
                     poi.status === 'Active' ? 'text-emerald-400 bg-emerald-500/10' : 'text-space-400'
@@ -293,7 +290,7 @@ const POIDetailCard = () => {
                 <MapPin size={11} className="mr-1 text-[#F16938]" /> Coordinates
               </div>
               <div className="text-cyan-300 font-bold tabular-nums">
-                {(selectedPOI.lat || 0).toFixed(4)}°, {(selectedPOI.lon !== undefined ? selectedPOI.lon : (selectedPOI.lng || 0)).toFixed(4)}°
+                {(selectedPOI.lat || 0).toFixed(4)}°, {selectedPOI.lon.toFixed(4)}°
               </div>
             </div>
 

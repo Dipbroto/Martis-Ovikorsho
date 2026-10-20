@@ -1,10 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Bot, Send, X, Trash2, Sparkles, CheckCircle2, AlertTriangle, 
-  MapPin, Compass, Eye, ShieldAlert, Play, FlaskConical, Maximize2, 
-  Minimize2, Volume2, Database, Loader2, Cpu, ArrowRight
-} from 'lucide-react';
+import { Send, X, Trash2, Sparkles, CheckCircle2, Maximize2, Minimize2, Loader2 } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { chatWithMissionControl } from '../services/aiService';
 import { loadChatHistory, saveChatMessage, clearChatHistory } from '../services/chatHistoryService';
@@ -44,6 +40,7 @@ export default function AresCopilotModal() {
   const setEVASimulating = useMapStore(s => s.setEVASimulating);
   const toggleAudio = useMapStore(s => s.toggleAudio);
   const setProfileModalOpen = useMapStore(s => s.setProfileModalOpen);
+  const setActiveTab = useMapStore(s => s.setActiveTab);
   const setAudioRackOpen = useMapStore(s => s.setAudioRackOpen);
 
   const [messages, setMessages] = useState([]);
@@ -52,6 +49,9 @@ export default function AresCopilotModal() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeActionNotification, setActiveActionNotification] = useState(null);
   const scrollRef = useRef(null);
+  const toastTimerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   // Load chat history from Supabase / localStorage on mount or user change
   useEffect(() => {
@@ -93,7 +93,7 @@ export default function AresCopilotModal() {
           setSidebarTab('route');
           setSidebarOpen(true);
           flyToCoordinate(generatedWps[0].lat, generatedWps[0].lon, 4);
-          document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
+          setActiveTab('map');
           summaryText = `Plotted route: ${args.destination_name || 'Target Region'} (${generatedWps.length} stations)`;
         }
         break;
@@ -109,7 +109,7 @@ export default function AresCopilotModal() {
         const mode = (args.mode || '2d').toLowerCase();
         if (['2d', '3d', 'split'].includes(mode)) {
           setViewMode(mode);
-          document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
+          setActiveTab('map');
           summaryText = `Switched viewport to ${mode.toUpperCase()} mode.`;
         }
         break;
@@ -120,7 +120,7 @@ export default function AresCopilotModal() {
         const lon = Number(args.lon);
         const zoom = Number(args.zoom) || 4;
         flyToCoordinate(lat, lon, zoom);
-        document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
+        setActiveTab('map');
         summaryText = `Centered camera on ${args.location_name} [${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E].`;
         break;
       }
@@ -134,14 +134,14 @@ export default function AresCopilotModal() {
         else if (feature === 'eva_hud') setEVASimulating(true);
         else if (feature === 'profile_dashboard') setProfileModalOpen(true);
         else if (feature === 'audio_rack') setAudioRackOpen(true);
-        summaryText = `Opened module: ${feature.replace('_', ' ').toUpperCase()}`;
+        summaryText = `Opened module: ${String(feature).replaceAll('_', ' ').toUpperCase()}`;
         break;
       }
 
       case "trigger_contingency": {
         const type = args.contingency_type || 'dust_storm';
         triggerContingency(type);
-        document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
+        setActiveTab('map');
         summaryText = `Initiated emergency contingency: ${type.toUpperCase()}`;
         break;
       }
@@ -154,7 +154,7 @@ export default function AresCopilotModal() {
 
       case "start_eva_simulation": {
         setEVASimulating(true);
-        document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
+        setActiveTab('map');
         summaryText = "Initialized EVA Astronaut Helmet HUD.";
         break;
       }
@@ -167,8 +167,11 @@ export default function AresCopilotModal() {
 
       case "scroll_to_section": {
         const secId = args.section_id || 'section-map';
-        document.getElementById(secId)?.scrollIntoView({ behavior: 'smooth' });
-        summaryText = `Navigated view to ${secId.replace('section-', '').toUpperCase()}`;
+        const tab = secId.replace('section-', '');
+        if (['home', 'map', 'imagery', 'sky', 'science', 'contingency'].includes(tab)) {
+          setActiveTab(tab);
+          summaryText = `Navigated view to ${tab.toUpperCase()}`;
+        }
         break;
       }
 
@@ -178,7 +181,8 @@ export default function AresCopilotModal() {
 
     if (summaryText) {
       setActiveActionNotification(summaryText);
-      setTimeout(() => setActiveActionNotification(null), 4000);
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setActiveActionNotification(null), 4000);
     }
 
     return summaryText;
@@ -200,36 +204,41 @@ export default function AresCopilotModal() {
     setMessages(prev => [...prev, userMsg]);
     setIsProcessing(true);
 
-    // 2. Telemetry state snapshot for Gemini context
-    const appState = {
-      viewMode,
-      currentSol,
-      cursorPosition,
-      waypointCount: waypoints?.length || 0
-    };
+    try {
+      // 2. Telemetry state snapshot for Gemini context
+      const appState = {
+        viewMode,
+        currentSol,
+        cursorPosition,
+        waypointCount: waypoints?.length || 0
+      };
 
-    // 3. Request Gemini Agent response
-    const agentResult = await chatWithMissionControl(query, messages, appState);
+      // 3. Request Gemini Agent response
+      const agentResult = await chatWithMissionControl(query, messages, appState);
 
-    // 4. If autonomous action was returned, execute it!
-    let actionExecutedSummary = null;
-    if (agentResult?.action) {
-      actionExecutedSummary = executeAutonomousAction(agentResult.action);
+      // 4. If autonomous action was returned, execute it!
+      let actionExecutedSummary = null;
+      if (agentResult?.action) {
+        actionExecutedSummary = executeAutonomousAction(agentResult.action);
+      }
+
+      // 5. Persist and render AI message
+      const modelMsg = await saveChatMessage({
+        userId: user?.id,
+        role: 'model',
+        text: agentResult?.text || "Telemetry synchronized.",
+        actionData: agentResult?.action ? {
+          ...agentResult.action,
+          executionSummary: actionExecutedSummary
+        } : null
+      });
+
+      setMessages(prev => [...prev, modelMsg]);
+    } catch (err) {
+      console.error("A.R.E.S. command failed:", err);
+    } finally {
+      setIsProcessing(false);
     }
-
-    // 5. Persist and render AI message
-    const modelMsg = await saveChatMessage({
-      userId: user?.id,
-      role: 'model',
-      text: agentResult?.text || "Telemetry synchronized.",
-      actionData: agentResult?.action ? {
-        ...agentResult.action,
-        executionSummary: actionExecutedSummary
-      } : null
-    });
-
-    setMessages(prev => [...prev, modelMsg]);
-    setIsProcessing(false);
   };
 
   const handleClearHistory = async () => {
@@ -238,11 +247,10 @@ export default function AresCopilotModal() {
     setMessages(freshHistory);
   };
 
-  if (!isAresCopilotOpen) return null;
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[600] pointer-events-none flex items-end sm:items-center justify-end sm:p-6 p-2">
+      {isAresCopilotOpen && (
+      <div key="ares-copilot" className="fixed inset-0 z-[600] pointer-events-none flex items-end sm:items-center justify-end sm:p-6 p-2">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -431,6 +439,7 @@ export default function AresCopilotModal() {
           </form>
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   );
 }

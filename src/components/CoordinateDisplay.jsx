@@ -1,6 +1,5 @@
-import React from 'react';
 import useMapStore from '../store/useMapStore';
-import { Crosshair, MapPin } from 'lucide-react';
+import { Crosshair } from 'lucide-react';
 import { getElevation } from '../utils/elevationService';
 import ProvenanceBadge from './ProvenanceBadge';
 
@@ -23,7 +22,6 @@ const formatCoord = (val, isLat) => {
 const CoordinateDisplay = () => {
   const cursorPosition = useMapStore(state => state.cursorPosition) || { lat: 0, lon: 0 };
   const isPlacingWaypoint = useMapStore(state => state.isPlacingWaypoint);
-  const rightSidebarOpen = useMapStore(state => state.rightSidebarOpen);
   const bottomPanelOpen = useMapStore(state => state.bottomPanelOpen);
   
   // Real MOLA terrain elevation
@@ -68,7 +66,7 @@ const CoordinateDisplay = () => {
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-space-300 uppercase tracking-[0.12em] font-sans">ELEV</span>
           <span className="text-white font-bold">{elevation.toLocaleString()} m</span>
-          <ProvenanceBadge type="OBSERVED" size="xs" detail="MOLA" />
+          <ProvenanceBadge type="DERIVED" size="xs" detail="MOLA-anchored model" />
         </div>
       </div>
     </div>

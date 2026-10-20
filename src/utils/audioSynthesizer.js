@@ -190,7 +190,7 @@ class MarsAudioSynthesizer {
       gain.connect(this.masterGain);
 
       osc.start(now);
-    } catch (e) {}
+    } catch (e) { /* audio is optional; ignore playback errors */ }
   }
 
   startGeigerLoop(clicksPerSec = 2) {
@@ -272,7 +272,7 @@ class MarsAudioSynthesizer {
       gain.connect(this.masterGain);
       osc.start(now);
       osc.stop(now + 0.04);
-    } catch (e) {}
+    } catch (e) { /* audio is optional; ignore playback errors */ }
   }
 
   playUiHover() {
@@ -291,7 +291,7 @@ class MarsAudioSynthesizer {
       gain.connect(this.masterGain);
       osc.start(now);
       osc.stop(now + 0.02);
-    } catch (e) {}
+    } catch (e) { /* audio is optional; ignore playback errors */ }
   }
 
   playUiSwoosh() {
@@ -312,7 +312,7 @@ class MarsAudioSynthesizer {
       gain.connect(this.masterGain);
       osc.start(now);
       osc.stop(now + 0.08);
-    } catch (e) {}
+    } catch (e) { /* audio is optional; ignore playback errors */ }
   }
 
   playSuccessChime() {
@@ -332,7 +332,7 @@ class MarsAudioSynthesizer {
         osc.start(now + i * 0.08);
         osc.stop(now + i * 0.08 + 0.3);
       });
-    } catch (e) {}
+    } catch (e) { /* audio is optional; ignore playback errors */ }
   }
 
   playLaserZap() {
@@ -368,7 +368,7 @@ class MarsAudioSynthesizer {
       noise.connect(noiseGain);
       noiseGain.connect(this.masterGain);
       noise.start(now + 0.02);
-    } catch (e) {}
+    } catch (e) { /* audio is optional; ignore playback errors */ }
   }
 
   playSampleSeal() {
@@ -393,7 +393,7 @@ class MarsAudioSynthesizer {
       setTimeout(() => {
         this.playSuccessChime();
       }, 160);
-    } catch (e) {}
+    } catch (e) { /* audio is optional; ignore playback errors */ }
   }
 
   getFrequencyData(array) {

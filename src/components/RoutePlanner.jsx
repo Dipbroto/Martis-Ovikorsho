@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { routeDistance, estimateEVATime, marsDistance } from '../utils/marsUtils';
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
 import { expeditionPresets } from '../data/expeditionPresets';
@@ -13,7 +14,8 @@ import { AUTONOMOUS_TARGET_PAIRS, generateAutonomousTraverse } from '../utils/au
 import ProvenanceBadge from './ProvenanceBadge';
 import { marsAudio } from '../utils/audioSynthesizer';
 import { supabase } from '../lib/supabase';
-import { Loader2, CloudFog, CloudLightning, Cloud, UploadCloud } from 'lucide-react';
+import { fetchProfile } from '../services/profileService';
+import { Loader2, UploadCloud } from 'lucide-react';
 
 export default function RoutePlanner() {
   const user = useMapStore(s => s.user);
@@ -26,7 +28,6 @@ export default function RoutePlanner() {
     isPlacingWaypoint, 
     setPlacingWaypoint, 
     removeWaypoint, 
-    removeLastWaypoint,
     undoLastPoint,
     setWaypoints,
     updateWaypoint, 
@@ -39,7 +40,6 @@ export default function RoutePlanner() {
     activeContingency,
     setMapCenter,
     setMapZoom,
-    addWaypoint,
     selectedWaypointId,
     setSelectedWaypoint,
     isRoverDriving,
@@ -48,7 +48,7 @@ export default function RoutePlanner() {
     setRoverProgress,
     driveTargetWaypointId,
     setDriveTargetWaypointId,
-  } = useMapStore();
+  } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, isPlacingWaypoint: s.isPlacingWaypoint, setPlacingWaypoint: s.setPlacingWaypoint, removeWaypoint: s.removeWaypoint, undoLastPoint: s.undoLastPoint, setWaypoints: s.setWaypoints, updateWaypoint: s.updateWaypoint, clearWaypoints: s.clearWaypoints, loadExpeditionPreset: s.loadExpeditionPreset, activePresetId: s.activePresetId, setEVASimulating: s.setEVASimulating, setFlightPlanOpen: s.setFlightPlanOpen, setContingencyModalOpen: s.setContingencyModalOpen, activeContingency: s.activeContingency, setMapCenter: s.setMapCenter, setMapZoom: s.setMapZoom, selectedWaypointId: s.selectedWaypointId, setSelectedWaypoint: s.setSelectedWaypoint, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, driveTargetWaypointId: s.driveTargetWaypointId, setDriveTargetWaypointId: s.setDriveTargetWaypointId })));
 
   const [activeTab, setActiveTab] = useState('manual'); // 'manual' | 'auto'
   const [distance, setDistance] = useState(0);
@@ -88,9 +88,9 @@ export default function RoutePlanner() {
     let sum = 0;
     for (let i = 0; i < waypoints.length - 1; i++) {
       const latA = waypoints[i].lat;
-      const lonA = waypoints[i].lon !== undefined ? waypoints[i].lon : waypoints[i].lng;
+      const lonA = waypoints[i].lon;
       const latB = waypoints[i+1].lat;
-      const lonB = waypoints[i+1].lon !== undefined ? waypoints[i+1].lon : waypoints[i+1].lng;
+      const lonB = waypoints[i+1].lon;
       const d = Math.max(0.01, marsDistance(latA, lonA, latB, lonB));
       sum += d;
       cumDists.push(sum);
@@ -106,7 +106,6 @@ export default function RoutePlanner() {
       setRoverDriving(false);
       setRoverProgress(0);
       marsAudio.playQuindarTone(true);
-    document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
 
@@ -120,8 +119,8 @@ export default function RoutePlanner() {
         for (let i = 1; i < activeWps.length; i++) {
           const p1 = activeWps[i - 1];
           const p2 = activeWps[i];
-          const lon1 = p1.lon !== undefined ? p1.lon : (p1.lng !== undefined ? p1.lng : 0);
-          const lon2 = p2.lon !== undefined ? p2.lon : (p2.lng !== undefined ? p2.lng : 0);
+          const lon1 = p1.lon;
+          const lon2 = p2.lon;
           sum += marsDistance(p1.lat, lon1, p2.lat, lon2);
           if (i === index) targetDist = sum;
         }
@@ -137,12 +136,12 @@ export default function RoutePlanner() {
 
       setDriveTargetWaypointId(wp.id);
       setSelectedWaypoint(wp.id);
-      const displayLon = wp.lon !== undefined ? wp.lon : (wp.lng !== undefined ? wp.lng : 0);
+      const displayLon = wp.lon;
 
       // Frame both rover starting point and target station with optimal framing zoom
       if (activeWps && activeWps.length > 0) {
         const startWp = activeWps[0];
-        const startLon = startWp.lon !== undefined ? startWp.lon : (startWp.lng !== undefined ? startWp.lng : 0);
+        const startLon = startWp.lon;
         const midLat = (startWp.lat + wp.lat) / 2;
         const midLon = (startLon + displayLon) / 2;
         const distKm = marsDistance(startWp.lat, startLon, wp.lat, displayLon);
@@ -167,9 +166,9 @@ export default function RoutePlanner() {
       origin = waypoints[0];
       destination = waypoints[waypoints.length - 1];
       const origLat = origin.lat;
-      const origLon = origin.lon !== undefined ? origin.lon : origin.lng;
+      const origLon = origin.lon;
       const destLat = destination.lat;
-      const destLon = destination.lon !== undefined ? destination.lon : destination.lng;
+      const destLon = destination.lon;
       targetCenter = [(origLat + destLat) / 2, (origLon + destLon) / 2];
       targetZoom = 6;
     } else {
@@ -191,7 +190,6 @@ export default function RoutePlanner() {
         setMapZoom(targetZoom);
       }
       marsAudio.playQuindarTone(true);
-    document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
@@ -213,18 +211,13 @@ export default function RoutePlanner() {
         title,
         waypoints,
         total_distance: distance,
-        is_public: true
+        is_public: false
       });
-      
+
       if (error) throw error;
 
-      // Update Profile Stats
-      const currentProfile = useMapStore.getState().profile;
-      if (currentProfile) {
-        const newTotal = (currentProfile.total_distance_km || 0) + distance;
-        await supabase.from('profiles').update({ total_distance_km: Math.round(newTotal) }).eq('id', user.id);
-        useMapStore.getState().setProfile({ ...currentProfile, total_distance_km: Math.round(newTotal) });
-      }
+      // Profile stats are maintained by a database trigger; just pull the refreshed row
+      await fetchProfile(user.id);
 
       setSyncStatus('success');
       marsAudio.playQuindarTone?.(true);
@@ -251,7 +244,6 @@ export default function RoutePlanner() {
       setMapZoom(7);
     }
     marsAudio.playQuindarTone(true);
-    document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -406,7 +398,7 @@ export default function RoutePlanner() {
                   const g = Math.round(185 + colorRatio * (68 - 185));
                   const b = Math.round(129 + colorRatio * (68 - 129));
                   const wpColor = `rgb(${r}, ${g}, ${b})`;
-                  const displayLon = wp.lon !== undefined ? wp.lon : (wp.lng !== undefined ? wp.lng : 0);
+                  const displayLon = wp.lon;
 
                   return (
                     <motion.div
@@ -419,7 +411,6 @@ export default function RoutePlanner() {
                         setMapCenter([wp.lat, displayLon]);
                         setMapZoom(8);
                         marsAudio.playQuindarTone(true);
-    document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
                       }}
                       className={`flex flex-col gap-1 p-2 rounded-lg group transition-all cursor-pointer border ${
                         selectedWaypointId === wp.id
@@ -462,7 +453,6 @@ export default function RoutePlanner() {
                             onClick={(e) => {
                               e.stopPropagation();
                               handleSimulateToWaypoint(wp, index);
-                                document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
                             }}
                             className={`p-1.5 rounded-md transition-all shrink-0 cursor-pointer ${
                               isRoverDriving && driveTargetWaypointId === wp.id
@@ -505,7 +495,6 @@ export default function RoutePlanner() {
                             onClick={(e) => {
                               e.stopPropagation();
                               handleSimulateToWaypoint(wp, index);
-                                document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
                             }}
                             className={`py-1.5 px-3 rounded-lg font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
                               isRoverDriving && driveTargetWaypointId === wp.id
@@ -745,10 +734,8 @@ export default function RoutePlanner() {
                         }
                         setSelectedWaypoint(wp.id);
                         setMapCenter([wp.lat, wp.lon]);
-                        document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
                         setMapZoom(9);
                         marsAudio.playQuindarTone(true);
-    document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
                       }}
                       className={`p-2 rounded-lg border transition-all cursor-pointer flex flex-col gap-1 ${
                         isSelected
@@ -783,7 +770,6 @@ export default function RoutePlanner() {
                                   }
                                 }
                                 handleSimulateToWaypoint(wp, idx, generatedRouteResult?.waypoints);
-                                document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
                               }}
                               className={`p-1 rounded transition-all cursor-pointer ${
                                 isRoverDriving && driveTargetWaypointId === wp.id
@@ -838,7 +824,6 @@ export default function RoutePlanner() {
                                 }
                               }
                               handleSimulateToWaypoint(wp, idx, generatedRouteResult?.waypoints);
-                                document.getElementById('section-map')?.scrollIntoView({ behavior: 'smooth' });
                             }}
                             className={`py-1.5 px-3 rounded-lg font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
                               isRoverDriving && driveTargetWaypointId === wp.id

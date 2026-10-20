@@ -1,9 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  User, ShieldCheck, X, LogOut, Route, FlaskConical, 
-  Settings, Clock, MapPin, ChevronRight, Lock, Key, Loader2, Play
-} from 'lucide-react';
+import { User, ShieldCheck, X, LogOut, Route, FlaskConical, Settings, Clock, MapPin, Lock, Key, Loader2, Play } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { supabase } from '../lib/supabase';
 import { marsAudio } from '../utils/audioSynthesizer';
@@ -84,11 +81,10 @@ export default function UserProfileDashboard() {
     setProfileModalOpen(false);
   };
 
-  if (!isProfileModalOpen || !user) return null;
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {isProfileModalOpen && user && (
+      <div key="profile-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
         <motion.div 
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 
@@ -355,6 +351,7 @@ export default function UserProfileDashboard() {
           </div>
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   );
 }

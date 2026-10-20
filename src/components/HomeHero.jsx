@@ -1,10 +1,8 @@
-import React, { useState } from 'react';
-import { 
-  ArrowUpRight, ArrowRight, Compass, FlaskConical, Sparkles, 
-  ShieldAlert, Image as ImageIcon, Globe, Activity, Radio, Cpu
-} from 'lucide-react';
+import { useState, lazy, Suspense } from 'react';
+import { ArrowUpRight, ArrowRight, Compass, FlaskConical, Sparkles, ShieldAlert, Image as ImageIcon, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import LunarGravityCard from './ui/lunar-gravity-card';
+// Pulls in three.js / react-three-fiber, so only fetched when the gravity modal is opened
+const LunarGravityCard = lazy(() => import('./ui/lunar-gravity-card'));
 import ErrorBoundary from './ErrorBoundary';
 
 export default function HomeHero({ onSelectTab }) {
@@ -369,10 +367,12 @@ export default function HomeHero({ onSelectTab }) {
               {/* 3D Simulation Body */}
               <div className="flex-1 w-full h-full relative">
                 <ErrorBoundary>
-                  <LunarGravityCard onSelectTab={(tab) => {
-                    setShowGravityModal(false);
-                    onSelectTab?.(tab);
-                  }} />
+                  <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-[11px] font-mono tracking-widest text-zinc-400 animate-pulse">LOADING 3D SIMULATION...</div>}>
+                    <LunarGravityCard onSelectTab={(tab) => {
+                      setShowGravityModal(false);
+                      onSelectTab?.(tab);
+                    }} />
+                  </Suspense>
                 </ErrorBoundary>
               </div>
             </div>

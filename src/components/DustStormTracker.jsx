@@ -1,13 +1,13 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { dustStormSeasons, getSolarLongitude } from '../data/weatherSimulation';
 import { CloudFog, AlertTriangle, Wind, Eye, ShieldAlert, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { motion } from 'framer-motion';
 import ProvenanceBadge from './ProvenanceBadge';
 
 const DustStormTracker = () => {
-  const { currentSol } = useMapStore();
+  const { currentSol } = useMapStore(useShallow((s) => ({ currentSol: s.currentSol })));
   
   const { ls, currentSeason, chartData, currentRiskLevel, riskColor, riskText } = useMemo(() => {
     const currentLs = getSolarLongitude(currentSol);

@@ -10,3 +10,10 @@ dist
 .agents
 skills-lock.json
 *.lnk
+
+venv/
+.venv/
+__pycache__/
+*.pyc
+supabase/.temp/
+!.env.example

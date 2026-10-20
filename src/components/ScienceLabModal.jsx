@@ -1,185 +1,45 @@
-import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FlaskConical, Sparkles, Activity, ShieldCheck, 
-  Layers, Database, CheckCircle2, Zap, 
-  Target, Sliders, Droplets, RefreshCw, Atom, Microscope, Loader2, X
-} from 'lucide-react';
+import { Sparkles, Activity, ShieldCheck, Database, CheckCircle2, Zap, Target, Sliders, Droplets, RefreshCw, Atom, Microscope, Loader2 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar, Cell } from 'recharts';
 import useMapStore from '../store/useMapStore';
-import { marsAudio, playLaserZap, playSampleSeal, playUiClick, playUiHover } from '../utils/audioSynthesizer';
-import { fetchScienceTargets } from '../services/nasaApiService';
-import { generateScienceReport } from '../services/aiService';
+import { marsAudio, playUiClick, playUiHover } from '../utils/audioSynthesizer';
+import useScienceLab from '../hooks/useScienceLab';
 
 export default function ScienceLabModal() {
   const isScienceLabOpen = useMapStore(s => s.isScienceLabOpen);
   const setScienceLabOpen = useMapStore(s => s.setScienceLabOpen);
-  const collectedSamples = useMapStore(s => s.collectedSamples || []);
-  const addSample = useMapStore(s => s.addSample);
-  const [rockTargets, setRockTargets] = useState([]);
-  const [selectedTarget, setSelectedTarget] = useState(null);
-  const [isLoadingTargets, setIsLoadingTargets] = useState(true);
-  
-  // AI State
-  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
-  const [aiReport, setAiReport] = useState(null);
-
-  // Fetch targets from API
-  useEffect(() => {
-    if (isScienceLabOpen && rockTargets.length === 0) {
-      setIsLoadingTargets(true);
-      fetchScienceTargets().then(targets => {
-        setRockTargets(targets);
-        setSelectedTarget(targets[0]);
-        setIsLoadingTargets(false);
-      }).catch(err => {
-        console.error(err);
-        setIsLoadingTargets(false);
-      });
-    }
-  }, [isScienceLabOpen, rockTargets.length]);
-  
-  // Active instrument tab: 'supercam' | 'sherloc' | 'pixl' | 'msr'
-  const [activeInstrument, setActiveInstrument] = useState('supercam');
-
-  // Laser Targeting Canvas states
-  const [laserTargetPos, setLaserTargetPos] = useState({ x: 50, y: 50 });
-  const [ablationPits, setAblationPits] = useState([
-    { id: 1, x: 45, y: 40, label: '#01 Core Matrix' },
-    { id: 2, x: 62, y: 55, label: '#02 Mineral Vein' }
-  ]);
-  const [isFiringLaser, setIsFiringLaser] = useState(false);
-  const [laserBeamActive, setLaserBeamActive] = useState(false);
-
-  // SHERLOC UV Raman states
-  const [uvIntensity, setUvIntensity] = useState(85);
-
-  // Paleo-Groundwater pH Simulator
-  const [paleoPh, setPaleoPh] = useState(7.2);
-
-  // MSR Tube Sealing State
-  const [cachedSuccess, setCachedSuccess] = useState(false);
-  const [customTubeNotes, setCustomTubeNotes] = useState('');
-  const [isSealingTube, setIsSealingTube] = useState(false);
-
-  // Selected Spectral Peak highlight
-  const [highlightedPeak, setHighlightedPeak] = useState(null);
-
-  const target = selectedTarget || rockTargets[0];
-  const safeSamples = Array.isArray(collectedSamples) ? collectedSamples : [];
-
-  // Reset ablation pits when target changes
-  useEffect(() => {
-    setAblationPits([
-      { id: 1, x: 40 + Math.random() * 20, y: 35 + Math.random() * 20, label: '#01 Primary Spot' }
-    ]);
-    setHighlightedPeak(null);
-  }, [selectedTarget?.id]);
-
-  // Click on Rock Surface to Aim and Fire SuperCam Laser
-  const handleCanvasClick = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
-    const y = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
-    
-    setLaserTargetPos({ x, y });
-    triggerLaserAblation(x, y);
-  };
-
-  const triggerLaserAblation = (x, y) => {
-    if (isFiringLaser) return;
-    setIsFiringLaser(true);
-    setLaserBeamActive(true);
-    playLaserZap?.();
-
-    setTimeout(() => {
-      setLaserBeamActive(false);
-      setIsFiringLaser(false);
-      
-      const newPit = {
-        id: Date.now(),
-        x,
-        y,
-        label: `#0${ablationPits.length + 1} LIBS Spot`
-      };
-      setAblationPits(prev => [...prev.slice(-4), newPit]);
-    }, 600);
-  };
-
-  // Run Real AI Spectrometry Analysis
-  const runAiAnalysis = async () => {
-    if (!target) return;
-    setIsAiAnalyzing(true);
-    try {
-      const report = await generateScienceReport(target);
-      setAiReport(report);
-    } catch (e) {
-      console.error(e);
-      setAiReport({
-        mineralogy: target.mineralogy || 'Smectite clays, Fe-Mg Carbonates',
-        phLevel: '7.4 (Neutral to Mildly Alkaline)',
-        biosignatureProbability: target.bpi || 88,
-        analysisNotes: 'Spectrometric profile indicates fine-grained alluvial deposition with high preservation capacity.'
-      });
-    } finally {
-      setIsAiAnalyzing(false);
-    }
-  };
-
-  // Seal sample in MSR tube
-  const handleCacheSample = () => {
-    if (!target) return;
-    setIsSealingTube(true);
-    playSampleSeal?.();
-
-    setTimeout(() => {
-      addSample({
-        id: Date.now().toString(),
-        name: target.name,
-        rockType: target.formation,
-        status: 'SEALED IN CACHE',
-        notes: customTubeNotes || `Harvested from ${target.location}`
-      });
-      setIsSealingTube(false);
-      setCachedSuccess(true);
-      setCustomTubeNotes('');
-      setTimeout(() => setCachedSuccess(false), 3000);
-    }, 1200);
-  };
-
-  // Compute paleo-environmental diagnosis based on pH slider
-  const getPaleoEnvironment = (ph) => {
-    if (ph < 4.5) {
-      return {
-        epoch: 'Early Hesperian (Acidic Groundwater)',
-        regime: 'Hyper-Acidic Brine (pH ' + ph.toFixed(1) + ')',
-        precipitates: 'Jarosite, Ferric Sulfates, Gypsum',
-        habitability: 'Extreme Acidophile Chemolithotrophy Only',
-        color: 'text-amber-400',
-        badge: 'border-amber-500/30 bg-amber-950/30 text-amber-300'
-      };
-    } else if (ph <= 8.2) {
-      return {
-        epoch: 'Noachian (Fluvio-Lacustrine Epoch)',
-        regime: 'Neutral to Mildly Alkaline Lake (pH ' + ph.toFixed(1) + ')',
-        precipitates: 'Smectite Clays, Fe-Mg Carbonates, Silica Gel',
-        habitability: 'Optimal for Microorganic Macromolecule Preservation',
-        color: 'text-emerald-400',
-        badge: 'border-emerald-500/30 bg-emerald-950/30 text-emerald-300'
-      };
-    } else {
-      return {
-        epoch: 'Deep Crustal Serpentinization Epoch',
-        regime: 'Alkaline Hydrothermal Fluids (pH ' + ph.toFixed(1) + ')',
-        precipitates: 'Serpentine, Brucite, Hydrotalcite, Calcite',
-        habitability: 'Abiotic Hydrogen & Methane Generation (CH4/H2 Fuel)',
-        color: 'text-cyan-400',
-        badge: 'border-cyan-500/30 bg-cyan-950/30 text-cyan-300'
-      };
-    }
-  };
-
-  const paleoDiagnosis = getPaleoEnvironment(paleoPh);
+  const {
+    rockTargets,
+    selectedTarget,
+    setSelectedTarget,
+    isLoadingTargets,
+    isAiAnalyzing,
+    aiReport,
+    activeInstrument,
+    setActiveInstrument,
+    laserTargetPos,
+    ablationPits,
+    setAblationPits,
+    isFiringLaser,
+    laserBeamActive,
+    uvIntensity,
+    setUvIntensity,
+    paleoPh,
+    setPaleoPh,
+    cachedSuccess,
+    customTubeNotes,
+    setCustomTubeNotes,
+    isSealingTube,
+    highlightedPeak,
+    setHighlightedPeak,
+    target,
+    safeSamples,
+    handleCanvasClick,
+    triggerLaserAblation,
+    runAiAnalysis,
+    handleCacheSample,
+    paleoDiagnosis,
+  } = useScienceLab({ enabled: isScienceLabOpen });
 
   return (
     <AnimatePresence>

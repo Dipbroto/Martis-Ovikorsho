@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Clock, Camera, FlaskConical, Footprints, Wrench, Microscope, Coffee } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 
 const ACTIVITY_TYPES = {
   traverse: { icon: Footprints, color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/30' },
@@ -13,7 +14,7 @@ const ACTIVITY_TYPES = {
 };
 
 const MissionTimeline = () => {
-  const { missionActivities = [], addActivity, removeActivity, clearActivities } = useMapStore();
+  const { missionActivities = [], addActivity, removeActivity, clearActivities } = useMapStore(useShallow((s) => ({ missionActivities: s.missionActivities, addActivity: s.addActivity, removeActivity: s.removeActivity, clearActivities: s.clearActivities })));
   
   const [form, setForm] = useState({
     type: 'traverse',
@@ -102,7 +103,7 @@ const MissionTimeline = () => {
                 No activities planned yet. Add one above.
               </motion.div>
             ) : (
-              missionActivities.map((activity, index) => {
+              missionActivities.map((activity) => {
                 const actType = activity.type || 'traverse';
                 const config = ACTIVITY_TYPES[actType] || ACTIVITY_TYPES.traverse;
                 const Icon = config.icon;

@@ -1,9 +1,6 @@
-import React from 'react';
-import { 
-  AlertTriangle, ShieldAlert, Wind, HeartPulse, 
-  RotateCcw, ArrowRight, Activity, CheckCircle2, Radio, Compass
-} from 'lucide-react';
+import { AlertTriangle, ShieldAlert, Wind, HeartPulse, RotateCcw, ArrowRight, CheckCircle2 } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 
 const SCENARIO_BUTTONS = [
   {
@@ -52,7 +49,7 @@ export default function ContingencySimulatorPage() {
     clearContingency,
     executeEmergencyReturn,
     setActiveTab
-  } = useMapStore();
+  } = useMapStore(useShallow((s) => ({ activeContingency: s.activeContingency, contingencyDetails: s.contingencyDetails, triggerContingency: s.triggerContingency, clearContingency: s.clearContingency, executeEmergencyReturn: s.executeEmergencyReturn, setActiveTab: s.setActiveTab })));
 
   const handleReturnToMap = () => {
     executeEmergencyReturn();

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, Layers, Route, MapPin, Rocket, ChevronLeft, ChevronRight } from 'lucide-react';
 import useMapStore from '../store/useMapStore';

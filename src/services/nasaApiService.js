@@ -1,4 +1,4 @@
-import { ROCK_TARGETS } from '../data/rockTargets'; // We will create this
+import { ROCK_TARGETS } from '../data/rockTargets';
 
 const NASA_IMAGE_API = 'https://images-api.nasa.gov';
 const JPL_HORIZONS_API = 'https://ssd.jpl.nasa.gov/api/horizons.api';
@@ -42,15 +42,16 @@ export const fetchMarsImagery = async (query = 'Mars Perseverance', page = 1) =>
         instrument: itemData.keywords && itemData.keywords.length > 0 ? itemData.keywords[0] : 'Remote Sensing',
         mission: 'NASA Collection',
         target: 'Martian Surface',
-        sol: itemData.date_created ? itemData.date_created.split('T')[0] : 'Unknown Date',
+        sol: null, // The NASA Image Library has no Martian sol; only the Earth date below is real
         earthDate: itemData.date_created ? itemData.date_created.split('T')[0] : 'Unknown Date',
         type: query.toLowerCase().includes('orbiter') || query.toLowerCase().includes('hirise') ? 'ORBITAL' : 'SURFACE',
         category: 'NASA_API',
         tags: itemData.keywords || ['mars', 'space'],
-        lat: parseFloat((18.4 + (Math.random() * 0.1 - 0.05)).toFixed(4)),
-        lon: parseFloat((77.4 + (Math.random() * 0.1 - 0.05)).toFixed(4)),
-        elevation: Math.floor(Math.random() * 4000) - 2000,
-        ls: (Math.random() * 360).toFixed(1),
+        // The library doesn't georeference its images, so don't invent a location
+        lat: null,
+        lon: null,
+        elevation: null,
+        ls: null,
         credit: 'NASA/JPL-Caltech/PDS',
         resolution: 'N/A'
       };
@@ -84,13 +85,7 @@ export const fetchJplEphemeris = async (target = '401', center = '@499', startTi
 };
 
 /**
- * Simulates fetching high-resolution astrobiological targets from a Planetary Data System (PDS) node.
+ * Returns the curated astrobiological science targets bundled with the app
+ * (a stand-in for a PDS node query).
  */
-export const fetchScienceTargets = async () => {
-  // Simulate network latency for the database query
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(ROCK_TARGETS);
-    }, 1200);
-  });
-};
+export const fetchScienceTargets = async () => ROCK_TARGETS;

@@ -1,16 +1,12 @@
-import React, { useRef, useMemo, useEffect, useState, Suspense } from 'react';
+import { useRef, useMemo, useEffect, useState, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Stars, Html, Line, useTexture, Resize } from '@react-three/drei';
+import { OrbitControls, Stars, Html, Line, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { landingSites } from '../data/landingSites';
-import { geologicalFeatures } from '../data/geologicalFeatures';
 import { playUiClick, playUiHover, playUiSwoosh } from '../utils/audioSynthesizer';
-import { 
-  Play, Pause, RotateCw, Sun, Satellite, Navigation, 
-  MapPin, Sparkles, Layers, Eye, Mountain, Compass, Shield,
-  AlertTriangle, Droplets, Activity, Zap, Radio, Rocket
-} from 'lucide-react';
+import { Play, Pause, Sparkles, Layers, Compass, AlertTriangle, Droplets, Rocket } from 'lucide-react';
 
 // Convert lat/lon (degrees) to 3D sphere coordinate
 const latLonToVector3 = (lat, lon, radius) => {
@@ -53,210 +49,6 @@ const resourceMarkers = [
   { id: 'ice-3', name: 'Arcadia Shallow Permafrost', lat: 39.3, lon: -171.0, type: 'ice', depth: '1.5m depth', volume: 'High Purity', icon: '🧊', color: '#00FFCC', desc: 'Ideal for human Marswalk ISRU harvesting' },
   { id: 'ice-4', name: 'Deuteronilus Glacial Apron', lat: 43.9, lon: 24.3, type: 'ice', depth: '0.8m depth', volume: 'Glacial Core', icon: '🧊', color: '#00FFCC', desc: 'Debris-covered glacial tongue' }
 ];
-
-// Procedural High-Definition Mars Surface Texture (2048 x 1024)
-function createProceduralMarsTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 2048;
-  canvas.height = 1024;
-  const ctx = canvas.getContext('2d');
-
-  // Base Martian ochre gradient with realistic latitudinal temperature banding
-  const baseGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  baseGrad.addColorStop(0, '#f8fafc');    // North Polar Ice Cap (pure white/frost)
-  baseGrad.addColorStop(0.04, '#e2e8f0');
-  baseGrad.addColorStop(0.09, '#c2410c'); // North Subpolar dunes (Vastitas Borealis)
-  baseGrad.addColorStop(0.25, '#d97706'); // Northern plains (Acidalia / Utopia)
-  baseGrad.addColorStop(0.48, '#9a3412'); // Equatorial highlands
-  baseGrad.addColorStop(0.52, '#7c2d12'); // Deep rust
-  baseGrad.addColorStop(0.72, '#b45309'); // Southern cratered highlands
-  baseGrad.addColorStop(0.92, '#ea580c'); // South subpolar
-  baseGrad.addColorStop(0.96, '#e2e8f0');
-  baseGrad.addColorStop(1, '#ffffff');    // South Polar Ice Cap
-  ctx.fillStyle = baseGrad;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Micro-noise stippling for terrain granular texture
-  ctx.fillStyle = 'rgba(67, 20, 7, 0.08)';
-  for (let i = 0; i < 8000; i++) {
-    const rx = Math.random() * canvas.width;
-    const ry = 80 + Math.random() * (canvas.height - 160);
-    ctx.fillRect(rx, ry, 1.5, 1.5);
-  }
-
-  // Major Dark Albedo Lowlands & Basaltic Provinces
-  ctx.fillStyle = 'rgba(56, 15, 6, 0.65)';
-  ctx.beginPath();
-  ctx.ellipse(1460, 470, 190, 130, Math.PI / 5, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.ellipse(820, 310, 240, 150, -Math.PI / 10, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.ellipse(1120, 520, 340, 75, -Math.PI / 30, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.ellipse(1680, 620, 280, 110, Math.PI / 18, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.ellipse(640, 640, 90, 65, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.ellipse(1780, 300, 210, 120, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Valles Marineris Canyon System
-  ctx.strokeStyle = 'rgba(30, 8, 3, 0.85)';
-  ctx.lineWidth = 14;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(560, 530);
-  ctx.bezierCurveTo(720, 560, 840, 545, 960, 575);
-  ctx.stroke();
-
-  // Canyon tributaries
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(680, 510);
-  ctx.lineTo(760, 535);
-  ctx.moveTo(790, 545);
-  ctx.lineTo(840, 600);
-  ctx.stroke();
-
-  // Tharsis Volcanic Shield Plateaus
-  ctx.fillStyle = 'rgba(234, 88, 12, 0.4)';
-  ctx.beginPath();
-  ctx.ellipse(440, 500, 260, 240, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Olympus Mons Caldera & Outer Aureole Scarp
-  const oGrad = ctx.createRadialGradient(420, 410, 8, 420, 410, 68);
-  oGrad.addColorStop(0, '#f97316');
-  oGrad.addColorStop(0.3, '#ea580c');
-  oGrad.addColorStop(0.85, '#9a3412');
-  oGrad.addColorStop(1, 'rgba(40, 10, 4, 0.7)');
-  ctx.fillStyle = oGrad;
-  ctx.beginPath();
-  ctx.arc(420, 410, 65, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(30, 8, 3, 0.8)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(420, 410, 12, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Tharsis Montes Trio
-  const tharsisPeaks = [
-    { x: 520, y: 440, r: 24, name: 'Ascraeus' },
-    { x: 490, y: 510, r: 22, name: 'Pavonis' },
-    { x: 460, y: 580, r: 26, name: 'Arsia' }
-  ];
-  tharsisPeaks.forEach(peak => {
-    ctx.fillStyle = 'rgba(194, 65, 12, 0.7)';
-    ctx.beginPath();
-    ctx.arc(peak.x, peak.y, peak.r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(40, 10, 4, 0.6)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  });
-
-  // Elysium Mons
-  ctx.fillStyle = 'rgba(194, 65, 12, 0.6)';
-  ctx.beginPath();
-  ctx.arc(1720, 390, 35, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Hellas Planitia Basin
-  const hellasGrad = ctx.createRadialGradient(1380, 720, 10, 1380, 720, 140);
-  hellasGrad.addColorStop(0, 'rgba(234, 179, 8, 0.45)');
-  hellasGrad.addColorStop(0.8, 'rgba(154, 52, 18, 0.4)');
-  hellasGrad.addColorStop(1, 'rgba(67, 20, 7, 0.2)');
-  ctx.fillStyle = hellasGrad;
-  ctx.beginPath();
-  ctx.arc(1380, 720, 135, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Impact craters
-  for (let i = 0; i < 450; i++) {
-    const cx = Math.random() * canvas.width;
-    const cy = 110 + Math.random() * (canvas.height - 220);
-    const cr = 2 + Math.random() * 9;
-    ctx.fillStyle = 'rgba(45, 12, 5, 0.35)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, cr, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(254, 215, 170, 0.35)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(cx, cy, cr, Math.PI * 0.8, Math.PI * 1.8);
-    ctx.stroke();
-  }
-
-  // Polar Ice Caps
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(canvas.width / 2, 0, 150, 0, Math.PI);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(canvas.width / 2, canvas.height, 110, Math.PI, Math.PI * 2);
-  ctx.fill();
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  return texture;
-}
-
-// Procedural Grayscale Mars Bump / Elevation Map (1024 x 512)
-function createProceduralMarsBumpMap() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = '#808080';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Olympus Mons (+21 km summit)
-  const oGrad = ctx.createRadialGradient(210, 205, 2, 210, 205, 36);
-  oGrad.addColorStop(0, '#ffffff');
-  oGrad.addColorStop(0.4, '#dcdcdc');
-  oGrad.addColorStop(0.85, '#a0a0a0');
-  oGrad.addColorStop(0.9, '#404040');
-  oGrad.addColorStop(1, '#808080');
-  ctx.fillStyle = oGrad;
-  ctx.beginPath();
-  ctx.arc(210, 205, 36, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Tharsis Montes Trio
-  [
-    { x: 260, y: 220, r: 14 },
-    { x: 245, y: 255, r: 13 },
-    { x: 230, y: 290, r: 15 }
-  ].forEach(p => {
-    const grad = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, p.r);
-    grad.addColorStop(0, '#f5f5f5');
-    grad.addColorStop(0.7, '#b0b0b0');
-    grad.addColorStop(1, '#808080');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  return texture;
-}
 
 // Vertical Holographic Laser Light Pillar Beacon
 const HoloBeacon = ({ position, color = '#00FFCC', height = 0.35, label, sublabel, icon = '📍', onClick }) => {
@@ -346,7 +138,7 @@ const HoloBeacon = ({ position, color = '#00FFCC', height = 0.35, label, sublabe
 };
 
 // Pulsing Hazard & Resource Beacon (Expanding Warning Rings)
-const PulsingBeacon = ({ position, color = '#FF4C29', label, sublabel, icon = '⚠️', type = 'hazard' }) => {
+const PulsingBeacon = ({ position, color = '#FF4C29', label, sublabel, icon = '⚠️' }) => {
   const normal = useMemo(() => position.clone().normalize(), [position]);
   const orientation = useMemo(() => {
     const q = new THREE.Quaternion();
@@ -656,7 +448,6 @@ const MarsGlobe = ({
   showEDL = true,
   showDustVortex = true,
   autoRotate = true, 
-  sunMotion = false 
 }) => {
   const globeRef = useRef();
   const radius = 2.0;
@@ -667,7 +458,7 @@ const MarsGlobe = ({
   // Compute 3D positions for Waypoints
   const waypointPositions = useMemo(() => {
     return waypoints.map(wp => {
-      const lon = wp.lon !== undefined ? wp.lon : (wp.lng !== undefined ? wp.lng : 0);
+      const lon = wp.lon;
       return {
         ...wp,
         pos: latLonToVector3(wp.lat, lon, radius + 0.008)
@@ -874,16 +665,16 @@ const MarsGlobe = ({
 
 // Main 3D Planetary Cartography Viewer
 export default function Mars3DViewer() {
-  const { waypoints, bottomPanelOpen } = useMapStore();
+  const { waypoints, bottomPanelOpen } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, bottomPanelOpen: s.bottomPanelOpen })));
   const [hasWebGL, setHasWebGL] = useState(true);
   
   // Interactive 3D Control States
   const [autoRotate, setAutoRotate] = useState(true);
-  const [showHoloBeacons, setShowHoloBeacons] = useState(true);
+  const [showHoloBeacons] = useState(true);
   const [showHazards, setShowHazards] = useState(true);
   const [showResources, setShowResources] = useState(true);
   const [showContours, setShowContours] = useState(true);
-  const [showMROScanner, setShowMROScanner] = useState(true);
+  const [showMROScanner] = useState(true);
   const [showEDL, setShowEDL] = useState(true);
   const [showDustVortex, setShowDustVortex] = useState(true);
   const [cameraTarget, setCameraTarget] = useState(null);

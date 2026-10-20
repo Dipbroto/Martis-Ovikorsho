@@ -1,9 +1,5 @@
-import React, { useState } from 'react';
-import { 
-  Menu, X, Volume2, VolumeX, Bot, User, Maximize, Minimize,
-  Compass, Map as MapIcon, FlaskConical, Sparkles, ShieldAlert, Image as ImageIcon,
-  FileText, Radar, Play, Hexagon
-} from 'lucide-react';
+import { useState } from 'react';
+import { Menu, X, Volume2, VolumeX, User, Maximize, Minimize, ShieldAlert, FileText, Radar, Play, Hexagon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';

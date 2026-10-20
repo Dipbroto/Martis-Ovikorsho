@@ -1,10 +1,7 @@
-import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  AlertTriangle, ShieldAlert, Wind, HeartPulse, 
-  RotateCcw, ArrowRight, X, Activity, CheckCircle2 
-} from 'lucide-react';
+import { AlertTriangle, ShieldAlert, Wind, HeartPulse, RotateCcw, ArrowRight, X } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 
 const SCENARIO_BUTTONS = [
   {
@@ -54,7 +51,7 @@ export default function ContingencySimulator() {
     triggerContingency,
     clearContingency,
     executeEmergencyReturn,
-  } = useMapStore();
+  } = useMapStore(useShallow((s) => ({ activeContingency: s.activeContingency, contingencyDetails: s.contingencyDetails, isContingencyModalOpen: s.isContingencyModalOpen, setContingencyModalOpen: s.setContingencyModalOpen, triggerContingency: s.triggerContingency, clearContingency: s.clearContingency, executeEmergencyReturn: s.executeEmergencyReturn })));
 
   return (
     <>
@@ -163,7 +160,6 @@ export default function ContingencySimulator() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {SCENARIO_BUTTONS.map((btn) => {
-                      const Icon = btn.icon;
                       const isSelected = activeContingency === btn.type;
                       return (
                         <div

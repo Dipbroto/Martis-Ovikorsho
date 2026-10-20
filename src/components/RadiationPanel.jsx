@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { estimateRadiation, routeDistance } from '../utils/marsUtils';
 import { RadioTower, Shield, AlertTriangle, Activity, Heart } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -7,7 +8,7 @@ import { motion } from 'framer-motion';
 import ProvenanceBadge from './ProvenanceBadge';
 
 const RadiationPanel = () => {
-  const { currentSol, waypoints, activeContingency } = useMapStore();
+  const { currentSol, waypoints, activeContingency } = useMapStore(useShallow((s) => ({ currentSol: s.currentSol, waypoints: s.waypoints, activeContingency: s.activeContingency })));
   
   // Simulated elevation based on map center (for demo purposes)
   const elevation = -2500; 
@@ -70,7 +71,6 @@ const RadiationPanel = () => {
   // Gauge calculation
   const gaugePercent = Math.min(100, (radiation.annual / 300) * 100);
   const gaugeCircumference = 2 * Math.PI * 40;
-  const gaugeDashArray = gaugeCircumference;
   const gaugeDashOffset = gaugeCircumference - (gaugePercent / 100) * gaugeCircumference;
 
   return (

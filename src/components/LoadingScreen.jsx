@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 
 const loadingStatuses = [
   'Initializing Mars terrain data...',
@@ -12,7 +13,7 @@ const loadingStatuses = [
 ];
 
 export default function LoadingScreen() {
-  const { showLoadingScreen, setShowLoadingScreen } = useMapStore();
+  const { showLoadingScreen, setShowLoadingScreen } = useMapStore(useShallow((s) => ({ showLoadingScreen: s.showLoadingScreen, setShowLoadingScreen: s.setShowLoadingScreen })));
   const [progress, setProgress] = useState(0);
   const [statusIndex, setStatusIndex] = useState(0);
 

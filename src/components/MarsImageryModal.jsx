@@ -1,9 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, Camera, Search, MapPin, 
-  Navigation, Sparkles, Loader2, ArrowUpRight
-} from 'lucide-react';
+import { Search, MapPin, Navigation, Sparkles, Loader2 } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
 import { fetchMarsImagery } from '../services/nasaApiService';
@@ -37,8 +34,8 @@ export default function MarsImageryModal() {
       const queryStr = `${activeCategory !== 'all' ? activeCategory : ''} ${searchQuery || 'Mars surface'}`.trim();
       fetchMarsImagery(queryStr).then(data => {
         setImages(data);
-        if (data.length > 0 && !inspectingImage) {
-          setInspectingImage(data[0]);
+        if (data.length > 0) {
+          setInspectingImage(prev => prev || data[0]);
         }
         setIsLoading(false);
       });
@@ -49,14 +46,17 @@ export default function MarsImageryModal() {
 
   const filteredImages = images;
 
+  const hasCoords = (img) => typeof img?.lat === 'number' && typeof img?.lon === 'number';
+
   const handleFlyTo = (img) => {
+    if (!hasCoords(img)) return;
     marsAudio.playQuindarTone?.(true);
     flyToCoordinate(img.lat, img.lon, 6);
     setImageryModalOpen(false);
     useMapStore.getState().setActiveTab('map');
   };
 
-  const handleInspectScience = (img) => {
+  const handleInspectScience = () => {
     marsAudio.playUiClick?.();
     setImageryModalOpen(false);
     setScienceLabOpen(true);
@@ -197,7 +197,7 @@ export default function MarsImageryModal() {
                           <div>
                             <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400 mb-0.5">
                               <span className="text-white font-bold">{img.mission}</span>
-                              <span>{img.sol ? `SOL ${img.sol}` : 'ORBIT'}</span>
+                              <span>{img.sol ? `SOL ${img.sol}` : (img.earthDate || 'ORBIT')}</span>
                             </div>
                             <h4 className="font-bold text-xs text-white truncate font-sans">
                               {img.title}
@@ -209,7 +209,7 @@ export default function MarsImageryModal() {
 
                           <div className="text-[9px] font-mono text-zinc-500 flex items-center gap-1 mt-1">
                             <MapPin className="w-2.5 h-2.5 text-[#ff8c69]" />
-                            <span>{img.lat.toFixed(2)}°, {img.lon.toFixed(2)}° · {img.resolution}</span>
+                            <span>{hasCoords(img) ? `${img.lat.toFixed(2)}°, ${img.lon.toFixed(2)}°` : 'Location n/a'} · {img.resolution}</span>
                           </div>
                         </div>
                       </div>
@@ -265,7 +265,9 @@ export default function MarsImageryModal() {
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             onClick={() => handleFlyTo(inspectingImage)}
-                            className="bg-white hover:bg-zinc-200 text-black px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                            disabled={!hasCoords(inspectingImage)}
+                            title={hasCoords(inspectingImage) ? undefined : 'This image has no map coordinates'}
+                            className="disabled:opacity-40 disabled:cursor-not-allowed bg-white hover:bg-zinc-200 text-black px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
                           >
                             <Navigation className="w-3.5 h-3.5" />
                             <span>FLY TO COORDINATE</span>
@@ -290,15 +292,15 @@ export default function MarsImageryModal() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 pt-3 border-t border-white/[0.06] text-xs font-mono">
                       <div className="bg-black/40 p-2.5 rounded-sm border border-white/[0.04]">
                         <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">Coordinates</span>
-                        <span className="text-white font-bold">{inspectingImage.lat.toFixed(4)}°, {inspectingImage.lon.toFixed(4)}°</span>
+                        <span className="text-white font-bold">{hasCoords(inspectingImage) ? `${inspectingImage.lat.toFixed(4)}°, ${inspectingImage.lon.toFixed(4)}°` : 'Not georeferenced'}</span>
                       </div>
                       <div className="bg-black/40 p-2.5 rounded-sm border border-white/[0.04]">
                         <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">Elevation (MOLA)</span>
-                        <span className="text-white font-bold">{inspectingImage.elevation.toLocaleString()} m</span>
+                        <span className="text-white font-bold">{typeof inspectingImage.elevation === 'number' ? `${inspectingImage.elevation.toLocaleString()} m` : 'N/A'}</span>
                       </div>
                       <div className="bg-black/40 p-2.5 rounded-sm border border-white/[0.04]">
                         <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">Solar Longitude</span>
-                        <span className="text-[#ff8c69] font-bold">{inspectingImage.ls}° Ls</span>
+                        <span className="text-[#ff8c69] font-bold">{inspectingImage.ls ? `${inspectingImage.ls}° Ls` : 'N/A'}</span>
                       </div>
                       <div className="bg-black/40 p-2.5 rounded-sm border border-white/[0.04]">
                         <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">Provenance</span>

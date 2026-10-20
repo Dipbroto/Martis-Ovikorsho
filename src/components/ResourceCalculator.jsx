@@ -1,6 +1,6 @@
-import React from 'react';
 import { Droplets, Wind, Zap, Battery, Package, ShieldCheck } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { estimateO2Consumption, estimateWaterConsumption, estimatePowerConsumption } from '../utils/marsUtils';
 
 const ProgressBar = ({ value, max, color }) => {
@@ -31,7 +31,7 @@ const ProgressBar = ({ value, max, color }) => {
 };
 
 const ResourceCalculator = () => {
-  const { missionActivities = [] } = useMapStore();
+  const { missionActivities = [] } = useMapStore(useShallow((s) => ({ missionActivities: s.missionActivities })));
   
   const totalDuration = missionActivities.reduce((acc, curr) => acc + (Number(curr.duration) || 1), 0) || 0;
   

@@ -1,13 +1,14 @@
-import React, { useRef, useState, useEffect, Suspense, useMemo } from 'react';
+import { useRef, useState, useEffect, Suspense, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Sparkles, MessageSquare, Zap, Radio, Move } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
 
 // 3D Cute Robot Mascot matching user reference (Named: EVA)
-function MascotBot({ isHovered, mouseScreenPos }) {
+// `mouseRef.current` holds the normalised cursor position (0-1); read per frame so cursor moves don't re-render React
+function MascotBot({ isHovered, mouseRef }) {
   const botGroupRef = useRef();
   const wavingArmRef = useRef();
   const leftEyeRef = useRef();
@@ -53,8 +54,8 @@ function MascotBot({ isHovered, mouseScreenPos }) {
       botGroupRef.current.position.x = Math.cos(t * 1.8) * 0.04;
 
       // Cursor tracking: Mascot playfully faces mouse cursor
-      const targetRotX = (mouseScreenPos.y - 0.5) * -0.45;
-      const targetRotY = (mouseScreenPos.x - 0.5) * 0.65;
+      const targetRotX = (mouseRef.current.y - 0.5) * -0.45;
+      const targetRotY = (mouseRef.current.x - 0.5) * 0.65;
 
       botGroupRef.current.rotation.x = THREE.MathUtils.lerp(botGroupRef.current.rotation.x, targetRotX, delta * 5);
       botGroupRef.current.rotation.y = THREE.MathUtils.lerp(botGroupRef.current.rotation.y, targetRotY, delta * 5);
@@ -200,15 +201,14 @@ export default function AresFloatingButton() {
 
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [mouseScreenPos, setMouseScreenPos] = useState({ x: 0.5, y: 0.5 });
+  const mouseRef = useRef({ x: 0.5, y: 0.5 });
   const [messageIndex, setMessageIndex] = useState(0);
 
   // Mouse coordinate tracking for the mascot head to follow the cursor
   useEffect(() => {
     const handleMouseMove = (e) => {
-      const x = e.clientX / window.innerWidth;
-      const y = e.clientY / window.innerHeight;
-      setMouseScreenPos({ x, y });
+      mouseRef.current.x = e.clientX / window.innerWidth;
+      mouseRef.current.y = e.clientY / window.innerHeight;
     };
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
@@ -244,7 +244,7 @@ export default function AresFloatingButton() {
           animate={{ opacity: 1, x: 0, scale: 1 }}
           exit={{ opacity: 0, x: -10, scale: 0.92 }}
           transition={{ duration: 0.25 }}
-          onClick={(e) => {
+          onClick={() => {
             if (isDragging) return;
             marsAudio.playUiClick?.();
             setAresCopilotOpen(true);
@@ -277,7 +277,7 @@ export default function AresFloatingButton() {
           marsAudio.playUiHover?.();
         }}
         onMouseLeave={() => setIsHovered(false)}
-        onClick={(e) => {
+        onClick={() => {
           if (isDragging) return;
           marsAudio.playUiClick?.();
           setAresCopilotOpen(true);
@@ -293,9 +293,10 @@ export default function AresFloatingButton() {
             camera={{ position: [0, 0, 2.5], fov: 46 }}
             gl={{ alpha: true, antialias: true }}
             style={{ width: '100%', height: '100%', background: 'transparent' }}
+            dpr={[1, 1.5]}
           >
             <Suspense fallback={null}>
-              <MascotBot isHovered={isHovered} mouseScreenPos={mouseScreenPos} />
+              <MascotBot isHovered={isHovered} mouseRef={mouseRef} />
             </Suspense>
           </Canvas>
         </div>

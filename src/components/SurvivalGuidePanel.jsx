@@ -1,10 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ShieldCheck, Wind, Battery, Droplets, Activity, AlertTriangle, 
-  Flame, Radio, Heart, Compass, CheckCircle2, ChevronRight, Zap,
-  Thermometer, Gauge, Sparkles, RefreshCw
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ShieldCheck, AlertTriangle, Heart, Zap, Thermometer, Gauge } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { marsAudio } from '../utils/audioSynthesizer';
 
 // Circular Progress Component with Glowing SVGs
@@ -88,7 +85,7 @@ const Sparkline = ({ data, color = '#00FFCC', height = 24, width = 80 }) => {
 };
 
 export default function SurvivalGuidePanel() {
-  const { setEVASimulating, setContingencyModalOpen, activeContingency } = useMapStore();
+  const { setEVASimulating, setContingencyModalOpen } = useMapStore(useShallow((s) => ({ setEVASimulating: s.setEVASimulating, setContingencyModalOpen: s.setContingencyModalOpen })));
   const [pulseData, setPulseData] = useState([68, 70, 72, 69, 74, 76, 73, 71, 75, 72]);
   const [o2FluxData, setO2FluxData] = useState([0.38, 0.40, 0.41, 0.39, 0.42, 0.40, 0.38, 0.39]);
   const [activeProtocol, setActiveProtocol] = useState(0);

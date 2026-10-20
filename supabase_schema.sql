@@ -3,8 +3,7 @@
 -- Copy and paste this entirely into your Supabase SQL Editor and hit "Run"
 -- ==============================================================================
 
--- 1. Enable UUID extension
-create extension if not exists "uuid-ossp";
+-- 1. (UUIDs use the built-in gen_random_uuid(), so no extension is required)
 
 -- ==========================================
 -- 2. CREATE TABLES
@@ -23,7 +22,7 @@ create table if not exists public.profiles (
 
 -- MISSIONS: Stores saved EVA routes (waypoints). 
 create table if not exists public.missions (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   user_id uuid references public.profiles(id) on delete cascade not null,
   title text not null,
   description text,
@@ -36,7 +35,7 @@ create table if not exists public.missions (
 
 -- SCIENCE_LOGS: Tracks the samples hermetically sealed in the Science Lab
 create table if not exists public.science_logs (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   user_id uuid references public.profiles(id) on delete cascade not null,
   target_id text not null,
   target_name text not null,
@@ -48,7 +47,7 @@ create table if not exists public.science_logs (
 
 -- AI_CHAT_MESSAGES: Stores conversation history with A.R.E.S. Autonomous Copilot
 create table if not exists public.ai_chat_messages (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   user_id uuid references public.profiles(id) on delete cascade not null,
   role text not null check (role in ('user', 'model', 'system')),
   content text not null,
@@ -109,22 +108,92 @@ drop policy if exists "Users can delete own chat messages." on public.ai_chat_me
 create policy "Users can delete own chat messages." on public.ai_chat_messages for delete using (auth.uid() = user_id);
 
 -- ==========================================
+-- 3b. PROTECT SERVER-MANAGED PROFILE COLUMNS
+-- Clients may only edit their own username/avatar. Rank and stats are written by the
+-- triggers below, so users can't award themselves distance, samples or ranks.
+-- ==========================================
+revoke update on public.profiles from anon, authenticated;
+grant update (username, avatar_url) on public.profiles to authenticated;
+
+create or replace function public.apply_mission_stats()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.profiles
+      set total_distance_km = coalesce(total_distance_km, 0) + round(coalesce(new.total_distance, 0))
+      where id = new.user_id;
+  elsif tg_op = 'DELETE' then
+    update public.profiles
+      set total_distance_km = greatest(0, coalesce(total_distance_km, 0) - round(coalesce(old.total_distance, 0)))
+      where id = old.user_id;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists missions_stats on public.missions;
+create trigger missions_stats
+  after insert or delete on public.missions
+  for each row execute procedure public.apply_mission_stats();
+
+create or replace function public.apply_science_stats()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.profiles
+      set samples_collected = coalesce(samples_collected, 0) + 1
+      where id = new.user_id;
+  elsif tg_op = 'DELETE' then
+    update public.profiles
+      set samples_collected = greatest(0, coalesce(samples_collected, 0) - 1)
+      where id = old.user_id;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists science_logs_stats on public.science_logs;
+create trigger science_logs_stats
+  after insert or delete on public.science_logs
+  for each row execute procedure public.apply_science_stats();
+
+-- ==========================================
 -- 4. AUTOMATIC AUTH TRIGGER
 -- Automatically creates a profile row when a new user signs up
 -- ==========================================
 create or replace function public.handle_new_user()
-returns trigger as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  base_name text := coalesce(
+    nullif(trim(new.raw_user_meta_data->>'username'), ''),
+    'Explorer-' || substr(new.id::text, 1, 6)
+  );
 begin
-  insert into public.profiles (id, username, avatar_url)
-  values (
-    new.id, 
-    coalesce(new.raw_user_meta_data->>'username', 'Explorer-' || substr(new.id::text, 1, 6)), 
-    new.raw_user_meta_data->>'avatar_url'
-  )
-  on conflict (id) do nothing;
+  begin
+    insert into public.profiles (id, username, avatar_url)
+    values (new.id, base_name, new.raw_user_meta_data->>'avatar_url')
+    on conflict (id) do nothing;
+  exception when unique_violation then
+    -- Username already taken: keep the signup working by making the callsign unique
+    insert into public.profiles (id, username, avatar_url)
+    values (new.id, base_name || '-' || substr(new.id::text, 1, 4), new.raw_user_meta_data->>'avatar_url')
+    on conflict (id) do nothing;
+  end;
   return new;
 end;
-$$ language plpgsql security definer;
+$$;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created

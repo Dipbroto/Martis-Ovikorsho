@@ -5,13 +5,27 @@ import { marsAudio } from '../utils/audioSynthesizer';
 
 const initialSol = getSolFromDate();
 
+let idCounter = 0;
+const uniqueId = (prefix) => `${prefix}-${Date.now()}-${(idCounter++).toString(36)}`;
+
+// Accepts legacy `lng` input and always yields a waypoint with a numeric `lon`
+const normalizeWaypoint = (w) => {
+  const { lng, ...rest } = w;
+  return { ...rest, lon: w.lon !== undefined ? w.lon : (lng !== undefined ? lng : 0) };
+};
+
 const useMapStore = create((set, get) => ({
-  // ========================
   // ========================
   // NAVIGATION & TAB STATE
   // ========================
   activeTab: 'home', // 'home' | 'map' | 'science' | 'sky' | 'contingency' | 'imagery'
-  setActiveTab: (tab) => set({ activeTab: tab }),
+  // Switching main tabs closes any lingering overlay modals
+  setActiveTab: (tab) => set({
+    activeTab: tab,
+    isScienceLabOpen: false,
+    isImageryModalOpen: false,
+    isContingencyModalOpen: false,
+  }),
 
   // ========================
   // MAP STATE
@@ -49,21 +63,18 @@ const useMapStore = create((set, get) => ({
   selectedWaypointId: null,
   
   setWaypoints: (waypoints) => set({
-    waypoints: Array.isArray(waypoints) ? waypoints.map(w => ({
-      ...w,
-      lon: w.lon !== undefined ? w.lon : (w.lng !== undefined ? w.lng : 0)
-    })) : [],
+    waypoints: Array.isArray(waypoints) ? waypoints.map(normalizeWaypoint) : [],
     selectedWaypointId: waypoints && waypoints.length > 0 ? waypoints[0]?.id : null,
     driveTargetWaypointId: null,
     isRoverDriving: false,
-    roverProgress: 0
+    roverProgress: 0,
+    roverCurrentPosition: null
   }),
   addWaypoint: (waypoint) => set((state) => ({
     waypoints: [...state.waypoints, {
-      ...waypoint,
-      id: waypoint.id || `wp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      ...normalizeWaypoint(waypoint),
+      id: waypoint.id || uniqueId('wp'),
       name: waypoint.name || `Waypoint ${state.waypoints.length + 1}`,
-      lon: waypoint.lon !== undefined ? waypoint.lon : (waypoint.lng !== undefined ? waypoint.lng : 0),
     }]
   })),
   removeWaypoint: (id) => set((state) => ({
@@ -96,9 +107,9 @@ const useMapStore = create((set, get) => ({
     return {};
   }),
   updateWaypoint: (id, updates) => set((state) => ({
-    waypoints: state.waypoints.map(w => w.id === id ? { ...w, ...updates } : w)
+    waypoints: state.waypoints.map(w => w.id === id ? normalizeWaypoint({ ...w, ...updates }) : w)
   })),
-  clearWaypoints: () => set({ waypoints: [], selectedWaypointId: null, driveTargetWaypointId: null, evaCurrentWaypointIndex: 0, isRoverDriving: false, roverProgress: 0 }),
+  clearWaypoints: () => set({ waypoints: [], selectedWaypointId: null, driveTargetWaypointId: null, evaCurrentWaypointIndex: 0, isRoverDriving: false, roverProgress: 0, roverCurrentPosition: null }),
   clearSelection: () => set({ selectedWaypointId: null, selectedPOI: null }),
   setPlacingWaypoint: (val) => set({ isPlacingWaypoint: val, isRulerActive: false }),
   setSelectedWaypoint: (id) => set({ selectedWaypointId: id }),
@@ -111,9 +122,7 @@ const useMapStore = create((set, get) => ({
   roverProgress: 0, // 0.0 to 1.0 along route
   driveTargetWaypointId: null, // specific waypoint ID for station-targeted simulation or null for full route
   roverCurrentPosition: null, // {lat, lon, bearing, elevation}
-  roverSpeedKmh: 7.2,
   roverBatterySoC: 96, // %
-  roverOdometerKm: 0,
   camFollow: true, // Auto-follow vehicle with camera during drive simulation
   
   setRoverDriving: (val) => {
@@ -126,7 +135,6 @@ const useMapStore = create((set, get) => ({
   setRoverProgress: (prog) => set({ roverProgress: prog }),
   setRoverCurrentPosition: (pos) => set({ roverCurrentPosition: pos }),
   setRoverBatterySoC: (soc) => set({ roverBatterySoC: Math.max(0, Math.min(100, soc)) }),
-  setRoverOdometerKm: (km) => set({ roverOdometerKm: km }),
   setCamFollow: (val) => set({ camFollow: val }),
   toggleCamFollow: () => set((state) => ({ camFollow: !state.camFollow })),
 
@@ -156,16 +164,14 @@ const useMapStore = create((set, get) => ({
       activePresetId: preset.id,
       mapCenter: preset.center,
       mapZoom: preset.zoom,
-      waypoints: (preset.waypoints || []).map(w => ({
-        ...w,
-        lon: w.lon !== undefined ? w.lon : (w.lng !== undefined ? w.lng : 0)
-      })),
+      waypoints: (preset.waypoints || []).map(normalizeWaypoint),
       selectedWaypointId: preset.waypoints?.[0]?.id || null,
       driveTargetWaypointId: null,
       sidebarTab: 'route',
       sidebarOpen: true,
       isRoverDriving: false,
       roverProgress: 0,
+      roverCurrentPosition: null,
       evaCurrentWaypointIndex: 0,
       missionActivities: (preset.timeline || []).map((item, idx) => ({
         id: `act-preset-${idx}`,
@@ -217,7 +223,7 @@ const useMapStore = create((set, get) => ({
   addActivity: (activity) => set((state) => ({
     missionActivities: [...state.missionActivities, {
       ...activity,
-      id: `act-${Date.now()}`,
+      id: uniqueId('act'),
     }]
   })),
   removeActivity: (id) => set((state) => ({
@@ -271,7 +277,7 @@ const useMapStore = create((set, get) => ({
     const next = typeof val === 'boolean' ? val : !state.isScienceLabOpen;
     return {
       isScienceLabOpen: next,
-      ...(next ? { isSkyEphemerisOpen: false, isFlightPlanOpen: false, isEVASimulating: false } : {})
+      ...(next ? { isFlightPlanOpen: false, isEVASimulating: false } : {})
     };
   }),
   addSample: (sample) => set((state) => ({
@@ -282,18 +288,6 @@ const useMapStore = create((set, get) => ({
   })),
 
   // ========================
-  // MARTIAN SKY EPHEMERIS & MOONS
-  // ========================
-  isSkyEphemerisOpen: false,
-  setSkyEphemerisOpen: (val) => set((state) => {
-    const next = typeof val === 'boolean' ? val : !state.isSkyEphemerisOpen;
-    return {
-      isSkyEphemerisOpen: next,
-      ...(next ? { isScienceLabOpen: false, isFlightPlanOpen: false, isEVASimulating: false } : {})
-    };
-  }),
-
-  // ========================
   // FLIGHT PLAN & CHECKLIST
   // ========================
   isFlightPlanOpen: false,
@@ -301,7 +295,7 @@ const useMapStore = create((set, get) => ({
     const next = typeof val === 'boolean' ? val : !state.isFlightPlanOpen;
     return {
       isFlightPlanOpen: next,
-      ...(next ? { isScienceLabOpen: false, isSkyEphemerisOpen: false, isEVASimulating: false } : {})
+      ...(next ? { isScienceLabOpen: false, isEVASimulating: false } : {})
     };
   }),
 
@@ -325,7 +319,7 @@ const useMapStore = create((set, get) => ({
     const next = typeof val === 'boolean' ? val : !state.isImageryModalOpen;
     return {
       isImageryModalOpen: next,
-      ...(next ? { isScienceLabOpen: false, isSkyEphemerisOpen: false, isFlightPlanOpen: false, isEVASimulating: false } : {})
+      ...(next ? { isScienceLabOpen: false, isFlightPlanOpen: false, isEVASimulating: false } : {})
     };
   }),
   setSelectedImage: (img) => set({ selectedImage: img }),
@@ -448,32 +442,37 @@ const useMapStore = create((set, get) => ({
     if (waypoints.length === 0) return;
 
     const baseCamp = waypoints[0];
-    const currentPos = waypoints[Math.min(1, waypoints.length - 1)];
+    // Abort from where the rover actually is; fall back to the first leg if it hasn't moved yet
+    const fallbackPos = waypoints[Math.min(1, waypoints.length - 1)];
+    const currentPos = state.roverCurrentPosition || fallbackPos;
+    const stamp = Date.now();
+    const baseElevation = baseCamp.elevation || 0;
+    const currentElevation = currentPos.elevation || 0;
 
     // Generate direct return route back to base
     const abortWaypoints = [
       {
-        id: `abort-origin-${Date.now()}`,
+        id: `abort-origin-${stamp}`,
         name: `[ABORT START] Current Position`,
         lat: currentPos.lat,
         lon: currentPos.lon,
-        elevation: currentPos.elevation,
+        elevation: currentElevation,
         type: 'abort_origin',
       },
       {
-        id: `abort-intermediate-${Date.now()}`,
+        id: `abort-intermediate-${stamp}`,
         name: `[ABORT CORRIDOR] Emergency Low-Slope Egress`,
         lat: (currentPos.lat + baseCamp.lat) / 2,
         lon: (currentPos.lon + baseCamp.lon) / 2,
-        elevation: (currentPos.elevation + baseCamp.elevation) / 2,
+        elevation: (currentElevation + baseElevation) / 2,
         type: 'abort_corridor',
       },
       {
-        id: `abort-base-${Date.now()}`,
+        id: `abort-base-${stamp}`,
         name: `[PRIMARY REFUGE] ${baseCamp.name || 'Pressurized Basecamp'}`,
         lat: baseCamp.lat,
         lon: baseCamp.lon,
-        elevation: baseCamp.elevation,
+        elevation: baseElevation,
         type: 'abort_refuge',
       },
     ];
@@ -481,8 +480,11 @@ const useMapStore = create((set, get) => ({
     set({
       waypoints: abortWaypoints,
       selectedWaypointId: abortWaypoints[0].id,
+      driveTargetWaypointId: null,
       isRoverDriving: true,
       roverProgress: 0,
+      roverCurrentPosition: null,
+      evaCurrentWaypointIndex: 0,
       isContingencyModalOpen: false,
       sidebarTab: 'route',
       sidebarOpen: true,
@@ -494,7 +496,6 @@ const useMapStore = create((set, get) => ({
   exitAllOverlays: () => set({
     isEVASimulating: false,
     isScienceLabOpen: false,
-    isSkyEphemerisOpen: false,
     isFlightPlanOpen: false,
     isAudioRackOpen: false,
     isContingencyModalOpen: false,

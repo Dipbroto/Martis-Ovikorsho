@@ -1,14 +1,15 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { generateForecast } from '../data/weatherSimulation';
 import { marsDateFromEarthDate } from '../utils/marsUtils';
-import { Thermometer, Wind, CloudFog, Sun, Gauge, Calendar, Info, AlertTriangle } from 'lucide-react';
+import { Thermometer, CloudFog, Sun, Gauge, Calendar, Info, AlertTriangle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
 import ProvenanceBadge from './ProvenanceBadge';
 
 const WeatherPanel = () => {
-  const { currentSol, weather, activeContingency } = useMapStore();
+  const { currentSol, weather, activeContingency } = useMapStore(useShallow((s) => ({ currentSol: s.currentSol, weather: s.weather, activeContingency: s.activeContingency })));
   
   const forecast = useMemo(() => {
     const rawForecast = generateForecast(currentSol, 7);

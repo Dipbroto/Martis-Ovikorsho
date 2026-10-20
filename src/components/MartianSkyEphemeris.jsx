@@ -1,13 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Orbit, Sun, Moon, Sparkles, Compass, Play, Pause, 
-  RotateCcw, Camera, Activity, Eye, Info, Clock, 
-  MapPin, ShieldCheck, ChevronRight, Layers, Radio, Zap,
-  CheckCircle2, AlertTriangle, X, ArrowUpRight
-} from 'lucide-react';
+import { Orbit, Sun, Compass, Play, Pause, RotateCcw, Camera, Activity, Eye, Clock, MapPin, ShieldCheck, Radio, AlertTriangle } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
-import { marsAudio, playUiClick, playUiHover, playUiSwoosh } from '../utils/audioSynthesizer';
+import { marsAudio, playUiClick } from '../utils/audioSynthesizer';
 import { fetchJplEphemeris } from '../services/nasaApiService';
 
 // Scientific Observer Locations with distinct Martian latitudes and elevations
@@ -76,7 +71,7 @@ export default function MartianSkyEphemeris() {
   const [transitTimeSec, setTransitTimeSec] = useState(0); // 0 to 38 seconds
   const [playbackSpeed, setPlaybackSpeed] = useState(1); // 1x, 2x, 4x
   const [selectedFilter, setSelectedFilter] = useState(CAMERA_FILTERS[0]);
-  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [audioEnabled] = useState(true);
 
   // JPL API State
   const [jplData, setJplData] = useState(null);
@@ -95,12 +90,11 @@ export default function MartianSkyEphemeris() {
       marsAudio.playUiSwoosh?.();
     } catch (e) {
       console.error(e);
-      setTimeout(() => {
-        setJplData({ 
-          result: "NASA JPL HORIZONS API TELEMETRY REPORT\n==========================================\nTARGET: 401 (Phobos)\nCENTER: @499 (Mars Geocentric / Areocentric)\nEPOCH: " + new Date().toISOString() + "\n\nOrbital Period: 7h 39m 14s (0.3189 Sol)\nSemimajor Axis: 9,376 km (6,000 km altitude above surface)\nOrbital Inclination: 1.093° to Martian Equator\nEccentricity: 0.0151\nApparent Motion: Retrograde (West to East)\nTidal Acceleration: -1.8 cm / Martian Year (Inward Decay)\nStatus: Nominal High-Precision Ephemeris Online." 
-        });
-        setIsSyncingJpl(false);
-      }, 1000);
+      // Live request unavailable (offline / CORS): show clearly-labelled static reference values
+      setJplData({
+        result: "OFFLINE REFERENCE VALUES - live JPL HORIZONS request was unavailable\n==========================================\nTARGET: 401 (Phobos)\nCENTER: @499 (Mars)\nGENERATED: " + new Date().toISOString() + "\n\nOrbital Period: 7h 39m 14s (0.3189 Sol)\nSemimajor Axis: 9,376 km (6,000 km altitude above surface)\nOrbital Inclination: 1.093° to Martian Equator\nEccentricity: 0.0151\nApparent Motion: West to East (faster than Mars rotates)\nTidal Acceleration: orbit decaying inward\n\nThese are published mean orbital elements, not a live ephemeris."
+      });
+      setIsSyncingJpl(false);
     }
   };
 

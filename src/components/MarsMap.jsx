@@ -5,11 +5,15 @@ import 'leaflet/dist/leaflet.css';
 import useMapStore from '../store/useMapStore';
 import { marsLayers } from '../data/marsLayers';
 import { getElevation } from '../utils/elevationService';
-import { marsDistance, calculateSlope } from '../utils/marsUtils';
+import { marsDistance, calculateSlope, MARS } from '../utils/marsUtils';
 import CoordinateDisplay from './CoordinateDisplay';
 import POIMarkers from './POIMarkers';
 import { marsAudio } from '../utils/audioSynthesizer';
-import { Shield, Play, Pause, Square, Ruler, AlertTriangle, Battery, Gauge, Compass, Globe, Crosshair, RotateCcw, Video, VideoOff, Grid } from 'lucide-react';
+import { Shield, Play, Pause, Ruler, Globe, Crosshair, RotateCcw, Video, VideoOff, Grid } from 'lucide-react';
+
+// Leaflet's geodesic <Circle> converts metres to degrees with Earth's radius when using EPSG:4326,
+// so real Martian distances have to be scaled up to render at the correct size on this map.
+const marsMetersToLeaflet = (meters) => meters * (L.CRS.Earth.R / MARS.RADIUS_M);
 
 // Custom Directional High-Visibility Rover Div Icon with Expanding Radar Pulse Rings & Floating HUD
 const createRoverIcon = (heading = 0, isDriving = false, speed = 14.5) => {
@@ -165,33 +169,46 @@ const MapViewController = () => {
   return null;
 };
 
-// Rover Driver Component running inside MapContainer
+// How often (ms) rover telemetry is pushed into React state / the global store while driving
+const TELEMETRY_SYNC_MS = 120;
+
+// Rover Driver Component running inside MapContainer.
+// Per-frame motion is applied straight to the Leaflet layers; React state and the store
+// are only updated at TELEMETRY_SYNC_MS so the rest of the app doesn't re-render every frame.
 const RoverSimulator = ({ waypoints }) => {
   const map = useMap();
-  const { 
-    isRoverDriving, 
-    setRoverDriving, 
-    roverProgress, 
-    setRoverProgress,
-    roverBatterySoC,
-    setRoverBatterySoC,
-    evaCurrentWaypointIndex,
-    setEVACurrentWaypointIndex,
-    driveTargetWaypointId,
-    setDriveTargetWaypointId,
-    camFollow,
-  } = useMapStore();
+  const isRoverDriving = useMapStore((s) => s.isRoverDriving);
+  const setRoverDriving = useMapStore((s) => s.setRoverDriving);
+  const roverProgress = useMapStore((s) => s.roverProgress);
+  const setRoverProgress = useMapStore((s) => s.setRoverProgress);
+  const setRoverBatterySoC = useMapStore((s) => s.setRoverBatterySoC);
+  const setRoverCurrentPosition = useMapStore((s) => s.setRoverCurrentPosition);
+  const setEVACurrentWaypointIndex = useMapStore((s) => s.setEVACurrentWaypointIndex);
+  const driveTargetWaypointId = useMapStore((s) => s.driveTargetWaypointId);
+  const camFollow = useMapStore((s) => s.camFollow);
 
-  const [currentCoord, setCurrentCoord] = useState(null);
-  const [currentHeading, setCurrentHeading] = useState(0);
-  const [currentSpeed, setCurrentSpeed] = useState(14.5);
-  const [currentSlope, setCurrentSlope] = useState(0);
+  // Low-frequency React state: where the marker is mounted, which segment we are on, and readouts
+  const [anchorCoord, setAnchorCoord] = useState(null);
   const [currentSegIdx, setCurrentSegIdx] = useState(0);
+  const [telemetry, setTelemetry] = useState({ heading: 0, speed: 14.5, slope: 0 });
 
-  const progRef = useRef(roverProgress || 0);
+  // High-frequency values live in refs
+  const markerRef = useRef(null);
+  const trailGlowRef = useRef(null);
+  const trailCoreRef = useRef(null);
+  const coordRef = useRef(null);
+  const segIdxRef = useRef(0);
+  const progRef = useRef(useMapStore.getState().roverProgress || 0);
+  const batteryRef = useRef(useMapStore.getState().roverBatterySoC || 96);
   const lastPanTime = useRef(0);
-  const lastStoreSync = useRef(0);
-  const batteryRef = useRef(roverBatterySoC || 96);
+  const lastTelemetrySync = useRef(0);
+  const camFollowRef = useRef(camFollow);
+  camFollowRef.current = camFollow;
+
+  const waypointLatLngs = useMemo(
+    () => (waypoints || []).map((w) => [w.lat, w.lon]),
+    [waypoints]
+  );
 
   // Precompute cumulative physical distances along route for constant medium speed
   const routeDistances = useMemo(() => {
@@ -199,9 +216,7 @@ const RoverSimulator = ({ waypoints }) => {
     const cumDists = [0];
     let sum = 0;
     for (let i = 0; i < waypoints.length - 1; i++) {
-      const lon1 = waypoints[i].lon !== undefined ? waypoints[i].lon : (waypoints[i].lng !== undefined ? waypoints[i].lng : 0);
-      const lon2 = waypoints[i+1].lon !== undefined ? waypoints[i+1].lon : (waypoints[i+1].lng !== undefined ? waypoints[i+1].lng : 0);
-      const d = Math.max(0.01, marsDistance(waypoints[i].lat, lon1, waypoints[i+1].lat, lon2));
+      const d = Math.max(0.01, marsDistance(waypoints[i].lat, waypoints[i].lon, waypoints[i + 1].lat, waypoints[i + 1].lon));
       sum += d;
       cumDists.push(sum);
     }
@@ -209,37 +224,34 @@ const RoverSimulator = ({ waypoints }) => {
   }, [waypoints]);
 
   // Target spot calculation: if driveTargetWaypointId is set, drive to that specific station!
-  const targetIndex = (driveTargetWaypointId && waypoints) 
-    ? waypoints.findIndex(w => w.id === driveTargetWaypointId) 
+  const targetIndex = (driveTargetWaypointId && waypoints)
+    ? waypoints.findIndex((w) => w.id === driveTargetWaypointId)
     : -1;
 
-  const targetDistKm = (targetIndex > 0 && routeDistances.cumDists[targetIndex]) 
-    ? routeDistances.cumDists[targetIndex] 
+  const targetDistKm = (targetIndex > 0 && routeDistances.cumDists[targetIndex])
+    ? routeDistances.cumDists[targetIndex]
     : routeDistances.totalDistKm;
 
   // Active target waypoint for popup & telemetry
   const targetWaypoint = targetIndex >= 0 ? waypoints[targetIndex] : (waypoints ? waypoints[waypoints.length - 1] : null);
 
-  // Dynamic Traveled Path behind rover wheels (illuminated cyan breadcrumb trail)
+  // Traveled path behind the rover wheels. Its last vertex is advanced imperatively every frame.
   const traveledPositions = useMemo(() => {
-    if (!waypoints || waypoints.length < 2 || !currentCoord) return [];
-    const pts = [];
-    for (let i = 0; i <= currentSegIdx && i < waypoints.length; i++) {
-      const lon = waypoints[i].lon !== undefined ? waypoints[i].lon : (waypoints[i].lng !== undefined ? waypoints[i].lng : 0);
-      pts.push([waypoints[i].lat, lon]);
-    }
-    pts.push(currentCoord);
-    return pts;
-  }, [waypoints, currentSegIdx, currentCoord]);
+    const done = waypointLatLngs.slice(0, currentSegIdx + 1);
+    return [...done, coordRef.current || anchorCoord || done[done.length - 1]].filter(Boolean);
+  }, [waypointLatLngs, currentSegIdx, anchorCoord]);
 
   // Sync initial coordinate when waypoints load or change, or progress reset
   useEffect(() => {
     if (!waypoints || waypoints.length < 2) return;
-    const startLon = waypoints[0].lon !== undefined ? waypoints[0].lon : (waypoints[0].lng !== undefined ? waypoints[0].lng : 0);
-    if (!currentCoord || roverProgress === 0) {
-      setCurrentCoord([waypoints[0].lat, startLon]);
+    if (!coordRef.current || roverProgress === 0) {
+      const start = [waypoints[0].lat, waypoints[0].lon];
+      coordRef.current = start;
+      segIdxRef.current = 0;
       progRef.current = roverProgress || 0;
+      setAnchorCoord(start);
       setCurrentSegIdx(0);
+      markerRef.current?.setLatLng(start);
     }
   }, [waypoints, roverProgress]);
 
@@ -265,6 +277,7 @@ const RoverSimulator = ({ waypoints }) => {
       currentDistKm = 0;
       progRef.current = 0;
       setRoverProgress(0);
+      segIdxRef.current = 0;
       setCurrentSegIdx(0);
     }
 
@@ -279,6 +292,14 @@ const RoverSimulator = ({ waypoints }) => {
     // - Long routes (30-200 km): ~16 to 22 seconds
     const traverseDurationSec = Math.max(6, Math.min(22, 5.5 + Math.sqrt(tripDistKm) * 1.3));
     const kmPerSec = tripDistKm / traverseDurationSec;
+
+    const applyPosition = (latlng) => {
+      coordRef.current = latlng;
+      markerRef.current?.setLatLng(latlng);
+      const trail = [...waypointLatLngs.slice(0, segIdxRef.current + 1), latlng];
+      trailGlowRef.current?.setLatLngs(trail);
+      trailCoreRef.current?.setLatLngs(trail);
+    };
 
     const drive = (now) => {
       const dt = Math.min((now - lastTime) / 1000, 0.08); // delta time clamped
@@ -299,8 +320,10 @@ const RoverSimulator = ({ waypoints }) => {
         // Snap to exact target coordinates
         const arrivalWp = targetIndex >= 0 ? waypoints[targetIndex] : waypoints[waypoints.length - 1];
         if (arrivalWp) {
-          const arrLon = arrivalWp.lon !== undefined ? arrivalWp.lon : (arrivalWp.lng !== undefined ? arrivalWp.lng : 0);
-          setCurrentCoord([arrivalWp.lat, arrLon]);
+          const arrival = [arrivalWp.lat, arrivalWp.lon];
+          applyPosition(arrival);
+          setRoverCurrentPosition({ lat: arrival[0], lon: arrival[1], elevation: arrivalWp.elevation });
+          setAnchorCoord(arrival);
         }
         return;
       }
@@ -308,7 +331,7 @@ const RoverSimulator = ({ waypoints }) => {
       // Find exact segment from current physical distance
       let segIdx = 0;
       while (
-        segIdx < routeDistances.cumDists.length - 2 && 
+        segIdx < routeDistances.cumDists.length - 2 &&
         currentDistKm > routeDistances.cumDists[segIdx + 1]
       ) {
         segIdx++;
@@ -323,56 +346,60 @@ const RoverSimulator = ({ waypoints }) => {
       const wpB = waypoints[segIdx + 1];
 
       if (wpA && wpB) {
-        const lonA = wpA.lon !== undefined ? wpA.lon : (wpA.lng !== undefined ? wpA.lng : 0);
-        const lonB = wpB.lon !== undefined ? wpB.lon : (wpB.lng !== undefined ? wpB.lng : 0);
         const lat = wpA.lat + (wpB.lat - wpA.lat) * segFraction;
-        const lon = lonA + (lonB - lonA) * segFraction;
+        const lon = wpA.lon + (wpB.lon - wpA.lon) * segFraction;
 
-        setCurrentCoord([lat, lon]);
-        setCurrentSegIdx(segIdx);
+        if (segIdx !== segIdxRef.current) {
+          segIdxRef.current = segIdx;
+          setCurrentSegIdx(segIdx);
+          // Keep active waypoint synced as rover physically crosses segments
+          if (useMapStore.getState().evaCurrentWaypointIndex !== segIdx) {
+            setEVACurrentWaypointIndex(segIdx);
+          }
+        }
+        applyPosition([lat, lon]);
 
         const curProg = currentDistKm / totalDistKm;
         progRef.current = curProg;
 
-        // Dynamic vehicle orientation heading
-        const dLat = wpB.lat - wpA.lat;
-        const dLon = lonB - lonA;
-        const heading = ((Math.atan2(dLon, dLat) * 180 / Math.PI) + 360) % 360;
-        setCurrentHeading(heading);
-
-        // Slope calculation for telemetry
-        const segDistKm = marsDistance(wpA.lat, lonA, wpB.lat, lonB);
-        const slope = calculateSlope(wpA.elevation || 0, wpB.elevation || 0, segDistKm * 1000);
-        setCurrentSlope(slope);
-
-        // Consistent medium steady speed readout (~14.5 km/h nominal)
-        const mediumSpeed = Math.max(12.0, 15.0 - Math.abs(slope) * 0.12);
-        setCurrentSpeed(mediumSpeed);
-
         // Battery consumption
+        const segDistKm = marsDistance(wpA.lat, wpA.lon, wpB.lat, wpB.lon);
+        const slope = calculateSlope(wpA.elevation || 0, wpB.elevation || 0, segDistKm * 1000);
         if (slope < -2) {
           batteryRef.current = Math.min(100, batteryRef.current + 0.003);
         } else {
           batteryRef.current = Math.max(10, batteryRef.current - 0.004);
         }
 
-        // Keep active waypoint synced as rover physically crosses segments
-        if (evaCurrentWaypointIndex !== segIdx && setEVACurrentWaypointIndex) {
-          setEVACurrentWaypointIndex(segIdx);
-        }
+        // Throttled sync of telemetry to React state and the Zustand store
+        if (now - lastTelemetrySync.current > TELEMETRY_SYNC_MS) {
+          lastTelemetrySync.current = now;
 
-        // Throttled sync to Zustand store (every 120ms)
-        if (now - lastStoreSync.current > 120) {
-          lastStoreSync.current = now;
+          // Dynamic vehicle orientation heading
+          const heading = ((Math.atan2(wpB.lon - wpA.lon, wpB.lat - wpA.lat) * 180 / Math.PI) + 360) % 360;
+          // Consistent medium steady speed readout (~14.5 km/h nominal)
+          const mediumSpeed = Math.max(12.0, 15.0 - Math.abs(slope) * 0.12);
+          setTelemetry({
+            heading: Math.round(heading),
+            speed: Math.round(mediumSpeed * 10) / 10,
+            slope,
+          });
+
           setRoverProgress(curProg);
           setRoverBatterySoC(Math.round(batteryRef.current));
+          setRoverCurrentPosition({
+            lat,
+            lon,
+            bearing: heading,
+            elevation: Math.round((wpA.elevation || 0) + ((wpB.elevation || 0) - (wpA.elevation || 0)) * segFraction),
+          });
         }
 
         // Smooth camera follow (actively tracks rover when camFollow is on)
-        if (camFollow && now - lastPanTime.current > 650) {
+        if (camFollowRef.current && now - lastPanTime.current > 650) {
           lastPanTime.current = now;
           map.panTo([lat, lon], { animate: true, duration: 0.55 });
-        } else if (!camFollow && now - lastPanTime.current > 1200) {
+        } else if (!camFollowRef.current && now - lastPanTime.current > 1200) {
           try {
             const bounds = map.getBounds();
             if (bounds && !bounds.contains([lat, lon])) {
@@ -396,39 +423,42 @@ const RoverSimulator = ({ waypoints }) => {
         setRoverProgress(progRef.current);
       }
     };
-  }, [isRoverDriving, waypoints, targetDistKm, targetIndex, routeDistances, map, camFollow, evaCurrentWaypointIndex, setEVACurrentWaypointIndex, setRoverProgress, setRoverDriving, setRoverBatterySoC]);
+  }, [isRoverDriving, waypoints, waypointLatLngs, targetDistKm, targetIndex, routeDistances, map, setEVACurrentWaypointIndex, setRoverProgress, setRoverDriving, setRoverBatterySoC, setRoverCurrentPosition]);
 
-  if (!currentCoord || !waypoints || waypoints.length < 2) return null;
+  const roverIcon = useMemo(
+    () => createRoverIcon(telemetry.heading, isRoverDriving, telemetry.speed),
+    [telemetry.heading, telemetry.speed, isRoverDriving]
+  );
+
+  if (!anchorCoord || !waypoints || waypoints.length < 2) return null;
 
   return (
     <>
       {/* Dynamic Traveled Track: Glowing Cyan Trail Laid Down Live Behind Moving Wheels */}
-      {traveledPositions.length > 1 && (
-        <>
-          <Polyline
-            positions={traveledPositions}
-            pathOptions={{
-              color: '#06b6d4',
-              weight: 8,
-              opacity: 0.45,
-              lineCap: 'round',
-              lineJoin: 'round',
-            }}
-          />
-          <Polyline
-            positions={traveledPositions}
-            pathOptions={{
-              color: '#38bdf8',
-              weight: 4.5,
-              opacity: 0.98,
-              lineCap: 'round',
-              lineJoin: 'round',
-            }}
-          />
-        </>
-      )}
+      <Polyline
+        ref={trailGlowRef}
+        positions={traveledPositions}
+        pathOptions={{
+          color: '#06b6d4',
+          weight: 8,
+          opacity: 0.45,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }}
+      />
+      <Polyline
+        ref={trailCoreRef}
+        positions={traveledPositions}
+        pathOptions={{
+          color: '#38bdf8',
+          weight: 4.5,
+          opacity: 0.98,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }}
+      />
 
-      <Marker position={currentCoord} icon={createRoverIcon(currentHeading, isRoverDriving, currentSpeed)}>
+      <Marker ref={markerRef} position={anchorCoord} icon={roverIcon}>
         <Popup autoPanPadding={[50, 50]}>
           <div className="font-mono text-xs p-1 min-w-[200px] text-white">
             <div className="font-bold text-amber-400 border-b border-white/10 pb-1.5 mb-1.5 flex items-center justify-between">
@@ -439,8 +469,8 @@ const RoverSimulator = ({ waypoints }) => {
             </div>
             <div className="space-y-1 text-space-300 text-[11px]">
               <div className="flex justify-between"><span className="text-space-400">Target:</span> <strong className="text-white truncate max-w-[120px]">{targetWaypoint?.name || 'Objective'}</strong></div>
-              <div className="flex justify-between"><span className="text-space-400">Speed:</span> <strong className="text-cyan-300">{currentSpeed.toFixed(1)} km/h</strong></div>
-              <div className="flex justify-between"><span className="text-space-400">Terrain Slope:</span> <strong className="text-white">{currentSlope.toFixed(1)}°</strong></div>
+              <div className="flex justify-between"><span className="text-space-400">Speed:</span> <strong className="text-cyan-300">{telemetry.speed.toFixed(1)} km/h</strong></div>
+              <div className="flex justify-between"><span className="text-space-400">Terrain Slope:</span> <strong className="text-white">{telemetry.slope.toFixed(1)}°</strong></div>
               <div className="flex justify-between"><span className="text-space-400">Battery SoC:</span> <strong className="text-emerald-400">{Math.round(batteryRef.current)}%</strong></div>
               <div className="flex justify-between"><span className="text-space-400">Progress:</span> <strong className="text-amber-400">{(progRef.current * 100).toFixed(0)}%</strong></div>
             </div>
@@ -469,6 +499,65 @@ const MARS_LON_GRID = [
   { lon: 60, label: '60°E', color: '#64748b', dash: '3, 6', weight: 1 },
   { lon: 120, label: '120°E', color: '#94a3b8', dash: '3, 6', weight: 1 },
 ];
+
+const graticuleLabelIcon = (label, color, background, transform) => L.divIcon({
+  className: 'graticule-label',
+  html: `<div style="font-family: monospace; font-size: 9px; font-weight: 700; color: ${color}; background: ${background}; padding: 1px 5px; border-radius: 3px; border: 1px solid ${color}50; white-space: nowrap; pointer-events: none; transform: ${transform};">${label}</div>`,
+  iconSize: [0, 0],
+  iconAnchor: [0, 0],
+});
+
+// Icons are built once; recreating divIcons on every render makes Leaflet rebuild every label's DOM
+const LAT_GRID_LAYERS = MARS_LAT_GRID.map((item) => ({
+  ...item,
+  leftIcon: graticuleLabelIcon(item.label, item.color, 'rgba(5,6,8,0.88)', 'translateY(-50%)'),
+  rightIcon: graticuleLabelIcon(item.label, item.color, 'rgba(5,6,8,0.88)', 'translate(-100%, -50%)'),
+}));
+
+const LON_GRID_LAYERS = MARS_LON_GRID.map((item) => ({
+  ...item,
+  icon: graticuleLabelIcon(item.label, item.color, 'rgba(5,6,8,0.9)', 'translate(-50%, 4px)'),
+}));
+
+// Martian Planetary Graticule (Latitude & Longitude Grid) - fully static, so memoised
+const Graticule = React.memo(function Graticule() {
+  return (
+    <>
+      {LAT_GRID_LAYERS.map((item) => (
+        <React.Fragment key={`lat-${item.lat}`}>
+          <Polyline
+            positions={[[item.lat, -180], [item.lat, 180]]}
+            pathOptions={{
+              color: item.color,
+              weight: item.weight,
+              dashArray: item.dash || undefined,
+              opacity: 0.55,
+              interactive: false,
+            }}
+          />
+          <Marker position={[item.lat, -170]} interactive={false} icon={item.leftIcon} />
+          <Marker position={[item.lat, 170]} interactive={false} icon={item.rightIcon} />
+        </React.Fragment>
+      ))}
+
+      {LON_GRID_LAYERS.map((item) => (
+        <React.Fragment key={`lon-${item.lon}`}>
+          <Polyline
+            positions={[[-85, item.lon], [85, item.lon]]}
+            pathOptions={{
+              color: item.color,
+              weight: item.weight,
+              dashArray: item.dash || undefined,
+              opacity: 0.45,
+              interactive: false,
+            }}
+          />
+          <Marker position={[-2.5, item.lon]} interactive={false} icon={item.icon} />
+        </React.Fragment>
+      ))}
+    </>
+  );
+});
 
 const MarsMap = () => {
   const activeLayers = useMapStore((s) => s.activeLayers);
@@ -499,7 +588,6 @@ const MarsMap = () => {
   const setMapCenter = useMapStore((s) => s.setMapCenter);
   const setMapZoom = useMapStore((s) => s.setMapZoom);
   const activeContingency = useMapStore((s) => s.activeContingency);
-  const contingencyDetails = useMapStore((s) => s.contingencyDetails);
   const undoLastPoint = useMapStore((s) => s.undoLastPoint);
   const removeWaypoint = useMapStore((s) => s.removeWaypoint);
   const clearSelection = useMapStore((s) => s.clearSelection);
@@ -597,76 +685,14 @@ const MarsMap = () => {
         ))}
 
         {/* Martian Planetary Graticule (Latitude & Longitude Grid) */}
-        {showGraticule && (
-          <>
-            {MARS_LAT_GRID.map((item) => (
-              <React.Fragment key={`lat-${item.lat}`}>
-                <Polyline
-                  positions={[[item.lat, -180], [item.lat, 180]]}
-                  pathOptions={{
-                    color: item.color,
-                    weight: item.weight,
-                    dashArray: item.dash || undefined,
-                    opacity: 0.55,
-                    interactive: false,
-                  }}
-                />
-                <Marker
-                  position={[item.lat, -170]}
-                  interactive={false}
-                  icon={L.divIcon({
-                    className: 'graticule-label',
-                    html: `<div style="font-family: monospace; font-size: 9px; font-weight: 700; color: ${item.color}; background: rgba(5,6,8,0.88); padding: 1px 5px; border-radius: 3px; border: 1px solid ${item.color}50; white-space: nowrap; pointer-events: none; transform: translateY(-50%);">${item.label}</div>`,
-                    iconSize: [0, 0],
-                    iconAnchor: [0, 0]
-                  })}
-                />
-                <Marker
-                  position={[item.lat, 170]}
-                  interactive={false}
-                  icon={L.divIcon({
-                    className: 'graticule-label',
-                    html: `<div style="font-family: monospace; font-size: 9px; font-weight: 700; color: ${item.color}; background: rgba(5,6,8,0.88); padding: 1px 5px; border-radius: 3px; border: 1px solid ${item.color}50; white-space: nowrap; pointer-events: none; transform: translate(-100%, -50%);">${item.label}</div>`,
-                    iconSize: [0, 0],
-                    iconAnchor: [0, 0]
-                  })}
-                />
-              </React.Fragment>
-            ))}
-
-            {MARS_LON_GRID.map((item) => (
-              <React.Fragment key={`lon-${item.lon}`}>
-                <Polyline
-                  positions={[[-85, item.lon], [85, item.lon]]}
-                  pathOptions={{
-                    color: item.color,
-                    weight: item.weight,
-                    dashArray: item.dash || undefined,
-                    opacity: 0.45,
-                    interactive: false,
-                  }}
-                />
-                <Marker
-                  position={[-2.5, item.lon]}
-                  interactive={false}
-                  icon={L.divIcon({
-                    className: 'graticule-label',
-                    html: `<div style="font-family: monospace; font-size: 9px; font-weight: 700; color: ${item.color}; background: rgba(5,6,8,0.9); padding: 1px 5px; border-radius: 3px; border: 1px solid ${item.color}50; white-space: nowrap; pointer-events: none; transform: translate(-50%, 4px);">${item.label}</div>`,
-                    iconSize: [0, 0],
-                    iconAnchor: [0, 0]
-                  })}
-                />
-              </React.Fragment>
-            ))}
-          </>
-        )}
+        {showGraticule && <Graticule />}
 
         {/* NASA Walkback Limit Circles (2 km Safe / 5 km Abort) */}
         {showWalkbackLimits && baseWP && (
           <>
             <Circle
               center={[baseWP.lat, baseWP.lon]}
-              radius={2000}
+              radius={marsMetersToLeaflet(2000)}
               pathOptions={{
                 color: '#22c55e',
                 fillColor: '#22c55e',
@@ -685,7 +711,7 @@ const MarsMap = () => {
 
             <Circle
               center={[baseWP.lat, baseWP.lon]}
-              radius={activeContingency === 'o2_leak' ? 1800 : 5000}
+              radius={marsMetersToLeaflet(activeContingency === 'o2_leak' ? 1800 : 5000)}
               pathOptions={{
                 color: activeContingency === 'o2_leak' ? '#ef4444' : '#f59e0b',
                 fillColor: activeContingency === 'o2_leak' ? '#ef4444' : '#f59e0b',
@@ -796,9 +822,7 @@ const MarsMap = () => {
                           let targetDist = 0;
                           let totalDist = 0;
                           for (let j = 1; j < waypoints.length; j++) {
-                            const lon1 = waypoints[j-1].lon !== undefined ? waypoints[j-1].lon : (waypoints[j-1].lng !== undefined ? waypoints[j-1].lng : 0);
-                            const lon2 = waypoints[j].lon !== undefined ? waypoints[j].lon : (waypoints[j].lng !== undefined ? waypoints[j].lng : 0);
-                            const d = marsDistance(waypoints[j-1].lat, lon1, waypoints[j].lat, lon2);
+                            const d = marsDistance(waypoints[j-1].lat, waypoints[j-1].lon, waypoints[j].lat, waypoints[j].lon);
                             totalDist += d;
                             if (j === i) targetDist = totalDist;
                           }

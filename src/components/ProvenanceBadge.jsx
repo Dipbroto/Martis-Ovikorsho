@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Database, Satellite, Cpu, Calculator, ShieldAlert, Info } from 'lucide-react';
+import { useState } from 'react';
+import { Database, Satellite, Cpu, Calculator, ShieldAlert } from 'lucide-react';
 
 export const PROVENANCE_DEFINITIONS = {
   OBSERVED: {

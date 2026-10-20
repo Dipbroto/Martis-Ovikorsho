@@ -1,11 +1,12 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Mountain } from 'lucide-react';
 
 export default function ElevationProfile() {
-  const { waypoints } = useMapStore();
+  const { waypoints } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints })));
 
   const { data, stats } = useMemo(() => {
     if (!waypoints || waypoints.length < 2) return { data: null, stats: null };
@@ -14,7 +15,7 @@ export default function ElevationProfile() {
     return { data: profile, stats: profileStats };
   }, [waypoints]);
 
-  const CustomTooltip = ({ active, payload, label }) => {
+  const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
@@ -33,7 +34,7 @@ export default function ElevationProfile() {
             </span>
           </div>
           <div className="text-space-500 text-[10px] mt-2 pt-1.5 border-t border-space-800">
-            {data.lat?.toFixed(5)}°, {data.lng?.toFixed(5)}°
+            {data.lat?.toFixed(5)}°, {data.lon?.toFixed(5)}°
           </div>
         </div>
       );

@@ -1,13 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Camera, Search, MapPin, Navigation, Sparkles, Loader2, ArrowUpRight, Globe, Maximize2, ExternalLink, Compass, Tag, Layers, Calendar
-} from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Camera, Search, Navigation, Sparkles, Loader2, ExternalLink, Compass } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
-import { marsImages, MARS_IMAGE_CATEGORIES } from '../data/marsImages';
+import { marsImages } from '../data/marsImages';
 import { fetchMarsImagery } from '../services/nasaApiService';
 import AppleCardCarousel from '@/components/ui/carousel-08';
-import { Button } from '@/components/ui/button';
 
 const EXTENDED_CATEGORIES = [
   { id: 'all', label: 'ALL OBSERVATIONS', query: 'Jezero Crater Mars' },
@@ -386,7 +383,9 @@ export default function MarsImageryPage() {
                 <div className="flex flex-col sm:flex-row lg:flex-col gap-2 pt-2 border-t border-white/[0.08]">
                   <button
                     onClick={() => handleFlyTo(inspectingImage)}
-                    className="w-full bg-white hover:bg-zinc-200 text-black px-3.5 py-2 text-xs font-mono font-bold uppercase tracking-wider rounded transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98"
+                    disabled={typeof inspectingImage.lat !== 'number' || typeof inspectingImage.lon !== 'number'}
+                    title={typeof inspectingImage.lat === 'number' ? undefined : 'This image has no map coordinates'}
+                    className="disabled:opacity-40 disabled:cursor-not-allowed w-full bg-white hover:bg-zinc-200 text-black px-3.5 py-2 text-xs font-mono font-bold uppercase tracking-wider rounded transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98"
                   >
                     <Navigation className="w-3.5 h-3.5 text-black" />
                     <span>FLY TO COORDINATE</span>

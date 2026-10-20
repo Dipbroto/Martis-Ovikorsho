@@ -1,11 +1,51 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { MARS_LANDMARKS } from "../data/marsLandmarks";
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(API_KEY || '');
+const GEMINI_MODEL = "gemini-2.5-flash";
+// Number of most recent chat messages forwarded to the model as context
+const MAX_CONTEXT_TURNS = 20;
+
+// The Gemini key must never ship in the production bundle. In production every request goes through
+// the `gemini-proxy` Supabase Edge Function (see supabase/functions/gemini-proxy). The direct key is
+// honoured in `vite dev` only; `import.meta.env.DEV` is false in builds so this branch is stripped out.
+const DEV_API_KEY = import.meta.env.DEV ? import.meta.env.VITE_GEMINI_API_KEY : undefined;
+
+export const isAiConfigured = Boolean(DEV_API_KEY) || isSupabaseConfigured;
+
+/** Sends a Gemini `generateContent` request body and returns the parsed JSON response. */
+async function generateContent(body) {
+  if (DEV_API_KEY) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": DEV_API_KEY },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!res.ok) throw new Error(`Gemini request failed (${res.status})`);
+    return res.json();
+  }
+
+  const { data, error } = await supabase.functions.invoke("gemini-proxy", {
+    body: { model: GEMINI_MODEL, ...body },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error.message || data.error);
+  return data;
+}
+
+const getParts = (response) => response?.candidates?.[0]?.content?.parts || [];
+const getText = (response) =>
+  getParts(response).map((part) => part.text).filter(Boolean).join("");
+const getFunctionCalls = (response) =>
+  getParts(response).filter((part) => part.functionCall).map((part) => part.functionCall);
 
 // ==============================================================================
 // 1. TOOL DECLARATIONS FOR A.R.E.S. AUTONOMOUS MISSION CONTROL
 // ==============================================================================
+const T = { OBJECT: "OBJECT", ARRAY: "ARRAY", STRING: "STRING", NUMBER: "NUMBER", BOOLEAN: "BOOLEAN" };
+
 const ARES_TOOLS = [
   {
     functionDeclarations: [
@@ -13,28 +53,28 @@ const ARES_TOOLS = [
         name: "plan_route",
         description: "Autonomously plot an EVA traverse route across the Martian surface with realistic waypoints, coordinates, and elevations.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: T.OBJECT,
           properties: {
             destination_name: {
-              type: SchemaType.STRING,
+              type: T.STRING,
               description: "Name of the target region or landmark, e.g. 'Jezero Crater Delta', 'Olympus Mons Rim', 'Gale Crater Mt Sharp'"
             },
             waypoints: {
-              type: SchemaType.ARRAY,
+              type: T.ARRAY,
               description: "Array of 3 to 6 ordered waypoints across the terrain",
               items: {
-                type: SchemaType.OBJECT,
+                type: T.OBJECT,
                 properties: {
-                  name: { type: SchemaType.STRING, description: "Name of the station or checkpoint" },
-                  lat: { type: SchemaType.NUMBER, description: "Martian latitude in decimal degrees (-90 to 90)" },
-                  lon: { type: SchemaType.NUMBER, description: "Martian longitude in decimal degrees (-180 to 180)" },
-                  elevation: { type: SchemaType.NUMBER, description: "Elevation in meters relative to Mars datum" }
+                  name: { type: T.STRING, description: "Name of the station or checkpoint" },
+                  lat: { type: T.NUMBER, description: "Martian latitude in decimal degrees (-90 to 90)" },
+                  lon: { type: T.NUMBER, description: "Martian longitude in decimal degrees (-180 to 180)" },
+                  elevation: { type: T.NUMBER, description: "Elevation in meters relative to Mars datum" }
                 },
                 required: ["name", "lat", "lon"]
               }
             },
             summary: {
-              type: SchemaType.STRING,
+              type: T.STRING,
               description: "Concise scientific mission summary of the planned traverse"
             }
           },
@@ -45,9 +85,9 @@ const ARES_TOOLS = [
         name: "clear_route",
         description: "Clear and reset the current planned traverse and all waypoints from the map and navigation computer.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: T.OBJECT,
           properties: {
-            reason: { type: SchemaType.STRING, description: "Reason for clearing route" }
+            reason: { type: T.STRING, description: "Reason for clearing route" }
           }
         }
       },
@@ -55,10 +95,10 @@ const ARES_TOOLS = [
         name: "switch_view_mode",
         description: "Switch the Mars map viewport display mode between 2D high-res cartography, 3D interactive topographical globe, or split-screen.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: T.OBJECT,
           properties: {
             mode: {
-              type: SchemaType.STRING,
+              type: T.STRING,
               description: "The target mode: '2d' | '3d' | 'split'"
             }
           },
@@ -69,12 +109,12 @@ const ARES_TOOLS = [
         name: "navigate_to_location",
         description: "Center and zoom the map camera onto a specific Mars landmark, volcano, crater, canyon, or rover landing site.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: T.OBJECT,
           properties: {
-            location_name: { type: SchemaType.STRING, description: "Name of the landmark" },
-            lat: { type: SchemaType.NUMBER, description: "Latitude in degrees" },
-            lon: { type: SchemaType.NUMBER, description: "Longitude in degrees" },
-            zoom: { type: SchemaType.NUMBER, description: "Map zoom level (1 to 7, default 3)" }
+            location_name: { type: T.STRING, description: "Name of the landmark" },
+            lat: { type: T.NUMBER, description: "Latitude in degrees" },
+            lon: { type: T.NUMBER, description: "Longitude in degrees" },
+            zoom: { type: T.NUMBER, description: "Map zoom level (1 to 7, default 3)" }
           },
           required: ["location_name", "lat", "lon"]
         }
@@ -83,10 +123,10 @@ const ARES_TOOLS = [
         name: "open_feature",
         description: "Open an interactive web module or modal popup (Science Lab, Imagery Gallery, Flight Briefing, Contingency Simulator, EVA HUD, Audio Soundscape, User Profile).",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: T.OBJECT,
           properties: {
             feature_name: {
-              type: SchemaType.STRING,
+              type: T.STRING,
               description: "One of: 'science_lab' | 'imagery_gallery' | 'flight_plan' | 'contingency_sim' | 'eva_hud' | 'profile_dashboard' | 'audio_rack'"
             }
           },
@@ -97,10 +137,10 @@ const ARES_TOOLS = [
         name: "trigger_contingency",
         description: "Simulate a high-stress Martian emergency contingency for safety training or protocol testing.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: T.OBJECT,
           properties: {
             contingency_type: {
-              type: SchemaType.STRING,
+              type: T.STRING,
               description: "'dust_storm' (atmospheric opacity surge) | 'spe' (solar particle radiation event) | 'o2_leak' (spacesuit secondary O2 loss) | 'rockfall' (canyon talus blockage)"
             }
           },
@@ -111,9 +151,9 @@ const ARES_TOOLS = [
         name: "clear_contingency",
         description: "Clear and silence any active emergency alarms and return systems to nominal status.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: T.OBJECT,
           properties: {
-            confirm: { type: SchemaType.BOOLEAN, description: "Confirmation flag" }
+            confirm: { type: T.BOOLEAN, description: "Confirmation flag" }
           }
         }
       },
@@ -121,9 +161,9 @@ const ARES_TOOLS = [
         name: "start_eva_simulation",
         description: "Launch the full-screen interactive Astronaut EVA Helmet HUD walk simulator along the active route.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: T.OBJECT,
           properties: {
-            confirm: { type: SchemaType.BOOLEAN, description: "Confirmation flag" }
+            confirm: { type: T.BOOLEAN, description: "Confirmation flag" }
           }
         }
       },
@@ -131,9 +171,9 @@ const ARES_TOOLS = [
         name: "toggle_ambient_audio",
         description: "Toggle or enable/disable the ambient Martian atmospheric wind and telemetry soundscape synthesizer.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: T.OBJECT,
           properties: {
-            enable: { type: SchemaType.BOOLEAN, description: "True to enable, false to mute, omit to toggle" }
+            enable: { type: T.BOOLEAN, description: "True to enable, false to mute, omit to toggle" }
           }
         }
       },
@@ -141,11 +181,11 @@ const ARES_TOOLS = [
         name: "scroll_to_section",
         description: "Smoothly navigate the web page to one of the major exploration sections.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: T.OBJECT,
           properties: {
             section_id: {
-              type: SchemaType.STRING,
-              description: "'section-home' (Mission Overview) | 'section-map' (Interactive Map & 3D Globe) | 'section-imagery' (Science & HiRISE Imagery Hub) | 'section-sky' (Deep Space Ephemeris)"
+              type: T.STRING,
+              description: "'section-home' (Mission Overview) | 'section-map' (Interactive Map & 3D Globe) | 'section-imagery' (Science & HiRISE Imagery Hub) | 'section-sky' (Deep Space Ephemeris) | 'section-science' (Science Lab) | 'section-contingency' (Contingency Simulator)"
             }
           },
           required: ["section_id"]
@@ -155,35 +195,28 @@ const ARES_TOOLS = [
   }
 ];
 
-// Known Martian Landmarks for Grounding
+// Known Martian Landmarks for Grounding (generated from the shared landmark table so coordinates never drift)
+const fmtCoord = (value, pos, neg) => `${Math.abs(value).toFixed(4)}°${value >= 0 ? pos : neg}`;
 const MARS_KNOWLEDGE = `
 FAMOUS MARTIAN LANDMARKS & ACCURATE COORDINATES:
-- Jezero Crater (Perseverance): 18.4447°N, 77.4508°E, Elev: -2,600m (Clay minerals, delta, ancient lake)
-- Gale Crater / Mt. Sharp (Curiosity): -4.5895°N, 137.4417°E, Elev: -4,500m (Sedimentary layers, sulfate units)
-- Olympus Mons (Caldera): 18.6500°N, -133.8000°E, Elev: 21,229m (Tallest volcano in solar system)
-- Valles Marineris (Chasma): -14.0000°N, -59.2000°E, Elev: -5,000m (4000 km grand canyon system)
-- Elysium Planitia (InSight): 4.5024°N, 135.6234°E, Elev: -2,613m (Volcanic plains, seismology)
-- Meridiani Planum (Opportunity): -1.9462°N, -5.5266°E, Elev: -1,400m (Hematite blueberries)
-- Gusev Crater (Spirit): -14.5684°N, 175.4726°E, Elev: -1,900m (Columbia Hills, silica deposits)
-- Utopia Planitia (Zhurong): 25.1000°N, 109.9000°E, Elev: -4,000m (Subsurface water ice sheets)
-- Arcadia Planitia: 39.3000°N, -170.0000°E, Elev: -3,000m (Shallow ground ice)
-- Hellas Planitia (Basin): -42.7000°N, 70.0000°E, Elev: -7,000m (Deepest impact basin on Mars)
+${MARS_LANDMARKS.map(
+  (l) => `- ${l.name}: ${fmtCoord(l.lat, "N", "S")}, ${fmtCoord(l.lon, "E", "W")}, Elev: ${l.elevation.toLocaleString("en-US")}m`
+).join("\n")}
 `;
 
 // ==============================================================================
 // 2. FEATURE 1: SUPERCAM SPECTROMETRY
 // ==============================================================================
-export async function generateScienceReport(targetName, targetType, coords) {
-  if (!API_KEY) return null;
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+export async function generateScienceReport(target) {
+  if (!isAiConfigured || !target) return null;
 
   const prompt = `
   You are an expert NASA Astrobiologist and Geologist analyzing SuperCam laser ablation data from the surface of Mars.
   
   Context:
-  - Target Name: ${targetName}
-  - Target Type: ${targetType}
-  - Coordinates: ${coords.lat.toFixed(4)}°N, ${coords.lon.toFixed(4)}°E
+  - Target Name: ${target.name}
+  - Target Type: ${target.formation || 'Unknown formation'}
+  - Location: ${target.location || 'Unspecified'}
   
   Write a highly scientific, realistic, and concise JSON report (strictly valid JSON) describing the telemetry results. 
   It must include:
@@ -197,8 +230,11 @@ export async function generateScienceReport(targetName, targetType, coords) {
   Respond ONLY with the JSON string, no markdown blocks.`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    const response = await generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json" },
+    });
+    const text = getText(response).replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(text);
   } catch (error) {
     console.error("AI Science Report Error:", error);
@@ -210,8 +246,7 @@ export async function generateScienceReport(targetName, targetType, coords) {
 // 3. FEATURE 2: ROUTE HAZARD ANALYSIS
 // ==============================================================================
 export async function generateFlightBrief(waypoints, distance, weatherInfo) {
-  if (!API_KEY) return null;
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  if (!isAiConfigured) return null;
 
   const startPoint = waypoints[0]?.name || "Base";
   const endPoint = waypoints[waypoints.length - 1]?.name || "Destination";
@@ -236,8 +271,10 @@ export async function generateFlightBrief(waypoints, distance, weatherInfo) {
   Keep it engaging, urgent, and professional (around 200-250 words).`;
 
   try {
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    const response = await generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    });
+    return getText(response) || null;
   } catch (error) {
     console.error("AI Flight Brief Error:", error);
     return null;
@@ -248,17 +285,12 @@ export async function generateFlightBrief(waypoints, distance, weatherInfo) {
 // 4. FEATURE 3: A.R.E.S. AUTONOMOUS MISSION CONTROL AGENT
 // ==============================================================================
 export async function chatWithMissionControl(message, history = [], appState = {}) {
-  if (!API_KEY) {
+  if (!isAiConfigured) {
     return {
-      text: "EVA Offline: Missing Gemini API Key. Please verify .env configuration.",
+      text: "EVA Offline: AI uplink is not configured. Set up Supabase and deploy the gemini-proxy function (see README).",
       action: null
     };
   }
-
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.5-flash",
-    tools: ARES_TOOLS
-  });
 
   const systemInstruction = `
 You are 'EVA' (Exploration Virtual Assistant), the cute, intelligent, and autonomous AI Mission Copilot & Mascot for the NASA MarsWalk Explorer program.
@@ -280,8 +312,8 @@ CRITICAL OPERATING DIRECTIVES:
 `;
 
   try {
-    // Format history for Gemini SDK
-    let apiHistory = history.map(h => ({
+    // Format history for the Gemini API
+    let apiHistory = history.slice(-MAX_CONTEXT_TURNS).map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
       parts: [{ text: h.text }]
     }));
@@ -291,25 +323,20 @@ CRITICAL OPERATING DIRECTIVES:
       apiHistory.shift();
     }
 
-    const chat = model.startChat({
-      history: apiHistory,
-      systemInstruction: { parts: [{ text: systemInstruction }] }
+    const result = await generateContent({
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      tools: ARES_TOOLS,
+      contents: [...apiHistory, { role: "user", parts: [{ text: message }] }],
     });
+    const calls = getFunctionCalls(result);
 
-    const result = await chat.sendMessage([{ text: message }]);
-    const calls = result.response.functionCalls();
-
-    if (calls && calls.length > 0) {
+    if (calls.length > 0) {
       const call = calls[0];
       const toolName = call.name;
       const toolArgs = call.args || {};
 
-      let responseText = "";
-      try {
-        responseText = result.response.text();
-      } catch (e) {
-        // Some tool calls don't return text in the first chunk
-      }
+      // Some tool calls don't come with any accompanying text
+      let responseText = getText(result);
 
       // Provide crisp fallback text if the model returned an empty string
       if (!responseText || responseText.trim().length === 0) {
@@ -320,7 +347,7 @@ CRITICAL OPERATING DIRECTIVES:
         } else if (toolName === "navigate_to_location") {
           responseText = `Orbital tracking locked onto ${toolArgs.location_name} [${toolArgs.lat}°N, ${toolArgs.lon}°E]. Repositioning viewport.`;
         } else if (toolName === "open_feature") {
-          responseText = `Opening ${toolArgs.feature_name.replace('_', ' ').toUpperCase()} subsystem. Interfacing with local instrument bus.`;
+          responseText = `Opening ${String(toolArgs.feature_name).replaceAll('_', ' ').toUpperCase()} subsystem. Interfacing with local instrument bus.`;
         } else if (toolName === "trigger_contingency") {
           responseText = `WARNING: Emergency contingency '${toolArgs.contingency_type.toUpperCase()}' initiated. Check your alert monitors and abort margins.`;
         } else if (toolName === "clear_route") {
@@ -348,9 +375,11 @@ CRITICAL OPERATING DIRECTIVES:
     }
 
     // Normal conversational response without tool execution
-    const rawText = result.response.text();
+    const blockReason = result?.promptFeedback?.blockReason;
     return {
-      text: rawText,
+      text: getText(result) || (blockReason
+        ? "Transmission filtered by safety protocols. Rephrase your request, Commander."
+        : "Telemetry synchronized."),
       action: null
     };
 

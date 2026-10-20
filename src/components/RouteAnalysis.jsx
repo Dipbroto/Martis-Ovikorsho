@@ -1,11 +1,12 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
 import { routeDistance, estimateEVATime, estimateRadiation, estimateO2Consumption, estimateWaterConsumption, estimatePowerConsumption } from '../utils/marsUtils';
 import { Mountain, TrendingUp, TrendingDown, AlertTriangle, Clock, Zap, Droplets, Wind, Shield } from 'lucide-react';
 
 export default function RouteAnalysis() {
-  const { waypoints } = useMapStore();
+  const { waypoints } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints })));
 
   const analysis = useMemo(() => {
     if (!waypoints || waypoints.length < 2) return null;

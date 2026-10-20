@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { FileText, CheckCircle, AlertTriangle, Download, Clipboard, Printer, FlaskConical } from 'lucide-react';
+import { useState } from 'react';
+import { FileText, CheckCircle, AlertTriangle, Clipboard, Printer, FlaskConical } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 
 const Gauge = ({ score }) => {
   const radius = 34;
@@ -45,7 +46,7 @@ const MissionReport = () => {
     currentSol,
     setFlightPlanOpen,
     setScienceLabOpen
-  } = useMapStore();
+  } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, missionActivities: s.missionActivities, weather: s.weather, currentSol: s.currentSol, setFlightPlanOpen: s.setFlightPlanOpen, setScienceLabOpen: s.setScienceLabOpen })));
   
   const [copied, setCopied] = useState(false);
 

@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { X, Volume2, VolumeX, Radio, Wind, Heart, Zap, Sliders } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { marsAudio } from '../utils/audioSynthesizer';
 
 export default function AudioSynthesizerRack() {
-  const { isAudioRackOpen, setAudioRackOpen, isAudioActive, toggleAudio } = useMapStore();
-  const [masterVol, setMasterVol] = useState(0.3);
+  const { isAudioRackOpen, setAudioRackOpen, isAudioActive, toggleAudio } = useMapStore(useShallow((s) => ({ isAudioRackOpen: s.isAudioRackOpen, setAudioRackOpen: s.setAudioRackOpen, isAudioActive: s.isAudioActive, toggleAudio: s.toggleAudio })));
   const [windVol, setWindVol] = useState(0.25);
   const [breathVol, setBreathVol] = useState(0.04);
   const [geigerVol, setGeigerVol] = useState(0.06);

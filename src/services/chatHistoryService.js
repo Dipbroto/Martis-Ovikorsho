@@ -2,11 +2,14 @@ import { supabase } from '../lib/supabase';
 
 const STORAGE_PREFIX = 'ares_chat_history_';
 
-const DEFAULT_GREETING = {
+// Most recent messages kept when loading history (and therefore sent to the model as context)
+const MAX_HISTORY_MESSAGES = 40;
+
+const createDefaultGreeting = () => ({
   role: 'model',
   text: "EVA Autonomous Uplink Online. I am authorized to operate surface navigation, plot EVA traverses, control 2D/3D viewports, and execute mission contingencies. State your objective, Commander.",
   timestamp: new Date().toISOString()
-};
+});
 
 /**
  * Load chat history for a user (or guest).
@@ -21,10 +24,13 @@ export async function loadChatHistory(userId) {
         .from('ai_chat_messages')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false })
+        .limit(MAX_HISTORY_MESSAGES);
 
-      if (!error && data && data.length > 0) {
-        const formatted = data.map(msg => ({
+      if (error) {
+        console.warn("Supabase chat fetch fallback to localStorage:", error.message);
+      } else if (data && data.length > 0) {
+        const formatted = data.reverse().map(msg => ({
           id: msg.id,
           role: msg.role === 'model' ? 'model' : 'user',
           text: msg.content,
@@ -32,7 +38,11 @@ export async function loadChatHistory(userId) {
           timestamp: msg.created_at
         }));
         // Cache to local storage
-        localStorage.setItem(localKey, JSON.stringify(formatted));
+        try {
+          localStorage.setItem(localKey, JSON.stringify(formatted));
+        } catch (e) {
+          console.warn("Could not cache chat history locally:", e);
+        }
         return formatted;
       }
     } catch (err) {
@@ -46,14 +56,14 @@ export async function loadChatHistory(userId) {
     if (cached) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return parsed.slice(-MAX_HISTORY_MESSAGES);
       }
     }
   } catch (e) {
     console.error("Error reading localStorage chat history:", e);
   }
 
-  return [DEFAULT_GREETING];
+  return [createDefaultGreeting()];
 }
 
 /**
@@ -63,7 +73,7 @@ export async function saveChatMessage({ userId, role, text, actionData = null })
   const localKey = `${STORAGE_PREFIX}${userId || 'guest'}`;
   const timestamp = new Date().toISOString();
   const newMsg = {
-    id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     role,
     text,
     actionData,
@@ -83,12 +93,13 @@ export async function saveChatMessage({ userId, role, text, actionData = null })
   // 2. Persist to Supabase if authenticated
   if (userId) {
     try {
-      await supabase.from('ai_chat_messages').insert({
+      const { error } = await supabase.from('ai_chat_messages').insert({
         user_id: userId,
         role,
         content: text,
         action_data: actionData
       });
+      if (error) throw error;
     } catch (err) {
       console.warn("Could not sync message to Supabase (run supabase_schema.sql if table missing):", err);
     }
@@ -110,11 +121,12 @@ export async function clearChatHistory(userId) {
 
   if (userId) {
     try {
-      await supabase.from('ai_chat_messages').delete().eq('user_id', userId);
+      const { error } = await supabase.from('ai_chat_messages').delete().eq('user_id', userId);
+      if (error) throw error;
     } catch (err) {
       console.warn("Failed deleting chat messages from Supabase:", err);
     }
   }
 
-  return [DEFAULT_GREETING];
+  return [createDefaultGreeting()];
 }

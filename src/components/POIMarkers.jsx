@@ -6,14 +6,21 @@ import { landingSites } from '../data/landingSites';
 import { geologicalFeatures } from '../data/geologicalFeatures';
 import { marsAudio } from '../utils/audioSynthesizer';
 
+const iconCache = new Map();
+
+// Icons are cached per emoji/color so re-renders don't rebuild every marker's DOM
 const createCustomIcon = (emoji, color) => {
-  return L.divIcon({
+  const key = `${emoji}|${color}`;
+  if (iconCache.has(key)) return iconCache.get(key);
+  const icon = L.divIcon({
     className: 'custom-div-icon',
     html: `<div style="background-color: ${color}; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.8);">${emoji}</div>`,
     iconSize: [30, 30],
     iconAnchor: [15, 15],
     popupAnchor: [0, -15],
   });
+  iconCache.set(key, icon);
+  return icon;
 };
 
 const getFeatureColor = (type) => {
@@ -29,7 +36,9 @@ const getFeatureColor = (type) => {
 };
 
 const POIMarkers = () => {
-  const { poiFilters, setSelectedPOI, addWaypoint } = useMapStore();
+  const poiFilters = useMapStore((s) => s.poiFilters);
+  const setSelectedPOI = useMapStore((s) => s.setSelectedPOI);
+  const addWaypoint = useMapStore((s) => s.addWaypoint);
 
   return (
     <>
@@ -129,4 +138,4 @@ const POIMarkers = () => {
   );
 };
 
-export default POIMarkers;
+export default React.memo(POIMarkers);

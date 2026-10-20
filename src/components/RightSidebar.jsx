@@ -1,15 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Radar, Radio, Activity, Wind, Thermometer, Gauge, Sun, 
-  ChevronRight, ChevronLeft, AlertCircle, Eye, Satellite, 
-  Crosshair, ShieldAlert, Zap, Compass, RefreshCw, Bot, Sparkles
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Radar, Radio, Wind, Gauge, Sun, ChevronRight, Bot } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import { useShallow } from 'zustand/react/shallow';
 import { marsAudio } from '../utils/audioSynthesizer';
 
 // Mini Atmospheric Area Graph (SVG)
-const AreaGraph = ({ data, color = '#00FFCC', height = 36, unit = '', label = '' }) => {
+const AreaGraph = ({ data, color = '#00FFCC', height = 36, label = '' }) => {
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
@@ -51,9 +48,8 @@ export default function RightSidebar() {
     rightSidebarOpen = true, 
     setRightSidebarOpen,
     weather,
-    activeContingency,
     setAresCopilotOpen
-  } = useMapStore();
+  } = useMapStore(useShallow((s) => ({ rightSidebarOpen: s.rightSidebarOpen, setRightSidebarOpen: s.setRightSidebarOpen, weather: s.weather, setAresCopilotOpen: s.setAresCopilotOpen })));
 
   const isOpen = rightSidebarOpen !== undefined ? rightSidebarOpen : true;
   const [selectedBlip, setSelectedBlip] = useState(null);

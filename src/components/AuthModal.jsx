@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Lock, Mail, ChevronRight, Rocket, ShieldCheck, X, Loader2 } from 'lucide-react';
+import { User, Lock, Mail, ChevronRight, ShieldCheck, X, Loader2 } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { supabase } from '../lib/supabase';
 import { marsAudio } from '../utils/audioSynthesizer';
@@ -15,12 +15,12 @@ export default function AuthModal() {
   const [username, setUsername] = useState('');
   
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null); // { kind: 'error' | 'success', text }
   
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setError(null);
+    setNotice(null);
     marsAudio.playUiClick?.();
 
     try {
@@ -41,7 +41,7 @@ export default function AuthModal() {
         } else {
           // Email confirmation is still enabled, prompt to login/verify
           setMode('login');
-          setError("Registration successful! Please login."); 
+          setNotice({ kind: 'success', text: "Registration successful! Please login." }); 
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -54,17 +54,16 @@ export default function AuthModal() {
         setAuthModalOpen(false);
       }
     } catch (err) {
-      setError(err.message);
+      setNotice({ kind: 'error', text: err.message });
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!isAuthModalOpen) return null;
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {isAuthModalOpen && (
+      <div key="auth-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
         <motion.div 
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 
@@ -98,11 +97,11 @@ export default function AuthModal() {
 
           {/* Body */}
           <div className="p-6">
-            {error && (
+            {notice && (
               <div className={`mb-4 p-3 rounded-xl border text-xs font-mono flex items-center gap-2
-                ${error.includes('successful') ? 'bg-emerald-950/50 border-emerald-500/50 text-emerald-400' : 'bg-red-950/50 border-red-500/50 text-red-400'}
+                ${notice.kind === 'success' ? 'bg-emerald-950/50 border-emerald-500/50 text-emerald-400' : 'bg-red-950/50 border-red-500/50 text-red-400'}
               `}>
-                {error}
+                {notice.text}
               </div>
             )}
 
@@ -167,13 +166,13 @@ export default function AuthModal() {
           {/* Footer Tabs */}
           <div className="flex border-t border-white/[0.08] bg-space-900/30">
             <button 
-              onClick={() => { setMode('login'); setError(null); }}
+              onClick={() => { setMode('login'); setNotice(null); }}
               className={`flex-1 py-3 text-xs font-mono uppercase tracking-wider transition-colors ${mode === 'login' ? 'text-mars-400 bg-white/[0.02] border-b-2 border-mars-500' : 'text-space-500 hover:text-white'}`}
             >
               Access Identity
             </button>
             <button 
-              onClick={() => { setMode('register'); setError(null); }}
+              onClick={() => { setMode('register'); setNotice(null); }}
               className={`flex-1 py-3 text-xs font-mono uppercase tracking-wider transition-colors ${mode === 'register' ? 'text-mars-400 bg-white/[0.02] border-b-2 border-mars-500' : 'text-space-500 hover:text-white'}`}
             >
               New Identity
@@ -181,6 +180,7 @@ export default function AuthModal() {
           </div>
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   );
 }
