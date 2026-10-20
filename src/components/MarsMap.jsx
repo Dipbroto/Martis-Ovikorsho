@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { MapContainer, TileLayer, useMap, useMapEvents, CircleMarker, Popup, Polyline, Circle, Marker, ZoomControl } from 'react-leaflet';
+import { MapContainer, Pane, TileLayer, useMap, useMapEvents, CircleMarker, Popup, Polyline, Circle, Marker, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import useMapStore from '../store/useMapStore';
@@ -8,8 +8,12 @@ import { getElevation } from '../utils/elevationService';
 import { marsDistance, calculateSlope, MARS } from '../utils/marsUtils';
 import CoordinateDisplay from './CoordinateDisplay';
 import POIMarkers from './POIMarkers';
+import RoverTraverses from './RoverTraverses';
+import { ResourceLayer, ResourcePanel, RESOURCE_OVERLAYS } from './ResourceOverlays';
+import { TerrainOverlayLayer, TerrainOverlayPanel, TERRAIN_OVERLAYS } from './TerrainOverlay';
+import { routeSignature } from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
-import { Shield, Play, Pause, Ruler, Globe, Crosshair, RotateCcw, Video, VideoOff, Grid } from 'lucide-react';
+import { Compass, Route, Shield, Play, Pause, Ruler, Globe, Crosshair, RotateCcw, Video, VideoOff, Grid } from 'lucide-react';
 
 // Leaflet's geodesic <Circle> converts metres to degrees with Earth's radius when using EPSG:4326,
 // so real Martian distances have to be scaled up to render at the correct size on this map.
@@ -592,6 +596,12 @@ const MarsMap = () => {
   const removeWaypoint = useMapStore((s) => s.removeWaypoint);
   const clearSelection = useMapStore((s) => s.clearSelection);
   const setPlacingWaypoint = useMapStore((s) => s.setPlacingWaypoint);
+  const setGuidedPlannerOpen = useMapStore((s) => s.setGuidedPlannerOpen);
+  const showRoverTraverses = useMapStore((s) => s.showRoverTraverses);
+  const toggleRoverTraverses = useMapStore((s) => s.toggleRoverTraverses);
+  const terrainOverlay = useMapStore((s) => s.terrainOverlay);
+  const setTerrainOverlay = useMapStore((s) => s.setTerrainOverlay);
+  const routeGeometry = useMapStore((s) => s.routeGeometry);
 
   // Global Keyboard Shortcuts (Ctrl+Z Undo, Escape Cancel, Backspace/Delete Delete Selected)
   useEffect(() => {
@@ -634,7 +644,7 @@ const MarsMap = () => {
     return `rgb(${r},${g},${b})`;
   };
 
-  // Base waypoint for NASA Walkback Limit circles (2 km / 5 km)
+  // Base waypoint for the walkback planning rings (2 km / 5 km; team planning assumptions)
   // Mars 1 degree latitude ~ 59.16 km -> 2 km is approx 0.0338 degrees
   const baseWP = waypoints && waypoints.length > 0 ? waypoints[0] : null;
 
@@ -684,10 +694,18 @@ const MarsMap = () => {
           />
         ))}
 
+        {/* Real-terrain survival analysis (slope / point of no return / radio coverage) */}
+        <Pane name="terrain-analysis" style={{ zIndex: 350 }}>
+          <TerrainOverlayLayer />
+          <ResourceLayer />
+        </Pane>
+
+        {showRoverTraverses && <RoverTraverses />}
+
         {/* Martian Planetary Graticule (Latitude & Longitude Grid) */}
         {showGraticule && <Graticule />}
 
-        {/* NASA Walkback Limit Circles (2 km Safe / 5 km Abort) */}
+        {/* Walkback planning rings (2 km / 5 km) */}
         {showWalkbackLimits && baseWP && (
           <>
             <Circle
@@ -703,7 +721,7 @@ const MarsMap = () => {
             >
               <Popup autoPanPadding={[50, 50]}>
                 <div className="font-mono text-xs">
-                  <strong>NASA 2.0 km Walkback Zone</strong>
+                  <strong>2.0 km walkback planning ring</strong>
                   <p>Safe astronaut return radius on primary suit O₂ reserves.</p>
                 </div>
               </Popup>
@@ -722,7 +740,7 @@ const MarsMap = () => {
             >
               <Popup autoPanPadding={[50, 50]}>
                 <div className="font-mono text-xs">
-                  <strong>{activeContingency === 'o2_leak' ? '⚠️ CONTRACTED 1.8 km Walkback Boundary' : 'NASA 5.0 km Hard Walkback Boundary'}</strong>
+                  <strong>{activeContingency === 'o2_leak' ? '⚠️ CONTRACTED 1.8 km Walkback Boundary' : '5.0 km walkback planning boundary'}</strong>
                   <p>{activeContingency === 'o2_leak' ? 'Secondary O2 Anomaly: Usable return perimeter contracted by 60%.' : 'Maximum authorized traverse perimeter from pressurized base.'}</p>
                 </div>
               </Popup>
@@ -732,6 +750,14 @@ const MarsMap = () => {
 
         {/* POI Markers */}
         <POIMarkers />
+
+        {/* Full-resolution path from the terrain planner (hidden once the waypoints are edited) */}
+        {routeGeometry && routeGeometry.signature === routeSignature(waypoints) && (
+          <Polyline
+            positions={routeGeometry.points}
+            pathOptions={{ color: '#22d3ee', weight: 2.5, opacity: 0.9, interactive: false }}
+          />
+        )}
 
         {/* Route Polyline */}
         {polylinePositions.length > 1 && (
@@ -876,7 +902,7 @@ const MarsMap = () => {
       </MapContainer>
 
       {/* FLOATING MAP TOOLBAR (Positioned below TopBar with breathing room) */}
-      <div className="absolute top-20 left-6 z-[400] flex flex-wrap items-center gap-1.5 bg-[#0B0C10]/95 backdrop-blur-2xl p-1.5 rounded-2xl border border-white/[0.08] shadow-hud-glass font-mono text-xs">
+      <div className="absolute top-[124px] left-6 right-6 sm:right-auto z-[400] flex flex-wrap items-center gap-1.5 bg-[#0B0C10]/95 backdrop-blur-2xl p-1.5 rounded-2xl border border-white/[0.08] shadow-hud-glass font-mono text-xs">
         {/* Quick Global Mars / Jezero Views */}
         <button
           onClick={() => {
@@ -918,6 +944,52 @@ const MarsMap = () => {
           <Grid className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">GRID: {showGraticule ? 'ON' : 'OFF'}</span>
         </button>
+
+        <button
+          onClick={() => setGuidedPlannerOpen(true)}
+          className="px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-bold transition-all border bg-gradient-to-r from-mars-600 to-amber-600 hover:from-mars-500 hover:to-amber-500 text-white border-white/20 shadow-md"
+          title="Guided flow: pick a site, plan a route on real terrain, check survival layers"
+        >
+          <Compass className="w-3.5 h-3.5" />
+          <span>PLAN</span>
+        </button>
+
+        {/* Real-terrain survival overlays */}
+        <div className="flex items-center gap-1 pl-1.5 ml-0.5 border-l border-white/[0.08]">
+          {Object.entries({ ...TERRAIN_OVERLAYS, ...RESOURCE_OVERLAYS }).map(([key, { label, icon: Icon, title }]) => (
+            <button
+              key={key}
+              onClick={() => {
+                setTerrainOverlay(key);
+                marsAudio.playQuindarTone(false);
+              }}
+              className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-all border ${
+                terrainOverlay === key
+                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50 shadow-sm'
+                  : 'bg-space-900/80 text-space-400 border-white/[0.06] hover:text-white'
+              }`}
+              title={title}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
+          <button
+            onClick={() => {
+              toggleRoverTraverses();
+              marsAudio.playQuindarTone(false);
+            }}
+            className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-all border ${
+              showRoverTraverses
+                ? 'bg-orange-950/80 text-orange-300 border-orange-500/50 shadow-sm'
+                : 'bg-space-900/80 text-space-400 border-white/[0.06] hover:text-white'
+            }`}
+            title="Real rover drive paths (NASA/JPL): where vehicles have actually gone"
+          >
+            <Route className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">TRACKS</span>
+          </button>
+        </div>
 
         {/* Undo Last Point Button (active when waypoints or ruler points exist) */}
         {(waypoints.length > 0 || rulerPoints.length > 0) && (
@@ -1042,7 +1114,7 @@ const MarsMap = () => {
               ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
               : 'bg-space-900/80 text-space-400 hover:text-white border-white/[0.08]'
           }`}
-          title="Toggle NASA 2km & 5km Walkback Safety Circles"
+          title="Toggle the 2 km and 5 km walkback planning rings (team assumptions; see RETURN for the life-support-based range)"
         >
           <Shield className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">WALKBACK: {showWalkbackLimits ? 'ON' : 'OFF'}</span>
@@ -1072,7 +1144,7 @@ const MarsMap = () => {
 
       {/* PLACING WAYPOINT FLOATING HELPER BANNER */}
       {isPlacingWaypoint && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[400] flex items-center gap-3 bg-space-950/95 backdrop-blur-md px-4 py-2 rounded-full border border-mars-500/70 shadow-2xl font-mono text-xs text-white">
+        <div className="absolute top-[176px] left-1/2 -translate-x-1/2 z-[400] flex items-center gap-3 bg-space-950/95 backdrop-blur-md px-4 py-2 rounded-full border border-mars-500/70 shadow-2xl font-mono text-xs text-white">
           <span className="flex items-center gap-2 text-mars-400 font-bold">
             <span className="w-2.5 h-2.5 rounded-full bg-mars-500 animate-ping" />
             Click on Martian terrain to place Waypoint #{waypoints.length + 1}
@@ -1103,7 +1175,7 @@ const MarsMap = () => {
 
       {/* ROVER TELEMETRY HUD (Floating when driving) */}
       {isRoverDriving && (
-        <div className="absolute top-16 left-3 z-[400] bg-space-950/95 backdrop-blur-md p-3.5 rounded-xl border border-amber-500/50 shadow-2xl font-mono text-xs w-68 flex flex-col gap-2">
+        <div className="absolute top-[176px] left-24 z-[400] bg-space-950/95 backdrop-blur-md p-3.5 rounded-xl border border-amber-500/50 shadow-2xl font-mono text-xs w-68 flex flex-col gap-2">
           <div className="flex items-center justify-between text-amber-400 font-bold border-b border-space-800 pb-1">
             <span className="flex items-center gap-1.5">
               <span>🚜</span> ROVER EN ROUTE
@@ -1141,9 +1213,12 @@ const MarsMap = () => {
         </div>
       )}
 
+      <TerrainOverlayPanel />
+      <ResourcePanel />
+
       {/* RULER MEASUREMENT READOUT */}
       {isRulerActive && rulerPoints.length > 0 && (
-        <div className="absolute top-16 left-3 z-[400] bg-space-950/95 backdrop-blur-md p-3.5 rounded-xl border border-yellow-500/50 shadow-2xl font-mono text-xs w-72 flex flex-col gap-1.5">
+        <div className="absolute top-[176px] left-24 z-[400] bg-space-950/95 backdrop-blur-md p-3.5 rounded-xl border border-yellow-500/50 shadow-2xl font-mono text-xs w-72 flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-yellow-400 font-bold border-b border-space-800 pb-1">
             <span className="flex items-center gap-1.5">
               <Ruler className="w-3.5 h-3.5" />

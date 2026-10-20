@@ -69,7 +69,7 @@ const DustStormTracker = () => {
               <Wind className="text-mars-400" size={24} />
               Dust Storm Tracker
             </h2>
-            <ProvenanceBadge type="OBSERVED" size="xs" detail="THEMIS Dust Tau" />
+            <ProvenanceBadge type="SIMULATED" size="xs" detail="Seasonal dust-risk model" />
           </div>
           <div className="text-sm text-secondary flex items-center gap-2 mt-1 font-mono">
             <Eye size={14} />

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { getDefaultVisibleLayers } from '../data/marsLayers';
 import { generateWeatherForSol, getSolFromDate } from '../data/weatherSimulation';
 import { marsAudio } from '../utils/audioSynthesizer';
+import { planTraverse } from '../terrain/terrainClient';
 
 const initialSol = getSolFromDate();
 
@@ -39,6 +40,9 @@ const useMapStore = create((set, get) => ({
   setMapZoom: (zoom) => set({ mapZoom: zoom }),
   setCursorPosition: (pos) => set({ cursorPosition: pos }),
   setViewMode: (mode) => set({ viewMode: mode, isEVASimulating: false }),
+
+  // Incremented whenever a real terrain grid finishes loading (see src/terrain/terrainSync.js)
+  terrainVersion: 0,
 
   // ========================
   // LAYERS
@@ -112,6 +116,11 @@ const useMapStore = create((set, get) => ({
   clearWaypoints: () => set({ waypoints: [], selectedWaypointId: null, driveTargetWaypointId: null, evaCurrentWaypointIndex: 0, isRoverDriving: false, roverProgress: 0, roverCurrentPosition: null }),
   clearSelection: () => set({ selectedWaypointId: null, selectedPOI: null }),
   setPlacingWaypoint: (val) => set({ isPlacingWaypoint: val, isRulerActive: false }),
+
+  // Full-resolution path from the terrain planner. Only drawn while `signature` still matches the
+  // waypoint ids it was planned for (see routeSignature), so manual edits hide stale geometry.
+  routeGeometry: null, // { signature, points: [[lat, lon]], source }
+  setRouteGeometry: (routeGeometry) => set({ routeGeometry }),
   setSelectedWaypoint: (id) => set({ selectedWaypointId: id }),
   reorderWaypoints: (newOrder) => set({ waypoints: newOrder }),
 
@@ -145,6 +154,15 @@ const useMapStore = create((set, get) => ({
   toggleWalkbackLimits: () => set((state) => ({ showWalkbackLimits: !state.showWalkbackLimits })),
   showGraticule: true,
   toggleGraticule: () => set((state) => ({ showGraticule: !state.showGraticule })),
+
+  showRoverTraverses: false,
+  toggleRoverTraverses: () => set((state) => ({ showRoverTraverses: !state.showRoverTraverses })),
+
+  // Real-terrain survival overlays drawn on the 2D map
+  terrainOverlay: null, // null | 'slope' | 'return' | 'comms'
+  setTerrainOverlay: (mode) => set((state) => ({ terrainOverlay: state.terrainOverlay === mode ? null : mode })),
+  terrainOverlayStatus: null, // written by TerrainOverlayLayer for the legend/status card
+  setTerrainOverlayStatus: (terrainOverlayStatus) => set({ terrainOverlayStatus }),
   
   isRulerActive: false,
   rulerPoints: [], // max 2 points [{lat, lon, elevation}]
@@ -436,7 +454,7 @@ const useMapStore = create((set, get) => ({
 
   setContingencyModalOpen: (val) => set({ isContingencyModalOpen: val }),
 
-  executeEmergencyReturn: () => {
+  executeEmergencyReturn: async () => {
     const state = get();
     const waypoints = state.waypoints || [];
     if (waypoints.length === 0) return;
@@ -449,8 +467,8 @@ const useMapStore = create((set, get) => ({
     const baseElevation = baseCamp.elevation || 0;
     const currentElevation = currentPos.elevation || 0;
 
-    // Generate direct return route back to base
-    const abortWaypoints = [
+    // Straight three-point corridor, used only when no terrain data covers the area
+    let abortWaypoints = [
       {
         id: `abort-origin-${stamp}`,
         name: `[ABORT START] Current Position`,
@@ -476,9 +494,39 @@ const useMapStore = create((set, get) => ({
         type: 'abort_refuge',
       },
     ];
+    let routeGeometry = null;
+
+    // Preferred: the fastest walkable route home on real terrain
+    try {
+      const plan = await planTraverse(
+        { lat: currentPos.lat, lon: currentPos.lon },
+        { lat: baseCamp.lat, lon: baseCamp.lon },
+        { mode: 'fastest' }
+      );
+      abortWaypoints = plan.keyIndices.map((pathIndex, n) => {
+        const p = plan.path[pathIndex];
+        const last = n === plan.keyIndices.length - 1;
+        return {
+          id: `abort-${n}-${stamp}`,
+          name: n === 0 ? '[ABORT START] Current Position' : last ? `[PRIMARY REFUGE] ${baseCamp.name || 'Pressurized Basecamp'}` : `[ABORT ROUTE] Turn ${n}`,
+          lat: p.lat,
+          lon: p.lon,
+          elevation: Math.round(p.elevation),
+          type: n === 0 ? 'abort_origin' : last ? 'abort_refuge' : 'abort_corridor',
+        };
+      });
+      routeGeometry = {
+        signature: abortWaypoints.map((w) => w.id).join('|'),
+        points: plan.path.map((p) => [p.lat, p.lon]),
+        source: plan.grid.source,
+      };
+    } catch (err) {
+      console.warn('Emergency route on real terrain unavailable, using straight corridor:', err.message);
+    }
 
     set({
       waypoints: abortWaypoints,
+      routeGeometry,
       selectedWaypointId: abortWaypoints[0].id,
       driveTargetWaypointId: null,
       isRoverDriving: true,
@@ -509,16 +557,22 @@ const useMapStore = create((set, get) => ({
   user: null,
   profile: null,
   isAuthModalOpen: false,
+  isDataMethodsOpen: false,
+  isGuidedPlannerOpen: false,
   isProfileModalOpen: false,
   isAresCopilotOpen: false,
   
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
   setAuthModalOpen: (val) => set({ isAuthModalOpen: val }),
+  setDataMethodsOpen: (val) => set({ isDataMethodsOpen: val }),
+  setGuidedPlannerOpen: (val) => set({ isGuidedPlannerOpen: val }),
   setProfileModalOpen: (val) => set({ isProfileModalOpen: val }),
   setAresCopilotOpen: (val) => set((state) => ({
     isAresCopilotOpen: typeof val === 'boolean' ? val : !state.isAresCopilotOpen
   })),
 }));
+
+export const routeSignature = (waypoints) => (waypoints || []).map((w) => w.id).join('|');
 
 export default useMapStore;

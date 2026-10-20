@@ -19,9 +19,22 @@ export default [
     rules: {
       ...reactHooks.configs.recommended.rules,
       'react/jsx-uses-vars': 'error',
+      'react/jsx-no-undef': 'error',
       'react/jsx-uses-react': 'off',
       'no-unused-vars': ['warn', { varsIgnorePattern: '^_', argsIgnorePattern: '^_', caughtErrors: 'none' }],
     },
+  },
+  {
+    files: ['src/**/*.test.js'],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
+    files: ['public/sw.js'],
+    languageOptions: { sourceType: 'script', globals: { ...globals.serviceworker } },
+  },
+  {
+    files: ['src/**/*.worker.js'],
+    languageOptions: { globals: { ...globals.worker } },
   },
   {
     files: ['*.config.js', 'vite.config.js'],

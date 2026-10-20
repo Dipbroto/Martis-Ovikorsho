@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
 import useMapStore from '../store/useMapStore';
+import { estimateRouteEVA } from '../terrain/routeEnergy';
 import { useShallow } from 'zustand/react/shallow';
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
-import { routeDistance, estimateEVATime, estimateRadiation, estimateO2Consumption, estimateWaterConsumption, estimatePowerConsumption } from '../utils/marsUtils';
+import { routeDistance, estimateRadiation, estimateO2Consumption, estimateWaterConsumption, estimatePowerConsumption } from '../utils/marsUtils';
 import { Mountain, TrendingUp, TrendingDown, AlertTriangle, Clock, Zap, Droplets, Wind, Shield } from 'lucide-react';
 
 export default function RouteAnalysis() {
-  const { waypoints } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints })));
+  const { waypoints, terrainVersion } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, terrainVersion: s.terrainVersion })));
 
   const analysis = useMemo(() => {
     if (!waypoints || waypoints.length < 2) return null;
@@ -16,7 +17,7 @@ export default function RouteAnalysis() {
     const profile = getElevationProfile(waypoints, 100);
     const stats = getProfileStats(profile);
     
-    const evaEstimate = estimateEVATime(dist, stats ? stats.avgSlope : 0);
+    const evaEstimate = estimateRouteEVA(waypoints);
     const evaHours = typeof evaEstimate === 'object' ? (evaEstimate.totalHours || 0) : (evaEstimate || 0);
     
     // Safely call util functions
@@ -47,7 +48,9 @@ export default function RouteAnalysis() {
       consumables,
       hazards
     };
-  }, [waypoints]);
+  // terrainVersion isn't read inside, but forces a recompute once real elevation grids finish loading
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waypoints, terrainVersion]);
 
   if (!analysis) {
     return (

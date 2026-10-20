@@ -94,6 +94,9 @@ export default function RightSidebar() {
             <span className="font-display font-bold text-xs tracking-wider text-white">
               HUD TELEMETRY FEED
             </span>
+            <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold tracking-wider bg-amber-950/70 text-amber-400 border border-amber-500/40" title="Radar contacts, graphs and the log stream are illustrative, not live spacecraft data">
+              SIMULATED
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 font-mono text-[10px]">

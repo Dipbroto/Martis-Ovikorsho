@@ -59,10 +59,10 @@ export default function ScienceLabPage() {
           <div className="flex flex-wrap items-center gap-3 mt-3 text-[11px] font-mono text-zinc-400">
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-white/[0.03] border border-white/[0.06]">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              PERSEVERANCE / ROVER-2020
+              SIMULATED INSTRUMENT SUITE
             </span>
             <span className="px-2.5 py-1 rounded-sm bg-white/[0.03] border border-white/[0.06]">
-              SOL 842.6 · SKINNER RIDGE
+              CURATED TARGETS · NASA PUBLISHED SCIENCE
             </span>
             <span className="px-2.5 py-1 rounded-sm bg-white/[0.03] border border-white/[0.06] text-zinc-300">
               FOCAL DISTANCE: 2.14 m

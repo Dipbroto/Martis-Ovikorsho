@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu, X, Volume2, VolumeX, User, Maximize, Minimize, ShieldAlert, FileText, Radar, Play, Hexagon } from 'lucide-react';
+import { Menu, X, Volume2, VolumeX, User, Maximize, Minimize, ShieldAlert, FileText, Radar, Play, Hexagon, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
@@ -15,6 +15,7 @@ export default function TopBar({ onSelectTab }) {
   const setEVASimulating = useMapStore(s => s.setEVASimulating);
   const activeContingency = useMapStore(s => s.activeContingency);
   const setContingencyModalOpen = useMapStore(s => s.setContingencyModalOpen);
+  const setDataMethodsOpen = useMapStore(s => s.setDataMethodsOpen);
   const rightSidebarOpen = useMapStore(s => s.rightSidebarOpen);
   const setRightSidebarOpen = useMapStore(s => s.setRightSidebarOpen);
   const isAudioActive = useMapStore(s => s.isAudioActive);
@@ -270,6 +271,16 @@ export default function TopBar({ onSelectTab }) {
               >
                 <ShieldAlert className="w-2.5 h-2.5" />
                 <span className="hidden sm:inline">CONTINGENCY</span>
+              </button>
+
+              {/* Data & Methods */}
+              <button
+                onClick={() => setDataMethodsOpen(true)}
+                className="px-3 py-1 rounded-full text-[10px] font-mono tracking-wider text-zinc-300 hover:text-white bg-white/[0.06] hover:bg-white/15 transition-all flex items-center gap-1 cursor-pointer"
+                title="NASA datasets, models, assumptions and validation"
+              >
+                <Database className="w-2.5 h-2.5" />
+                <span className="hidden sm:inline">DATA</span>
               </button>
 
               {/* HUD Telemetry Feed */}

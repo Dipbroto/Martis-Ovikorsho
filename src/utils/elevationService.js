@@ -1,8 +1,10 @@
 // Elevation Service for Mars
-// Simulates elevation data based on MOLA topography
-// In production, this would query actual MOLA DEM tiles
+// Uses real MOLA / HRSC-MOLA elevation grids (src/terrain/dem.js) wherever they are loaded.
+// Before the grids arrive (or if they fail to load) it falls back to a coarse interpolation of
+// known landmark elevations, which callers can detect through getElevationInfo().
 
 import { marsDistance } from './marsUtils';
+import { getDemElevation } from '../terrain/dem';
 import { MARS_LANDMARKS } from '../data/marsLandmarks';
 
 // Reference points come from the shared landmark table. Entries that sit within a few km of an
@@ -14,8 +16,8 @@ const ELEVATION_REFS = MARS_LANDMARKS.reduce((refs, lm) => {
   return refs;
 }, []);
 
-// Inverse Distance Weighting interpolation for elevation
-export function getElevation(lat, lon) {
+// Coarse fallback: inverse-distance weighting of known landmark elevations (no random noise)
+function interpolateLandmarks(lat, lon) {
   let weightSum = 0;
   let elevSum = 0;
   const power = 2.5;
@@ -23,15 +25,38 @@ export function getElevation(lat, lon) {
   for (const ref of ELEVATION_REFS) {
     const dist = marsDistance(lat, lon, ref.lat, ref.lon);
     if (dist < 1) return ref.elev; // Very close to a known point
-    
+
     const weight = 1 / Math.pow(dist, power);
     weightSum += weight;
     elevSum += weight * ref.elev;
   }
+  return elevSum / weightSum;
+}
 
-  // Add some procedural variation for realism
-  const noise = pseudoNoise(lat, lon) * 500 - 250;
-  return Math.round(elevSum / weightSum + noise);
+/**
+ * Elevation with provenance: { elevation, kind: 'observed' | 'model', source, metersPerPixel }.
+ * 'observed' means it was sampled from a MOLA-derived grid.
+ */
+export function getElevationInfo(lat, lon) {
+  const dem = getDemElevation(lat, lon);
+  if (dem) {
+    return {
+      elevation: Math.round(dem.elevation),
+      kind: 'observed',
+      source: dem.grid.source,
+      metersPerPixel: dem.grid.metersPerPixel,
+    };
+  }
+  return {
+    elevation: Math.round(interpolateLandmarks(lat, lon)),
+    kind: 'model',
+    source: 'Interpolated from landmark elevations (terrain grid not loaded)',
+    metersPerPixel: null,
+  };
+}
+
+export function getElevation(lat, lon) {
+  return getElevationInfo(lat, lon).elevation;
 }
 
 // Generate elevation profile along a route
@@ -128,14 +153,9 @@ export function getProfileStats(profile) {
   };
 }
 
-// Simple 2D noise function for terrain variation
-function pseudoNoise(x, y) {
-  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-  return n - Math.floor(n);
-}
-
 export default {
   getElevation,
+  getElevationInfo,
   getElevationProfile,
   getProfileStats,
 };

@@ -6,14 +6,16 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Mountain } from 'lucide-react';
 
 export default function ElevationProfile() {
-  const { waypoints } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints })));
+  const { waypoints, terrainVersion } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, terrainVersion: s.terrainVersion })));
 
   const { data, stats } = useMemo(() => {
     if (!waypoints || waypoints.length < 2) return { data: null, stats: null };
     const profile = getElevationProfile(waypoints, 100);
     const profileStats = getProfileStats(profile);
     return { data: profile, stats: profileStats };
-  }, [waypoints]);
+  // terrainVersion isn't read inside, but forces a recompute once real elevation grids finish loading
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waypoints, terrainVersion]);
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {

@@ -51,34 +51,19 @@ const ARES_TOOLS = [
     functionDeclarations: [
       {
         name: "plan_route",
-        description: "Autonomously plot an EVA traverse route across the Martian surface with realistic waypoints, coordinates, and elevations.",
+        description: "Plan a walking EVA route between two points. You only choose WHERE (start and destination); the application itself computes the route with an A* search over real NASA MOLA/HRSC elevation data and reports distance, slopes and life-support use. Never invent waypoints, elevations or slopes.",
         parameters: {
           type: T.OBJECT,
           properties: {
-            destination_name: {
-              type: T.STRING,
-              description: "Name of the target region or landmark, e.g. 'Jezero Crater Delta', 'Olympus Mons Rim', 'Gale Crater Mt Sharp'"
-            },
-            waypoints: {
-              type: T.ARRAY,
-              description: "Array of 3 to 6 ordered waypoints across the terrain",
-              items: {
-                type: T.OBJECT,
-                properties: {
-                  name: { type: T.STRING, description: "Name of the station or checkpoint" },
-                  lat: { type: T.NUMBER, description: "Martian latitude in decimal degrees (-90 to 90)" },
-                  lon: { type: T.NUMBER, description: "Martian longitude in decimal degrees (-180 to 180)" },
-                  elevation: { type: T.NUMBER, description: "Elevation in meters relative to Mars datum" }
-                },
-                required: ["name", "lat", "lon"]
-              }
-            },
-            summary: {
-              type: T.STRING,
-              description: "Concise scientific mission summary of the planned traverse"
-            }
+            destination_name: { type: T.STRING, description: "Name of the destination, e.g. 'Belva Crater Delta Scarp', 'Mount Sharp foothills'" },
+            destination_lat: { type: T.NUMBER, description: "Destination latitude in decimal degrees" },
+            destination_lon: { type: T.NUMBER, description: "Destination longitude in decimal degrees (-180 to 180)" },
+            origin_name: { type: T.STRING, description: "Optional start point name. Omit to start from the current base." },
+            origin_lat: { type: T.NUMBER, description: "Optional start latitude. Omit to start from the current base." },
+            origin_lon: { type: T.NUMBER, description: "Optional start longitude. Omit to start from the current base." },
+            mode: { type: T.STRING, description: "'safety' (gentlest grades, default) | 'energy' (least metabolic effort) | 'fastest' (least walking time)" }
           },
-          required: ["destination_name", "waypoints"]
+          required: ["destination_name", "destination_lat", "destination_lon"]
         }
       },
       {
@@ -306,7 +291,7 @@ LIVE TELEMETRY FROM USER HUD:
 
 CRITICAL OPERATING DIRECTIVES:
 1. YOU ARE AN AUTONOMOUS AGENT. When the user asks you to DO something (e.g. "Plan a route in Jezero", "Switch to 3D", "Take me to Olympus Mons", "Open the science lab", "Simulate a dust storm", "Clear the route"), YOU MUST DIRECTLY CALL THE CORRESPONDING TOOL.
-2. DO NOT ASK the user for coordinates or waypoints! You already have complete geographical knowledge of Mars. Autonomously synthesize realistic, scientifically accurate waypoints with sensible latitudes, longitudes, and elevations, and immediately execute the 'plan_route' tool.
+2. DO NOT ASK the user for coordinates. For route requests pick the destination (and, only if asked, the start) from the landmark list or your Mars knowledge and call 'plan_route' immediately. You never write waypoints, elevations or slopes yourself: the app computes the route on real NASA elevation data, and you must not claim figures about slope, distance or safety that the app has not reported. Routes can only be planned inside the 200 m terrain areas: Jezero, Gale/Mount Sharp, Olympus Mons summit, Melas Chasma, Coprates Chasma, Arcadia Planitia and Elysium Planitia (about 90 km wide each).
 3. Keep your spoken responses concise, authoritative, and immersive, speaking like a calm, sharp NASA Mission Director at Houston/JPL.
 4. If the user asks a factual question, answer concisely using authentic Mars science (MEDA weather, MOLA topography, HiRISE optics, Perseverance/Curiosity findings).
 `;
@@ -341,7 +326,7 @@ CRITICAL OPERATING DIRECTIVES:
       // Provide crisp fallback text if the model returned an empty string
       if (!responseText || responseText.trim().length === 0) {
         if (toolName === "plan_route") {
-          responseText = `Traverse plotted for ${toolArgs.destination_name || 'designated sector'}. Established ${toolArgs.waypoints?.length || 3} sequential stations with slope gradient safety checks. Navigation data pushed to your HUD.`;
+          responseText = `Planning a walking route to ${toolArgs.destination_name || 'the designated target'} on real terrain data.`;
         } else if (toolName === "switch_view_mode") {
           responseText = `Reconfigured orbital camera to ${toolArgs.mode?.toUpperCase()} viewport. Systems synchronized.`;
         } else if (toolName === "navigate_to_location") {

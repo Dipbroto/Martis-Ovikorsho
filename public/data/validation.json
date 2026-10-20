@@ -1,0 +1,39 @@
+{
+  "generated": "2026-10-20",
+  "results": [
+    {
+      "segments": 43,
+      "directDrives": 11,
+      "failed": 0,
+      "segmentKm": 1.5,
+      "plannedToRoverLengthMedian": 0.98,
+      "plannedToRoverLengthP90": 1.25,
+      "plannedDetourVsStraightMedian": 1.02,
+      "roverPathOver20DegPct": 0,
+      "roverMedianSlopeDeg": 1.4,
+      "roverP95SlopeDeg": 11.4,
+      "plannerMedianMaxSlopeDeg": 2.7,
+      "roverMedianMaxSlopeDeg": 4.8,
+      "site": "Perseverance in Jezero Crater",
+      "traverseKm": 42.71,
+      "demSource": "HRSC-MOLA Blended DEM Global 200 m v2 (Fergason et al. 2018, USGS Astrogeology)"
+    },
+    {
+      "segments": 37,
+      "directDrives": 14,
+      "failed": 0,
+      "segmentKm": 1.5,
+      "plannedToRoverLengthMedian": 0.82,
+      "plannedToRoverLengthP90": 0.87,
+      "plannedDetourVsStraightMedian": 1,
+      "roverPathOver20DegPct": 0,
+      "roverMedianSlopeDeg": 2,
+      "roverP95SlopeDeg": 7.2,
+      "plannerMedianMaxSlopeDeg": 3.6,
+      "roverMedianMaxSlopeDeg": 4.3,
+      "site": "Curiosity in Gale Crater",
+      "traverseKm": 33.28,
+      "demSource": "HRSC-MOLA Blended DEM Global 200 m v2 (Fergason et al. 2018, USGS Astrogeology)"
+    }
+  ]
+}

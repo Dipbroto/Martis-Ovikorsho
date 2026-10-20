@@ -4,8 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 // Pulls in three.js / react-three-fiber, so only fetched when the gravity modal is opened
 const LunarGravityCard = lazy(() => import('./ui/lunar-gravity-card'));
 import ErrorBoundary from './ErrorBoundary';
+import useMapStore from '../store/useMapStore';
+import { lsFromMsd, seasonFromLs } from '../utils/marsSolar';
 
 export default function HomeHero({ onSelectTab }) {
+  const currentSol = useMapStore((s) => s.currentSol);
+  const weather = useMapStore((s) => s.weather);
+  const setGuidedPlannerOpen = useMapStore((s) => s.setGuidedPlannerOpen);
+  const ls = lsFromMsd(currentSol);
   const [showGravityModal, setShowGravityModal] = useState(false);
 
   const modules = [
@@ -113,18 +119,18 @@ export default function HomeHero({ onSelectTab }) {
               {/* CTA Action Buttons */}
               <div className="flex flex-wrap items-center gap-4 pt-2">
                 <button
-                  onClick={() => onSelectTab?.('map')}
+                  onClick={() => setGuidedPlannerOpen(true)}
                   className="bg-white hover:bg-zinc-200 text-black px-6 py-3.5 text-xs font-mono font-bold uppercase tracking-[0.18em] transition-all flex items-center gap-2 shadow-[0_0_25px_rgba(255,255,255,0.25)] hover:shadow-[0_0_35px_rgba(255,255,255,0.4)] cursor-pointer group"
                 >
-                  <span>LAUNCH MISSION</span>
+                  <span>PLAN A MARSWALK</span>
                   <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                 </button>
 
                 <button
-                  onClick={() => onSelectTab?.('science')}
+                  onClick={() => onSelectTab?.('map')}
                   className="bg-black/40 hover:bg-black/60 border border-white/20 hover:border-white/50 text-white px-5 py-3.5 text-xs font-mono uppercase tracking-[0.16em] transition-all flex items-center gap-2 backdrop-blur-md cursor-pointer"
                 >
-                  <span>ECLSS TELEMETRY</span>
+                  <span>OPEN THE MAP</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -142,26 +148,23 @@ export default function HomeHero({ onSelectTab }) {
                 </p>
               </div>
 
-              {/* Live Atmospheric Telemetry Grid */}
+              {/* Mars today: sol and season are computed from orbital mechanics; temperature and pressure come from the seasonal weather model */}
               <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/[0.08]">
                 <div className="bg-black/35 backdrop-blur-md border border-white/[0.06] p-3 rounded-sm">
                   <div className="text-[9px] font-mono uppercase text-zinc-400 tracking-widest">Martian Sol</div>
-                  <div className="text-sm font-mono font-bold text-white mt-0.5">SOL 842.6</div>
+                  <div className="text-sm font-mono font-bold text-white mt-0.5">SOL {currentSol}</div>
                 </div>
                 <div className="bg-black/35 backdrop-blur-md border border-white/[0.06] p-3 rounded-sm">
-                  <div className="text-[9px] font-mono uppercase text-zinc-400 tracking-widest">Surface Temp</div>
-                  <div className="text-sm font-mono font-bold text-[#ff8c69] mt-0.5">-62.4 °C</div>
+                  <div className="text-[9px] font-mono uppercase text-zinc-400 tracking-widest">Surface Temp <span className="text-zinc-500 normal-case tracking-normal">(model)</span></div>
+                  <div className="text-sm font-mono font-bold text-[#ff8c69] mt-0.5">{weather?.temperature?.avg ?? "--"} °C</div>
                 </div>
                 <div className="bg-black/35 backdrop-blur-md border border-white/[0.06] p-3 rounded-sm">
-                  <div className="text-[9px] font-mono uppercase text-zinc-400 tracking-widest">Pressure</div>
-                  <div className="text-sm font-mono font-bold text-white mt-0.5">612 Pa</div>
+                  <div className="text-[9px] font-mono uppercase text-zinc-400 tracking-widest">Pressure <span className="text-zinc-500 normal-case tracking-normal">(model)</span></div>
+                  <div className="text-sm font-mono font-bold text-white mt-0.5">{weather?.pressure?.value ?? "--"} Pa</div>
                 </div>
                 <div className="bg-black/35 backdrop-blur-md border border-white/[0.06] p-3 rounded-sm">
-                  <div className="text-[9px] font-mono uppercase text-zinc-400 tracking-widest">Hab Status</div>
-                  <div className="text-sm font-mono font-bold text-emerald-400 mt-0.5 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    NOMINAL
-                  </div>
+                  <div className="text-[9px] font-mono uppercase text-zinc-400 tracking-widest">Season (Ls {ls.toFixed(0)}°)</div>
+                  <div className="text-sm font-mono font-bold text-emerald-400 mt-0.5">{seasonFromLs(ls)}</div>
                 </div>
               </div>
 

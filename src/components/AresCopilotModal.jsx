@@ -5,6 +5,7 @@ import useMapStore from '../store/useMapStore';
 import { chatWithMissionControl } from '../services/aiService';
 import { loadChatHistory, saveChatMessage, clearChatHistory } from '../services/chatHistoryService';
 import { marsAudio } from '../utils/audioSynthesizer';
+import { planAndApplyRoute } from '../services/routePlanningService';
 
 const SUGGESTIONS = [
   { label: "🗺️ Plan Jezero Delta Traverse", text: "Plan a 4-waypoint exploration traverse across the Jezero Crater ancient river delta." },
@@ -25,7 +26,6 @@ export default function AresCopilotModal() {
   const currentSol = useMapStore(s => s.currentSol);
   const cursorPosition = useMapStore(s => s.cursorPosition);
   const waypoints = useMapStore(s => s.waypoints);
-  const setWaypoints = useMapStore(s => s.setWaypoints);
   const clearWaypoints = useMapStore(s => s.clearWaypoints);
   const setViewMode = useMapStore(s => s.setViewMode);
   const flyToCoordinate = useMapStore(s => s.flyToCoordinate);
@@ -70,31 +70,35 @@ export default function AresCopilotModal() {
   }, [messages, isProcessing]);
 
   // Execute Autonomous Tool Actions directly on the Web App
-  const executeAutonomousAction = (action) => {
-    if (!action || !action.tool) return null;
+  const executeAutonomousAction = async (action) => {
+    if (!action || !action.tool) return { summaryText: "", reply: null };
 
     const { tool, args = {} } = action;
     marsAudio.playQuindarTone?.(true);
 
     let summaryText = "";
+    let reply = null; // replaces the model's wording when the app has real figures to report
 
     switch (tool) {
       case "plan_route": {
-        const generatedWps = (args.waypoints || []).map((wp, idx) => ({
-          id: `wp-ai-${Date.now()}-${idx}`,
-          name: wp.name || `Station ${idx + 1}`,
-          lat: Number(wp.lat),
-          lon: Number(wp.lon),
-          elevation: Number(wp.elevation || -2500)
-        }));
-
-        if (generatedWps.length > 0) {
-          setWaypoints(generatedWps);
+        const mode = ['safety', 'energy', 'fastest'].includes(args.mode) ? args.mode : 'safety';
+        try {
+          const result = await planAndApplyRoute({
+            origin: Number.isFinite(Number(args.origin_lat)) && Number.isFinite(Number(args.origin_lon))
+              ? { name: args.origin_name || 'Start', lat: Number(args.origin_lat), lon: Number(args.origin_lon) }
+              : null,
+            destination: { name: args.destination_name, lat: args.destination_lat, lon: args.destination_lon },
+            mode,
+          });
           setSidebarTab('route');
           setSidebarOpen(true);
-          flyToCoordinate(generatedWps[0].lat, generatedWps[0].lon, 4);
-          setActiveTab('map');
-          summaryText = `Plotted route: ${args.destination_name || 'Target Region'} (${generatedWps.length} stations)`;
+          const m = result.metrics;
+          summaryText = `Planned ${m.traverseDistanceKm} km route to ${args.destination_name || 'target'} (${result.waypoints.length} waypoints)`;
+          reply = `Route computed on ${result.grid.metersPerPixel} m NASA terrain data: ${m.traverseDistanceKm} km, steepest step ${m.maxSlopeDeg}°, climb ${m.totalAscentMeters} m, about ${m.walkingHours} h on foot (${m.budgetSharePct}% of the usable life-support budget one way).`
+            + (m.budgetSharePct > 50 ? ' WARNING: this is too far for one EVA, since the walk back would not fit. Pick a closer objective or plan a rover leg.' : '');
+        } catch (err) {
+          summaryText = `Route not planned: ${err.message}`;
+          reply = `I could not plan that route. ${err.message}`;
         }
         break;
       }
@@ -185,7 +189,7 @@ export default function AresCopilotModal() {
       toastTimerRef.current = setTimeout(() => setActiveActionNotification(null), 4000);
     }
 
-    return summaryText;
+    return { summaryText, reply };
   };
 
   const handleSend = async (messageText = input) => {
@@ -218,15 +222,16 @@ export default function AresCopilotModal() {
 
       // 4. If autonomous action was returned, execute it!
       let actionExecutedSummary = null;
+      let reply = null;
       if (agentResult?.action) {
-        actionExecutedSummary = executeAutonomousAction(agentResult.action);
+        ({ summaryText: actionExecutedSummary, reply } = await executeAutonomousAction(agentResult.action));
       }
 
       // 5. Persist and render AI message
       const modelMsg = await saveChatMessage({
         userId: user?.id,
         role: 'model',
-        text: agentResult?.text || "Telemetry synchronized.",
+        text: reply || agentResult?.text || "Telemetry synchronized.",
         actionData: agentResult?.action ? {
           ...agentResult.action,
           executionSummary: actionExecutedSummary

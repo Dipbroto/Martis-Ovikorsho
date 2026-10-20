@@ -1,0 +1,10 @@
+{
+  "name": "MarsWalk Explorer",
+  "short_name": "MarsWalk",
+  "description": "Plan survivable Marswalks on real NASA terrain data.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050608",
+  "theme_color": "#FF4C29",
+  "icons": [{ "src": "/mars-favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

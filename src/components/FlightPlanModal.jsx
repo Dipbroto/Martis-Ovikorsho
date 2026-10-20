@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Printer, Download, ShieldCheck, Copy, Check } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import { estimateRouteEVA } from '../terrain/routeEnergy';
 import { useShallow } from 'zustand/react/shallow';
-import { routeDistance, estimateEVATime, estimateO2Consumption, estimateWaterConsumption, estimatePowerConsumption } from '../utils/marsUtils';
+import { routeDistance, estimateO2Consumption, estimateWaterConsumption, estimatePowerConsumption } from '../utils/marsUtils';
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
 import ProvenanceBadge from './ProvenanceBadge';
 import { generateFlightBrief } from '../services/aiService';
@@ -40,7 +41,7 @@ export default function FlightPlanModal() {
   const totalDist = routeDistance(waypoints || []);
   const profile = getElevationProfile(waypoints || [], 100);
   const stats = getProfileStats(profile);
-  const evaEst = estimateEVATime(totalDist, stats ? stats.avgSlope : 0);
+  const evaEst = estimateRouteEVA(waypoints || []);
   const evaHours = typeof evaEst === 'object' ? evaEst.totalHours : evaEst;
 
   const o2 = estimateO2Consumption(evaHours);
@@ -155,8 +156,8 @@ export default function FlightPlanModal() {
     md += `| Planetary Geodesy | IAU 2000 Mars Constants (R=3389.5km) | [DERIVED] | Spherical Trigonometry |\n`;
     md += `| Radiation & Bioenergetics | MSL RAD Detector & Margaria-Minetti Model | [SIMULATED] | 0.38g Human Suited Math |\n\n`;
 
-    md += `## 5. Contingency Flight Rules & Abort Limits\n`;
-    md += `1. **EVA-FR-01 (Walkback Perimeter):** Distance to primary pressurized refuge must not exceed 5.0 km radius.\n`;
+    md += `## 5. Contingency Planning Rules & Abort Limits (team planning assumptions, not NASA requirements)\n`;
+    md += `1. **EVA-FR-01 (Walkback Perimeter):** Planning assumption: keep the distance to the primary pressurized refuge within a 5.0 km radius.\n`;
     md += `2. **EVA-FR-02 (Slope Hazard):** Traversing slopes > 15° requires CapCom clearance. Slopes > 25° are strictly prohibited.\n`;
     md += `3. **EVA-FR-03 (Solar Proton Event):** Immediate traverse abort required within 25 minutes of SPE telemetry alert.\n`;
     md += `4. **EVA-FR-04 (Dust Storm Inflow):** Ambient dust opacity (tau) > 1.8 grounds rover and engages emergency homing transponder.\n\n`;
@@ -194,9 +195,9 @@ export default function FlightPlanModal() {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold text-white tracking-widest uppercase whitespace-nowrap">
-                  OFFICIAL NASA EVA FLIGHT PLAN & BRIEF
+                  EVA FLIGHT PLAN & BRIEF
                 </h2>
-                <ProvenanceBadge type="NASA_SPEC" size="xs" detail="Flight Rating" />
+                <ProvenanceBadge type="DERIVED" size="xs" detail="MarsWalk planning tool" />
               </div>
               <p className="text-[10px] text-space-400 whitespace-nowrap">
                 DOCUMENT CODE: JPL-EVA-2026-MARS • SOL {currentSol} • EXPEDITION CLEARANCE
@@ -321,14 +322,14 @@ export default function FlightPlanModal() {
             <h3 className="font-bold text-amber-400 flex items-center justify-between text-xs uppercase tracking-wider print:text-black">
               <span className="flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-amber-400 print:text-black" />
-                <span>NASA Flight Rules & Contingency Abort Matrix</span>
+                <span>Contingency Abort Matrix (planning assumptions)</span>
               </span>
-              <ProvenanceBadge type="NASA_SPEC" size="xs" detail="NASA-STD-3001" />
+              <ProvenanceBadge type="SIMULATED" size="xs" detail="Planning assumption" />
             </h3>
             <ul className="space-y-1.5 text-[11px] text-space-300 print:text-black">
               <li className="flex items-start gap-2">
                 <span className="text-amber-400 font-bold print:text-black">FR-01:</span>
-                <span><strong>Walkback Limit:</strong> Distance to primary pressurized shelter must not exceed 5.0 km radius under any operational conditions.</span>
+                <span><strong>Walkback Limit:</strong> Planning assumption: keep the distance to the primary pressurized shelter within a 5.0 km radius.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-amber-400 font-bold print:text-black">FR-02:</span>

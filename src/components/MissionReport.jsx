@@ -149,7 +149,7 @@ Status: ${score >= 80 ? 'GO FOR EVA' : (score >= 50 ? 'MARGINAL - REVIEW REQUIRE
             </li>
             <li className="flex items-center text-[11px] bg-space-900/40 p-2.5 rounded-lg border border-space-800/50">
               <CheckCircle size={14} className="text-green-500 mr-2.5 shrink-0" /> 
-              <span className="text-space-200">Walkback perimeter complies with flight rules</span>
+              <span className="text-space-200">Walkback perimeter within the 5 km planning ring</span>
             </li>
           </ul>
         </section>

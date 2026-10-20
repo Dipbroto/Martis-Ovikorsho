@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import useMapStore from '../store/useMapStore';
+import useMapStore, { routeSignature } from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
-import { routeDistance, estimateEVATime, marsDistance } from '../utils/marsUtils';
+import { routeDistance, marsDistance } from '../utils/marsUtils';
+import { estimateRouteEVA } from '../terrain/routeEnergy';
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
 import { expeditionPresets } from '../data/expeditionPresets';
 import { 
@@ -12,6 +13,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { AUTONOMOUS_TARGET_PAIRS, generateAutonomousTraverse } from '../utils/autonomousRouter';
 import ProvenanceBadge from './ProvenanceBadge';
+import DaylightCard from './DaylightCard';
 import { marsAudio } from '../utils/audioSynthesizer';
 import { supabase } from '../lib/supabase';
 import { fetchProfile } from '../services/profileService';
@@ -25,6 +27,7 @@ export default function RoutePlanner() {
 
   const { 
     waypoints,  
+    terrainVersion,
     isPlacingWaypoint, 
     setPlacingWaypoint, 
     removeWaypoint, 
@@ -48,7 +51,8 @@ export default function RoutePlanner() {
     setRoverProgress,
     driveTargetWaypointId,
     setDriveTargetWaypointId,
-  } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, isPlacingWaypoint: s.isPlacingWaypoint, setPlacingWaypoint: s.setPlacingWaypoint, removeWaypoint: s.removeWaypoint, undoLastPoint: s.undoLastPoint, setWaypoints: s.setWaypoints, updateWaypoint: s.updateWaypoint, clearWaypoints: s.clearWaypoints, loadExpeditionPreset: s.loadExpeditionPreset, activePresetId: s.activePresetId, setEVASimulating: s.setEVASimulating, setFlightPlanOpen: s.setFlightPlanOpen, setContingencyModalOpen: s.setContingencyModalOpen, activeContingency: s.activeContingency, setMapCenter: s.setMapCenter, setMapZoom: s.setMapZoom, selectedWaypointId: s.selectedWaypointId, setSelectedWaypoint: s.setSelectedWaypoint, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, driveTargetWaypointId: s.driveTargetWaypointId, setDriveTargetWaypointId: s.setDriveTargetWaypointId })));
+    setRouteGeometry,
+  } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, terrainVersion: s.terrainVersion, isPlacingWaypoint: s.isPlacingWaypoint, setPlacingWaypoint: s.setPlacingWaypoint, removeWaypoint: s.removeWaypoint, undoLastPoint: s.undoLastPoint, setWaypoints: s.setWaypoints, updateWaypoint: s.updateWaypoint, clearWaypoints: s.clearWaypoints, loadExpeditionPreset: s.loadExpeditionPreset, activePresetId: s.activePresetId, setEVASimulating: s.setEVASimulating, setFlightPlanOpen: s.setFlightPlanOpen, setContingencyModalOpen: s.setContingencyModalOpen, activeContingency: s.activeContingency, setMapCenter: s.setMapCenter, setMapZoom: s.setMapZoom, selectedWaypointId: s.selectedWaypointId, setSelectedWaypoint: s.setSelectedWaypoint, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, driveTargetWaypointId: s.driveTargetWaypointId, setDriveTargetWaypointId: s.setDriveTargetWaypointId, setRouteGeometry: s.setRouteGeometry })));
 
   const [activeTab, setActiveTab] = useState('manual'); // 'manual' | 'auto'
   const [distance, setDistance] = useState(0);
@@ -57,8 +61,10 @@ export default function RoutePlanner() {
 
   // Autonomous Router State
   const [selectedPairId, setSelectedPairId] = useState('jezero-delta');
-  const [routingMode, setRoutingMode] = useState('safety'); // 'safety' | 'science' | 'fastest'
+  const [routingMode, setRoutingMode] = useState('safety'); // 'safety' | 'energy' | 'fastest'
   const [generatedRouteResult, setGeneratedRouteResult] = useState(null);
+  const [isRouting, setIsRouting] = useState(false);
+  const [routingError, setRoutingError] = useState(null);
 
   useEffect(() => {
     if (waypoints && waypoints.length > 1) {
@@ -68,14 +74,13 @@ export default function RoutePlanner() {
       const calculatedStats = getProfileStats(profile);
       setStats(calculatedStats);
       
-      const est = estimateEVATime(dist || 0, calculatedStats ? calculatedStats.avgSlope : 0);
-      setEvaTime(typeof est === 'object' ? (est.totalHours || 0) : (est || 0));
+      setEvaTime(estimateRouteEVA(waypoints).totalHours);
     } else {
       setDistance(0);
       setEvaTime(0);
       setStats(null);
     }
-  }, [waypoints]);
+  }, [waypoints, terrainVersion]);
 
   const handleNameChange = (id, newName) => {
     updateWaypoint(id, { name: newName });
@@ -156,7 +161,7 @@ export default function RoutePlanner() {
     }
   };
 
-  const handleRunAutoRouter = (pairId = selectedPairId, mode = routingMode, autoApply = true) => {
+  const handleRunAutoRouter = async (pairId = selectedPairId, mode = routingMode, autoApply = true) => {
     let origin, destination;
     let targetCenter = null;
     let targetZoom = 7;
@@ -165,12 +170,8 @@ export default function RoutePlanner() {
       if (!waypoints || waypoints.length < 2) return;
       origin = waypoints[0];
       destination = waypoints[waypoints.length - 1];
-      const origLat = origin.lat;
-      const origLon = origin.lon;
-      const destLat = destination.lat;
-      const destLon = destination.lon;
-      targetCenter = [(origLat + destLat) / 2, (origLon + destLon) / 2];
-      targetZoom = 6;
+      targetCenter = [(origin.lat + destination.lat) / 2, (origin.lon + destination.lon) / 2];
+      targetZoom = 9;
     } else {
       const pair = AUTONOMOUS_TARGET_PAIRS.find(p => p.id === pairId) || AUTONOMOUS_TARGET_PAIRS[0];
       origin = pair.origin;
@@ -179,17 +180,27 @@ export default function RoutePlanner() {
       targetZoom = pair.zoom || 7;
     }
 
-    const result = generateAutonomousTraverse(origin, destination, { mode });
-    if (!result) return;
-    setGeneratedRouteResult(result);
+    setIsRouting(true);
+    setRoutingError(null);
+    try {
+      const result = await generateAutonomousTraverse(origin, destination, { mode });
+      setGeneratedRouteResult(result);
 
-    if (autoApply && result.waypoints) {
-      setWaypoints(result.waypoints);
-      if (targetCenter) {
-        setMapCenter(targetCenter);
-        setMapZoom(targetZoom);
+      if (autoApply && result.waypoints) {
+        setWaypoints(result.waypoints);
+        setRouteGeometry({ signature: routeSignature(result.waypoints), points: result.path, source: result.grid.source });
+        if (targetCenter) {
+          setMapCenter(targetCenter);
+          setMapZoom(targetZoom);
+        }
+        marsAudio.playQuindarTone(true);
       }
-      marsAudio.playQuindarTone(true);
+    } catch (err) {
+      console.error('Route planning failed:', err);
+      setGeneratedRouteResult(null);
+      setRoutingError(err.message);
+    } finally {
+      setIsRouting(false);
     }
   };
 
@@ -234,6 +245,11 @@ export default function RoutePlanner() {
   const handleApplyAutoRoute = () => {
     if (!generatedRouteResult || !generatedRouteResult.waypoints) return;
     setWaypoints(generatedRouteResult.waypoints);
+    setRouteGeometry({
+      signature: routeSignature(generatedRouteResult.waypoints),
+      points: generatedRouteResult.path,
+      source: generatedRouteResult.grid.source,
+    });
     const pair = AUTONOMOUS_TARGET_PAIRS.find(p => p.id === selectedPairId);
     if (pair && pair.center) {
       setMapCenter(pair.center);
@@ -376,6 +392,9 @@ export default function RoutePlanner() {
               </>
             )}
           </div>
+
+          {/* Daylight / EVA window at the base for today's Mars date */}
+          {waypoints && waypoints.length > 0 && <DaylightCard lat={waypoints[0].lat} />}
 
           {/* Waypoints List (Vertical Scrollable) */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 space-y-2 pr-1 custom-scrollbar-y">
@@ -574,24 +593,24 @@ export default function RoutePlanner() {
                 }`}
               >
                 <ShieldCheck className="w-4 h-4 mx-auto mb-1 text-emerald-400" />
-                <span className="text-[10px] font-bold block">Safety First</span>
-                <span className="text-[8px] text-space-400 block font-mono">Slope &lt; 10°</span>
+                <span className="text-[10px] font-bold block">Safest</span>
+                <span className="text-[8px] text-space-400 block font-mono">Gentle grades</span>
               </button>
 
               <button
                 onClick={() => {
-                  setRoutingMode('science');
-                  handleRunAutoRouter(selectedPairId, 'science', true);
+                  setRoutingMode('energy');
+                  handleRunAutoRouter(selectedPairId, 'energy', true);
                 }}
                 className={`p-2 rounded-lg border text-center transition-all ${
-                  routingMode === 'science'
+                  routingMode === 'energy'
                     ? 'bg-purple-950/80 border-purple-400 text-purple-300 ring-1 ring-purple-400/50'
                     : 'bg-space-800 border-space-700 text-space-400 hover:text-white'
                 }`}
               >
                 <Sparkles className="w-4 h-4 mx-auto mb-1 text-purple-400" />
-                <span className="text-[10px] font-bold block">Max Science</span>
-                <span className="text-[8px] text-space-400 block font-mono">Outcrops Buffer</span>
+                <span className="text-[10px] font-bold block">Least Effort</span>
+                <span className="text-[8px] text-space-400 block font-mono">Min energy</span>
               </button>
 
               <button
@@ -606,18 +625,24 @@ export default function RoutePlanner() {
                 }`}
               >
                 <Zap className="w-4 h-4 mx-auto mb-1 text-blue-400" />
-                <span className="text-[10px] font-bold block">Energy/Direct</span>
-                <span className="text-[8px] text-space-400 block font-mono">Min Distance</span>
+                <span className="text-[10px] font-bold block">Fastest</span>
+                <span className="text-[8px] text-space-400 block font-mono">Min walk time</span>
               </button>
             </div>
 
             <button
               onClick={() => handleRunAutoRouter(selectedPairId, routingMode, true)}
-              className="w-full mt-2 py-2 px-3 rounded-lg bg-gradient-to-r from-mars-600 to-amber-600 hover:from-mars-500 hover:to-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-mars-600/30 transition-all hover:scale-[1.01]"
+              disabled={isRouting}
+              className="disabled:opacity-60 disabled:cursor-wait w-full mt-2 py-2 px-3 rounded-lg bg-gradient-to-r from-mars-600 to-amber-600 hover:from-mars-500 hover:to-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-mars-600/30 transition-all hover:scale-[1.01]"
             >
-              <Cpu className="w-3.5 h-3.5" />
-              <span>Re-Compute & Center Route</span>
+              {isRouting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Cpu className="w-3.5 h-3.5" />}
+              <span>{isRouting ? 'Planning on real terrain...' : 'Re-Compute & Center Route'}</span>
             </button>
+            {routingError && (
+              <p className="text-[10px] font-mono text-rose-300 bg-rose-950/40 border border-rose-500/30 rounded-lg p-2">
+                {routingError}
+              </p>
+            )}
           </div>
 
           {/* Explainability & Decision Support Card */}
@@ -628,7 +653,7 @@ export default function RoutePlanner() {
                   <Info className="w-3.5 h-3.5 text-mars-400" />
                   <span>"Why This Route?" Decision Support</span>
                 </span>
-                <ProvenanceBadge type="DERIVED" size="xs" detail="IDW Optimization" />
+                <ProvenanceBadge type="DERIVED" size="xs" detail={generatedRouteResult.grid.metersPerPixel > 1000 ? "A* · global MOLA" : "A* · 200 m DEM"} />
               </div>
 
               <p className="text-[11px] text-space-200 leading-relaxed font-sans">
@@ -645,27 +670,32 @@ export default function RoutePlanner() {
                 ))}
               </ul>
 
-              {/* Tradeoff Scores */}
+              {/* Measured route figures */}
               <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-space-800 text-center font-mono">
-                <div className="bg-space-800/80 p-1.5 rounded">
-                  <span className="text-[8px] text-space-400 block uppercase">Safety Index</span>
-                  <span className="text-xs font-bold text-emerald-400">
-                    {generatedRouteResult.explainability.safetyScore}%
-                  </span>
-                </div>
-                <div className="bg-space-800/80 p-1.5 rounded">
-                  <span className="text-[8px] text-space-400 block uppercase">Science Yield</span>
-                  <span className="text-xs font-bold text-purple-400">
-                    {generatedRouteResult.explainability.scienceScore}%
-                  </span>
-                </div>
                 <div className="bg-space-800/80 p-1.5 rounded">
                   <span className="text-[8px] text-space-400 block uppercase">Max Slope</span>
                   <span className="text-xs font-bold text-amber-400">
                     {generatedRouteResult.metrics.maxSlopeDeg}°
                   </span>
                 </div>
+                <div className="bg-space-800/80 p-1.5 rounded">
+                  <span className="text-[8px] text-space-400 block uppercase">Walk Time</span>
+                  <span className="text-xs font-bold text-cyan-300">
+                    {generatedRouteResult.metrics.walkingHours} h
+                  </span>
+                </div>
+                <div className="bg-space-800/80 p-1.5 rounded" title="Share of the usable life-support budget spent walking one way">
+                  <span className="text-[8px] text-space-400 block uppercase">Life Support</span>
+                  <span className={`text-xs font-bold ${generatedRouteResult.metrics.budgetSharePct > 50 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    {generatedRouteResult.metrics.budgetSharePct}%
+                  </span>
+                </div>
               </div>
+              {generatedRouteResult.metrics.budgetSharePct > 50 && (
+                <p className="text-[10px] font-mono text-rose-300">
+                  One-way trip uses over half the usable budget: the walk back would not fit. Choose a closer objective.
+                </p>
+              )}
 
               {/* Dual Action: Refocus & Edit in Manual Mode */}
               <div className="flex gap-2 pt-1">

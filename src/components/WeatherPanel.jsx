@@ -48,7 +48,7 @@ const WeatherPanel = () => {
               <CloudFog className="text-mars-400" size={24} />
               Mars Weather Station
             </h2>
-            <ProvenanceBadge type="HISTORICAL" size="xs" detail="REMS / MEDA" />
+            <ProvenanceBadge type="SIMULATED" size="xs" detail="Seasonal model (REMS/MEDA ranges)" />
           </div>
           <div className="text-sm text-secondary flex items-center gap-2 mt-1 font-mono">
             <Calendar size={14} />
@@ -80,7 +80,7 @@ const WeatherPanel = () => {
             <h3 className="text-sm text-secondary font-medium uppercase tracking-wider flex items-center gap-2">
               <Thermometer size={16} /> Current Atmospheric Conditions
             </h3>
-            <ProvenanceBadge type="HISTORICAL" size="xs" detail="In-Situ Archives" />
+            <ProvenanceBadge type="SIMULATED" size="xs" detail="Seasonal model" />
           </div>
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
@@ -139,7 +139,7 @@ const WeatherPanel = () => {
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-secondary flex items-center gap-1">
                     <span>Dust (τ)</span>
-                    <ProvenanceBadge type="OBSERVED" size="xs" detail="THEMIS IR" />
+                    <ProvenanceBadge type="SIMULATED" size="xs" detail="Seasonal model" />
                   </span>
                   <span className={`font-mono ${dustOp > 1.5 ? 'text-amber-400 font-bold' : 'text-white'}`}>
                     {dustOp.toFixed(1)}

@@ -32,6 +32,8 @@ const AresCopilotModal = lazy(() => import('./components/AresCopilotModal'));
 const AresFloatingButton = lazy(() => import('./components/AresFloatingButton'));
 const AuthModal = lazy(() => import('./components/AuthModal'));
 const UserProfileDashboard = lazy(() => import('./components/UserProfileDashboard'));
+const DataMethodsModal = lazy(() => import('./components/DataMethodsModal'));
+const GuidedPlannerModal = lazy(() => import('./components/GuidedPlannerModal'));
 
 const ViewFallback = () => (
   <div className="w-full h-full flex items-center justify-center text-[11px] font-mono tracking-widest text-space-400 animate-pulse">
@@ -63,6 +65,8 @@ function App() {
   const isAresCopilotOpen = useMapStore(s => s.isAresCopilotOpen);
   const isAuthModalOpen = useMapStore(s => s.isAuthModalOpen);
   const isProfileModalOpen = useMapStore(s => s.isProfileModalOpen);
+  const isDataMethodsOpen = useMapStore(s => s.isDataMethodsOpen);
+  const isGuidedPlannerOpen = useMapStore(s => s.isGuidedPlannerOpen);
   const setUser = useMapStore(s => s.setUser);
   const setProfile = useMapStore(s => s.setProfile);
 
@@ -106,6 +110,8 @@ function App() {
       {showLoadingScreen && <LoadingScreen />}
       <MountOnFirstOpen open={isAuthModalOpen}><AuthModal /></MountOnFirstOpen>
       <MountOnFirstOpen open={isProfileModalOpen}><UserProfileDashboard /></MountOnFirstOpen>
+      <MountOnFirstOpen open={isDataMethodsOpen}><DataMethodsModal /></MountOnFirstOpen>
+      <MountOnFirstOpen open={isGuidedPlannerOpen}><GuidedPlannerModal /></MountOnFirstOpen>
 
       {/* TOP NAVIGATION BAR */}
       <TopBar onSelectTab={(tab) => setActiveTab(tab)} />

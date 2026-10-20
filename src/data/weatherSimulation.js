@@ -8,7 +8,8 @@
 // Ls 180° = Northern autumn equinox
 // Ls 270° = Northern winter solstice
 
-const MARS_YEAR_SOLS = 668.6; // Mars year in sols
+import { lsFromMsd } from '../utils/marsSolar';
+
 
 // Temperature ranges by season (°C) - based on Curiosity REMS data at Gale Crater
 const SEASONAL_TEMPS = {
@@ -46,10 +47,8 @@ export function getMarsTime(date = new Date()) {
 }
 
 export function getSolarLongitude(sol) {
-  // Approximate Ls from sol number
-  const dayOfYear = sol % MARS_YEAR_SOLS;
-  const ls = (dayOfYear / MARS_YEAR_SOLS) * 360;
-  return ls % 360;
+  // Real areocentric solar longitude for a Mars Sol Date (Allison & McEwen 2000)
+  return lsFromMsd(sol);
 }
 
 export function getMarsSeason(ls) {
