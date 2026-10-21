@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, Layers, Route, MapPin, Rocket, ChevronLeft, ChevronRight } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
@@ -17,12 +17,13 @@ export default function Sidebar() {
   const sidebarTab = useMapStore(s => s.sidebarTab);
   const setSidebarTab = useMapStore(s => s.setSidebarTab);
 
-  // Auto-scroll to top (map portion) when the sidebar is opened
+  // Framer can only animate between plain numbers, so the open width is measured, not a CSS min()
+  const [openWidth, setOpenWidth] = useState(() => Math.min(396, window.innerWidth - 32));
   useEffect(() => {
-    if (sidebarOpen) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [sidebarOpen]);
+    const onResize = () => setOpenWidth(Math.min(396, window.innerWidth - 32));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const tabs = [
     { id: 'guide', label: 'Guide', icon: ShieldCheck },
@@ -63,10 +64,12 @@ export default function Sidebar() {
   return (
     <motion.div
       initial={false}
-      animate={{ width: sidebarOpen ? 'min(396px, calc(100vw - 32px))' : 54 }}
-      transition={{ duration: 0.25, ease: 'easeInOut' }}
-      className="relative z-30 flex flex-col h-max max-h-full rounded-2xl border border-white/[0.08] bg-[#0B0C10]/70 backdrop-blur-3xl shrink-0 shadow-hud-glass transition-all hover:bg-[#0B0C10]/80"
+      animate={{ width: sidebarOpen ? openWidth : 54 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 40, mass: 0.8 }}
+      className="relative z-30 flex flex-col h-max max-h-full rounded-2xl border border-white/[0.08] bg-[#0B0C10]/85 backdrop-blur-xl shrink-0 shadow-hud-glass will-change-[width]"
     >
+      {/* Clips the content while the width animates; the collapse handle sits outside it */}
+      <div className="flex flex-col min-h-0 max-h-full overflow-hidden rounded-2xl">
       {/* Tab Navigation Bar (Horizontal when open, Vertical when collapsed) */}
       <div className="shrink-0 border-b border-white/[0.05] bg-space-900/40 p-1.5 rounded-t-2xl">
         <div 
@@ -114,29 +117,34 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Content Area (Vertical Scrollable) */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar-y rounded-b-2xl">
-        <AnimatePresence mode="wait">
-          {sidebarOpen && (
-            <motion.div
-              key={sidebarTab}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 10 }}
-              transition={{ duration: 0.15 }}
-              className="p-3.5 space-y-4"
-            >
-              {renderContent()}
-            </motion.div>
-          )}
+      {/* Content stays mounted while collapsed (display: none), so reopening is instant and keeps its state */}
+      <div
+        className={`flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar-y rounded-b-2xl ${sidebarOpen ? '' : 'hidden'}`}
+        style={{ width: openWidth }}
+        aria-hidden={!sidebarOpen}
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={sidebarTab}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            transition={{ duration: 0.14 }}
+            className="p-3.5 space-y-4"
+          >
+            {renderContent()}
+          </motion.div>
         </AnimatePresence>
+      </div>
       </div>
 
       {/* Collapse Handle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="absolute top-1/2 -right-3 -translate-y-1/2 w-6 h-12 bg-[#070A10]/90 border border-white/[0.08] hover:border-[#F16938]/50 rounded-r-xl flex items-center justify-center text-stone-400 hover:text-[#F16938] transition-all z-50 shadow-lg backdrop-blur-md"
-        title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+        className="absolute top-1/2 -right-3.5 -translate-y-1/2 w-7 h-14 bg-[#070A10]/95 border border-white/[0.12] hover:border-[#F16938]/60 rounded-r-xl flex items-center justify-center text-stone-300 hover:text-[#F16938] transition-colors z-50 shadow-lg cursor-pointer"
+        title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+        aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+        aria-expanded={sidebarOpen}
       >
         {sidebarOpen ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
       </button>

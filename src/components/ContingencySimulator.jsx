@@ -55,55 +55,51 @@ export default function ContingencySimulator() {
 
   return (
     <>
-      {/* Floating Active Emergency Banner across Map */}
+      {/* Compact alert card pinned to the top-right. framer-motion only moves it vertically, and the dismiss X sits in the card's corner so it is always visible. */}
       <AnimatePresence>
         {activeContingency && contingencyDetails && (
           <motion.div
-            initial={{ y: -50, opacity: 0 }}
+            initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -50, opacity: 0 }}
-            className="fixed top-16 left-1/2 -translate-x-1/2 z-[1050] max-w-4xl w-[94%] px-5 py-3 rounded-sm border border-rose-500/50 shadow-2xl backdrop-blur-xl bg-[#090507]/95 flex items-center justify-between gap-4 font-mono"
+            exit={{ y: -20, opacity: 0 }}
+            role="alert"
+            className="fixed right-3 top-[76px] z-[1050] w-[min(320px,calc(100vw-1.5rem))] rounded-xl border border-rose-500/50 shadow-2xl backdrop-blur-xl bg-[#090507]/95 p-3 font-mono"
           >
-            <div className="flex items-center gap-3 overflow-hidden">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-white uppercase tracking-wider truncate">
-                    CONTINGENCY ACTIVE: {contingencyDetails.title}
-                  </span>
-                  <span className="text-[9px] px-1.5 py-0.2 rounded-sm font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 shrink-0">
-                    {contingencyDetails.badge}
-                  </span>
-                </div>
-                <p className="text-[10px] text-zinc-400 truncate">
-                  {contingencyDetails.actionRequired}
-                </p>
-              </div>
+            <div className="flex items-center gap-2 pr-9">
+              <span className="relative flex w-2 h-2 shrink-0">
+                <span className="absolute inset-0 rounded-full bg-rose-500 animate-ping opacity-70" />
+                <span className="relative w-2 h-2 rounded-full bg-rose-500" />
+              </span>
+              <span className="text-[11px] font-bold text-rose-300 uppercase tracking-wider">Contingency active</span>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={clearContingency}
+              className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center text-zinc-200 hover:text-white rounded-lg bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
+              aria-label="Dismiss alert"
+              title="Dismiss alert"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="mt-2 text-xs font-bold text-white uppercase tracking-wide leading-snug">{contingencyDetails.title}</div>
+            <span className="mt-1.5 inline-block text-[11px] px-1.5 rounded-sm font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">{contingencyDetails.badge}</span>
+            <p className="mt-1.5 text-[11px] text-zinc-400 line-clamp-2">{contingencyDetails.actionRequired}</p>
+
+            <div className="mt-3 flex items-center gap-2">
               <button
                 onClick={executeEmergencyReturn}
-                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-mono text-xs font-bold uppercase tracking-wider rounded-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                className="flex-1 justify-center px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold uppercase tracking-wider rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                 title="Immediately route return to Basecamp"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>ABORT TRAVERSE</span>
+                Abort
               </button>
-
               <button
                 onClick={() => setContingencyModalOpen(true)}
-                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs rounded-sm border border-white/10 font-mono transition-colors cursor-pointer"
+                className="flex-1 px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-zinc-200 hover:text-white text-[11px] rounded-lg border border-white/10 transition-colors cursor-pointer"
               >
                 Inspect
-              </button>
-
-              <button
-                onClick={clearContingency}
-                className="p-1.5 text-zinc-400 hover:text-white rounded-sm hover:bg-white/10 transition-colors cursor-pointer"
-                title="Clear simulation alert"
-              >
-                <X className="w-4 h-4" />
               </button>
             </div>
           </motion.div>

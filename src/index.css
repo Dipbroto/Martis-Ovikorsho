@@ -854,3 +854,52 @@ button:disabled {
 }
 @keyframes mw-trail-in { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes mw-trail-hover { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+/* Map route: a slow "marching" dash on the route core shows the walking direction */
+.route-flow {
+  animation: route-flow 1.4s linear infinite;
+}
+@keyframes route-flow { to { stroke-dashoffset: -16; } }
+
+.route-km-tick { background: transparent !important; border: none !important; }
+
+/* Permanent labels on the start (base) and end of a route */
+.leaflet-tooltip.route-end-label {
+  background: rgba(8, 10, 16, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font: 600 11px/1.4 'Space Grotesk', system-ui, sans-serif;
+  padding: 2px 8px;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+}
+.leaflet-tooltip.route-end-label::before { display: none; }
+
+/* NASA HD surface: the Viking mosaic adds only its colour to the detailed THEMIS/CTX images below */
+.tile-blend-color { mix-blend-mode: color; filter: saturate(1.5); }
+
+/* Route safety scan: a radar sweep while the checks run */
+.radar-sweep {
+  width: 88px; height: 88px; border-radius: 50%;
+  border: 1px solid rgba(255, 160, 127, 0.35);
+  background:
+    radial-gradient(circle, transparent 32%, rgba(255,160,127,0.12) 33%, transparent 34%, transparent 65%, rgba(255,160,127,0.12) 66%, transparent 67%),
+    conic-gradient(from 0deg, rgba(242,106,61,0.55), rgba(242,106,61,0) 70deg, transparent 360deg);
+  animation: radar-spin 1.4s linear infinite;
+}
+@keyframes radar-spin { to { transform: rotate(360deg); } }
+
+/* Landing-site markers: a spacecraft glyph on dark glass, ringed in the mission colour */
+.spacecraft-pin {
+  position: relative; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 35% 30%, rgba(40, 44, 56, 0.96), rgba(8, 10, 16, 0.96));
+  border: 2px solid var(--pin);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35), 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 12px color-mix(in srgb, var(--pin) 55%, transparent);
+  transition: transform 0.15s ease;
+}
+.leaflet-marker-icon:hover .spacecraft-pin { transform: scale(1.12); }
+.spacecraft-pin-status {
+  position: absolute; right: 1px; top: 1px; width: 8px; height: 8px; border-radius: 50%;
+  border: 1.5px solid #0b0d12;
+}

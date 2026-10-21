@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CircleMarker, ImageOverlay, Tooltip } from 'react-leaflet';
+import { CircleMarker, ImageOverlay, Tooltip, useMapEvents } from 'react-leaflet';
 import { Droplets, Tent } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { marsDistance } from '../utils/marsUtils';
@@ -51,14 +51,21 @@ function waterImage(h2o) {
 }
 
 /** Map layer for the water and shelter overlays. */
+// The water bins are ~300 km wide, so at walking scale they would tint the whole screen one colour.
+// The tint fades out as you zoom in; the side panel keeps the value at the base.
+const waterOpacity = (zoom) => (zoom <= 4 ? 1 : zoom >= 7 ? 0 : 1 - (zoom - 4) / 3);
+
 export function ResourceLayer() {
   const mode = useMapStore((s) => s.terrainOverlay);
+  const [zoom, setZoom] = useState(null);
+  const map = useMapEvents({ zoomend: () => setZoom(map.getZoom()) });
+  useEffect(() => setZoom(map.getZoom()), [map]);
   const { data: h2o } = useJson('/data/h2o.json', mode === 'ice');
   const { data: caves } = useJson('/data/caves.json', mode === 'caves');
   const image = useMemo(() => (h2o ? waterImage(h2o) : null), [h2o]);
 
   if (mode === 'ice' && image) {
-    return <ImageOverlay url={image} bounds={[[h2o.south, h2o.west], [h2o.north, h2o.east]]} pane="terrain-analysis" interactive={false} />;
+    return <ImageOverlay url={image} bounds={[[h2o.south, h2o.west], [h2o.north, h2o.east]]} pane="terrain-analysis" opacity={waterOpacity(zoom ?? 0)} interactive={false} />;
   }
   if (mode === 'caves' && caves) {
     return caves.caves.map((c) => (
@@ -145,7 +152,7 @@ export function ResourcePanel() {
   }
 
   return (
-    <div className="absolute z-[400] bottom-[104px] left-2 right-2 max-h-[40vh] overflow-y-auto sm:max-h-none sm:overflow-visible sm:bottom-auto sm:top-[168px] sm:left-auto sm:right-6 sm:w-72 bg-[#0B0C10]/95 backdrop-blur-2xl p-3 rounded-2xl border border-white/[0.08] shadow-hud-glass font-mono text-[10px] text-space-200 space-y-2">
+    <div className="absolute z-[400] bottom-[104px] left-2 right-2 max-h-[30vh] overflow-y-auto sm:max-h-none sm:overflow-visible sm:bottom-auto sm:top-[168px] sm:left-auto sm:right-6 sm:w-72 bg-[#0B0C10]/95 backdrop-blur-2xl p-3 rounded-2xl border border-white/[0.08] shadow-hud-glass font-mono text-[10px] text-space-200 space-y-2">
       <div className="flex items-center gap-1.5 text-white font-bold text-xs"><Icon className="w-3.5 h-3.5 text-cyber-cyan" />{meta.title}</div>
       {body}
       {source && (

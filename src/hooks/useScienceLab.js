@@ -7,8 +7,8 @@ import { supabase } from '../lib/supabase';
 import { fetchProfile } from '../services/profileService';
 
 /**
- * Shared state and handlers for the In-Situ Science Lab. Used by both the full-page
- * view (ScienceLabPage) and the popup variant (ScienceLabModal), which only differ in layout.
+ * Shared state and handlers for the In-Situ Science Lab page (ScienceLabPage).
+ * Kept as a hook so the lab logic stays separate from its layout.
  * Pass `enabled: false` to postpone fetching the rock targets (e.g. while a modal is closed).
  */
 export default function useScienceLab({ enabled = true } = {}) {

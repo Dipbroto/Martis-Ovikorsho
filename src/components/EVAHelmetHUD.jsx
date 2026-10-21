@@ -175,17 +175,6 @@ export default function EVAHelmetHUD() {
     return () => cancelAnimationFrame(animationFrameId);
   }, [currentBPM]);
 
-  // Escape key to exit HUD
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        setEVASimulating(false);
-        marsAudio.playQuindarTone(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setEVASimulating]);
 
   if (!isEVASimulating) return null;
 
@@ -446,14 +435,13 @@ export default function EVAHelmetHUD() {
             {/* Autonomous Vehicle Escort Indicator */}
             <div className="flex items-center justify-between text-[10px] bg-amber-950/40 px-2.5 py-1 rounded-lg border border-amber-500/40 text-amber-200 mt-1 shadow-sm">
               <span className="flex items-center gap-1.5 font-bold text-amber-400">
-                <span>🚜</span>
-                <span>ESCORT ROVER:</span>
+                <span>MAP WALK:</span>
               </span>
               <span className="font-mono text-[10px]">
                 <strong className={isPlaying ? 'text-green-400 animate-pulse' : 'text-space-400'}>
-                  {isPlaying ? 'DRIVING ALONGSIDE' : 'STANDBY'}
+                  {isPlaying ? 'IN SYNC' : 'STANDBY'}
                 </strong>
-                {' '}• {(roverProgress * 100).toFixed(0)}% • 🔋 {Math.round(roverBatterySoC)}%
+                {' '}• {(roverProgress * 100).toFixed(0)}% done • life support {Math.round(roverBatterySoC)}%
               </span>
             </div>
           </div>

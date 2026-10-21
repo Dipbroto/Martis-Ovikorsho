@@ -1,4 +1,6 @@
-import { useEffect, lazy, Suspense } from 'react';
+import { useEffect, Suspense } from 'react';
+import lazyWithRetry from './utils/lazyWithRetry';
+import useEscapeBack from './utils/useEscapeBack';
 import useMapStore from './store/useMapStore';
 import TopBar from './components/TopBar';
 import LoadingScreen from './components/LoadingScreen';
@@ -12,28 +14,27 @@ import { fetchProfile } from './services/profileService';
 
 
 // Everything below is split into its own chunk and only downloaded when it is first needed
-const Sidebar = lazy(() => import('./components/Sidebar'));
-const BottomPanel = lazy(() => import('./components/BottomPanel'));
-const MapToolbar = lazy(() => import('./components/MapToolbar'));
-const MapWelcome = lazy(() => import('./components/MapWelcome'));
-const MarsMap = lazy(() => import('./components/MarsMap'));
-const Mars3DViewer = lazy(() => import('./components/Mars3DViewer'));
-const MartianSkyEphemeris = lazy(() => import('./components/MartianSkyEphemeris'));
-const ScienceLabPage = lazy(() => import('./components/ScienceLabPage'));
-const MarsImageryPage = lazy(() => import('./components/MarsImageryPage'));
-const ContingencySimulatorPage = lazy(() => import('./components/ContingencySimulatorPage'));
+const Sidebar = lazyWithRetry(() => import('./components/Sidebar'));
+const BottomPanel = lazyWithRetry(() => import('./components/BottomPanel'));
+const MapToolbar = lazyWithRetry(() => import('./components/MapToolbar'));
+const MapWelcome = lazyWithRetry(() => import('./components/MapWelcome'));
+const MarsMap = lazyWithRetry(() => import('./components/MarsMap'));
+const Mars3DViewer = lazyWithRetry(() => import('./components/Mars3DViewer'));
+const MartianSkyEphemeris = lazyWithRetry(() => import('./components/MartianSkyEphemeris'));
+const ScienceLabPage = lazyWithRetry(() => import('./components/ScienceLabPage'));
+const MarsImageryPage = lazyWithRetry(() => import('./components/MarsImageryPage'));
+const ContingencySimulatorPage = lazyWithRetry(() => import('./components/ContingencySimulatorPage'));
 
-const ScienceLabModal = lazy(() => import('./components/ScienceLabModal'));
-const MarsImageryModal = lazy(() => import('./components/MarsImageryModal'));
-const EVAHelmetHUD = lazy(() => import('./components/EVAHelmetHUD'));
-const FlightPlanModal = lazy(() => import('./components/FlightPlanModal'));
-const AudioSynthesizerRack = lazy(() => import('./components/AudioSynthesizerRack'));
-const AresCopilotModal = lazy(() => import('./components/AresCopilotModal'));
-const AresFloatingButton = lazy(() => import('./components/AresFloatingButton'));
-const AuthModal = lazy(() => import('./components/AuthModal'));
-const UserProfileDashboard = lazy(() => import('./components/UserProfileDashboard'));
-const DataMethodsModal = lazy(() => import('./components/DataMethodsModal'));
-const GuidedPlannerModal = lazy(() => import('./components/GuidedPlannerModal'));
+const MarsImageryModal = lazyWithRetry(() => import('./components/MarsImageryModal'));
+const EVAHelmetHUD = lazyWithRetry(() => import('./components/EVAHelmetHUD'));
+const FlightPlanModal = lazyWithRetry(() => import('./components/FlightPlanModal'));
+const AudioSynthesizerRack = lazyWithRetry(() => import('./components/AudioSynthesizerRack'));
+const AresCopilotModal = lazyWithRetry(() => import('./components/AresCopilotModal'));
+const AresFloatingButton = lazyWithRetry(() => import('./components/AresFloatingButton'));
+const AuthModal = lazyWithRetry(() => import('./components/AuthModal'));
+const UserProfileDashboard = lazyWithRetry(() => import('./components/UserProfileDashboard'));
+const DataMethodsModal = lazyWithRetry(() => import('./components/DataMethodsModal'));
+const GuidedPlannerModal = lazyWithRetry(() => import('./components/GuidedPlannerModal'));
 
 const ViewFallback = () => (
   <div className="w-full h-full flex items-center justify-center text-[11px] font-mono tracking-widest text-space-400 animate-pulse">
@@ -55,7 +56,6 @@ function App() {
   const showLoadingScreen = useMapStore(s => s.showLoadingScreen);
   const activeTab = useMapStore(s => s.activeTab);
   const setActiveTab = useMapStore(s => s.setActiveTab);
-  const isScienceLabOpen = useMapStore(s => s.isScienceLabOpen);
   const isImageryModalOpen = useMapStore(s => s.isImageryModalOpen);
   const isEVASimulating = useMapStore(s => s.isEVASimulating);
   const isFlightPlanOpen = useMapStore(s => s.isFlightPlanOpen);
@@ -92,6 +92,9 @@ function App() {
       console.warn("Supabase auth init skipped:", e);
     }
   }, [setUser, setProfile]);
+
+  // Esc always goes back one step, whatever has focus
+  useEscapeBack();
 
   // Update weather data periodically
   useEffect(() => {
@@ -213,7 +216,6 @@ function App() {
 
       {/* GLOBAL MODALS (Fixed overlays) - each chunk loads the first time it is opened */}
       <ErrorBoundary>
-        <MountOnFirstOpen open={isScienceLabOpen}><ScienceLabModal /></MountOnFirstOpen>
       </ErrorBoundary>
       <ErrorBoundary>
         <MountOnFirstOpen open={isImageryModalOpen}><MarsImageryModal /></MountOnFirstOpen>

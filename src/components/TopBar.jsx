@@ -1,22 +1,18 @@
-import { useRef, useState } from 'react';
-import { Menu, X, Volume2, VolumeX, User, Maximize, Minimize, Database, ChevronDown, FlaskConical, Sparkles, ShieldAlert, Image as ImageIcon, Compass } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Menu, X, Volume2, VolumeX, User, Maximize, Minimize, Database, Compass } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
-import useDismiss from '../utils/useDismiss';
 import Logo from './Logo';
 
-// Primary destinations are the two that tell the survival story; the rest live under "More".
-const PRIMARY = [
-  { key: 'home', label: 'Home' },
-  { key: 'map', label: 'Map' },
-];
-
-const EXTRAS = [
-  { key: 'science', label: 'Science Lab', desc: 'Sample analysis on curated NASA targets', icon: FlaskConical },
-  { key: 'sky', label: 'Sky Watch', desc: 'Phobos, Deimos and the Sun from the surface', icon: Sparkles },
-  { key: 'contingency', label: 'Contingency Drills', desc: 'Practise dust storms, radiation and O₂ faults', icon: ShieldAlert },
-  { key: 'imagery', label: 'Image Gallery', desc: 'NASA imagery of Mars', icon: ImageIcon },
+// Every page is one click away; `short` is the compact label used in the desktop bar.
+const NAV = [
+  { key: 'home', label: 'Home', short: 'Home' },
+  { key: 'map', label: 'Map', short: 'Map' },
+  { key: 'science', label: 'Science Lab', short: 'Science Lab' },
+  { key: 'sky', label: 'Sky Watch', short: 'Sky Watch' },
+  { key: 'contingency', label: 'Contingency Drills', short: 'Drills' },
+  { key: 'imagery', label: 'Image Gallery', short: 'Gallery' },
 ];
 
 export default function TopBar({ onSelectTab }) {
@@ -35,11 +31,34 @@ export default function TopBar({ onSelectTab }) {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef(null);
-  useDismiss(moreRef, moreOpen, () => setMoreOpen(false));
+  const [hidden, setHidden] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const lastY = useRef(new WeakMap());
 
-  const extrasActive = EXTRAS.some((e) => e.key === activeTab);
+  // Slide away when the page scrolls down, come back on any scroll up. Any large scroll container counts,
+  // small panels (sidebars, modals) are ignored.
+  useEffect(() => {
+    const onScroll = (e) => {
+      const el = e.target === document ? document.scrollingElement : e.target;
+      if (!(el instanceof Element) || el.clientHeight < window.innerHeight * 0.6) return;
+      const y = el.scrollTop;
+      const delta = y - (lastY.current.get(el) ?? y);
+      lastY.current.set(el, y);
+      setScrolled(y > 24);
+      if (y < 24) setHidden(false);
+      else if (delta > 6) setHidden(true);
+      else if (delta < -6) setHidden(false);
+    };
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener('scroll', onScroll, { capture: true });
+  }, []);
+
+  useEffect(() => {
+    setHidden(false);
+    setScrolled(false);
+  }, [activeTab]);
+
+  const solid = scrolled || activeTab !== 'home' || mobileMenuOpen;
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -54,7 +73,6 @@ export default function TopBar({ onSelectTab }) {
     setActiveTab(key);
     onSelectTab?.(key);
     setMobileMenuOpen(false);
-    setMoreOpen(false);
   };
 
   const openPlanner = () => {
@@ -68,63 +86,38 @@ export default function TopBar({ onSelectTab }) {
     `relative px-3 py-2 text-sm font-medium transition-colors cursor-pointer rounded-lg ${active ? 'text-white' : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'}`;
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50">
-      <div className="w-full bg-[#06080c]/85 backdrop-blur-xl border-b border-white/[0.08]">
-        <div className="max-w-[1700px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-4">
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ease-[cubic-bezier(0.3,0.7,0.2,1)] focus-within:translate-y-0 ${hidden && !mobileMenuOpen ? '-translate-y-full' : 'translate-y-0'}`}
+    >
+      <div className="relative w-full">
+        {/* Over the hero the bar is nearly invisible; it turns to glass once the page moves or on other pages */}
+        <div className={`absolute inset-0 bg-gradient-to-b from-black/60 to-transparent transition-opacity duration-300 ${solid ? 'opacity-0' : 'opacity-100'}`} />
+        <div className={`absolute inset-0 bg-[#06080c]/80 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-opacity duration-300 ${solid ? 'opacity-100' : 'opacity-0'}`} />
+        <div className="relative max-w-[1700px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
           {/* Brand */}
-          <button onClick={() => go('home')} className="group flex items-center gap-2.5 shrink-0 cursor-pointer" aria-label="MarsWalk Explorer home">
+          <button onClick={() => go('home')} className="group flex items-center gap-2.5 shrink-0 cursor-pointer lg:justify-self-start" aria-label="MarsWalk Explorer home">
             <Logo className="w-7 h-7" />
             <span className="text-white font-display font-bold text-lg sm:text-xl tracking-[0.12em] uppercase">MarsWalk</span>
           </button>
 
-          {/* Primary navigation */}
-          <nav className="hidden md:flex items-center gap-1" aria-label="Main">
-            {PRIMARY.map((item) => {
+          {/* Navigation: every page, no hidden menu */}
+          <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1" aria-label="Main">
+            {NAV.map((item) => {
               const active = activeTab === item.key;
               return (
-                <button key={item.key} onClick={() => go(item.key)} className={navBtn(active)} aria-current={active ? 'page' : undefined}>
-                  {item.label}
+                <button key={item.key} onClick={() => go(item.key)} title={item.label} className={navBtn(active)} aria-current={active ? 'page' : undefined}>
+                  {item.short}
                   {active && <motion.span layoutId="nav-underline" className="absolute left-3 right-3 -bottom-0.5 h-[2px] rounded bg-[#ff7b4d]" transition={{ type: 'spring', stiffness: 380, damping: 32 }} />}
                 </button>
               );
             })}
-
-            <div className="relative" ref={moreRef}>
-              <button onClick={() => setMoreOpen((v) => !v)} className={`${navBtn(extrasActive)} flex items-center gap-1`} aria-haspopup="menu" aria-expanded={moreOpen}>
-                More
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
-                {extrasActive && <span className="absolute left-3 right-3 -bottom-0.5 h-[2px] rounded bg-[#ff7b4d]" />}
-              </button>
-              <AnimatePresence>
-                {moreOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.12 }}
-                    className="ui-menu absolute left-0 top-full mt-2 w-72 rounded-xl p-1.5"
-                    role="menu"
-                  >
-                    {EXTRAS.map(({ key, label, desc, icon: Icon }) => (
-                      <button key={key} role="menuitem" onClick={() => go(key)} className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-white/[0.07] cursor-pointer ${activeTab === key ? 'bg-white/[0.06]' : ''}`}>
-                        <Icon className="w-4 h-4 mt-0.5 text-[#ff8c69] shrink-0" />
-                        <span>
-                          <span className="block text-sm text-white font-medium">{label}</span>
-                          <span className="block text-xs text-zinc-400">{desc}</span>
-                        </span>
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
           </nav>
 
           {/* Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 lg:justify-self-end">
             <button
               onClick={openPlanner}
-              className="hidden sm:flex items-center gap-2 bg-white hover:bg-zinc-200 text-black pl-3.5 pr-4 py-2 rounded-lg text-sm font-semibold transition-all active:scale-95 cursor-pointer"
+              className="hidden sm:flex items-center gap-2 whitespace-nowrap bg-white hover:bg-zinc-200 text-black pl-3.5 pr-4 py-2 rounded-lg text-sm font-semibold transition-all active:scale-95 cursor-pointer"
             >
               <Compass className="w-4 h-4" />
               Plan a Marswalk
@@ -135,7 +128,7 @@ export default function TopBar({ onSelectTab }) {
                 marsAudio.playUiClick?.();
                 setAresCopilotOpen(!isAresCopilotOpen);
               }}
-              className={`hidden sm:flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-lg border text-sm transition-all cursor-pointer ${
+              className={`hidden xl:flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-lg border text-sm transition-all cursor-pointer ${
                 isAresCopilotOpen ? 'bg-purple-950/60 border-purple-400 text-purple-100' : 'bg-white/[0.04] hover:bg-white/[0.09] border-white/10 text-zinc-200'
               }`}
               title="Ask the EVA copilot to plan routes or open tools"
@@ -160,7 +153,7 @@ export default function TopBar({ onSelectTab }) {
               {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
             </button>
 
-            <button onClick={() => setMobileMenuOpen((v) => !v)} className={`${iconBtn} md:hidden`} aria-expanded={mobileMenuOpen} aria-label="Menu">
+            <button onClick={() => setMobileMenuOpen((v) => !v)} className={`${iconBtn} lg:hidden`} aria-expanded={mobileMenuOpen} aria-label="Menu">
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
@@ -174,10 +167,10 @@ export default function TopBar({ onSelectTab }) {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="md:hidden bg-[#06080c]/98 backdrop-blur-2xl border-b border-white/10 px-4 py-4 flex flex-col gap-1 max-h-[calc(100vh-4rem)] overflow-y-auto"
+            className="lg:hidden bg-[#06080c]/95 backdrop-blur-2xl border-b border-white/10 px-4 py-4 flex flex-col gap-1 max-h-[calc(100vh-4rem)] overflow-y-auto"
           >
             <button onClick={openPlanner} className="flex items-center justify-center gap-2 bg-white text-black rounded-lg py-3 font-semibold mb-2"><Compass className="w-4 h-4" />Plan a Marswalk</button>
-            {[...PRIMARY, ...EXTRAS].map((item) => (
+            {NAV.map((item) => (
               <button key={item.key} onClick={() => go(item.key)} className={`text-left px-3 py-3 rounded-lg text-base ${activeTab === item.key ? 'bg-white/[0.07] text-white font-semibold' : 'text-zinc-300'}`}>
                 {item.label}
               </button>

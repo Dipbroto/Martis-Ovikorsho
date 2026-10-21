@@ -35,7 +35,7 @@ async function resolveOrigin(destination) {
  * Plans origin -> destination and applies it to the store (waypoints, drawn path, camera).
  * Throws Error with a user-presentable message when no route can be planned.
  */
-export async function planAndApplyRoute({ origin, destination, mode = 'safety', zoom = 9 }) {
+export async function planAndApplyRoute({ origin, destination, mode = 'safety' }) {
   const dest = { name: destination.name, lat: Number(destination.lat), lon: Number(destination.lon) };
   if (!Number.isFinite(dest.lat) || !Number.isFinite(dest.lon)) throw new Error('The destination has no valid coordinates.');
 
@@ -46,10 +46,31 @@ export async function planAndApplyRoute({ origin, destination, mode = 'safety', 
   }
 
   const result = await generateAutonomousTraverse(start, dest, { mode });
-  const { setWaypoints, setRouteGeometry, setMapCenter, setMapZoom } = useMapStore.getState();
-  setWaypoints(result.waypoints);
-  setRouteGeometry({ signature: routeSignature(result.waypoints), points: result.path, stations: result.stations, source: result.grid.source });
-  setMapCenter([(start.lat + dest.lat) / 2, (start.lon + dest.lon) / 2]);
-  setMapZoom(zoom);
+  applyPlannedRoute(result);
   return result;
+}
+
+/** Puts a planner result on the map: waypoints, the full path with its metrics, and a camera that frames it. */
+export function applyPlannedRoute(result, { fit = true } = {}) {
+  const { setWaypoints, setRouteGeometry, fitMapTo, setRoverProgress, setRoverDriving } = useMapStore.getState();
+  setRoverDriving(false);
+  setRoverProgress(0);
+  setWaypoints(result.waypoints);
+  setRouteGeometry({
+    signature: routeSignature(result.waypoints),
+    points: result.path,
+    stations: result.stations,
+    source: result.grid.source,
+    metrics: result.metrics,
+  });
+  if (fit) fitMapTo(pathBounds(result.path));
+}
+
+export function pathBounds(path) {
+  let s = 90, n = -90, w = 180, e = -180;
+  for (const [lat, lon] of path) {
+    s = Math.min(s, lat); n = Math.max(n, lat);
+    w = Math.min(w, lon); e = Math.max(e, lon);
+  }
+  return [[s, w], [n, e]];
 }

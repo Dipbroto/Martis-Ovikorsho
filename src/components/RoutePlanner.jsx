@@ -17,6 +17,7 @@ import DaylightCard from './DaylightCard';
 import { marsAudio } from '../utils/audioSynthesizer';
 import { supabase } from '../lib/supabase';
 import { fetchProfile } from '../services/profileService';
+import { applyPlannedRoute } from '../services/routePlanningService';
 import { Loader2, UploadCloud } from 'lucide-react';
 
 export default function RoutePlanner() {
@@ -51,8 +52,8 @@ export default function RoutePlanner() {
     setRoverProgress,
     driveTargetWaypointId,
     setDriveTargetWaypointId,
-    setRouteGeometry,
-  } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, terrainVersion: s.terrainVersion, isPlacingWaypoint: s.isPlacingWaypoint, setPlacingWaypoint: s.setPlacingWaypoint, removeWaypoint: s.removeWaypoint, undoLastPoint: s.undoLastPoint, setWaypoints: s.setWaypoints, updateWaypoint: s.updateWaypoint, clearWaypoints: s.clearWaypoints, loadExpeditionPreset: s.loadExpeditionPreset, activePresetId: s.activePresetId, setEVASimulating: s.setEVASimulating, setFlightPlanOpen: s.setFlightPlanOpen, setContingencyModalOpen: s.setContingencyModalOpen, activeContingency: s.activeContingency, setMapCenter: s.setMapCenter, setMapZoom: s.setMapZoom, selectedWaypointId: s.selectedWaypointId, setSelectedWaypoint: s.setSelectedWaypoint, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, driveTargetWaypointId: s.driveTargetWaypointId, setDriveTargetWaypointId: s.setDriveTargetWaypointId, setRouteGeometry: s.setRouteGeometry })));
+    routeGeometry,
+  } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, terrainVersion: s.terrainVersion, isPlacingWaypoint: s.isPlacingWaypoint, setPlacingWaypoint: s.setPlacingWaypoint, removeWaypoint: s.removeWaypoint, undoLastPoint: s.undoLastPoint, setWaypoints: s.setWaypoints, updateWaypoint: s.updateWaypoint, clearWaypoints: s.clearWaypoints, loadExpeditionPreset: s.loadExpeditionPreset, activePresetId: s.activePresetId, setEVASimulating: s.setEVASimulating, setFlightPlanOpen: s.setFlightPlanOpen, setContingencyModalOpen: s.setContingencyModalOpen, activeContingency: s.activeContingency, setMapCenter: s.setMapCenter, setMapZoom: s.setMapZoom, selectedWaypointId: s.selectedWaypointId, setSelectedWaypoint: s.setSelectedWaypoint, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, driveTargetWaypointId: s.driveTargetWaypointId, setDriveTargetWaypointId: s.setDriveTargetWaypointId, routeGeometry: s.routeGeometry })));
 
   const [activeTab, setActiveTab] = useState('manual'); // 'manual' | 'auto'
   const [distance, setDistance] = useState(0);
@@ -67,7 +68,14 @@ export default function RoutePlanner() {
   const [routingError, setRoutingError] = useState(null);
 
   useEffect(() => {
-    if (waypoints && waypoints.length > 1) {
+    // A planned route already has exact figures from the terrain planner; show those so the sidebar
+    // matches the planner card instead of re-estimating from the simplified turn points.
+    const planned = routeGeometry?.metrics && routeGeometry.signature === routeSignature(waypoints) ? routeGeometry.metrics : null;
+    if (planned) {
+      setDistance(planned.traverseDistanceKm);
+      setStats({ elevationGain: planned.totalAscentMeters, elevationLoss: planned.totalDescentMeters });
+      setEvaTime(planned.walkingHours);
+    } else if (waypoints && waypoints.length > 1) {
       const dist = routeDistance(waypoints);
       setDistance(dist || 0);
       const profile = getElevationProfile(waypoints, 100);
@@ -80,7 +88,7 @@ export default function RoutePlanner() {
       setEvaTime(0);
       setStats(null);
     }
-  }, [waypoints, terrainVersion]);
+  }, [waypoints, terrainVersion, routeGeometry]);
 
   const handleNameChange = (id, newName) => {
     updateWaypoint(id, { name: newName });
@@ -163,21 +171,15 @@ export default function RoutePlanner() {
 
   const handleRunAutoRouter = async (pairId = selectedPairId, mode = routingMode, autoApply = true) => {
     let origin, destination;
-    let targetCenter = null;
-    let targetZoom = 7;
 
     if (pairId === 'custom-current') {
       if (!waypoints || waypoints.length < 2) return;
       origin = waypoints[0];
       destination = waypoints[waypoints.length - 1];
-      targetCenter = [(origin.lat + destination.lat) / 2, (origin.lon + destination.lon) / 2];
-      targetZoom = 9;
     } else {
       const pair = AUTONOMOUS_TARGET_PAIRS.find(p => p.id === pairId) || AUTONOMOUS_TARGET_PAIRS[0];
       origin = pair.origin;
       destination = pair.destination;
-      targetCenter = pair.center || [origin.lat, origin.lon];
-      targetZoom = pair.zoom || 7;
     }
 
     setIsRouting(true);
@@ -187,12 +189,7 @@ export default function RoutePlanner() {
       setGeneratedRouteResult(result);
 
       if (autoApply && result.waypoints) {
-        setWaypoints(result.waypoints);
-        setRouteGeometry({ signature: routeSignature(result.waypoints), points: result.path, stations: result.stations, source: result.grid.source });
-        if (targetCenter) {
-          setMapCenter(targetCenter);
-          setMapZoom(targetZoom);
-        }
+        applyPlannedRoute(result);
         marsAudio.playQuindarTone(true);
       }
     } catch (err) {
@@ -245,22 +242,7 @@ export default function RoutePlanner() {
 
   const handleApplyAutoRoute = () => {
     if (!generatedRouteResult || !generatedRouteResult.waypoints) return;
-    setWaypoints(generatedRouteResult.waypoints);
-    setRouteGeometry({
-      signature: routeSignature(generatedRouteResult.waypoints),
-      points: generatedRouteResult.path,
-      stations: generatedRouteResult.stations,
-      source: generatedRouteResult.grid.source,
-    });
-    const pair = AUTONOMOUS_TARGET_PAIRS.find(p => p.id === selectedPairId);
-    if (pair && pair.center) {
-      setMapCenter(pair.center);
-      setMapZoom(pair.zoom || 7);
-    } else if (generatedRouteResult.waypoints[0]) {
-      const firstWp = generatedRouteResult.waypoints[0];
-      setMapCenter([firstWp.lat, firstWp.lon]);
-      setMapZoom(7);
-    }
+    applyPlannedRoute(generatedRouteResult);
     marsAudio.playQuindarTone(true);
   };
 
@@ -363,7 +345,7 @@ export default function RoutePlanner() {
                 <Clock className="w-3.5 h-3.5 text-amber-400" />
               </div>
               <div>
-                <div className="text-stone-400 font-mono text-[9px] uppercase tracking-wider font-medium">Est. Duration</div>
+                <div className="text-stone-400 font-mono text-[9px] uppercase tracking-wider font-medium">Walking time</div>
                 <div className="font-mono text-sm font-bold tabular-nums text-amber-300">{evaTime.toFixed(1)} hrs</div>
               </div>
             </div>
@@ -482,8 +464,8 @@ export default function RoutePlanner() {
                             }`}
                             title={
                               isRoverDriving && driveTargetWaypointId === wp.id
-                                ? 'Pause Rover Drive'
-                                : `Simulate Rover Drive to Station #${index + 1}`
+                                ? 'Pause walk'
+                                : `Walk to station #${index + 1}`
                             }
                           >
                             {isRoverDriving && driveTargetWaypointId === wp.id ? (
@@ -532,7 +514,7 @@ export default function RoutePlanner() {
                               {index === 0
                                 ? 'Reset to Origin'
                                 : isRoverDriving && driveTargetWaypointId === wp.id
-                                ? 'Pause Rover'
+                                ? 'Pause walk'
                                 : `Simulate Drive to This Station`}
                             </span>
                           </button>
@@ -810,8 +792,8 @@ export default function RoutePlanner() {
                               }`}
                               title={
                                 isRoverDriving && driveTargetWaypointId === wp.id
-                                  ? 'Pause Rover Drive'
-                                  : `Simulate Rover Drive to Station #${idx + 1}`
+                                  ? 'Pause walk'
+                                  : `Walk to station #${idx + 1}`
                               }
                             >
                               {isRoverDriving && driveTargetWaypointId === wp.id ? (
@@ -872,7 +854,7 @@ export default function RoutePlanner() {
                               {idx === 0 
                                 ? 'Reset to Origin' 
                                 : isRoverDriving && driveTargetWaypointId === wp.id 
-                                ? 'Pause Rover' 
+                                ? 'Pause walk' 
                                 : 'Simulate Drive to This Station'}
                             </span>
                           </button>

@@ -2,907 +2,483 @@ import { useRef, useMemo, useEffect, useState, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
-import useMapStore from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
+import { Pause, Play, MapPin, Route, Droplets, Tent, Grid3x3, X, Map as MapIcon } from 'lucide-react';
+import useMapStore, { routeSignature } from '../store/useMapStore';
 import { landingSites } from '../data/landingSites';
-import { playUiClick, playUiHover, playUiSwoosh } from '../utils/audioSynthesizer';
-import { Play, Pause, Sparkles, Layers, Compass, AlertTriangle, Droplets, Rocket } from 'lucide-react';
+import { loadGrid } from '../terrain/dem';
+import { marsDistance } from '../utils/marsUtils';
+import { playUiClick } from '../utils/audioSynthesizer';
 
-// Convert lat/lon (degrees) to 3D sphere coordinate
-const latLonToVector3 = (lat, lon, radius) => {
-  const phi = (90 - lat) * (Math.PI / 180);
-  const theta = (lon + 180) * (Math.PI / 180);
+// A realistic Mars globe built only from real data:
+// - colour: the Viking MDIM 2.1 mosaic (USGS / NASA Trek), stitched by scripts/data/build_globe_texture.py
+// - relief: a normal map computed in the browser from the MOLA elevation grid the app already loads
+// - optional layers: landing sites, your planned route, Odyssey water map, USGS cave candidates, grid
+// Labels stay out of the way: icons only, with names on hover or when the camera is close.
 
-  const x = -(radius * Math.sin(phi) * Math.cos(theta));
-  const z = radius * Math.sin(phi) * Math.sin(theta);
-  const y = radius * Math.cos(phi);
+const R = 2;
+const TEXTURE = '/textures/mars-viking-mdim21-4k.jpg';
 
-  return new THREE.Vector3(x, y, z);
+/** Unit vector for a lat/lon on three.js's SphereGeometry UV layout (lon -180 at -x, lon 90E at -z). */
+const dirFor = (lat, lon) => {
+  const la = THREE.MathUtils.degToRad(lat), lo = THREE.MathUtils.degToRad(lon);
+  return new THREE.Vector3(Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo));
 };
 
-// Generate 3D circle points around a center (lat, lon) on sphere
-const createContourCircle = (centerLat, centerLon, radiusDegrees, sphereRadius, numPoints = 64) => {
-  const points = [];
-  for (let i = 0; i <= numPoints; i++) {
-    const angle = (i / numPoints) * Math.PI * 2;
-    const lat = centerLat + Math.sin(angle) * radiusDegrees;
-    const lon = centerLon + (Math.cos(angle) * radiusDegrees) / Math.cos((centerLat * Math.PI) / 180);
-    points.push(latLonToVector3(lat, lon, sphereRadius));
-  }
-  return points;
-};
+const ROVER_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="9" width="12.5" height="4" rx="1"/><path d="M14.5 9V5.2"/><rect x="13.2" y="3" width="4.6" height="2.4" rx="0.6"/><path d="M6.5 13l-1.8 3.2M10.8 13v3.2M15 13l1.8 3.2"/><circle cx="4.6" cy="18.2" r="1.7"/><circle cx="10.8" cy="18.2" r="1.7"/><circle cx="17" cy="18.2" r="1.7"/></svg>';
+const LANDER_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12.5h10l-1.8-4H8.8z"/><path d="M8.5 12.5l-3.2 5.8M15.5 12.5l3.2 5.8M12 12.5v5.8"/><path d="M9.3 5.4a3.2 3.2 0 0 1 5.4 0"/><path d="M12 8.5V5.8"/></svg>';
 
-// Martian Hazards (Radiation Spikes & Active Dust Storms)
-const hazardMarkers = [
-  { id: 'rad-1', name: 'Radiation Spike Alpha', lat: 18.2, lon: -112.5, type: 'radiation', level: '14.2 mSv/h', icon: '☢️', color: '#f43f5e', desc: 'Solar proton storm surge peak' },
-  { id: 'rad-2', name: 'Gale Rim GCR Exposure', lat: -4.6, lon: 137.4, type: 'radiation', level: '9.8 mSv/h', icon: '☢️', color: '#f43f5e', desc: 'Unshielded cosmic ray elevation' },
-  { id: 'rad-3', name: 'Noachis Magnetic Anomaly', lat: -32.0, lon: 45.0, type: 'radiation', level: '11.5 mSv/h', icon: '☢️', color: '#f43f5e', desc: 'Crustal remnant magnetic cusp' },
-  { id: 'dust-1', name: 'Hellas Convective Squall', lat: -42.0, lon: 70.0, type: 'dust', level: 'τ 3.40 (Dense)', icon: '🌪️', color: '#FF4C29', desc: 'Active convective dust wall' },
-  { id: 'dust-2', name: 'Valles Marineris Dust Inflow', lat: -14.0, lon: -58.0, type: 'dust', level: 'τ 2.15 (Advancing)', icon: '🌪️', color: '#FF4C29', desc: 'Chasma wind shear accumulation' },
-  { id: 'dust-3', name: 'Acidalia Regional Dust Front', lat: 48.0, lon: -25.0, type: 'dust', level: 'τ 1.95 (Active)', icon: '🌪️', color: '#FF4C29', desc: 'Frontal squall line' }
+const FLY_TO = [
+  { id: 'global', name: 'Whole planet', lat: 5, lon: -70, dist: 5.6 },
+  { id: 'jezero', name: 'Jezero Crater', lat: 18.4, lon: 77.5, dist: 3.1 },
+  { id: 'gale', name: 'Gale Crater', lat: -5.4, lon: 137.8, dist: 3.1 },
+  { id: 'olympus', name: 'Olympus Mons', lat: 18.6, lon: -134, dist: 3.3 },
+  { id: 'valles', name: 'Valles Marineris', lat: -11, lon: -70, dist: 3.4 },
+  { id: 'north', name: 'North polar cap', lat: 82, lon: 0, dist: 3.6 },
 ];
 
-// Martian Subsurface Ice Resources
-const resourceMarkers = [
-  { id: 'ice-1', name: 'Utopia Glacial Sheet', lat: 46.7, lon: 117.5, type: 'ice', depth: '1.2m depth', volume: '10,000 km³', icon: '🧊', color: '#00FFCC', desc: 'SHARAD radar-verified water ice sheet' },
-  { id: 'ice-2', name: 'Korolev Crater Ice Dome', lat: 73.0, lon: 165.0, type: 'ice', depth: 'Surface dome', volume: '2,200 km³', icon: '🧊', color: '#00FFCC', desc: '1.8 km thick permanent glacial ice dome' },
-  { id: 'ice-3', name: 'Arcadia Shallow Permafrost', lat: 39.3, lon: -171.0, type: 'ice', depth: '1.5m depth', volume: 'High Purity', icon: '🧊', color: '#00FFCC', desc: 'Ideal for human Marswalk ISRU harvesting' },
-  { id: 'ice-4', name: 'Deuteronilus Glacial Apron', lat: 43.9, lon: 24.3, type: 'ice', depth: '0.8m depth', volume: 'Glacial Core', icon: '🧊', color: '#00FFCC', desc: 'Debris-covered glacial tongue' }
-];
+// ---------- data hooks ----------
 
-// Vertical Holographic Laser Light Pillar Beacon
-const HoloBeacon = ({ position, color = '#00FFCC', height = 0.35, label, sublabel, icon = '📍', onClick }) => {
-  const normal = useMemo(() => position.clone().normalize(), [position]);
-  const orientation = useMemo(() => {
-    const q = new THREE.Quaternion();
-    q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-    return q;
-  }, [normal]);
-
-  const ringRef = useRef();
-  useFrame(({ clock }) => {
-    if (ringRef.current) {
-      const s = 1 + (Math.sin(clock.getElapsedTime() * 3.5) + 1) * 0.22;
-      ringRef.current.scale.set(s, s, s);
-    }
-  });
-
-  return (
-    <group position={position} quaternion={orientation}>
-      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.018, 0.045, 32]} />
-        <meshBasicMaterial 
-          color={color} 
-          transparent 
-          opacity={0.75} 
-          blending={THREE.AdditiveBlending} 
-          side={THREE.DoubleSide} 
-        />
-      </mesh>
-
-      <mesh position={[0, 0.015, 0]}>
-        <sphereGeometry args={[0.02, 16, 16]} />
-        <meshStandardMaterial 
-          color={color} 
-          emissive={color} 
-          emissiveIntensity={2.0} 
-        />
-      </mesh>
-
-      <mesh position={[0, height / 2, 0]}>
-        <cylinderGeometry args={[0.003, 0.01, height, 16, 1, true]} />
-        <meshBasicMaterial 
-          color={color} 
-          transparent 
-          opacity={0.65} 
-          blending={THREE.AdditiveBlending} 
-          side={THREE.DoubleSide} 
-        />
-      </mesh>
-
-      <mesh position={[0, height, 0]}>
-        <sphereGeometry args={[0.012, 12, 12]} />
-        <meshBasicMaterial color="#ffffff" />
-      </mesh>
-
-      <Html
-        position={[0, height + 0.06, 0]}
-        center
-        distanceFactor={6}
-        className="pointer-events-none select-none z-10"
-      >
-        <div 
-          onClick={onClick}
-          className="pointer-events-auto cursor-pointer flex flex-col items-center group transition-transform duration-200 hover:scale-110"
-        >
-          <div 
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg backdrop-blur-xl border shadow-lg font-mono text-[10px]"
-            style={{ 
-              backgroundColor: 'rgba(11, 12, 16, 0.94)', 
-              borderColor: `${color}88`,
-              boxShadow: `0 0 16px ${color}66`
-            }}
-          >
-            <span className="text-xs">{icon}</span>
-            <span className="font-bold text-white tracking-wide whitespace-nowrap">{label}</span>
-          </div>
-          {sublabel && (
-            <div className="text-[9px] font-mono text-space-300 bg-space-950/85 px-1.5 py-0.5 rounded mt-0.5 border border-white/5 whitespace-nowrap">
-              {sublabel}
-            </div>
-          )}
-        </div>
-      </Html>
-    </group>
-  );
-};
-
-// Pulsing Hazard & Resource Beacon (Expanding Warning Rings)
-const PulsingBeacon = ({ position, color = '#FF4C29', label, sublabel, icon = '⚠️' }) => {
-  const normal = useMemo(() => position.clone().normalize(), [position]);
-  const orientation = useMemo(() => {
-    const q = new THREE.Quaternion();
-    q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-    return q;
-  }, [normal]);
-
-  const ring1 = useRef();
-  const ring2 = useRef();
-
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime() * 3;
-    if (ring1.current) {
-      const s1 = 1 + (t % 2) * 1.2;
-      ring1.current.scale.set(s1, s1, s1);
-      ring1.current.material.opacity = Math.max(0, 1 - (t % 2) / 2);
-    }
-    if (ring2.current) {
-      const s2 = 1 + ((t + 1) % 2) * 1.2;
-      ring2.current.scale.set(s2, s2, s2);
-      ring2.current.material.opacity = Math.max(0, 1 - ((t + 1) % 2) / 2);
-    }
-  });
-
-  return (
-    <group position={position} quaternion={orientation}>
-      <mesh ref={ring1} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.02, 0.055, 32]} />
-        <meshBasicMaterial color={color} transparent opacity={0.8} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh ref={ring2} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.02, 0.055, 32]} />
-        <meshBasicMaterial color={color} transparent opacity={0.5} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
-      </mesh>
-
-      <mesh position={[0, 0.02, 0]}>
-        <sphereGeometry args={[0.022, 16, 16]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.5} />
-      </mesh>
-
-      <Html position={[0, 0.08, 0]} center distanceFactor={6} className="pointer-events-none select-none z-10">
-        <div className="flex flex-col items-center">
-          <div 
-            className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg backdrop-blur-xl border font-mono text-[9px] shadow-lg"
-            style={{ 
-              backgroundColor: 'rgba(11, 12, 16, 0.95)', 
-              borderColor: `${color}88`,
-              boxShadow: `0 0 14px ${color}66`
-            }}
-          >
-            <span className="text-xs">{icon}</span>
-            <span className="font-bold text-white tracking-wide whitespace-nowrap">{label}</span>
-          </div>
-          <div className="text-[8px] font-mono text-space-300 bg-space-950/90 px-1 py-0.2 rounded mt-0.5 whitespace-nowrap">
-            {sublabel}
-          </div>
-        </div>
-      </Html>
-    </group>
-  );
-};
-
-// MRO Reconnaissance Satellite with Scanning Radar Fan Cone
-const MROSatellite = ({ radius = 2.0, showScanner = true }) => {
-  const satelliteRef = useRef();
-  const orbitRadius = radius * 1.34;
-  const orbitSpeed = 0.28;
-
-  useFrame(({ clock }) => {
-    if (satelliteRef.current) {
-      const t = clock.getElapsedTime() * orbitSpeed;
-      const x = Math.cos(t) * orbitRadius;
-      const z = Math.sin(t) * orbitRadius;
-      const y = Math.sin(t * 1.5) * 0.45;
-      satelliteRef.current.position.set(x, y, z);
-      satelliteRef.current.lookAt(0, 0, 0);
-    }
-  });
-
-  return (
-    <group ref={satelliteRef}>
-      <mesh>
-        <boxGeometry args={[0.045, 0.03, 0.03]} />
-        <meshStandardMaterial color="#f8fafc" metalness={0.9} roughness={0.1} />
-      </mesh>
-      <mesh position={[0.065, 0, 0]}>
-        <boxGeometry args={[0.075, 0.024, 0.003]} />
-        <meshStandardMaterial color="#0284c7" emissive="#0284c7" emissiveIntensity={0.6} />
-      </mesh>
-      <mesh position={[-0.065, 0, 0]}>
-        <boxGeometry args={[0.075, 0.024, 0.003]} />
-        <meshStandardMaterial color="#0284c7" emissive="#0284c7" emissiveIntensity={0.6} />
-      </mesh>
-
-      {showScanner && (
-        <mesh position={[0, 0, -orbitRadius * 0.17]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.01, 0.35, orbitRadius * 0.34, 32, 1, true]} />
-          <meshBasicMaterial 
-            color="#00FFCC" 
-            transparent 
-            opacity={0.18} 
-            blending={THREE.AdditiveBlending} 
-            side={THREE.DoubleSide} 
-          />
-        </mesh>
-      )}
-    </group>
-  );
-};
-
-// Smooth Camera Controller
-// 3D Animated Martian Dust Storm Particle Vortex (Swirling Convective Funnel)
-const DustStormParticleVortex = ({ centerLat = -42.4, centerLon = 70.5, radius = 2.0, color = '#FF4C29' }) => {
-  const pointsRef = useRef();
-  const normal = useMemo(() => latLonToVector3(centerLat, centerLon, radius).normalize(), [centerLat, centerLon, radius]);
-  const surfacePos = useMemo(() => latLonToVector3(centerLat, centerLon, radius + 0.006), [centerLat, centerLon, radius]);
-  
-  const orientation = useMemo(() => {
-    const q = new THREE.Quaternion();
-    q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-    return q;
-  }, [normal]);
-
-  const { positions, randomFactors } = useMemo(() => {
-    const count = 300;
-    const pos = new Float32Array(count * 3);
-    const rnd = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      const height = Math.random() * 0.18;
-      const spread = (height * 1.6 + 0.035);
-      const angle = Math.random() * Math.PI * 2;
-      const r = Math.sqrt(Math.random()) * spread;
-      pos[i * 3] = Math.cos(angle) * r;
-      pos[i * 3 + 1] = height;
-      pos[i * 3 + 2] = Math.sin(angle) * r;
-
-      rnd[i * 3] = Math.random();
-      rnd[i * 3 + 1] = r;
-      rnd[i * 3 + 2] = angle;
-    }
-    return { positions: pos, randomFactors: rnd };
-  }, []);
-
-  useFrame(({ clock }) => {
-    if (pointsRef.current) {
-      const t = clock.getElapsedTime() * 2.2;
-      const posAttr = pointsRef.current.geometry.attributes.position;
-      const count = posAttr.count;
-      for (let i = 0; i < count; i++) {
-        const speed = 1.0 + randomFactors[i * 3] * 1.5;
-        const currentAngle = randomFactors[i * 3 + 2] + t * speed;
-        const h = posAttr.getY(i);
-        const r = (h * 1.5 + 0.03);
-        posAttr.setX(i, Math.cos(currentAngle) * r);
-        posAttr.setZ(i, Math.sin(currentAngle) * r);
+/** Tangent-space normal map from the MOLA global grid: real topography lighting on the globe. */
+function useMolaNormalMap() {
+  const [tex, setTex] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    loadGrid('global').then((g) => {
+      if (cancelled) return;
+      const { width: W, height: H, data, nodata } = g;
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      const img = ctx.createImageData(W, H);
+      const cell = (Math.PI * 3389500) / H; // metres per pixel north-south
+      const k = 18; // vertical exaggeration so planet-scale relief reads at globe size
+      const at = (c, r) => {
+        const v = data[Math.min(H - 1, Math.max(0, r)) * W + ((c + W) % W)];
+        return v === nodata ? 0 : v;
+      };
+      for (let r = 0; r < H; r++) {
+        const coslat = Math.max(0.05, Math.cos(((90 - (r + 0.5) * (180 / H)) * Math.PI) / 180));
+        for (let c = 0; c < W; c++) {
+          const dzdx = ((at(c + 1, r) - at(c - 1, r)) / (2 * cell * coslat)) * k;
+          const dzdn = ((at(c, r - 1) - at(c, r + 1)) / (2 * cell)) * k;
+          const len = Math.hypot(dzdx, dzdn, 1);
+          const i = (r * W + c) * 4;
+          img.data[i] = ((-dzdx / len) * 0.5 + 0.5) * 255;
+          img.data[i + 1] = ((-dzdn / len) * 0.5 + 0.5) * 255;
+          img.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
+          img.data[i + 3] = 255;
+        }
       }
-      posAttr.needsUpdate = true;
-    }
-  });
+      ctx.putImageData(img, 0, 0);
+      const t = new THREE.CanvasTexture(canvas);
+      t.colorSpace = THREE.NoColorSpace;
+      t.anisotropy = 4;
+      setTex(t);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  return tex;
+}
 
-  return (
-    <group position={surfacePos} quaternion={orientation}>
-      <points ref={pointsRef}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={positions.length / 3}
-            array={positions}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <pointsMaterial
-          size={0.015}
-          color={color}
-          transparent
-          opacity={0.8}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </points>
-    </group>
-  );
+const useJson = (url, enabled) => {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    if (!enabled || data) return;
+    fetch(url).then((r) => (r.ok ? r.json() : null)).then(setData).catch(() => {});
+  }, [url, enabled, data]);
+  return data;
 };
 
-// 3D Entry, Descent & Landing (EDL) Trajectory Arc ("7 Minutes of Terror")
-const EDLTrajectory = ({ radius = 2.0, targetLat = 18.4447, targetLon = 77.4508, show = true }) => {
-  const { points, chutePoint, entryPoint } = useMemo(() => {
-    const pts = [];
-    const numSteps = 40;
-    const startLat = targetLat + 10;
-    const startLon = targetLon - 45;
-    const startAlt = radius * 1.32;
-    const entryPt = latLonToVector3(startLat, startLon, startAlt);
-    const chutePt = latLonToVector3(targetLat + 2, targetLon - 8, radius * 1.08);
+// ---------- scene pieces ----------
 
-    for (let i = 0; i <= numSteps; i++) {
-      const frac = i / numSteps;
-      const lat = startLat + (targetLat - startLat) * Math.pow(frac, 0.75);
-      const lon = startLon + (targetLon - startLon) * Math.pow(frac, 0.75);
-      const currentRadius = radius + (startAlt - radius) * Math.pow(1 - frac, 1.7);
-      pts.push(latLonToVector3(lat, lon, currentRadius));
+function Globe() {
+  const color = useTexture(TEXTURE);
+  const normal = useMolaNormalMap();
+  const { gl } = useThree();
+  useEffect(() => {
+    color.colorSpace = THREE.SRGBColorSpace;
+    color.anisotropy = Math.min(8, gl.capabilities.getMaxAnisotropy());
+    color.needsUpdate = true;
+  }, [color, gl]);
+  return (
+    <mesh>
+      <sphereGeometry args={[R, 160, 120]} />
+      <meshStandardMaterial
+        map={color}
+        normalMap={normal || undefined}
+        normalScale={new THREE.Vector2(1.2, 1.2)}
+        roughness={1}
+        metalness={0}
+      />
+    </mesh>
+  );
+}
+
+/** Thin dusty haze on the limb (Fresnel glow), the way Mars looks from orbit. */
+function Atmosphere() {
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    vertexShader: 'varying vec3 vN; void main(){ vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'varying vec3 vN; void main(){ float i = pow(max(0.0, 0.72 - dot(vN, vec3(0.0, 0.0, 1.0))), 4.0); gl_FragColor = vec4(0.98, 0.62, 0.42, 1.0) * i * 1.6; }',
+  }), []);
+  return (
+    <mesh scale={1.045}>
+      <sphereGeometry args={[R, 96, 64]} />
+      <primitive object={material} attach="material" />
+    </mesh>
+  );
+}
+
+/** Keeps the key light just above-left of the camera so the side you look at is always lit. */
+function CameraLight() {
+  const light = useRef();
+  const { camera } = useThree();
+  const offset = useMemo(() => new THREE.Vector3(), []);
+  useFrame(() => {
+    if (!light.current) return;
+    offset.set(-2.2, 2.4, 0).applyQuaternion(camera.quaternion);
+    light.current.position.copy(camera.position).add(offset);
+  });
+  return <directionalLight ref={light} intensity={2.4} color="#fff3e8" />;
+}
+
+const _p = new THREE.Vector3();
+const _toCam = new THREE.Vector3();
+/** true when a surface point faces the camera (not behind the planet) */
+const facing = (pos, camera) => {
+  _toCam.copy(camera.position).sub(pos).normalize();
+  return _p.copy(pos).normalize().dot(_toCam) > 0.12;
+};
+
+function SiteMarker({ site, onSelect, selected }) {
+  const pos = useMemo(() => dirFor(site.lat, site.lon).multiplyScalar(R * 1.004), [site]);
+  const label = useRef();
+  const [hover, setHover] = useState(false);
+  const { camera } = useThree();
+  const rover = /rover|sojourner/i.test(site.name);
+  useFrame(() => {
+    if (!label.current) return;
+    const show = facing(pos, camera) && (hover || selected || camera.position.length() < 3.6);
+    label.current.style.opacity = show ? '1' : '0';
+  });
+  return (
+    <group position={pos}>
+      <mesh>
+        <sphereGeometry args={[0.012, 12, 12]} />
+        <meshBasicMaterial color={site.color || '#38bdf8'} />
+      </mesh>
+      {/* larger invisible target so the small dot is easy to hover and click */}
+      <mesh
+        onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer'; }}
+        onPointerOut={() => { setHover(false); document.body.style.cursor = ''; }}
+        onClick={(e) => { e.stopPropagation(); onSelect(site); }}
+      >
+        <sphereGeometry args={[0.05, 8, 8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <Html center zIndexRange={[20, 0]} style={{ pointerEvents: 'none', transition: 'opacity 0.2s' }}>
+        <div ref={label} style={{ opacity: 0 }} className="translate-y-5 flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/20 bg-black/75 px-2 py-0.5 text-[11px] font-medium text-white shadow-lg backdrop-blur">
+          <span dangerouslySetInnerHTML={{ __html: rover ? ROVER_SVG : LANDER_SVG }} />
+          {site.name}
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+function RouteOnGlobe({ points, label }) {
+  const line = useMemo(() => points.map(([lat, lon]) => dirFor(lat, lon).multiplyScalar(R * 1.003)), [points]);
+  const mid = line[Math.floor(line.length / 2)];
+  const ring = useRef();
+  const tag = useRef();
+  const { camera } = useThree();
+  const quat = useMemo(() => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), mid.clone().normalize()), [mid]);
+  useFrame(({ clock }) => {
+    const t = (clock.getElapsedTime() % 1.8) / 1.8;
+    if (ring.current) {
+      ring.current.scale.setScalar(0.6 + t * 1.6);
+      ring.current.material.opacity = 0.9 * (1 - t);
     }
-
-    return { points: pts, chutePoint: chutePt, entryPoint: entryPt };
-  }, [radius, targetLat, targetLon]);
-
-  if (!show) return null;
-
+    if (tag.current) tag.current.style.opacity = facing(mid, camera) ? '1' : '0';
+  });
   return (
     <group>
-      <Line
-        points={points}
-        color="#F5A623"
-        lineWidth={2.2}
-        transparent
-        opacity={0.88}
-      />
-      <mesh position={entryPoint}>
-        <sphereGeometry args={[0.018, 12, 12]} />
-        <meshBasicMaterial color="#FF4C29" />
+      {line.length > 1 && <Line points={line} color="#ff7b4d" lineWidth={3} />}
+      <mesh position={mid} quaternion={quat}>
+        <ringGeometry args={[0.03, 0.04, 40]} />
+        <meshBasicMaterial color="#ff7b4d" transparent />
       </mesh>
-      <mesh position={chutePoint}>
-        <sphereGeometry args={[0.015, 12, 12]} />
-        <meshBasicMaterial color="#00FFCC" />
+      <mesh ref={ring} position={mid} quaternion={quat}>
+        <ringGeometry args={[0.03, 0.036, 40]} />
+        <meshBasicMaterial color="#ffb08f" transparent />
       </mesh>
+      <Html position={mid} center zIndexRange={[30, 0]} style={{ pointerEvents: 'none' }}>
+        <div ref={tag} className="-translate-y-7 whitespace-nowrap rounded-full bg-[#F26A3D] px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-lg transition-opacity">{label}</div>
+      </Html>
     </group>
   );
-};
+}
 
-// ESA Mars Express Orbiter (Elliptical Polar Orbit)
-const MarsExpressSatellite = ({ radius = 2.0 }) => {
-  const satRef = useRef();
-  useFrame(({ clock }) => {
-    if (satRef.current) {
-      const t = clock.getElapsedTime() * 0.20 + 2.0;
-      const x = Math.sin(t) * 0.4;
-      const y = Math.cos(t) * radius * 1.40;
-      const z = Math.sin(t) * radius * 1.40;
-      satRef.current.position.set(x, y, z);
-      satRef.current.lookAt(0, 0, 0);
-    }
-  });
-
+function WaterShell({ h2o }) {
+  const tex = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = h2o.cols;
+    canvas.height = h2o.rows;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(h2o.cols, h2o.rows);
+    const span = h2o.max - h2o.min || 1;
+    h2o.values.forEach((row, r) => row.forEach((v, c) => {
+      if (v === null) return;
+      const t = (v - h2o.min) / span;
+      img.data.set([56, 189, 248, Math.round(40 + 170 * t)], (r * h2o.cols + c) * 4);
+    }));
+    ctx.putImageData(img, 0, 0);
+    const t = new THREE.CanvasTexture(canvas);
+    t.magFilter = THREE.LinearFilter;
+    return t;
+  }, [h2o]);
   return (
-    <group ref={satRef}>
-      <mesh>
-        <boxGeometry args={[0.038, 0.024, 0.024]} />
-        <meshStandardMaterial color="#fbbf24" metalness={0.9} roughness={0.2} />
-      </mesh>
-      <mesh position={[0.052, 0, 0]}>
-        <boxGeometry args={[0.06, 0.018, 0.002]} />
-        <meshStandardMaterial color="#0369a1" emissive="#0369a1" emissiveIntensity={0.5} />
-      </mesh>
-      <mesh position={[-0.052, 0, 0]}>
-        <boxGeometry args={[0.06, 0.018, 0.002]} />
-        <meshStandardMaterial color="#0369a1" emissive="#0369a1" emissiveIntensity={0.5} />
-      </mesh>
-    </group>
+    <mesh>
+      <sphereGeometry args={[R * 1.002, 96, 64]} />
+      <meshBasicMaterial map={tex} transparent depthWrite={false} />
+    </mesh>
   );
-};
+}
 
-const CameraDirector = ({ targetPos }) => {
+function CavePoints({ caves }) {
+  const geometry = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    const arr = new Float32Array(caves.length * 3);
+    caves.forEach((c, i) => {
+      const v = dirFor(c.lat, c.lon).multiplyScalar(R * 1.004);
+      arr.set([v.x, v.y, v.z], i * 3);
+    });
+    g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    return g;
+  }, [caves]);
+  return (
+    <points geometry={geometry}>
+      <pointsMaterial color="#fbbf24" size={0.022} sizeAttenuation />
+    </points>
+  );
+}
+
+function Graticule() {
+  const lines = useMemo(() => {
+    const out = [];
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const pts = [];
+      for (let lon = -180; lon <= 180; lon += 4) pts.push(dirFor(lat, lon).multiplyScalar(R * 1.0015));
+      out.push(pts);
+    }
+    for (let lon = -180; lon < 180; lon += 30) {
+      const pts = [];
+      for (let lat = -88; lat <= 88; lat += 4) pts.push(dirFor(lat, lon).multiplyScalar(R * 1.0015));
+      out.push(pts);
+    }
+    return out;
+  }, []);
+  return lines.map((pts, i) => <Line key={i} points={pts} color="#ffffff" lineWidth={0.6} transparent opacity={0.18} />);
+}
+
+/** Flies the camera to a requested spot; any drag by the user takes over immediately. */
+function CameraRig({ target, controls, onArrive }) {
   const { camera } = useThree();
-  const lastTarget = useRef(targetPos);
-  const flyActive = useRef(true);
-  const lastDist = useRef(9999);
-
-  useEffect(() => {
-    if (targetPos && targetPos !== lastTarget.current) {
-      lastTarget.current = targetPos;
-      flyActive.current = true;
-      lastDist.current = 9999;
-    }
-  }, [targetPos]);
-
-  useFrame(() => {
-    if (flyActive.current && lastTarget.current) {
-      const dist = camera.position.distanceTo(lastTarget.current);
-      
-      // Abort fly-to if user manually zooms out or drags
-      if (dist > lastDist.current + 0.05) {
-        flyActive.current = false;
-        return;
-      }
-      lastDist.current = dist;
-
-      camera.position.lerp(lastTarget.current, 0.025);
-      camera.lookAt(0, 0, 0);
-      
-      // Stop animating when close enough
-      if (dist < 0.8) {
-        flyActive.current = false;
-      }
-    }
+  useFrame((_, dt) => {
+    if (!target) return;
+    camera.position.lerp(target, 1 - Math.exp(-dt * 3.2));
+    controls.current?.update();
+    if (camera.position.distanceTo(target) < 0.01) onArrive();
   });
   return null;
-};
+}
 
-// Mars Globe Core with glowing contours, hazards, and resources
-const MarsGlobe = ({ 
-  waypoints = [], 
-  showHoloBeacons = true, 
-  showHazards = true,
-  showResources = true,
-  showContours = true,
-  showMROScanner = true,
-  showEDL = true,
-  showDustVortex = true,
-  autoRotate = true, 
-}) => {
-  const globeRef = useRef();
-  const radius = 2.0;
-  const setSelectedPOI = useMapStore(s => s.setSelectedPOI);
+// ---------- UI ----------
 
-  const texture = useTexture('/mars_texture.jpg');
-  
-  // Compute 3D positions for Waypoints
-  const waypointPositions = useMemo(() => {
-    return waypoints.map(wp => {
-      const lon = wp.lon;
-      return {
-        ...wp,
-        pos: latLonToVector3(wp.lat, lon, radius + 0.008)
-      };
-    });
-  }, [waypoints, radius]);
+const LAYER_CHIPS = [
+  { key: 'sites', label: 'Landing sites', icon: MapPin },
+  { key: 'route', label: 'My route', icon: Route },
+  { key: 'water', label: 'Water ice', icon: Droplets },
+  { key: 'caves', label: 'Caves', icon: Tent },
+  { key: 'grid', label: 'Grid', icon: Grid3x3 },
+];
 
-  // Compute 3D positions for Landing Sites
-  const landingPins = useMemo(() => {
-    return landingSites.slice(0, 6).map(site => ({
-      ...site,
-      pos: latLonToVector3(site.lat, site.lon, radius + 0.006)
-    }));
-  }, [radius]);
-
-  // Compute 3D positions for Hazards
-  const hazardPins = useMemo(() => {
-    return hazardMarkers.map(h => ({
-      ...h,
-      pos: latLonToVector3(h.lat, h.lon, radius + 0.006)
-    }));
-  }, [radius]);
-
-  // Compute 3D positions for Subsurface Ice Resources
-  const resourcePins = useMemo(() => {
-    return resourceMarkers.map(r => ({
-      ...r,
-      pos: latLonToVector3(r.lat, r.lon, radius + 0.006)
-    }));
-  }, [radius]);
-
-  // Topological Contour Lines (Olympus Mons, Tharsis, Hellas Basin, Equator)
-  const contourLines = useMemo(() => {
-    const lines = [];
-    const r = radius + 0.004;
-    // Olympus Mons +18km summit ring
-    lines.push({ points: createContourCircle(18.65, -133.8, 2.2, r), color: '#00FFCC' });
-    // Olympus Mons +12km middle scarp ring
-    lines.push({ points: createContourCircle(18.65, -133.8, 4.5, r), color: '#00FFCC' });
-    // Olympus Mons base scarp ring
-    lines.push({ points: createContourCircle(18.65, -133.8, 7.8, r), color: '#38bdf8' });
-
-    // Hellas Planitia -6km depth contour ring
-    lines.push({ points: createContourCircle(-42.4, 70.5, 12.0, r), color: '#FF4C29' });
-    lines.push({ points: createContourCircle(-42.4, 70.5, 18.0, r), color: '#F5A623' });
-
-    // Tharsis Montes Trio Contours
-    lines.push({ points: createContourCircle(11.8, -104.5, 3.2, r), color: '#00FFCC' }); // Ascraeus
-    lines.push({ points: createContourCircle(0.8, -112.9, 3.0, r), color: '#00FFCC' });  // Pavonis
-    lines.push({ points: createContourCircle(-9.0, -120.9, 3.5, r), color: '#00FFCC' }); // Arsia
-
-    // Equatorial 0m Datum Line
-    const eqPoints = [];
-    for (let lon = -180; lon <= 180; lon += 5) {
-      eqPoints.push(latLonToVector3(0, lon, r));
-    }
-    lines.push({ points: eqPoints, color: 'rgba(226, 123, 88, 0.4)' });
-
-    return lines;
-  }, [radius]);
-
-  // Slow planetary diurnal rotation
-  useFrame((_, delta) => {
-    if (autoRotate && globeRef.current) {
-      globeRef.current.rotation.y += delta * 0.02;
-    }
-  });
-
-  return (
-    <group ref={globeRef}>
-      {/* Photorealistic Mars Sphere with Color Map & 3D Bump Relief */}
-      {/* Photorealistic NASA GLTF Mars Model */}
-      {/* High-Resolution Topological Mars Sphere */}
-      <mesh rotation={[0, -Math.PI / 2, 0]}>
-        {/* High-segmentation sphere for true MOLA topographic displacement */}
-        <sphereGeometry args={[radius, 256, 256]} />
-        <meshStandardMaterial 
-          map={texture} 
-          displacementMap={texture} 
-          displacementScale={0.06} 
-          bumpMap={texture}
-          bumpScale={0.04}
-          roughness={0.9}
-          metalness={0.05}
-        />
-      </mesh>
-      {/* Atmospheric Inner Dust Haze Shell (Warm terracotta glow) */}
-      <mesh>
-        <sphereGeometry args={[radius * 1.018, 64, 64]} />
-        <meshBasicMaterial 
-          color="#FF4C29" 
-          transparent 
-          opacity={0.16} 
-          side={THREE.BackSide} 
-          blending={THREE.AdditiveBlending} 
-        />
-      </mesh>
-
-      {/* Atmospheric Outer Exosphere Halo (Ethereal cyan limb scattering) */}
-      <mesh>
-        <sphereGeometry args={[radius * 1.045, 64, 64]} />
-        <meshBasicMaterial 
-          color="#00FFCC" 
-          transparent 
-          opacity={0.22} 
-          side={THREE.BackSide} 
-          blending={THREE.AdditiveBlending} 
-        />
-      </mesh>
-
-      {/* Orbiting Reconnaissance Satellite */}
-      <MROSatellite radius={radius} showScanner={showMROScanner} />
-      <MarsExpressSatellite radius={radius} />
-
-      {/* Entry, Descent & Landing (EDL) Trajectory Arc */}
-      <EDLTrajectory radius={radius} show={showEDL} />
-
-      {/* Dynamic 3D Swirling Dust Storm Particle Vortices */}
-      {showDustVortex && (
-        <>
-          <DustStormParticleVortex centerLat={-42.4} centerLon={70.5} radius={radius} color="#FF4C29" />
-          <DustStormParticleVortex centerLat={-14.0} centerLon={-58.0} radius={radius} color="#F5A623" />
-        </>
-      )}
-
-      {/* Glowing Topological Contour Lines */}
-      {showContours && contourLines.map((line, idx) => (
-        <Line
-          key={`contour-${idx}`}
-          points={line.points}
-          color={line.color}
-          lineWidth={1.5}
-          transparent
-          opacity={0.7}
-        />
-      ))}
-
-      {/* Landing Sites Holographic Beacons */}
-      {showHoloBeacons && landingPins.map((site) => (
-        <HoloBeacon
-          key={`pin-${site.id}`}
-          position={site.pos}
-          color={site.color || '#00FFCC'}
-          height={0.28}
-          label={site.name}
-          sublabel={`Elev: ${site.elevation ? site.elevation.toLocaleString() : '0'} m`}
-          icon="🚀"
-          onClick={() => setSelectedPOI({ ...site, poiType: 'landingSite' })}
-        />
-      ))}
-
-      {/* Pulsing Hazard Markers (Radiation Spikes & Dust Storms) */}
-      {showHazards && hazardPins.map((hazard) => (
-        <PulsingBeacon
-          key={`hazard-${hazard.id}`}
-          position={hazard.pos}
-          color={hazard.color}
-          label={hazard.name}
-          sublabel={hazard.level}
-          icon={hazard.icon}
-          type="hazard"
-        />
-      ))}
-
-      {/* Pulsing Resource Markers (Subsurface Glacial Ice Deposits) */}
-      {showResources && resourcePins.map((res) => (
-        <PulsingBeacon
-          key={`res-${res.id}`}
-          position={res.pos}
-          color={res.color}
-          label={res.name}
-          sublabel={res.depth}
-          icon={res.icon}
-          type="resource"
-        />
-      ))}
-
-      {/* Route Waypoints Holographic Beacons */}
-      {showHoloBeacons && waypointPositions.map((wp, idx) => (
-        <HoloBeacon
-          key={`wp-${wp.id || idx}`}
-          position={wp.pos}
-          color="#00FFCC"
-          height={0.34}
-          label={`WP ${idx + 1}: ${wp.name || 'Station'}`}
-          sublabel={wp.elevation !== undefined ? `Elev: ${Math.round(wp.elevation)} m` : null}
-          icon="📍"
-          onClick={() => {}}
-        />
-      ))}
-
-      {/* Route Polyline connecting waypoints */}
-      {waypointPositions.length > 1 && (
-        <Line
-          points={waypointPositions.map(w => w.pos)}
-          color="#00FFCC"
-          lineWidth={2.8}
-          dashed={false}
-        />
-      )}
-    </group>
-  );
-};
-
-// Main 3D Planetary Cartography Viewer
 export default function Mars3DViewer() {
-  const { waypoints, bottomPanelOpen } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, bottomPanelOpen: s.bottomPanelOpen })));
-  const [hasWebGL, setHasWebGL] = useState(true);
-  
-  // Interactive 3D Control States
-  const [autoRotate, setAutoRotate] = useState(true);
-  const [showHoloBeacons] = useState(true);
-  const [showHazards, setShowHazards] = useState(true);
-  const [showResources, setShowResources] = useState(true);
-  const [showContours, setShowContours] = useState(true);
-  const [showMROScanner] = useState(true);
-  const [showEDL, setShowEDL] = useState(true);
-  const [showDustVortex, setShowDustVortex] = useState(true);
-  const [cameraTarget, setCameraTarget] = useState(null);
-  const [activePreset, setActivePreset] = useState('global');
-
-  useEffect(() => {
+  const { waypoints, routeGeometry, selectedPOI, setSelectedPOI, setViewMode, flyToCoordinate } = useMapStore(useShallow((s) => ({
+    waypoints: s.waypoints, routeGeometry: s.routeGeometry, selectedPOI: s.selectedPOI, setSelectedPOI: s.setSelectedPOI,
+    setViewMode: s.setViewMode, flyToCoordinate: s.flyToCoordinate,
+  })));
+  const [hasWebGL] = useState(() => {
     try {
       const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-      if (!gl) setHasWebGL(false);
-    } catch (e) {
-      setHasWebGL(false);
+      return !!(canvas.getContext('webgl2') || canvas.getContext('webgl'));
+    } catch {
+      return false;
     }
+  });
+  const [layers, setLayers] = useState({ sites: true, route: true, water: false, caves: false, grid: false });
+  const [autoRotate, setAutoRotate] = useState(true);
+  const [target, setTarget] = useState(null);
+  const [active, setActive] = useState('global');
+  const controls = useRef();
+
+  const h2o = useJson('/data/h2o.json', layers.water);
+  const caves = useJson('/data/caves.json', layers.caves);
+
+  // The route as drawn on the globe: the planner's full path when there is one
+  const route = useMemo(() => {
+    if (waypoints.length < 2) return null;
+    const planned = routeGeometry && routeGeometry.signature === routeSignature(waypoints);
+    const points = planned ? routeGeometry.points : waypoints.map((w) => [w.lat, w.lon]);
+    let km = 0;
+    for (let i = 1; i < points.length; i++) km += marsDistance(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]);
+    return { points, km, center: points[Math.floor(points.length / 2)] };
+  }, [waypoints, routeGeometry]);
+
+  const flyTo = (lat, lon, dist, id) => {
+    playUiClick();
+    setAutoRotate(false);
+    setActive(id);
+    setTarget(dirFor(lat, lon).multiplyScalar(dist));
+  };
+
+  // Start on the whole planet, turned towards the planned route if there is one
+  const initial = useMemo(() => {
+    const [lat, lon] = route ? route.center : [5, -70];
+    return dirFor(lat, lon).multiplyScalar(5.6).toArray();
+    // only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Famous Landmark Camera Presets
-  const landmarkPresets = [
-    { id: 'global', name: 'Global Mars', icon: '🌍', pos: new THREE.Vector3(0, 0, 4.8), desc: 'Full Planetary View' },
-    { id: 'olympus', name: 'Olympus Mons', icon: '🌋', pos: new THREE.Vector3(-3.2, 1.2, -1.8), desc: 'Peak: +21,287 m' },
-    { id: 'valles', name: 'Valles Marineris', icon: '🏜️', pos: new THREE.Vector3(1.8, -1.1, 3.4), desc: 'Depth: -7,000 m' },
-    { id: 'jezero', name: 'Jezero Crater', icon: '🎯', pos: new THREE.Vector3(1.1, 1.2, 3.6), desc: 'Perseverance Rover' },
-    { id: 'gale', name: 'Gale Crater', icon: '🔬', pos: new THREE.Vector3(-3.4, -0.4, 2.0), desc: 'Curiosity Rover' },
-    { id: 'north_pole', name: 'North Pole', icon: '❄️', pos: new THREE.Vector3(0, 4.4, 0.8), desc: 'Ice Cap (Planum Boreum)' }
-  ];
-
-  const handleSelectPreset = (preset) => {
-    playUiSwoosh();
-    setActivePreset(preset.id);
-    setCameraTarget(preset.pos);
+  const selectSite = (site) => {
+    setSelectedPOI({ ...site, poiType: 'landingSite' });
+    flyTo(site.lat, site.lon, 3.0, site.id);
   };
 
   if (!hasWebGL) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-space-900 text-space-300">
-        <div className="text-center p-6 glass-panel-solid rounded-2xl max-w-md border border-mars-400/40 shadow-neon-mars">
-          <h3 className="text-mars-400 font-display text-xl mb-2">WebGL Acceleration Required</h3>
-          <p className="text-xs text-space-300">Your graphics accelerator does not support WebGL for the 3D globe view. Please switch to the 2D map view.</p>
+      <div className="w-full h-full flex items-center justify-center bg-[#05070b] text-zinc-300">
+        <div className="text-center p-6 ui-panel rounded-2xl max-w-md">
+          <h3 className="text-white font-semibold text-lg mb-2">3D needs WebGL</h3>
+          <p className="text-sm text-zinc-400">This browser can't draw the 3D globe. The 2D map has all the same data.</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="w-full h-full bg-[#0B0C10] relative overflow-hidden select-none">
-      {/* Three.js Fiber Viewport */}
-      <Canvas camera={{ position: [12, 6, 15], fov: 45 }}>
-        <ambientLight intensity={0.25} />
-        <directionalLight position={[6, 2, 4]} intensity={2.5} color="#fff1e6" castShadow />
-        <directionalLight position={[-6, -2, -4]} intensity={0.16} color="#0B0C10" />
-        
-        {/* Deep Field Star Sphere */}
-        <Stars radius={140} depth={60} count={8000} factor={4.5} saturation={0} fade speed={0.6} />
-        
-        <CameraDirector targetPos={cameraTarget} />
+  const selectedSite = selectedPOI?.poiType === 'landingSite' ? selectedPOI : null;
 
-        <Suspense fallback={<Html center><div className="text-mars-400 font-mono font-bold animate-pulse text-xs tracking-widest whitespace-nowrap bg-black/80 px-4 py-2 rounded-lg border border-mars-500/30 shadow-neon-mars backdrop-blur-md">LOADING HIGH-RES TEXTURES...</div></Html>}>
-          <MarsGlobe 
-          waypoints={waypoints || []} 
-          showHoloBeacons={showHoloBeacons}
-          showHazards={showHazards}
-          showResources={showResources}
-          showContours={showContours}
-          showMROScanner={showMROScanner}
-          showEDL={showEDL}
-          showDustVortex={showDustVortex}
-          autoRotate={autoRotate}
-        />
-          </Suspense>
-        
-        <OrbitControls 
-          enablePan={false} 
-          minDistance={2.3} 
-          maxDistance={9.5} 
-          zoomSpeed={0.8}
-          rotateSpeed={0.5}
+  return (
+    <div className="w-full h-full bg-[#020306] relative overflow-hidden select-none">
+      <Canvas camera={{ position: initial, fov: 40, near: 0.05, far: 400 }} dpr={[1, 2]} gl={{ antialias: true }}>
+        <color attach="background" args={['#020306']} />
+        <ambientLight intensity={0.35} />
+        <CameraLight />
+        <Stars radius={160} depth={50} count={2600} factor={2.6} saturation={0} fade speed={0.2} />
+        <Suspense fallback={<Html center><div className="text-zinc-300 text-sm whitespace-nowrap">Loading NASA imagery…</div></Html>}>
+          <Globe />
+        </Suspense>
+        <Atmosphere />
+        {layers.grid && <Graticule />}
+        {layers.water && h2o && <WaterShell h2o={h2o} />}
+        {layers.caves && caves && <CavePoints caves={caves.caves} />}
+        {layers.sites && landingSites.map((site) => (
+          <SiteMarker key={site.id} site={site} onSelect={selectSite} selected={selectedSite?.id === site.id} />
+        ))}
+        {layers.route && route && <RouteOnGlobe points={route.points} label={`Your route · ${route.km.toFixed(1)} km`} />}
+        <CameraRig target={target} controls={controls} onArrive={() => setTarget(null)} />
+        <OrbitControls
+          ref={controls}
+          enablePan={false}
+          minDistance={2.35}
+          maxDistance={9}
+          rotateSpeed={0.45}
+          zoomSpeed={0.7}
+          enableDamping
+          dampingFactor={0.08}
+          autoRotate={autoRotate && !target}
+          autoRotateSpeed={0.35}
+          onStart={() => { setTarget(null); setAutoRotate(false); }}
         />
       </Canvas>
-      
-      {/* Top Telemetry Deck (Bento Glass Strip - Horizontally Scrollable) */}
-      <div 
-        onWheel={(e) => {
-          e.stopPropagation();
-          if (e.deltaY !== 0 && e.deltaX === 0) {
-            e.currentTarget.scrollLeft += e.deltaY;
-          }
-        }}
-        className="absolute top-3 left-4 animate-[fadeIn_2s_ease-out_1.5s_forwards] opacity-0 right-4 flex items-center pointer-events-auto z-10 gap-3 max-w-[calc(100%-2rem)] overflow-x-auto overflow-y-hidden custom-scrollbar-x py-2 px-1"
-      >
-        <div className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0B0C10]/90 border border-cyber-cyan/30 shadow-neon-cyan backdrop-blur-xl shrink-0">
-          <div className="w-2 h-2 rounded-full bg-cyber-cyan animate-pulse" />
-          <span className="text-xs font-mono font-bold tracking-wider text-cyber-cyan whitespace-nowrap">
-            3D MARS TOPOLOGY • MOLA RELIEF ACTIVE
-          </span>
-          <span className="text-[10px] font-mono text-space-400 border-l border-white/10 pl-2 whitespace-nowrap">
-            IAU-2000
-          </span>
-        </div>
 
-        {/* Tactical Viewport Quick Toggles */}
-        <div className="pointer-events-auto flex items-center gap-1.5 bg-[#0B0C10]/90 p-1 rounded-xl border border-white/[0.08] backdrop-blur-xl shadow-bento shrink-0 overflow-x-auto custom-scrollbar-x">
-          {/* Hazards Toggle */}
+      {/* Layers, top right (the map toolbar and sidebar own the top left) */}
+      <div className="absolute top-[140px] right-4 z-10 flex flex-col items-end gap-2">
+        <div className="ui-panel rounded-xl p-1.5 flex flex-wrap justify-end gap-1 max-w-[calc(100vw-2rem)]" role="group" aria-label="Globe layers">
+          {LAYER_CHIPS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setLayers((l) => ({ ...l, [key]: !l[key] }))}
+              aria-pressed={layers[key]}
+              disabled={key === 'route' && !route}
+              className={`h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${layers[key] ? 'bg-white/15 text-white' : 'text-zinc-400 hover:text-white'}`}
+            >
+              <Icon className="w-3.5 h-3.5" />{label}
+            </button>
+          ))}
           <button
-            onClick={() => {
-              playUiClick();
-              setShowHazards(!showHazards);
-            }}
-            title="Toggle Radiation Spikes & Dust Storms"
-            className={`px-2 py-1 rounded-lg text-xs transition-all flex items-center gap-1 font-mono shrink-0 whitespace-nowrap ${
-              showHazards ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-[0_0_8px_rgba(244,63,94,0.3)]' : 'text-space-400 hover:text-white'
-            }`}
-          >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-semibold">HAZARDS</span>
-          </button>
-
-          {/* Subsurface Ice Resources Toggle */}
-          <button
-            onClick={() => {
-              playUiClick();
-              setShowResources(!showResources);
-            }}
-            title="Toggle Subsurface Glacial Ice Deposits"
-            className={`px-2 py-1 rounded-lg text-xs transition-all flex items-center gap-1 font-mono shrink-0 whitespace-nowrap ${
-              showResources ? 'bg-cyber-cyan/20 text-cyber-cyan border border-cyber-cyan/40 shadow-neon-cyan' : 'text-space-400 hover:text-white'
-            }`}
-          >
-            <Droplets className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-semibold">ICE (ISRU)</span>
-          </button>
-
-          {/* Glowing Contours Toggle */}
-          <button
-            onClick={() => {
-              playUiClick();
-              setShowContours(!showContours);
-            }}
-            title="Toggle Elevation Topological Contours"
-            className={`px-2 py-1 rounded-lg text-xs transition-all flex items-center gap-1 font-mono shrink-0 whitespace-nowrap ${
-              showContours ? 'bg-cyber-amber/20 text-cyber-amber border border-cyber-amber/40 shadow-neon-amber' : 'text-space-400 hover:text-white'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-semibold">CONTOURS</span>
-          </button>
-
-          {/* EDL Descent Path Toggle */}
-          <button
-            onClick={() => {
-              playUiClick();
-              setShowEDL(!showEDL);
-            }}
-            title="Toggle Perseverance Entry, Descent & Landing (EDL) Trajectory"
-            className={`px-2 py-1 rounded-lg text-xs transition-all flex items-center gap-1 font-mono shrink-0 whitespace-nowrap ${
-              showEDL ? 'bg-mars-500/20 text-mars-300 border border-mars-500/40 shadow-neon-mars' : 'text-space-400 hover:text-white'
-            }`}
-          >
-            <Rocket className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-semibold">EDL PATH</span>
-          </button>
-
-          {/* 3D Dust Storm Particle Vortex Toggle */}
-          <button
-            onClick={() => {
-              playUiClick();
-              setShowDustVortex(!showDustVortex);
-            }}
-            title="Toggle Dynamic 3D Swirling Dust Storm Particles"
-            className={`px-2 py-1 rounded-lg text-xs transition-all flex items-center gap-1 font-mono shrink-0 whitespace-nowrap ${
-              showDustVortex ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-[0_0_12px_rgba(244,63,94,0.4)]' : 'text-space-400 hover:text-white'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-rose-400" />
-            <span className="text-[10px] font-semibold">DUST VORTEX</span>
-          </button>
-
-          {/* Auto-Rotate Play/Pause */}
-          <button
-            onClick={() => {
-              playUiClick();
-              setAutoRotate(!autoRotate);
-            }}
-            title={autoRotate ? 'Pause Rotation' : 'Resume Rotation'}
-            className={`px-2 py-1 rounded-lg text-xs transition-all flex items-center gap-1 font-mono shrink-0 whitespace-nowrap ${
-              autoRotate ? 'bg-white/10 text-white border border-white/20' : 'text-space-400 hover:text-white'
-            }`}
+            onClick={() => setAutoRotate((v) => !v)}
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-300 hover:text-white cursor-pointer"
+            aria-label={autoRotate ? 'Stop rotating' : 'Rotate the planet'}
+            title={autoRotate ? 'Stop rotating' : 'Rotate the planet'}
           >
             {autoRotate ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
           </button>
         </div>
+
+        {/* Selected landing site */}
+        {selectedSite && (
+          <div className="ui-panel rounded-xl p-3.5 w-72 text-sm text-zinc-200">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="font-semibold text-white">{selectedSite.name}</div>
+                <div className="text-xs text-zinc-400">{selectedSite.mission} · {selectedSite.agency} · {selectedSite.location}</div>
+              </div>
+              <button onClick={() => setSelectedPOI(null)} className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10" aria-label="Close"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="mt-2 text-xs text-zinc-300 leading-relaxed line-clamp-4">{selectedSite.description}</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+              <div><span className="text-zinc-500">Landed</span><div className="text-white">{selectedSite.landingDate}</div></div>
+              <div><span className="text-zinc-500">Status</span><div className="text-white">{selectedSite.status}</div></div>
+            </div>
+            <button
+              onClick={() => { setViewMode('2d'); flyToCoordinate(selectedSite.lat, selectedSite.lon, 8); }}
+              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-white text-black font-semibold py-2 text-xs hover:bg-zinc-200"
+            >
+              <MapIcon className="w-3.5 h-3.5" />Open in the 2D map
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Cinematic Landmark Fly-To Bar (Horizontal Scrollable Menu Bar) */}
-      <div 
-        onWheel={(e) => {
-          e.stopPropagation();
-          if (e.deltaY !== 0 && e.deltaX === 0) {
-            e.currentTarget.scrollLeft += e.deltaY;
-          }
-        }}
-        className={`absolute ${bottomPanelOpen ? 'bottom-[310px] opacity-75' : 'bottom-14 opacity-100'} left-4 right-4 max-w-2xl mx-auto z-10 flex items-center gap-2 bg-[#0B0C10]/85 p-2 rounded-2xl border border-white/[0.1] shadow-hud-glass backdrop-blur-2xl overflow-x-auto overflow-y-hidden custom-scrollbar-x pointer-events-auto transition-all duration-300`}
-      >
-        <span className="text-[10px] font-mono text-cyber-cyan font-bold px-2 uppercase tracking-wider flex items-center gap-1 shrink-0 whitespace-nowrap">
-          <Compass className="w-3.5 h-3.5 text-cyber-cyan animate-spin-slow" />
-          FLY TO:
-        </span>
-        {landmarkPresets.map((preset) => (
-          <button
-            key={preset.id}
-            onClick={() => handleSelectPreset(preset)}
-            onMouseEnter={() => playUiHover()}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono transition-all shrink-0 whitespace-nowrap ${
-              activePreset === preset.id
-                ? 'bg-gradient-to-r from-mars-400 to-mars-500 text-white border border-white/20 shadow-neon-mars font-bold scale-105'
-                : 'text-space-300 hover:text-white hover:bg-space-800/60 border border-transparent'
-            }`}
-          >
-            <span>{preset.icon}</span>
-            <span>{preset.name}</span>
-          </button>
-        ))}
+      {/* Fly-to bar */}
+      <div className="absolute bottom-[76px] left-4 right-4 lg:left-auto lg:right-[110px] z-10 lg:w-[min(720px,calc(100%-560px))]">
+        <div className="ui-panel rounded-2xl p-1.5 flex items-center gap-1 overflow-x-auto custom-scrollbar-x">
+          {route && (
+            <button
+              onClick={() => flyTo(route.center[0], route.center[1], 2.75, 'route')}
+              className={`shrink-0 h-8 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${active === 'route' ? 'bg-[#F26A3D] text-white' : 'text-[#ffc2a8] hover:bg-white/10'}`}
+            >
+              My route
+            </button>
+          )}
+          {FLY_TO.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => flyTo(p.lat, p.lon, p.dist, p.id)}
+              className={`shrink-0 h-8 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer ${active === p.id ? 'bg-white text-black' : 'text-zinc-300 hover:text-white hover:bg-white/10'}`}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-center text-[11px] text-zinc-500">Viking MDIM 2.1 colour mosaic (NASA/USGS) with MOLA relief · drag to rotate, scroll to zoom</p>
       </div>
-
-      {/* Tactical HUD Corner Marks */}
-      <div className="absolute top-12 left-4 w-4 h-4 border-t-2 border-l-2 border-cyber-cyan/40 pointer-events-none" />
-      <div className="absolute top-12 right-4 w-4 h-4 border-t-2 border-r-2 border-cyber-cyan/40 pointer-events-none" />
-      <div className="absolute bottom-16 left-4 w-4 h-4 border-b-2 border-l-2 border-cyber-cyan/40 pointer-events-none" />
-      <div className="absolute bottom-16 right-4 w-4 h-4 border-b-2 border-r-2 border-cyber-cyan/40 pointer-events-none" />
     </div>
   );
 }
-

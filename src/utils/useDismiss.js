@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 
-/** Calls `onClose` when the user clicks outside `ref` or presses Escape while `open` is true. */
+/** Calls `onClose` when the user clicks outside `ref` (or every ref in an array) or presses Escape while `open` is true. */
 export default function useDismiss(ref, open, onClose) {
   useEffect(() => {
     if (!open) return undefined;
     const onPointer = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
+      const refs = Array.isArray(ref) ? ref : [ref];
+      if (refs.every((r) => r.current && !r.current.contains(e.target))) onClose();
     };
     const onKey = (e) => {
       if (e.key === 'Escape') onClose();

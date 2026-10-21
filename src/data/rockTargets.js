@@ -9,7 +9,7 @@ export const ROCK_TARGETS = [
     bpiCategory: 'EXTREMELY HIGH',
     description: 'Fine-grained bottomset mudstones deposited in a tranquil ancient lake. Clay minerals excel at trapping and preserving fossilized organic macromolecules.',
     surfaceTexture: 'radial-gradient(circle at 35% 45%, #604a3e 0%, #3d2f27 45%, #231914 100%)',
-    rockImage: 'https://images-assets.nasa.gov/image/PIA26252/PIA26252~medium.jpg',
+    rockImage: 'https://images-assets.nasa.gov/image/PIA24485/PIA24485~small.jpg',
     organics: 'Polycyclic aromatic hydrocarbons, aliphatic carboxylic acids',
     elements: [
       { name: 'SiO2 (Silica)', value: 48, color: '#38bdf8' },
@@ -49,7 +49,7 @@ export const ROCK_TARGETS = [
     bpiCategory: 'SIGNATURE DETECTED',
     description: 'Co-located aromatic organic molecules within calcium sulfate minerals. Regarded as having the highest concentration of organic carbon ever detected on Mars.',
     surfaceTexture: 'radial-gradient(circle at 55% 35%, #7a5843 0%, #4a3327 50%, #22140d 100%)',
-    rockImage: 'https://images-assets.nasa.gov/image/PIA26574/PIA26574~medium.jpg',
+    rockImage: 'https://images-assets.nasa.gov/image/PIA25246/PIA25246~small.jpg',
     organics: 'Class-A Aromatic ring compounds correlated with sulfate veins',
     elements: [
       { name: 'SiO2 (Silica)', value: 42, color: '#38bdf8' },
@@ -89,7 +89,8 @@ export const ROCK_TARGETS = [
     bpiCategory: 'MODERATE - PALEOCLIMATE',
     description: 'Ancient magma chamber cumulate rock that underwent multiple episodes of liquid water interaction, forming carbonate coatings along grain boundaries.',
     surfaceTexture: 'radial-gradient(circle at 40% 60%, #4a5c43 0%, #2f3b2b 45%, #151a13 100%)',
-    rockImage: 'https://images-assets.nasa.gov/image/PIA10020/PIA10020~small.jpg',
+    rockImage: 'https://images-assets.nasa.gov/image/PIA25023/PIA25023~small.jpg',
+    imageFit: { pos: '12% 50%', zoom: 1.25 },
     organics: 'Trace abiotic methane clathrate precursors',
     elements: [
       { name: 'SiO2 (Silica)', value: 41, color: '#38bdf8' },
@@ -129,7 +130,8 @@ export const ROCK_TARGETS = [
     bpiCategory: 'HIGH - AQUEOUS RESIDUE',
     description: 'Bedrock cemented by groundwater carrying dissolved iron. The sudden redox change precipitated dense gray hematite, recording active groundwater flow.',
     surfaceTexture: 'radial-gradient(circle at 60% 40%, #7d3c3c 0%, #4d2323 50%, #200d0d 100%)',
-    rockImage: 'https://images-assets.nasa.gov/image/PIA26310/PIA26310~medium.jpg',
+    rockImage: 'https://images-assets.nasa.gov/image/PIA21849/PIA21849~small.jpg',
+    imageFit: { pos: '50% 70%', zoom: 1.2 },
     organics: 'Aliphatic organic fragments protected by iron oxide cement',
     elements: [
       { name: 'FeO (Iron)', value: 54, color: '#f97316' },
@@ -169,7 +171,8 @@ export const ROCK_TARGETS = [
     bpiCategory: 'LOW - GEOTHERMAL CONTEXT',
     description: 'Pristine unweathered volcanic glass and crystalline basalt from the summit collapse. Key target for dating the planetary mantle cooling history.',
     surfaceTexture: 'radial-gradient(circle at 45% 45%, #3a3b40 0%, #202126 50%, #0d0e12 100%)',
-    rockImage: 'https://images-assets.nasa.gov/image/PIA14564/PIA14564~medium.jpg',
+    rockImage: 'https://images-assets.nasa.gov/image/PIA08761/PIA08761~small.jpg',
+    imageFit: { pos: '50% 50%', zoom: 1.9 },
     organics: 'Zero biological organics; primordial mantle volatile traces',
     elements: [
       { name: 'SiO2 (Silica)', value: 50, color: '#38bdf8' },
@@ -209,7 +212,7 @@ export const ROCK_TARGETS = [
     bpiCategory: 'HIGH - CRYOPRESERVED',
     description: 'Subsurface cryogenic ice strata preserving ancient Martian atmospheric gas bubbles, volcanic ash layers, and hyper-preserved prebiotic chemistry.',
     surfaceTexture: 'radial-gradient(circle at 50% 50%, #7dd3fc 0%, #0284c7 40%, #082f49 100%)',
-    rockImage: 'https://images-assets.nasa.gov/image/PIA10651/PIA10651~small.jpg',
+    rockImage: 'https://images-assets.nasa.gov/image/PIA13286/PIA13286~small.jpg',
     organics: 'Cryopreserved amino acid analogs and formaldehyde polymers',
     elements: [
       { name: 'H2O (Ice)', value: 82, color: '#00ffcc' },

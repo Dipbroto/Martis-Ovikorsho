@@ -20,7 +20,10 @@ const formatCoord = (val, isLat) => {
 };
 
 const CoordinateDisplay = () => {
-  const cursorPosition = useMapStore(state => state.cursorPosition) || { lat: 0, lon: 0 };
+  // Under the cursor while it is on the map, otherwise the centre of the view
+  const cursor = useMapStore(state => state.cursorPosition);
+  const viewCenter = useMapStore(state => state.viewCenter);
+  const cursorPosition = cursor || (viewCenter ? { lat: viewCenter[0], lon: viewCenter[1] } : { lat: 0, lon: 0 });
   const isPlacingWaypoint = useMapStore(state => state.isPlacingWaypoint);
   const bottomPanelOpen = useMapStore(state => state.bottomPanelOpen);
   

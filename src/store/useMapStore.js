@@ -41,6 +41,9 @@ const useMapStore = create((set, get) => ({
   viewCenter: null,
   setViewCenter: (center) => set({ viewCenter: center }),
   setMapZoom: (zoom) => set({ mapZoom: zoom }),
+  // One-off request to frame an area (e.g. a freshly planned route): { bounds: [[s, w], [n, e]], at }
+  mapFitBounds: null,
+  fitMapTo: (bounds) => set({ mapFitBounds: { bounds, at: Date.now() } }),
   setCursorPosition: (pos) => set({ cursorPosition: pos }),
   setViewMode: (mode) => set({ viewMode: mode, isEVASimulating: false }),
 
@@ -134,7 +137,7 @@ const useMapStore = create((set, get) => ({
   roverProgress: 0, // 0.0 to 1.0 along route
   driveTargetWaypointId: null, // specific waypoint ID for station-targeted simulation or null for full route
   roverCurrentPosition: null, // {lat, lon, bearing, elevation}
-  roverBatterySoC: 96, // %
+  roverBatterySoC: 100, // % of usable life support left for the walking crew (name kept from the rover sim)
   camFollow: true, // Auto-follow vehicle with camera during drive simulation
   
   setRoverDriving: (val) => {
@@ -153,7 +156,7 @@ const useMapStore = create((set, get) => ({
   // ========================
   // MAP TOOLS (WALKBACK & RULER & GRATICULE)
   // ========================
-  showWalkbackLimits: true,
+  showWalkbackLimits: false, // fixed 2/5 km team rings; the real return range is the Return overlay
   toggleWalkbackLimits: () => set((state) => ({ showWalkbackLimits: !state.showWalkbackLimits })),
   showGraticule: true,
   toggleGraticule: () => set((state) => ({ showGraticule: !state.showGraticule })),
@@ -165,7 +168,12 @@ const useMapStore = create((set, get) => ({
   homeHeroVisible: false, // true while the home hero is on screen; the EVA mascot grows to match
   setHomeHeroVisible: (homeHeroVisible) => set({ homeHeroVisible }),
   terrainOverlay: null, // null | 'slope' | 'return' | 'comms'
-  setTerrainOverlay: (mode) => set((state) => ({ terrainOverlay: state.terrainOverlay === mode ? null : mode })),
+  setTerrainOverlay: (mode) => set((state) => ({ terrainOverlay: state.terrainOverlay === mode ? null : mode, routeScanOpen: false })),
+  // Route safety scan (RouteScan.jsx): one panel at a time on the right, so it replaces any overlay panel
+  routeScanOpen: false,
+  setRouteScanOpen: (open) => set({ routeScanOpen: open, ...(open ? { terrainOverlay: null } : {}) }),
+  routeScan: null, // { loading } | { error } | { totalKm, findings, worst }
+  setRouteScan: (routeScan) => set({ routeScan }),
   terrainOverlayStatus: null, // written by TerrainOverlayLayer for the legend/status card
   setTerrainOverlayStatus: (terrainOverlayStatus) => set({ terrainOverlayStatus }),
   
@@ -296,12 +304,12 @@ const useMapStore = create((set, get) => ({
       status: 'Cached in Tube #14'
     }
   ],
+  // The lab is a full page now; anything that "opens the lab" goes to it
   setScienceLabOpen: (val) => set((state) => {
-    const next = typeof val === 'boolean' ? val : !state.isScienceLabOpen;
-    return {
-      isScienceLabOpen: next,
-      ...(next ? { isFlightPlanOpen: false, isEVASimulating: false } : {})
-    };
+    const next = typeof val === 'boolean' ? val : state.activeTab !== 'science';
+    return next
+      ? { activeTab: 'science', isScienceLabOpen: false, isFlightPlanOpen: false, isEVASimulating: false, isImageryModalOpen: false, isAresCopilotOpen: false }
+      : { isScienceLabOpen: false };
   }),
   addSample: (sample) => set((state) => ({
     collectedSamples: [sample, ...(state.collectedSamples || [])]

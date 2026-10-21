@@ -71,7 +71,7 @@ export default function HomeHero({ onSelectTab }) {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/30 backdrop-blur px-3 py-1.5 text-sm text-zinc-200 mb-6">
               <Logo className="w-4 h-4" />NASA Space Apps 2026 · Interplanetary Survival Guide
             </motion.div>
-            <motion.h1 initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.08 }} className="text-[2.6rem] sm:text-6xl lg:text-[4.2rem] lg:w-[140%] font-bold tracking-tight leading-[1.04] drop-shadow-[0_10px_30px_rgba(0,0,0,0.8)]">
+            <motion.h1 initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.08 }} className="text-[2.6rem] sm:text-6xl lg:text-[3.6rem] xl:text-[4.2rem] xl:w-[140%] font-bold tracking-tight leading-[1.04] drop-shadow-[0_10px_30px_rgba(0,0,0,0.8)]">
               Understand Martian Terrain.
               <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#ffb08f] to-[#F26A3D]">Outsmart the Unknown.</span>
             </motion.h1>

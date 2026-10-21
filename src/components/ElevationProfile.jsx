@@ -1,21 +1,31 @@
 import { useMemo } from 'react';
-import useMapStore from '../store/useMapStore';
+import useMapStore, { routeSignature } from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Mountain } from 'lucide-react';
 
 export default function ElevationProfile() {
-  const { waypoints, terrainVersion } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, terrainVersion: s.terrainVersion })));
+  const { waypoints, terrainVersion, routeGeometry } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, terrainVersion: s.terrainVersion, routeGeometry: s.routeGeometry })));
 
   const { data, stats } = useMemo(() => {
     if (!waypoints || waypoints.length < 2) return { data: null, stats: null };
-    const profile = getElevationProfile(waypoints, 100);
+    // A planned route is profiled along the path it actually walks, not straight lines between turns,
+    // and its headline figures come from the planner so they match every other panel.
+    const planned = routeGeometry && routeGeometry.signature === routeSignature(waypoints) ? routeGeometry : null;
+    const line = planned ? planned.points.map(([lat, lon, elevation]) => ({ lat, lon, elevation })) : waypoints;
+    const profile = getElevationProfile(line, 120);
     const profileStats = getProfileStats(profile);
+    if (planned?.metrics && profileStats) {
+      profileStats.distance = planned.metrics.traverseDistanceKm;
+      profileStats.elevationGain = planned.metrics.totalAscentMeters;
+      profileStats.elevationLoss = planned.metrics.totalDescentMeters;
+      profileStats.maxSlope = planned.metrics.maxSlopeDeg;
+    }
     return { data: profile, stats: profileStats };
   // terrainVersion isn't read inside, but forces a recompute once real elevation grids finish loading
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waypoints, terrainVersion]);
+  }, [waypoints, terrainVersion, routeGeometry]);
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {

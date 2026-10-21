@@ -24,8 +24,9 @@ function rampColor(t) {
 /**
  * Draws the grid into a new canvas, one pixel per cell.
  * `exaggeration` steepens the shading so 200 m cells still show gentle relief.
+ * `tint` ([r, g, b]) shades one colour instead of colouring by elevation.
  */
-export function renderHillshade(grid, { exaggeration = 4, azimuthDeg = 315, altitudeDeg = 40 } = {}) {
+export function renderHillshade(grid, { exaggeration = 4, azimuthDeg = 315, altitudeDeg = 40, tint = null } = {}) {
   const { width: W, height: H, data, nodata } = grid;
   let min = Infinity, max = -Infinity;
   for (let i = 0; i < data.length; i++) {
@@ -58,7 +59,7 @@ export function renderHillshade(grid, { exaggeration = 4, azimuthDeg = 315, alti
       const dzdy = ((at(c, r + 1) - at(c, r - 1)) / (2 * cell)) * exaggeration;
       const shade = Math.max(0, (-dzdx * lx - dzdy * ly + lz) / Math.hypot(dzdx, dzdy, 1));
       const light = 0.35 + 0.85 * shade;
-      const [cr, cg, cb] = rampColor((z - min) / range);
+      const [cr, cg, cb] = tint || rampColor((z - min) / range);
       img.data[i * 4] = Math.min(255, cr * light);
       img.data[i * 4 + 1] = Math.min(255, cg * light);
       img.data[i * 4 + 2] = Math.min(255, cb * light);

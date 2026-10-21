@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Compass, Globe, Crosshair, Grid, Shield, Ruler, RotateCcw, Play, Pause, Video, VideoOff, ChevronDown, Check,
-  Layers, SlidersHorizontal, FileText, ShieldAlert, Footprints, Droplets, Tent, Route, Mountain, Undo2, Radio,
+  Layers, SlidersHorizontal, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../store/useMapStore';
@@ -19,12 +20,23 @@ const CHECKS = [
 /** A toolbar button that opens a small menu of options with explanations. */
 function Menu({ label, icon: Icon, badge, children }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
   const ref = useRef(null);
-  useDismiss(ref, open, () => setOpen(false));
+  const menuRef = useRef(null);
+  const refs = useRef([ref, menuRef]).current;
+  useDismiss(refs, open, () => setOpen(false));
+  // The menu is portalled to <body> so the phone toolbar can scroll sideways without clipping it
+  const toggle = () => {
+    if (!open && ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 8, left: Math.max(12, Math.min(r.left, window.innerWidth - 300)) });
+    }
+    setOpen((v) => !v);
+  };
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative shrink-0" ref={ref}>
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         aria-haspopup="menu"
         aria-expanded={open}
         className={`h-9 px-3 rounded-lg flex items-center gap-2 text-sm font-medium border transition-colors cursor-pointer ${
@@ -36,10 +48,11 @@ function Menu({ label, icon: Icon, badge, children }) {
         {badge && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden />}
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
-        <div role="menu" className="ui-menu absolute left-0 top-full mt-2 w-72 rounded-xl p-1.5 z-[460]" onClick={() => setOpen(false)}>
+      {open && pos && createPortal(
+        <div ref={menuRef} role="menu" style={{ top: pos.top, left: pos.left }} className="ui-menu fixed w-72 max-w-[calc(100vw-24px)] rounded-xl p-1.5 z-[460]" onClick={() => setOpen(false)}>
           {children}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -82,6 +95,7 @@ export default function MapToolbar() {
     isEVASimulating: st.isEVASimulating, setEVASimulating: st.setEVASimulating,
     setFlightPlanOpen: st.setFlightPlanOpen, setContingencyModalOpen: st.setContingencyModalOpen,
     activeContingency: st.activeContingency, setGuidedPlannerOpen: st.setGuidedPlannerOpen,
+    routeScanOpen: st.routeScanOpen, setRouteScanOpen: st.setRouteScanOpen,
   })));
 
   const is2d = s.viewMode !== '3d';
@@ -93,7 +107,7 @@ export default function MapToolbar() {
   const targetIdx = s.driveTargetWaypointId ? s.waypoints.findIndex((w) => w.id === s.driveTargetWaypointId) : -1;
   const atEnd = s.roverProgress >= 0.99;
   const pausedMid = !s.isRoverDriving && s.roverProgress > 0.01 && !atEnd;
-  const driveLabel = s.isRoverDriving ? 'Pause' : pausedMid ? `Resume ${Math.round(s.roverProgress * 100)}%` : atEnd ? 'Replay' : 'Drive route';
+  const driveLabel = s.isRoverDriving ? 'Pause' : pausedMid ? `Resume ${Math.round(s.roverProgress * 100)}%` : atEnd ? 'Replay' : 'Walk route';
 
   const toggleDrive = () => {
     if (s.isRoverDriving) {
@@ -119,9 +133,9 @@ export default function MapToolbar() {
 
   return (
     <div className="fixed top-[76px] left-3 right-3 sm:left-4 sm:right-4 z-[420] pointer-events-none">
-      <div className="pointer-events-auto ui-panel rounded-2xl p-1.5 flex flex-wrap items-center gap-1.5 w-fit max-w-full">
+      <div className="pointer-events-auto ui-panel rounded-2xl p-1.5 flex flex-nowrap sm:flex-wrap items-center gap-1.5 w-fit max-w-full overflow-x-auto sm:overflow-visible custom-scrollbar-x">
         {/* View mode */}
-        <div className="flex items-center gap-0.5 bg-white/[0.05] rounded-lg p-0.5" role="group" aria-label="Map view">
+        <div className="flex items-center gap-0.5 bg-white/[0.05] rounded-lg p-0.5 shrink-0" role="group" aria-label="Map view">
           {viewBtn('2d', '2D')}
           {viewBtn('3d', '3D')}
           {viewBtn('split', 'Split')}
@@ -139,7 +153,7 @@ export default function MapToolbar() {
           <>
             <Divider />
             {/* Survival checks: the heart of the app, so always one click away */}
-            <div className="flex items-center gap-0.5 bg-white/[0.05] rounded-lg p-0.5" role="group" aria-label="Survival checks">
+            <div className="flex items-center gap-0.5 bg-white/[0.05] rounded-lg p-0.5 shrink-0" role="group" aria-label="Survival checks">
               {CHECKS.map(({ key, short, icon: Icon, hint }) => {
                 const on = s.terrainOverlay === key;
                 return (
@@ -151,7 +165,7 @@ export default function MapToolbar() {
                     className={`h-8 px-2.5 rounded-md flex items-center gap-1.5 text-sm font-medium transition-colors cursor-pointer ${on ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/50' : 'text-zinc-300 hover:text-white'}`}
                   >
                     <Icon className="w-4 h-4" />
-                    <span className="hidden lg:inline">{short}</span>
+                    <span className="hidden sm:inline">{short}</span>
                   </button>
                 );
               })}
@@ -174,59 +188,63 @@ export default function MapToolbar() {
         )}
 
         {(s.waypoints.length > 0 || s.rulerPoints.length > 0) && is2d && (
-          <button onClick={() => { s.undoLastPoint(); click(); }} className={`${toolBtn} bg-white/[0.04] border-white/10 text-amber-200 hover:bg-white/[0.09]`} title="Undo the last point (Ctrl+Z)">
-            <RotateCcw className="w-4 h-4" /><span className="hidden md:inline">Undo</span>
+          <button onClick={() => { s.undoLastPoint(); click(); }} className={`${toolBtn} bg-white/[0.04] border-white/10 text-amber-200 hover:bg-white/[0.09]`} title="Undo the last point (Ctrl+Z)" aria-label="Undo">
+            <RotateCcw className="w-4 h-4" /><span className="hidden 2xl:inline">Undo</span>
           </button>
         )}
 
-        {hasRoute && (
-          <>
-            <Divider />
-            <div className="flex items-center gap-1.5" role="group" aria-label="Route actions">
-              {is2d && (
-                <>
-                  <button
-                    onClick={toggleDrive}
-                    className={`${toolBtn} ${s.isRoverDriving ? 'bg-amber-500 border-amber-300 text-black' : 'bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]'}`}
-                    title={targetIdx > 0 ? `Rover is driving to station ${targetIdx + 1}` : 'Watch a rover drive the whole route'}
-                  >
-                    {s.isRoverDriving ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
-                    <span>{driveLabel}</span>
-                  </button>
-                  {targetIdx > 0 && !s.isRoverDriving && (
-                    <button onClick={() => { s.setDriveTargetWaypointId(null); }} className={`${toolBtn} bg-white/[0.04] border-white/10 text-cyan-200`} title="Drive the whole route instead of one station">Whole route</button>
-                  )}
-                  {s.roverProgress > 0.01 && !s.isRoverDriving && (
-                    <button onClick={() => { s.setRoverDriving(false); s.setRoverProgress(0); s.setDriveTargetWaypointId(null); click(); }} className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/[0.04] border border-white/10 text-zinc-300 hover:text-white" title="Reset the rover to the start">
-                      <RotateCcw className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => s.setCamFollow(!s.camFollow)}
-                    aria-pressed={s.camFollow}
-                    className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/[0.04] border border-white/10 text-zinc-300 hover:text-white"
-                    title={s.camFollow ? 'Camera follows the rover (click to free the camera)' : 'Free camera (click to follow the rover)'}
-                  >
-                    {s.camFollow ? <Video className="w-4 h-4 text-cyan-300" /> : <VideoOff className="w-4 h-4" />}
-                  </button>
-                </>
-              )}
-              <button onClick={() => s.setEVASimulating(!s.isEVASimulating)} className={`${toolBtn} ${s.isEVASimulating ? 'bg-rose-500/90 border-rose-300 text-white' : 'bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]'}`} title="Walk the route in a first-person helmet view">
-                <Footprints className="w-4 h-4" /><span className="hidden xl:inline">Helmet view</span>
-              </button>
-              <button onClick={() => s.setFlightPlanOpen(true)} className={`${toolBtn} bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]`} title="Printable EVA flight plan and briefing">
-                <FileText className="w-4 h-4" /><span className="hidden xl:inline">Briefing</span>
-              </button>
-              <button onClick={() => s.setContingencyModalOpen(true)} className={`${toolBtn} ${s.activeContingency ? 'bg-rose-500/90 border-rose-300 text-white' : 'bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]'}`} title="What if something goes wrong? Dust storm, radiation event, O₂ fault">
-                <ShieldAlert className="w-4 h-4" /><span className="hidden xl:inline">What if...</span>
-              </button>
-            </div>
-          </>
-        )}
+        {/* Route actions are always here; without a route each one opens the planner first */}
+        <Divider />
+        <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 shrink-0" role="group" aria-label="Route actions">
+          <button
+            onClick={() => (hasRoute ? (is2d ? toggleDrive() : (s.setViewMode('2d'), s.setRoverDriving(true))) : s.setGuidedPlannerOpen(true))}
+            className={`${toolBtn} ${s.isRoverDriving ? 'bg-amber-500 border-amber-300 text-black' : 'bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]'}`}
+            title={!hasRoute ? 'Plan a route first, then watch the crew walk it' : targetIdx > 0 ? `Walking to station ${targetIdx + 1}` : 'Watch the crew walk the route (time-lapse, with time on foot and life support used)'}
+          >
+            {s.isRoverDriving ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
+            <span>{hasRoute ? driveLabel : 'Walk route'}</span>
+          </button>
+          {hasRoute && is2d && targetIdx > 0 && !s.isRoverDriving && (
+            <button onClick={() => { s.setDriveTargetWaypointId(null); }} className={`${toolBtn} bg-white/[0.04] border-white/10 text-cyan-200`} title="Walk the whole route instead of one station">Whole route</button>
+          )}
+          {hasRoute && is2d && s.roverProgress > 0.01 && !s.isRoverDriving && (
+            <button onClick={() => { s.setRoverDriving(false); s.setRoverProgress(0); s.setDriveTargetWaypointId(null); click(); }} className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/[0.04] border border-white/10 text-zinc-300 hover:text-white" title="Reset the walk to the start" aria-label="Reset the walk to the start">
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          )}
+          {hasRoute && is2d && (
+            <button
+              onClick={() => s.setCamFollow(!s.camFollow)}
+              aria-pressed={s.camFollow}
+              className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/[0.04] border border-white/10 text-zinc-300 hover:text-white"
+              title={s.camFollow ? 'Camera follows the crew (click to free the camera)' : 'Free camera (click to follow the crew)'}
+              aria-label={s.camFollow ? 'Camera follows the crew' : 'Free camera'}
+            >
+              {s.camFollow ? <Video className="w-4 h-4 text-cyan-300" /> : <VideoOff className="w-4 h-4" />}
+            </button>
+          )}
+          <button
+            onClick={() => (hasRoute ? (s.setViewMode('2d'), s.setRouteScanOpen(!s.routeScanOpen), click()) : s.setGuidedPlannerOpen(true))}
+            aria-pressed={s.routeScanOpen}
+            className={`${toolBtn} ${s.routeScanOpen ? 'bg-[#F26A3D]/20 border-[#F26A3D]/60 text-[#ffd2bf]' : 'bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]'}`}
+            title="Safety scan: check the route for steep ground, radio loss, the point of no return, shelter and water in one sweep"
+          >
+            <Radar className="w-4 h-4" /><span className="hidden lg:inline">Safety scan</span>
+          </button>
+          <button onClick={() => (hasRoute ? s.setEVASimulating(!s.isEVASimulating) : s.setGuidedPlannerOpen(true))} className={`${toolBtn} ${s.isEVASimulating ? 'bg-rose-500/90 border-rose-300 text-white' : 'bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]'}`} title="Walk the route in a first-person helmet view" aria-label="Helmet view">
+            <Glasses className="w-4 h-4" /><span className="hidden 2xl:inline">Helmet view</span>
+          </button>
+          <button onClick={() => (hasRoute ? s.setFlightPlanOpen(true) : s.setGuidedPlannerOpen(true))} className={`${toolBtn} bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]`} title="Printable EVA flight plan and briefing" aria-label="Briefing">
+            <FileText className="w-4 h-4" /><span className="hidden 2xl:inline">Briefing</span>
+          </button>
+          <button onClick={() => s.setContingencyModalOpen(true)} className={`${toolBtn} ${s.activeContingency ? 'bg-rose-500/90 border-rose-300 text-white' : 'bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]'}`} title="What if something goes wrong? Dust storm, radiation event, O₂ fault" aria-label="What if">
+            <ShieldAlert className="w-4 h-4" /><span className="hidden 2xl:inline">What if...</span>
+          </button>
+        </div>
       </div>
 
       {activeCheck && is2d && (
-        <p className="pointer-events-none mt-1.5 ml-1 text-xs text-zinc-300/90 drop-shadow">{activeCheck.hint}</p>
+        <p className="hidden sm:block pointer-events-none mt-1.5 ml-1 text-xs text-zinc-300/90 drop-shadow">{activeCheck.hint}</p>
       )}
     </div>
   );

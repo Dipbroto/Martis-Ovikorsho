@@ -8,16 +8,30 @@ import { marsAudio } from '../utils/audioSynthesizer';
 
 const iconCache = new Map();
 
-// Icons are cached per emoji/color so re-renders don't rebuild every marker's DOM
-const createCustomIcon = (emoji, color) => {
-  const key = `${emoji}|${color}`;
+// Line-art spacecraft glyphs (rover with mast camera and six wheels, lander with legs and dish)
+const ROVER_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="9" width="12.5" height="4" rx="1"/><path d="M14.5 9V5.2"/><rect x="13.2" y="3" width="4.6" height="2.4" rx="0.6"/><path d="M6.5 13l-1.8 3.2M10.8 13v3.2M15 13l1.8 3.2"/><circle cx="4.6" cy="18.2" r="1.7"/><circle cx="10.8" cy="18.2" r="1.7"/><circle cx="17" cy="18.2" r="1.7"/><path d="M6 9V7.2h2.5"/></svg>';
+const LANDER_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12.5h10l-1.8-4H8.8z"/><path d="M8.5 12.5l-3.2 5.8M15.5 12.5l3.2 5.8M12 12.5v5.8"/><path d="M4 18.3h2.6M17.4 18.3H20M10.7 18.3h2.6"/><path d="M12 8.5V5.8"/><path d="M9.3 5.4a3.2 3.2 0 0 1 5.4 0"/></svg>';
+
+const isRover = (site) => /rover|sojourner/i.test(site.name);
+const isActive = (site) => /active|hibernat/i.test(site.status || '');
+
+// A dark glass disc with the spacecraft glyph and a status light (green: still working).
+// Cached per kind/colour/status so re-renders don't rebuild every marker's DOM.
+const createSpacecraftIcon = (site) => {
+  const rover = isRover(site);
+  const active = isActive(site);
+  const color = site.color || '#3b82f6';
+  const key = `${rover}|${color}|${active}`;
   if (iconCache.has(key)) return iconCache.get(key);
   const icon = L.divIcon({
     className: 'custom-div-icon',
-    html: `<div style="background-color: ${color}; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.8);">${emoji}</div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
-    popupAnchor: [0, -15],
+    html: `<div class="spacecraft-pin" style="--pin:${color}">
+      ${rover ? ROVER_SVG : LANDER_SVG}
+      <span class="spacecraft-pin-status" style="background:${active ? '#34d399' : '#71717a'}"></span>
+    </div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -17],
   });
   iconCache.set(key, icon);
   return icon;
@@ -46,7 +60,8 @@ const POIMarkers = () => {
         <Marker
           key={`landing-${site.id}`}
           position={[site.lat, site.lon]}
-          icon={createCustomIcon('🚀', site.color || '#3b82f6')}
+          icon={createSpacecraftIcon(site)}
+          title={site.name}
           eventHandlers={{
             click: () => setSelectedPOI({ ...site, poiType: 'landingSite' }),
           }}
@@ -79,7 +94,7 @@ const POIMarkers = () => {
                 }}
                 className="w-full bg-gradient-to-r from-mars-600 to-amber-600 hover:from-mars-500 hover:to-amber-500 text-white font-bold py-1.5 px-2 rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 shadow-md border border-white/20"
               >
-                <span>➕ Add to Marswalk Route</span>
+                <span>Add to my route</span>
               </button>
             </div>
           </Popup>
@@ -128,7 +143,7 @@ const POIMarkers = () => {
                 }}
                 className="w-full bg-gradient-to-r from-mars-600 to-amber-600 hover:from-mars-500 hover:to-amber-500 text-white font-bold py-1.5 px-2 rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 shadow-md border border-white/20"
               >
-                <span>➕ Add to Marswalk Route</span>
+                <span>Add to my route</span>
               </button>
             </div>
           </Popup>

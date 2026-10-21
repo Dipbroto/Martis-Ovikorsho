@@ -66,18 +66,18 @@ export default function ProvenanceBadge({ type = 'OBSERVED', size = 'sm', detail
     : 'text-[10px] px-2 py-0.5 gap-1.2';
 
   return (
-    <div className={`relative inline-flex items-center ${className}`}>
+    <div className={`relative inline-flex items-center min-w-0 max-w-full ${className}`}>
       <span
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
         onClick={() => setShowTooltip(!showTooltip)}
-        className={`inline-flex items-center font-mono font-bold tracking-wider rounded border cursor-help select-none transition-all ${config.bgColor} ${config.textColor} ${config.borderColor} ${sizeClasses} shadow-sm hover:brightness-125`}
+        className={`inline-flex items-center whitespace-nowrap max-w-full font-mono font-bold tracking-wider rounded border cursor-help select-none transition-all ${config.bgColor} ${config.textColor} ${config.borderColor} ${sizeClasses} shadow-sm hover:brightness-125`}
         title={config.fullName}
       >
-        <span className={`w-1.5 h-1.5 rounded-full ${config.dotColor} animate-pulse`} />
-        <Icon className="w-2.5 h-2.5 opacity-80" />
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${config.dotColor} animate-pulse`} />
+        <Icon className="w-2.5 h-2.5 opacity-80 shrink-0" />
         <span>{config.label}</span>
-        {detail && <span className="opacity-75 font-normal">| {detail}</span>}
+        {detail && <span className="opacity-75 font-normal truncate min-w-0">· {detail}</span>}
       </span>
 
       {showTooltip && (
