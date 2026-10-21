@@ -19,6 +19,7 @@ export default function UserProfileDashboard() {
   const [isLoadingMissions, setIsLoadingMissions] = useState(false);
   const [scienceLogs, setScienceLogs] = useState([]);
   const [isLoadingScience, setIsLoadingScience] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [passwordStatus, setPasswordStatus] = useState('');
 
@@ -30,7 +31,8 @@ export default function UserProfileDashboard() {
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .then(({ data }) => {
+        .then(({ data, error }) => {
+          setLoadError(error ? `Could not load missions: ${error.message}` : null);
           if (data) setMissions(data);
           setIsLoadingMissions(false);
         });
@@ -46,7 +48,7 @@ export default function UserProfileDashboard() {
         .eq('user_id', user.id)
         .order('discovered_at', { ascending: false })
         .then(({ data, error }) => {
-          if (error) console.error("Science logs fetch error:", error);
+          setLoadError(error ? `Could not load science logs: ${error.message}` : null);
           if (data) setScienceLogs(data);
           setIsLoadingScience(false);
         });
@@ -212,8 +214,12 @@ export default function UserProfileDashboard() {
               <div className="space-y-6 animate-fade-in">
                 <div>
                   <h2 className="text-2xl font-display font-black text-white uppercase tracking-widest mb-2">Flight History</h2>
-                  <p className="text-space-400 font-mono text-sm">Your published routes and saved EVA expeditions</p>
+                  <p className="text-space-400 font-mono text-sm">Your saved EVA routes</p>
                 </div>
+
+                {loadError && (
+                  <p className="mb-4 text-xs font-mono text-rose-300 bg-rose-950/40 border border-rose-500/30 rounded-lg p-3">{loadError}</p>
+                )}
 
                 {isLoadingMissions ? (
                   <div className="flex flex-col items-center justify-center py-20 text-space-500">
@@ -224,7 +230,7 @@ export default function UserProfileDashboard() {
                   <div className="bg-space-900/30 border border-white/5 rounded-2xl p-10 text-center flex flex-col items-center">
                     <Route className="w-12 h-12 text-space-700 mb-4" />
                     <h4 className="text-white font-bold mb-2">No Flight Logs Found</h4>
-                    <p className="text-space-400 text-sm max-w-sm mb-6">You haven't published any routes yet. Draw a route on the map and click "Publish to Global Network" to save it here.</p>
+                    <p className="text-space-400 text-sm max-w-sm mb-6">You haven't saved any routes yet. Plan a route on the map and click "Save to My Missions" to keep it here.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -262,6 +268,10 @@ export default function UserProfileDashboard() {
                   <p className="text-space-400 font-mono text-sm">Specimens cached and cataloged for MSR (Mars Sample Return)</p>
                 </div>
 
+                {loadError && (
+                  <p className="mb-4 text-xs font-mono text-rose-300 bg-rose-950/40 border border-rose-500/30 rounded-lg p-3">{loadError}</p>
+                )}
+
                 {isLoadingScience ? (
                   <div className="flex flex-col items-center justify-center py-20 text-space-500">
                     <Loader2 className="w-8 h-8 animate-spin mb-4 text-cyan-500" />
@@ -271,7 +281,7 @@ export default function UserProfileDashboard() {
                   <div className="bg-space-900/30 border border-white/5 rounded-2xl p-10 text-center flex flex-col items-center">
                     <FlaskConical className="w-12 h-12 text-space-700 mb-4" />
                     <h4 className="text-white font-bold mb-2">No Specimens Cached</h4>
-                    <p className="text-space-400 text-sm max-w-sm">No samples hermetically sealed yet. Visit the Science Lab modal and use the SuperCam to ablate and cache specimens.</p>
+                    <p className="text-space-400 text-sm max-w-sm">No samples sealed yet. In the Science Lab, pick a target and press &quot;Seal in sample tube&quot; while signed in to log it here.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

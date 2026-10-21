@@ -85,7 +85,7 @@ export function ResourceLayer() {
 export function ResourcePanel() {
   const mode = useMapStore((s) => s.terrainOverlay);
   const base = useMapStore((s) => s.waypoints[0]);
-  const mapCenter = useMapStore((s) => s.mapCenter);
+  const mapCenter = useMapStore((s) => s.viewCenter || s.mapCenter);
   const { data: h2o, error: h2oError } = useJson('/data/h2o.json', mode === 'ice');
   const { data: caves, error: cavesError } = useJson('/data/caves.json', mode === 'caves');
 
@@ -145,7 +145,7 @@ export function ResourcePanel() {
   }
 
   return (
-    <div className="absolute z-[400] bottom-[104px] left-2 right-2 max-h-[40vh] overflow-y-auto sm:max-h-none sm:overflow-visible sm:bottom-auto sm:top-[176px] sm:left-auto sm:right-6 sm:w-72 bg-[#0B0C10]/95 backdrop-blur-2xl p-3 rounded-2xl border border-white/[0.08] shadow-hud-glass font-mono text-[10px] text-space-200 space-y-2">
+    <div className="absolute z-[400] bottom-[104px] left-2 right-2 max-h-[40vh] overflow-y-auto sm:max-h-none sm:overflow-visible sm:bottom-auto sm:top-[168px] sm:left-auto sm:right-6 sm:w-72 bg-[#0B0C10]/95 backdrop-blur-2xl p-3 rounded-2xl border border-white/[0.08] shadow-hud-glass font-mono text-[10px] text-space-200 space-y-2">
       <div className="flex items-center gap-1.5 text-white font-bold text-xs"><Icon className="w-3.5 h-3.5 text-cyber-cyan" />{meta.title}</div>
       {body}
       {source && (

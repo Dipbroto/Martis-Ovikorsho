@@ -5,6 +5,8 @@ import ElevationProfile from './ElevationProfile';
 import WeatherPanel from './WeatherPanel';
 import RadiationPanel from './RadiationPanel';
 import DustStormTracker from './DustStormTracker';
+import { estimateRadiation } from '../utils/marsUtils';
+import { getElevation } from '../utils/elevationService';
 
 export default function BottomPanel() {
   const bottomPanelOpen = useMapStore(s => s.bottomPanelOpen);
@@ -13,11 +15,17 @@ export default function BottomPanel() {
   const setBottomPanelTab = useMapStore(s => s.setBottomPanelTab);
   const weather = useMapStore(s => s.weather);
   const waypoints = useMapStore(s => s.waypoints);
+  const viewCenter = useMapStore(s => s.viewCenter || s.mapCenter);
+  useMapStore(s => s.terrainVersion); // refresh once terrain grids load
+
+  // Dose rate for the place the map is looking at (model anchored on Curiosity RAD measurements)
+  const doseRate = estimateRadiation(1, getElevation(viewCenter[0], viewCenter[1])).doseRate;
+  const doseLabel = `${doseRate.toFixed(3)} mSv/h`;
 
   const tabs = [
     { 
       id: 'elevation', 
-      label: 'Elevation', 
+      label: 'Elevation profile', 
       icon: BarChart3,
       badge: waypoints && waypoints.length > 1 ? `${waypoints.length} WPs` : null,
       badgeColor: 'text-cyan-400 bg-cyan-950/60 border-cyan-800'
@@ -33,7 +41,7 @@ export default function BottomPanel() {
       id: 'radiation', 
       label: 'Radiation', 
       icon: Zap,
-      badge: '0.06 mSv/h',
+      badge: doseLabel,
       badgeColor: 'text-purple-400 bg-purple-950/60 border-purple-800'
     },
     { 
@@ -61,25 +69,25 @@ export default function BottomPanel() {
       <div 
         onClick={() => setBottomPanelOpen(true)}
         className="cursor-pointer group flex items-center justify-between gap-3 px-4 py-2 rounded-full bg-[#0B0C10]/85 border border-white/10 shadow-hud-glass backdrop-blur-2xl hover:bg-[#0B0C10]/95 hover:border-[#F16938]/40 transition-all font-mono text-xs text-stone-300 hover:text-white"
-        title="Click to Open Environmental & Elevation Telemetry Deck"
+        title="Open the conditions panel: elevation profile, weather, radiation and dust (modelled values)"
       >
         <div className="flex items-center gap-1.5 text-amber-300">
           <Cloud className="w-3.5 h-3.5 text-amber-400" />
           <span className="font-bold tabular-nums">{weather?.temperature?.avg !== undefined ? `${Math.round(weather.temperature.avg)}°C` : '-62°C'}</span>
         </div>
-        <span className="text-white/20">|</span>
-        <div className="flex items-center gap-1.5 text-purple-300">
+        <span className="text-white/20 hidden sm:inline">|</span>
+        <div className="hidden sm:flex items-center gap-1.5 text-purple-300">
           <Zap className="w-3.5 h-3.5 text-purple-400" />
-          <span className="font-bold tabular-nums">0.06 mSv/h</span>
+          <span className="font-bold tabular-nums">{doseLabel}</span>
         </div>
-        <span className="text-white/20">|</span>
-        <div className="flex items-center gap-1.5 text-cyan-300">
+        <span className="text-white/20 hidden sm:inline">|</span>
+        <div className="hidden sm:flex items-center gap-1.5 text-cyan-300">
           <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
           <span className="font-semibold tracking-tight">{waypoints && waypoints.length > 1 ? `${waypoints.length} Waypoints` : 'Elevation'}</span>
         </div>
         <span className="text-white/20">|</span>
         <div className="flex items-center gap-1 text-[#F16938] group-hover:text-[#FF8A65] font-display font-bold text-[11px] uppercase tracking-[0.14em]">
-          <span>Telemetry Deck</span>
+          <span>Conditions</span>
           <ChevronUp className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform" />
         </div>
       </div>
@@ -132,9 +140,9 @@ export default function BottomPanel() {
         <button
           onClick={() => setBottomPanelOpen(false)}
           className="flex items-center gap-1 px-2.5 py-1 text-stone-400 hover:text-[#F16938] transition-colors rounded-lg hover:bg-white/[0.04] shrink-0 ml-2 text-[10px] font-mono uppercase tracking-wider font-semibold"
-          title="Minimize Telemetry Deck"
+          title="Minimise the conditions panel"
         >
-          <span>Minimize</span>
+          <span>Hide</span>
           <ChevronDown className="w-3.5 h-3.5" />
         </button>
       </div>

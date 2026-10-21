@@ -108,12 +108,71 @@ drop policy if exists "Users can delete own chat messages." on public.ai_chat_me
 create policy "Users can delete own chat messages." on public.ai_chat_messages for delete using (auth.uid() = user_id);
 
 -- ==========================================
--- 3b. PROTECT SERVER-MANAGED PROFILE COLUMNS
--- Clients may only edit their own username/avatar. Rank and stats are written by the
--- triggers below, so users can't award themselves distance, samples or ranks.
+-- 3b. PROTECT SERVER-MANAGED DATA
+-- Clients may only write their own username/avatar. Mission distance is recomputed from the
+-- waypoints on the server, and profile stats are maintained by triggers, so nobody can award
+-- themselves distance, samples or ranks by sending made-up numbers.
 -- ==========================================
 revoke update on public.profiles from anon, authenticated;
 grant update (username, avatar_url) on public.profiles to authenticated;
+revoke insert on public.profiles from anon, authenticated;
+grant insert (id, username, avatar_url) on public.profiles to authenticated;
+
+-- Great-circle length of a waypoint list on Mars (km). Waypoints are objects with lat/lon.
+create or replace function public.mission_distance_km(points jsonb)
+returns numeric
+language plpgsql
+immutable
+set search_path = public
+as $$
+declare
+  total double precision := 0;
+  prev_lat double precision;
+  prev_lon double precision;
+  cur_lat double precision;
+  cur_lon double precision;
+  h double precision;
+  wp jsonb;
+begin
+  if points is null or jsonb_typeof(points) <> 'array' then
+    return 0;
+  end if;
+  for wp in select value from jsonb_array_elements(points) loop
+    cur_lat := radians((wp->>'lat')::double precision);
+    cur_lon := radians(coalesce(wp->>'lon', wp->>'lng')::double precision);
+    if prev_lat is not null then
+      h := sin((cur_lat - prev_lat) / 2) ^ 2 + cos(prev_lat) * cos(cur_lat) * sin((cur_lon - prev_lon) / 2) ^ 2;
+      total := total + 2 * 3389.5 * asin(least(1, sqrt(h)));
+    end if;
+    prev_lat := cur_lat;
+    prev_lon := cur_lon;
+  end loop;
+  return round(total::numeric, 3);
+end;
+$$;
+
+-- Missions: validate the waypoint list and overwrite the client-supplied distance
+create or replace function public.prepare_mission()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if jsonb_typeof(new.waypoints) <> 'array' or jsonb_array_length(new.waypoints) < 2 then
+    raise exception 'A mission needs at least two waypoints';
+  end if;
+  if jsonb_array_length(new.waypoints) > 500 then
+    raise exception 'A mission can have at most 500 waypoints';
+  end if;
+  new.total_distance := public.mission_distance_km(new.waypoints);
+  return new;
+end;
+$$;
+
+drop trigger if exists missions_prepare on public.missions;
+create trigger missions_prepare
+  before insert or update of waypoints, total_distance on public.missions
+  for each row execute procedure public.prepare_mission();
 
 create or replace function public.apply_mission_stats()
 returns trigger
@@ -122,13 +181,14 @@ security definer
 set search_path = public
 as $$
 begin
-  if tg_op = 'INSERT' then
+  if tg_op in ('INSERT', 'UPDATE') then
     update public.profiles
-      set total_distance_km = coalesce(total_distance_km, 0) + round(coalesce(new.total_distance, 0))
+      set total_distance_km = greatest(0, coalesce(total_distance_km, 0) + coalesce(new.total_distance, 0)
+        - case when tg_op = 'UPDATE' then coalesce(old.total_distance, 0) else 0 end)
       where id = new.user_id;
   elsif tg_op = 'DELETE' then
     update public.profiles
-      set total_distance_km = greatest(0, coalesce(total_distance_km, 0) - round(coalesce(old.total_distance, 0)))
+      set total_distance_km = greatest(0, coalesce(total_distance_km, 0) - coalesce(old.total_distance, 0))
       where id = old.user_id;
   end if;
   return null;
@@ -137,7 +197,7 @@ $$;
 
 drop trigger if exists missions_stats on public.missions;
 create trigger missions_stats
-  after insert or delete on public.missions
+  after insert or update of total_distance or delete on public.missions
   for each row execute procedure public.apply_mission_stats();
 
 create or replace function public.apply_science_stats()
@@ -165,6 +225,25 @@ create trigger science_logs_stats
   after insert or delete on public.science_logs
   for each row execute procedure public.apply_science_stats();
 
+-- Science logs: let users remove their own entries (the stats trigger keeps counts right)
+drop policy if exists "Users can delete own science logs." on public.science_logs;
+create policy "Users can delete own science logs." on public.science_logs for delete using (auth.uid() = user_id);
+
+-- Size limits so a single client can't store unbounded text
+alter table public.ai_chat_messages drop constraint if exists ai_chat_messages_content_length;
+alter table public.ai_chat_messages add constraint ai_chat_messages_content_length check (char_length(content) <= 20000) not valid;
+alter table public.missions drop constraint if exists missions_title_length;
+alter table public.missions add constraint missions_title_length check (char_length(title) <= 200) not valid;
+alter table public.science_logs drop constraint if exists science_logs_notes_length;
+alter table public.science_logs add constraint science_logs_notes_length check (notes is null or char_length(notes) <= 2000) not valid;
+alter table public.profiles drop constraint if exists profiles_username_length;
+alter table public.profiles add constraint profiles_username_length check (username is null or char_length(username) between 2 and 64) not valid;
+
+-- Indexes for the queries the app runs ("my missions / logs / chat, newest first")
+create index if not exists missions_user_created_idx on public.missions (user_id, created_at desc);
+create index if not exists science_logs_user_discovered_idx on public.science_logs (user_id, discovered_at desc);
+create index if not exists ai_chat_messages_user_created_idx on public.ai_chat_messages (user_id, created_at desc);
+
 -- ==========================================
 -- 4. AUTOMATIC AUTH TRIGGER
 -- Automatically creates a profile row when a new user signs up
@@ -176,19 +255,19 @@ security definer
 set search_path = public
 as $$
 declare
-  base_name text := coalesce(
+  base_name text := left(coalesce(
     nullif(trim(new.raw_user_meta_data->>'username'), ''),
     'Explorer-' || substr(new.id::text, 1, 6)
-  );
+  ), 32);
 begin
   begin
     insert into public.profiles (id, username, avatar_url)
     values (new.id, base_name, new.raw_user_meta_data->>'avatar_url')
     on conflict (id) do nothing;
   exception when unique_violation then
-    -- Username already taken: keep the signup working by making the callsign unique
+    -- Username already taken: keep the signup working with a unique callsign
     insert into public.profiles (id, username, avatar_url)
-    values (new.id, base_name || '-' || substr(new.id::text, 1, 4), new.raw_user_meta_data->>'avatar_url')
+    values (new.id, left(base_name, 24) || '-' || replace(new.id::text, '-', ''), new.raw_user_meta_data->>'avatar_url')
     on conflict (id) do nothing;
   end;
   return new;
@@ -199,3 +278,21 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- ==========================================
+-- 5. BACKFILL
+-- Accounts created before the trigger existed have no profile row, which makes every
+-- mission / chat / science-log insert fail its foreign key. Create the missing rows.
+-- ==========================================
+insert into public.profiles (id, username)
+select u.id, 'Explorer-' || replace(u.id::text, '-', '')
+from auth.users u
+where not exists (select 1 from public.profiles p where p.id = u.id)
+on conflict do nothing;
+
+-- Recompute stored mission distances and profile totals with the server-side formula
+update public.missions set waypoints = waypoints
+where jsonb_typeof(waypoints) = 'array' and jsonb_array_length(waypoints) >= 2;
+update public.profiles p set
+  total_distance_km = coalesce((select sum(m.total_distance) from public.missions m where m.user_id = p.id), 0),
+  samples_collected = (select count(*) from public.science_logs s where s.user_id = p.id);

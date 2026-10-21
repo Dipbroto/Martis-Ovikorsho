@@ -6,7 +6,7 @@ const SLOPE_CLASSES = [
   { min: 10, rgba: [234, 179, 8, 95] },
 ];
 
-function paint(grid, colorAt) {
+export function paint(grid, colorAt) {
   const canvas = document.createElement('canvas');
   canvas.width = grid.width;
   canvas.height = grid.height;

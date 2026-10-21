@@ -42,11 +42,19 @@ npm run dev
 - `src/store/useMapStore.js` — global Zustand store (use selectors / `useShallow`, never `useMapStore()`)
 - `src/services` — Gemini, NASA imagery/JPL, chat history and profile access
 - `src/data` — landing sites, geological features and the shared landmark table (`marsLandmarks.js`)
-- `src/utils` — Mars math, elevation model, autonomous router, audio synthesiser
+- `src/terrain` — elevation grids, A* route planner, return / slope / radio analysis (runs in a web worker)
+- `src/utils` — Mars math, solar geometry, elevation lookup, router wrapper, audio synthesiser
+- `scripts/data` — scripts that download and build the NASA / USGS data files in `public/data`
 - `supabase/functions/gemini-proxy` — Edge Function that holds the Gemini key
 
 ## Data provenance
 
-Elevation is an inverse-distance-weighted model anchored on known MOLA elevations, not raw DEM tiles, and the
-weather, radiation and rover telemetry are simulations. Map imagery comes from NASA Mars Trek tiles. Images from
-the NASA Image Library are not georeferenced, so they carry no map coordinates.
+Elevation comes from the HRSC-MOLA blended DEM (200 m/px) at seven hero sites and the MGS MOLA 4 px/deg grid
+elsewhere; routes, slopes, the point-of-no-return range and radio coverage are computed from it. Water (Mars
+Odyssey GRS), cave candidates (USGS) and rover tracks (NASA/JPL) are real datasets. Weather, radiation, HUD
+telemetry and science-lab spectra are simulations and are labelled as such. Images from the NASA Image Library
+are not georeferenced, so they carry no map coordinates. See the in-app **Data & Methods** panel for sources,
+assumptions and the validation against real rover drives.
+
+To rebuild the data files: `python scripts/data/build_dem.py`, `build_traverses.py` and `build_resources.py`
+(Python 3 with numpy for the DEM script).

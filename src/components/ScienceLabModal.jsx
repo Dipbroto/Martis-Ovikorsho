@@ -38,6 +38,7 @@ export default function ScienceLabModal() {
     triggerLaserAblation,
     runAiAnalysis,
     handleCacheSample,
+    cacheError,
     paleoDiagnosis,
   } = useScienceLab({ enabled: isScienceLabOpen });
 
@@ -74,7 +75,7 @@ export default function ScienceLabModal() {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-zinc-400 text-xs font-mono">✦</span>
                   <span className="text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.22em] text-[#ff8c69] font-medium">
-                    MARS WALK EXPLORER / IN-SITU PLANETARY SCIENCE LABORATORY
+                    MARSWALK / IN-SITU PLANETARY SCIENCE LABORATORY
                   </span>
                 </div>
                 <h2 className="text-base sm:text-lg font-bold text-white tracking-tight font-sans">
@@ -283,6 +284,7 @@ export default function ScienceLabModal() {
                             </>
                           )}
                         </button>
+                        {cacheError && <p className="mt-1 text-[10px] font-mono text-amber-300">{cacheError}</p>}
                       </div>
 
                     </div>
@@ -653,6 +655,7 @@ export default function ScienceLabModal() {
                             >
                               {cachedSuccess ? 'TUBE HERMETICALLY SEALED & REGISTERED' : 'EXECUTE NITROGEN PURGE & CRIMP SEAL'}
                             </button>
+                            {cacheError && <p className="mt-1 text-[10px] font-mono text-amber-300">{cacheError}</p>}
                           </div>
 
                           <div className="lg:col-span-5 bg-[#07090e]/80 border border-white/[0.08] p-5 rounded-sm flex flex-col justify-between">

@@ -25,10 +25,10 @@ export default function Sidebar() {
   }, [sidebarOpen]);
 
   const tabs = [
-    { id: 'guide', label: 'The Guide', icon: ShieldCheck },
-    { id: 'layers', label: 'Layers', icon: Layers },
+    { id: 'guide', label: 'Guide', icon: ShieldCheck },
+    { id: 'layers', label: 'Base map', icon: Layers },
     { id: 'route', label: 'Route', icon: Route },
-    { id: 'poi', label: 'POI', icon: MapPin },
+    { id: 'poi', label: 'Places', icon: MapPin },
     { id: 'mission', label: 'Mission', icon: Rocket },
   ];
 
@@ -65,7 +65,7 @@ export default function Sidebar() {
       initial={false}
       animate={{ width: sidebarOpen ? 'min(396px, calc(100vw - 32px))' : 54 }}
       transition={{ duration: 0.25, ease: 'easeInOut' }}
-      className="relative z-30 flex flex-col h-max max-h-[85vh] rounded-2xl border border-white/[0.08] bg-[#0B0C10]/70 backdrop-blur-3xl shrink-0 shadow-hud-glass transition-all hover:bg-[#0B0C10]/80"
+      className="relative z-30 flex flex-col h-max max-h-full rounded-2xl border border-white/[0.08] bg-[#0B0C10]/70 backdrop-blur-3xl shrink-0 shadow-hud-glass transition-all hover:bg-[#0B0C10]/80"
     >
       {/* Tab Navigation Bar (Horizontal when open, Vertical when collapsed) */}
       <div className="shrink-0 border-b border-white/[0.05] bg-space-900/40 p-1.5 rounded-t-2xl">
@@ -91,8 +91,8 @@ export default function Sidebar() {
                   setSidebarTab(tab.id);
                   if (!sidebarOpen) setSidebarOpen(true);
                 }}
-                className={`relative flex items-center gap-2 py-2 px-2.5 rounded-xl transition-all text-xs font-mono font-medium shrink-0 ${
-                  sidebarOpen ? 'flex-1 min-w-[70px] justify-center' : 'w-full justify-center'
+                className={`relative flex items-center gap-2 py-2 px-2.5 rounded-xl transition-all text-sm font-medium shrink-0 ${
+                  sidebarOpen ? 'flex-1 min-w-[64px] justify-center' : 'w-full justify-center'
                 } ${
                   isActive
                     ? 'bg-[#F16938]/15 text-stone-100 border border-[#F16938]/50 shadow-[0_0_12px_rgba(241,105,56,0.18)]'
@@ -102,7 +102,7 @@ export default function Sidebar() {
               >
                 <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#F16938]' : 'text-stone-400'}`} />
                 {sidebarOpen && (
-                  <span className="font-display font-bold uppercase tracking-[0.14em] text-[11px] whitespace-nowrap">{tab.label}</span>
+                  <span className="text-sm font-medium whitespace-nowrap">{tab.label}</span>
                 )}
                 {/* Active Laser Underline */}
                 {isActive && (

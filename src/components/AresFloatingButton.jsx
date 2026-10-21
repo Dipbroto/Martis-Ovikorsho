@@ -2,9 +2,16 @@ import { useRef, useState, useEffect, Suspense, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
+import {  } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
+
+// The mascot bobs on one wall clock so the home speech bubble can follow the exact same motion.
+const bobAt = (t) => ({ y: Math.sin(t * 2.6) * 0.12, x: Math.cos(t * 1.8) * 0.04 });
+const PX_PER_UNIT = 37.7; // canvas is 120px tall and the camera sees ~3.18 world units at the bot's depth
+
+// Lines the mascot cycles through on the home page
+const QUOTES = ['Ask me anything…', 'Where should we walk today?', 'How much radiation at Jezero?', 'Can we get back before dark?'];
 
 // 3D Cute Robot Mascot matching user reference (Named: EVA)
 // `mouseRef.current` holds the normalised cursor position (0-1); read per frame so cursor moves don't re-render React
@@ -50,8 +57,9 @@ function MascotBot({ isHovered, mouseRef }) {
 
     // 1. Hover floating / levitation (hover korbe)
     if (botGroupRef.current) {
-      botGroupRef.current.position.y = Math.sin(t * 2.6) * 0.12;
-      botGroupRef.current.position.x = Math.cos(t * 1.8) * 0.04;
+      const bob = bobAt(performance.now() / 1000);
+      botGroupRef.current.position.y = bob.y;
+      botGroupRef.current.position.x = bob.x;
 
       // Cursor tracking: Mascot playfully faces mouse cursor
       const targetRotX = (mouseRef.current.y - 0.5) * -0.45;
@@ -187,22 +195,41 @@ function MascotBot({ isHovered, mouseRef }) {
 }
 
 // EVA's Mascot Dialogues
-const EVA_MESSAGES = [
-  "Hi Commander! I'm EVA 👋",
-  "Drag me anywhere on your screen! ✨",
-  "Click me to open EVA AI Copilot! 🚀",
-  "Hover over me — I love waving!",
-  "Monitoring Jezero & Olympus Mons."
-];
 
 export default function AresFloatingButton() {
   const isAresCopilotOpen = useMapStore(s => s.isAresCopilotOpen);
   const setAresCopilotOpen = useMapStore(s => s.setAresCopilotOpen);
+  const large = useMapStore(s => s.homeHeroVisible);
 
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const mouseRef = useRef({ x: 0.5, y: 0.5 });
-  const [messageIndex, setMessageIndex] = useState(0);
+  const bubbleRef = useRef(null);
+  const dotRef = useRef(null);
+  const [quoteIndex, setQuoteIndex] = useState(0);
+
+  // Cycle the home quote
+  useEffect(() => {
+    if (!large) return undefined;
+    setQuoteIndex(0);
+    const id = setInterval(() => setQuoteIndex((i) => (i + 1) % QUOTES.length), 4200);
+    return () => clearInterval(id);
+  }, [large]);
+
+  // Move the status dot and the home bubble with the mascot's bob, frame by frame
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    let raf;
+    const tick = () => {
+      const { x, y } = bobAt(performance.now() / 1000);
+      const transform = `translate(${(x * PX_PER_UNIT).toFixed(2)}px, ${(-y * PX_PER_UNIT).toFixed(2)}px)`;
+      if (bubbleRef.current) bubbleRef.current.style.transform = transform;
+      if (dotRef.current) dotRef.current.style.transform = transform;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   // Mouse coordinate tracking for the mascot head to follow the cursor
   useEffect(() => {
@@ -212,14 +239,6 @@ export default function AresFloatingButton() {
     };
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
-  // Periodic message rotation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMessageIndex(prev => (prev + 1) % EVA_MESSAGES.length);
-    }, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   if (isAresCopilotOpen) return null;
@@ -234,44 +253,60 @@ export default function AresFloatingButton() {
         // Small delay so click event doesn't fire immediately upon drag release
         setTimeout(() => setIsDragging(false), 80);
       }}
-      className="fixed bottom-6 right-6 z-[500] pointer-events-auto flex items-end gap-2.5 select-none cursor-grab active:cursor-grabbing"
+      className="fixed bottom-6 right-6 z-[500] pointer-events-auto hidden sm:flex items-end gap-2.5 select-none cursor-grab active:cursor-grabbing"
     >
-      {/* Speech Bubble with Mascot Greeting */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={messageIndex}
-          initial={{ opacity: 0, x: 15, scale: 0.92 }}
-          animate={{ opacity: 1, x: 0, scale: 1 }}
-          exit={{ opacity: 0, x: -10, scale: 0.92 }}
-          transition={{ duration: 0.25 }}
-          onClick={() => {
-            if (isDragging) return;
-            marsAudio.playUiClick?.();
-            setAresCopilotOpen(true);
-          }}
-          className="hidden sm:flex flex-col gap-1 px-3.5 py-2 rounded-xl bg-[#090d16]/95 border border-cyan-400/30 hover:border-cyan-400 text-white shadow-[0_8px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(6,182,212,0.2)] backdrop-blur-xl cursor-pointer transition-all max-w-[210px] group"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-cyan-300 font-bold">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>EVA · AI MASCOT</span>
-            </div>
-            <span className="text-[9px] font-mono text-cyan-400 flex items-center gap-0.5">
-              <span>ONLINE</span>
-              <Sparkles className="w-2.5 h-2.5" />
-            </span>
-          </div>
+      {/* Short hint, only while hovering the mascot (no constant chatter) */}
+      <AnimatePresence>
+        {isHovered && !large && (
+          <motion.div
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            transition={{ duration: 0.15 }}
+            className="hidden sm:block px-3 py-2 rounded-xl bg-[#090d16]/95 border border-cyan-400/40 text-sm text-white shadow-xl backdrop-blur-xl pointer-events-none"
+          >
+            Ask EVA to plan a route
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          <p className="text-[11px] font-sans font-medium text-zinc-100 leading-snug">
-            {isHovered ? "Click to open EVA Copilot or drag me! ↗" : EVA_MESSAGES[messageIndex]}
-          </p>
-        </motion.div>
+      {/* While the home hero is on screen the mascot speaks first */}
+      <AnimatePresence>
+        {large && (
+          <motion.div
+            key="home-quote"
+            initial={{ opacity: 0, y: 8, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 22, delay: 0.6 }}
+            className="absolute bottom-full right-1 mb-1"
+          >
+            <button
+              ref={bubbleRef}
+              onClick={() => { marsAudio.playUiClick?.(); setAresCopilotOpen(true); }}
+              className="relative block whitespace-nowrap rounded-2xl rounded-br-md bg-white text-slate-900 px-4 py-2.5 text-sm font-medium shadow-[0_10px_30px_rgba(0,0,0,0.45)] cursor-pointer will-change-transform"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={quoteIndex}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.22 }}
+                  className="block"
+                >
+                  {QUOTES[quoteIndex]}
+                </motion.span>
+              </AnimatePresence>
+              <span className="absolute -bottom-1.5 right-5 w-3 h-3 rotate-45 bg-white" aria-hidden="true" />
+            </button>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* 3D Interactive Mascot (Compact & Completely Draggable) */}
       <motion.div
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.95 }}
+        whileTap={{ scale: 0.96 }}
         onMouseEnter={() => {
           setIsHovered(true);
           marsAudio.playUiHover?.();
@@ -282,15 +317,16 @@ export default function AresFloatingButton() {
           marsAudio.playUiClick?.();
           setAresCopilotOpen(true);
         }}
-        className="relative w-20 h-20 sm:w-22 sm:h-22 flex items-center justify-center group"
+        className="relative w-20 h-20 flex items-center justify-center group"
       >
         {/* Soft Ambient Floating Shadow */}
         <div className="absolute -bottom-1 w-12 h-2.5 bg-cyan-500/20 blur-sm rounded-full pointer-events-none transition-all duration-300 group-hover:scale-125 group-hover:bg-cyan-400/35" />
 
         {/* 3D Canvas rendering the Robot Mascot freely floating */}
-        <div className="relative w-full h-full overflow-visible pointer-events-none">
+        {/* The canvas is 1.5x the hit area with the camera pulled back to match, so the waving arm is never clipped */}
+        <div className="absolute left-1/2 top-1/2 w-[150%] h-[150%] -translate-x-1/2 -translate-y-1/2 pointer-events-none">
           <Canvas
-            camera={{ position: [0, 0, 2.5], fov: 46 }}
+            camera={{ position: [0, 0, 3.75], fov: 46 }}
             gl={{ alpha: true, antialias: true }}
             style={{ width: '100%', height: '100%', background: 'transparent' }}
             dpr={[1, 1.5]}
@@ -302,8 +338,7 @@ export default function AresFloatingButton() {
         </div>
 
         {/* Subtle Online Status Pill Badge */}
-        <span className="absolute top-1 right-2 flex h-2.5 w-2.5 z-20 pointer-events-none">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+        <span ref={dotRef} className="absolute top-1 right-2 flex h-2.5 w-2.5 z-20 pointer-events-none will-change-transform">
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 shadow-[0_0_6px_#34d399]" />
         </span>
       </motion.div>

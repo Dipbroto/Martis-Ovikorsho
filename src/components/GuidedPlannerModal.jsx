@@ -25,11 +25,21 @@ export default function GuidedPlannerModal() {
   const triggerContingency = useMapStore((s) => s.triggerContingency);
   const setContingencyModalOpen = useMapStore((s) => s.setContingencyModalOpen);
 
-  const [pairId, setPairId] = useState(null);
+  const presetPairId = useMapStore((s) => s.guidedPlannerPairId);
+  const [pairId, setPairId] = useState(presetPairId);
   const [mode, setMode] = useState('safety');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+
+  // Opening from a site card on the home page preselects that site
+  useEffect(() => {
+    if (open) {
+      setPairId(presetPairId);
+      setResult(null);
+      setError(null);
+    }
+  }, [open, presetPairId]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -86,7 +96,7 @@ export default function GuidedPlannerModal() {
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08] shrink-0">
               <div>
-                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#ff8c69]">Step {step} of 3</div>
+                <div className="text-xs text-[#ffa07f] font-medium">Step {step} of 3</div>
                 <h2 className="text-lg font-bold">Plan a Marswalk</h2>
               </div>
               <button onClick={() => setOpen(false)} className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5" aria-label="Close">
@@ -98,7 +108,7 @@ export default function GuidedPlannerModal() {
               {!result && (
                 <>
                   <section>
-                    <h3 className="font-mono text-xs uppercase tracking-widest text-cyan-300 mb-2">1. Where are you going?</h3>
+                    <h3 className="text-sm font-semibold text-white mb-2.5">1. Where do you want to walk?</h3>
                     <div className="grid sm:grid-cols-2 gap-2">
                       {AUTONOMOUS_TARGET_PAIRS.map((p) => (
                         <button
@@ -107,7 +117,7 @@ export default function GuidedPlannerModal() {
                           className={`text-left p-3 rounded-lg border transition-all ${pairId === p.id ? 'border-cyan-400/70 bg-cyan-950/40' : 'border-white/10 bg-white/[0.03] hover:border-white/30'}`}
                         >
                           <div className="font-semibold text-sm flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-[#ff8c69]" />{p.name}</div>
-                          <div className="text-[11px] text-zinc-400 font-mono mt-0.5">{p.location}</div>
+                          <div className="text-xs text-zinc-400 mt-0.5">{p.location}</div>
                         </button>
                       ))}
                     </div>
@@ -115,7 +125,7 @@ export default function GuidedPlannerModal() {
 
                   {pair && (
                     <section>
-                      <h3 className="font-mono text-xs uppercase tracking-widest text-cyan-300 mb-2">2. What matters most?</h3>
+                      <h3 className="text-sm font-semibold text-white mb-2.5">2. What matters most on this walk?</h3>
                       <div className="grid grid-cols-3 gap-2">
                         {Object.entries(ROUTING_MODES).map(([key, m]) => {
                           const Icon = MODE_ICONS[key];
@@ -126,8 +136,8 @@ export default function GuidedPlannerModal() {
                               className={`p-3 rounded-lg border text-center transition-all ${mode === key ? 'border-emerald-400/70 bg-emerald-950/40' : 'border-white/10 bg-white/[0.03] hover:border-white/30'}`}
                             >
                               <Icon className="w-4 h-4 mx-auto mb-1 text-emerald-300" />
-                              <div className="text-xs font-bold">{m.label}</div>
-                              <div className="text-[10px] text-zinc-400 font-mono">{m.detail}</div>
+                              <div className="text-sm font-semibold">{m.label}</div>
+                              <div className="text-xs text-zinc-400">{m.detail}</div>
                             </button>
                           );
                         })}
@@ -143,7 +153,7 @@ export default function GuidedPlannerModal() {
                         {busy && <Loader2 className="w-4 h-4 animate-spin" />}
                         {busy ? 'Planning on real terrain...' : 'Plan the route'}
                       </button>
-                      {error && <p className="mt-2 text-xs font-mono text-rose-300 bg-rose-950/40 border border-rose-500/30 rounded p-2">{error}</p>}
+                      {error && <p className="mt-2 text-sm text-rose-200 bg-rose-950/40 border border-rose-500/30 rounded-lg p-3">{error}</p>}
                     </section>
                   )}
                 </>
@@ -152,7 +162,7 @@ export default function GuidedPlannerModal() {
               {result && (
                 <>
                   <section>
-                    <h3 className="font-mono text-xs uppercase tracking-widest text-cyan-300 mb-2">3. Your route</h3>
+                    <h3 className="text-sm font-semibold text-white mb-2.5">Your route</h3>
                     <p className="text-sm text-zinc-200 leading-relaxed">{result.explainability.summary}</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 font-mono text-center">
                       {[
@@ -162,21 +172,21 @@ export default function GuidedPlannerModal() {
                         ['Life support', `${result.metrics.budgetSharePct}%`],
                       ].map(([k, v]) => (
                         <div key={k} className="bg-black/40 border border-white/[0.06] rounded-lg p-2">
-                          <div className="text-[9px] uppercase text-zinc-500">{k}</div>
-                          <div className={`text-sm font-bold ${k === 'Life support' && result.metrics.budgetSharePct > 50 ? 'text-rose-400' : 'text-white'}`}>{v}</div>
+                          <div className="text-xs text-zinc-400">{k}</div>
+                          <div className={`text-base font-semibold ${k === 'Life support' && result.metrics.budgetSharePct > 50 ? 'text-rose-400' : 'text-white'}`}>{v}</div>
                         </div>
                       ))}
                     </div>
                     {result.metrics.budgetSharePct > 50 && (
                       <p className="mt-2 flex items-start gap-2 text-xs text-rose-300"><AlertTriangle className="w-4 h-4 shrink-0" />One way uses over half the usable life support, so the walk back would not fit.</p>
                     )}
-                    <ul className="mt-3 space-y-1 text-[11px] text-zinc-400 font-mono">
+                    <ul className="mt-3 space-y-1.5 text-sm text-zinc-300 leading-relaxed">
                       {result.explainability.rationale.map((r) => <li key={r}>▸ {r}</li>)}
                     </ul>
                   </section>
 
                   <section>
-                    <h3 className="font-mono text-xs uppercase tracking-widest text-cyan-300 mb-2">Check it for survival</h3>
+                    <h3 className="text-sm font-semibold text-white mb-2.5">Now check you can survive it</h3>
                     <div className="grid sm:grid-cols-3 gap-2">
                       {OVERLAY_ACTIONS.map(({ key, label, icon: Icon }) => (
                         <button key={key} onClick={() => showOverlay(key)} className="p-3 rounded-lg border border-white/10 bg-white/[0.03] hover:border-emerald-400/60 hover:bg-emerald-950/30 text-xs font-semibold flex items-center gap-2 text-left">
@@ -190,8 +200,8 @@ export default function GuidedPlannerModal() {
                   </section>
 
                   <div className="flex gap-2">
-                    <button onClick={() => { setSidebarTab('route'); setOpen(false); }} className="flex-1 py-2 rounded-lg bg-white text-black text-xs font-bold font-mono uppercase">Open on the map</button>
-                    <button onClick={reset} className="px-4 py-2 rounded-lg border border-white/15 text-xs font-mono text-zinc-300 hover:text-white flex items-center gap-1"><ChevronLeft className="w-3.5 h-3.5" />Plan another</button>
+                    <button onClick={() => { setSidebarTab('route'); setOpen(false); }} className="flex-1 py-3 rounded-lg bg-white hover:bg-zinc-200 text-black text-base font-semibold cursor-pointer">See it on the map</button>
+                    <button onClick={reset} className="px-4 py-3 rounded-lg border border-white/15 text-sm text-zinc-300 hover:text-white flex items-center gap-1 cursor-pointer"><ChevronLeft className="w-3.5 h-3.5" />Plan another</button>
                   </div>
                 </>
               )}

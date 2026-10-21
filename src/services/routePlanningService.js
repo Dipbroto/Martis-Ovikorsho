@@ -48,7 +48,7 @@ export async function planAndApplyRoute({ origin, destination, mode = 'safety', 
   const result = await generateAutonomousTraverse(start, dest, { mode });
   const { setWaypoints, setRouteGeometry, setMapCenter, setMapZoom } = useMapStore.getState();
   setWaypoints(result.waypoints);
-  setRouteGeometry({ signature: routeSignature(result.waypoints), points: result.path, source: result.grid.source });
+  setRouteGeometry({ signature: routeSignature(result.waypoints), points: result.path, stations: result.stations, source: result.grid.source });
   setMapCenter([(start.lat + dest.lat) / 2, (start.lon + dest.lon) / 2]);
   setMapZoom(zoom);
   return result;

@@ -37,6 +37,9 @@ const useMapStore = create((set, get) => ({
   viewMode: '2d', // '2d' | '3d' | 'split'
   
   setMapCenter: (center) => set({ mapCenter: center }),
+  // Where the 2D map is actually looking (updated on pan/zoom). mapCenter is only the fly-to target.
+  viewCenter: null,
+  setViewCenter: (center) => set({ viewCenter: center }),
   setMapZoom: (zoom) => set({ mapZoom: zoom }),
   setCursorPosition: (pos) => set({ cursorPosition: pos }),
   setViewMode: (mode) => set({ viewMode: mode, isEVASimulating: false }),
@@ -119,7 +122,7 @@ const useMapStore = create((set, get) => ({
 
   // Full-resolution path from the terrain planner. Only drawn while `signature` still matches the
   // waypoint ids it was planned for (see routeSignature), so manual edits hide stale geometry.
-  routeGeometry: null, // { signature, points: [[lat, lon]], source }
+  routeGeometry: null, // { signature, points: [[lat, lon, elevation]], stations: [track index per waypoint], source }
   setRouteGeometry: (routeGeometry) => set({ routeGeometry }),
   setSelectedWaypoint: (id) => set({ selectedWaypointId: id }),
   reorderWaypoints: (newOrder) => set({ waypoints: newOrder }),
@@ -159,6 +162,8 @@ const useMapStore = create((set, get) => ({
   toggleRoverTraverses: () => set((state) => ({ showRoverTraverses: !state.showRoverTraverses })),
 
   // Real-terrain survival overlays drawn on the 2D map
+  homeHeroVisible: false, // true while the home hero is on screen; the EVA mascot grows to match
+  setHomeHeroVisible: (homeHeroVisible) => set({ homeHeroVisible }),
   terrainOverlay: null, // null | 'slope' | 'return' | 'comms'
   setTerrainOverlay: (mode) => set((state) => ({ terrainOverlay: state.terrainOverlay === mode ? null : mode })),
   terrainOverlayStatus: null, // written by TerrainOverlayLayer for the legend/status card
@@ -517,7 +522,8 @@ const useMapStore = create((set, get) => ({
       });
       routeGeometry = {
         signature: abortWaypoints.map((w) => w.id).join('|'),
-        points: plan.path.map((p) => [p.lat, p.lon]),
+        points: plan.path.map((p) => [p.lat, p.lon, p.elevation]),
+        stations: plan.keyIndices,
         source: plan.grid.source,
       };
     } catch (err) {
@@ -559,6 +565,7 @@ const useMapStore = create((set, get) => ({
   isAuthModalOpen: false,
   isDataMethodsOpen: false,
   isGuidedPlannerOpen: false,
+  guidedPlannerPairId: null, // site to preselect when the guided planner opens
   isProfileModalOpen: false,
   isAresCopilotOpen: false,
   
@@ -566,7 +573,7 @@ const useMapStore = create((set, get) => ({
   setProfile: (profile) => set({ profile }),
   setAuthModalOpen: (val) => set({ isAuthModalOpen: val }),
   setDataMethodsOpen: (val) => set({ isDataMethodsOpen: val }),
-  setGuidedPlannerOpen: (val) => set({ isGuidedPlannerOpen: val }),
+  setGuidedPlannerOpen: (val, pairId = null) => set({ isGuidedPlannerOpen: val, guidedPlannerPairId: val ? pairId : null }),
   setProfileModalOpen: (val) => set({ isProfileModalOpen: val }),
   setAresCopilotOpen: (val) => set((state) => ({
     isAresCopilotOpen: typeof val === 'boolean' ? val : !state.isAresCopilotOpen

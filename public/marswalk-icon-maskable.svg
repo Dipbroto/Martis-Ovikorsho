@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#06080c"/>
+  <mask id="trail" x="0" y="0" width="32" height="32" maskUnits="userSpaceOnUse">
+    <rect width="32" height="32" fill="#fff"/>
+    <path d="M0 24.5 C7 24.5 9.5 17.5 16 17.5 S 24 9.5 32 9.5" fill="none" stroke="#000" stroke-width="2.8" stroke-linecap="round"/>
+  </mask>
+  <g transform="translate(9.6 9.6) scale(1.4)">
+    <circle cx="16" cy="16" r="15" fill="#F26A3D" mask="url(#trail)"/>
+  </g>
+</svg>

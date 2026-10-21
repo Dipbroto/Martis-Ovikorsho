@@ -3,6 +3,8 @@ import useMapStore from '../store/useMapStore';
 import { playLaserZap, playSampleSeal } from '../utils/audioSynthesizer';
 import { fetchScienceTargets } from '../services/nasaApiService';
 import { generateScienceReport } from '../services/aiService';
+import { supabase } from '../lib/supabase';
+import { fetchProfile } from '../services/profileService';
 
 /**
  * Shared state and handlers for the In-Situ Science Lab. Used by both the full-page
@@ -127,19 +129,44 @@ export default function useScienceLab({ enabled = true } = {}) {
   };
 
   // Seal sample in MSR tube
+  const [cacheError, setCacheError] = useState(null);
+
   const handleCacheSample = () => {
     if (!target) return;
     setIsSealingTube(true);
+    setCacheError(null);
     playSampleSeal?.();
 
-    setTimeout(() => {
+    const notes = customTubeNotes || `Harvested from ${target.location}`;
+    setTimeout(async () => {
       addSample({
         id: Date.now().toString(),
         name: target.name,
         rockType: target.formation,
         status: 'SEALED IN CACHE',
-        notes: customTubeNotes || `Harvested from ${target.location}`
+        notes
       });
+
+      // Signed-in crews also log the sample to their profile (the database counts it)
+      const user = useMapStore.getState().user;
+      if (user) {
+        const ph = parseFloat(aiReport?.phLevel);
+        const { error } = await supabase.from('science_logs').insert({
+          user_id: user.id,
+          target_id: target.id,
+          target_name: target.name,
+          mineralogy: aiReport?.mineralogy || target.mineralogy || null,
+          ph_level: Number.isFinite(ph) ? ph : null,
+          notes: notes.slice(0, 2000),
+        });
+        if (error) {
+          console.warn('Could not save sample to profile:', error.message);
+          setCacheError('Sealed locally, but saving to your profile failed.');
+        } else {
+          fetchProfile(user.id);
+        }
+      }
+
       setIsSealingTube(false);
       setCachedSuccess(true);
       setCustomTubeNotes('');
@@ -223,6 +250,7 @@ export default function useScienceLab({ enabled = true } = {}) {
     triggerLaserAblation,
     runAiAnalysis,
     handleCacheSample,
+    cacheError,
     paleoDiagnosis,
   };
 }

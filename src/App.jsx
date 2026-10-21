@@ -10,12 +10,12 @@ import MountOnFirstOpen from './components/MountOnFirstOpen';
 import { supabase } from './lib/supabase';
 import { fetchProfile } from './services/profileService';
 
-import { Radar, ChevronLeft } from 'lucide-react';
 
 // Everything below is split into its own chunk and only downloaded when it is first needed
 const Sidebar = lazy(() => import('./components/Sidebar'));
 const BottomPanel = lazy(() => import('./components/BottomPanel'));
-const RightSidebar = lazy(() => import('./components/RightSidebar'));
+const MapToolbar = lazy(() => import('./components/MapToolbar'));
+const MapWelcome = lazy(() => import('./components/MapWelcome'));
 const MarsMap = lazy(() => import('./components/MarsMap'));
 const Mars3DViewer = lazy(() => import('./components/Mars3DViewer'));
 const MartianSkyEphemeris = lazy(() => import('./components/MartianSkyEphemeris'));
@@ -53,8 +53,6 @@ const ScrollPage = ({ children }) => (
 function App() {
   const viewMode = useMapStore(s => s.viewMode);
   const showLoadingScreen = useMapStore(s => s.showLoadingScreen);
-  const rightSidebarOpen = useMapStore(s => s.rightSidebarOpen);
-  const setRightSidebarOpen = useMapStore(s => s.setRightSidebarOpen);
   const activeTab = useMapStore(s => s.activeTab);
   const setActiveTab = useMapStore(s => s.setActiveTab);
   const isScienceLabOpen = useMapStore(s => s.isScienceLabOpen);
@@ -122,9 +120,7 @@ function App() {
       <main className="w-full h-full relative">
         {/* TAB 1: MISSION HUB & OVERVIEW */}
         {activeTab === 'home' && (
-          <div className="w-full h-screen overflow-y-auto overflow-x-hidden relative bg-[#040508] custom-scrollbar">
-            <HomeHero onSelectTab={(tab) => setActiveTab(tab)} />
-          </div>
+          <HomeHero onSelectTab={(tab) => setActiveTab(tab)} />
         )}
 
         {/* TAB 2: INTERACTIVE MARS MAP & 3D CARTOGRAPHY */}
@@ -153,33 +149,17 @@ function App() {
               </ErrorBoundary>
             </div>
 
-            {/* Floating UI Layer for Map Section */}
-            <div className="relative z-10 flex flex-col h-full w-full pointer-events-none pt-20">
-              <div className="flex-1 flex overflow-hidden justify-end p-4 gap-4">
-                <div className="pointer-events-auto h-full flex flex-col items-end">
-                  <ErrorBoundary>
-                    <Suspense fallback={null}>
-                      <RightSidebar />
-                    </Suspense>
-                  </ErrorBoundary>
-
-                  {!rightSidebarOpen && (
-                    <button
-                      onClick={() => setRightSidebarOpen(true)}
-                      className="mt-auto mb-auto bg-[#0B0C10]/95 border border-cyber-cyan/40 hover:border-cyber-cyan hover:bg-space-900 text-cyber-cyan px-2 py-4 rounded-xl shadow-hud-glass cursor-pointer transition-all flex flex-col items-center gap-2 group backdrop-blur-md"
-                      title="Open HUD Telemetry Feed"
-                    >
-                      <Radar className="w-4 h-4 text-cyber-cyan group-hover:scale-110 transition-transform animate-pulse" />
-                      <ChevronLeft className="w-4 h-4 text-space-400 group-hover:text-cyber-cyan" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+            {/* Map controls: view, survival checks, layers, tools and route actions */}
+            <ErrorBoundary>
+              <Suspense fallback={null}>
+                <MapToolbar />
+                <MapWelcome />
+              </Suspense>
+            </ErrorBoundary>
 
             {/* FIXED LEFT SIDEBAR */}
-            <div className="fixed left-4 top-1/2 -translate-y-1/2 z-[400] pointer-events-none">
-              <div className="pointer-events-auto flex flex-col">
+            <div className="fixed left-3 top-[172px] sm:top-[150px] bottom-24 z-[400] pointer-events-none flex">
+              <div className="pointer-events-auto flex flex-col min-h-0 max-h-full">
                 <ErrorBoundary>
                   <Suspense fallback={null}>
                     <Sidebar />
@@ -199,10 +179,6 @@ function App() {
               </div>
             </div>
 
-            {/* Version Badge */}
-            <div className="absolute bottom-1 right-1 text-[9px] text-space-600 font-mono pointer-events-none select-none z-10">
-              MarsWalk Explorer v2.5 • NASA Space Apps Challenge 2026
-            </div>
           </div>
         )}
 

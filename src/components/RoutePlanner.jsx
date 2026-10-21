@@ -188,7 +188,7 @@ export default function RoutePlanner() {
 
       if (autoApply && result.waypoints) {
         setWaypoints(result.waypoints);
-        setRouteGeometry({ signature: routeSignature(result.waypoints), points: result.path, source: result.grid.source });
+        setRouteGeometry({ signature: routeSignature(result.waypoints), points: result.path, stations: result.stations, source: result.grid.source });
         if (targetCenter) {
           setMapCenter(targetCenter);
           setMapZoom(targetZoom);
@@ -221,7 +221,8 @@ export default function RoutePlanner() {
         user_id: user.id,
         title,
         waypoints,
-        total_distance: distance,
+        total_distance: distance, // recomputed by the database from the waypoints
+        estimated_duration_hours: estimateRouteEVA(waypoints).totalHours,
         is_public: false
       });
 
@@ -248,6 +249,7 @@ export default function RoutePlanner() {
     setRouteGeometry({
       signature: routeSignature(generatedRouteResult.waypoints),
       points: generatedRouteResult.path,
+      stations: generatedRouteResult.stations,
       source: generatedRouteResult.grid.source,
     });
     const pair = AUTONOMOUS_TARGET_PAIRS.find(p => p.id === selectedPairId);
@@ -324,9 +326,9 @@ export default function RoutePlanner() {
             <div className="text-[10px] uppercase font-mono tracking-wider text-space-400 mb-1.5 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Compass className="w-3.5 h-3.5 text-mars-400" />
-                <span>NASA Expedition Presets</span>
+                <span>Example expeditions</span>
               </span>
-              <ProvenanceBadge type="OBSERVED" size="xs" detail="Rover Tracks" />
+              <ProvenanceBadge type="SIMULATED" size="xs" detail="Illustrative routes" />
             </div>
             <select
               onChange={(e) => {
@@ -336,7 +338,7 @@ export default function RoutePlanner() {
               value={activePresetId || ''}
               className="w-full bg-space-800 border border-space-700 text-xs text-primary rounded px-2.5 py-1.5 focus:outline-none focus:border-mars-500 transition-colors"
             >
-              <option value="" disabled>Select a NASA Expedition Route...</option>
+              <option value="" disabled>Choose an example expedition...</option>
               {expeditionPresets.map((preset) => (
                 <option key={preset.id} value={preset.id}>
                   {preset.name} ({preset.distanceKm} km)
@@ -968,7 +970,7 @@ export default function RoutePlanner() {
             }`}
           >
             {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
-            <span>{syncStatus === 'success' ? 'Mission Published!' : syncStatus === 'error' ? 'Sync Failed' : 'Publish to Global Network'}</span>
+            <span>{syncStatus === 'success' ? 'Mission Saved!' : syncStatus === 'error' ? 'Save Failed' : 'Save to My Missions'}</span>
           </button>
         )}
 

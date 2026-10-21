@@ -311,7 +311,7 @@ export default function FlightPlanModal() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] text-space-400 uppercase block print:text-gray-600">MAX TERRAIN SLOPE</span>
-                <ProvenanceBadge type="DERIVED" size="xs" detail="MOLA-anchored model" />
+                <ProvenanceBadge type="DERIVED" size="xs" detail="From MOLA / HRSC DEM" />
               </div>
               <span className="text-base font-bold text-green-400 print:text-black">{stats?.maxSlope?.toFixed(1) || 0}°</span>
             </div>
@@ -424,9 +424,9 @@ export default function FlightPlanModal() {
                 <tbody className="divide-y divide-space-800/50 print:divide-black">
                   <tr>
                     <td className="p-2 font-bold text-white print:text-black">Martian Elevation</td>
-                    <td className="p-2 text-space-300 print:text-black">Interpolated from MGS MOLA reference elevations (not raw DEM tiles)</td>
-                    <td className="p-2"><ProvenanceBadge type="DERIVED" size="xs" detail="IDW model" /></td>
-                    <td className="p-2 text-amber-400 print:text-black">Approximation</td>
+                    <td className="p-2 text-space-300 print:text-black">HRSC-MOLA blended DEM (200 m) at hero sites, MGS MOLA 15 km grid elsewhere</td>
+                    <td className="p-2"><ProvenanceBadge type="OBSERVED" size="xs" detail="Laser + stereo DEM" /></td>
+                    <td className="p-2 text-emerald-400 print:text-black">USGS / PDS</td>
                   </tr>
                   <tr>
                     <td className="p-2 font-bold text-white print:text-black">Cartographic Imagery</td>

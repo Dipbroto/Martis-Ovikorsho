@@ -95,27 +95,30 @@ export function pressureAtElevation(elevationM) {
   return MARS.ATMOSPHERE_PRESSURE * Math.exp(-elevationM / MARS.SCALE_HEIGHT);
 }
 
-// Radiation dose estimation
-// Based on RAD instrument data from Curiosity
+// Radiation dose estimation (model).
+// Anchors: Curiosity RAD measured ~0.67 mSv/day on the surface in Gale Crater (Hassler et al. 2014, elevation
+// about -4.5 km) and ~1.84 mSv/day in interplanetary cruise (Zeitlin et al. 2013). The dose is interpolated
+// between those two on the atmospheric column above the site, which shrinks with altitude (scale height ~10.8 km).
+const RAD_SURFACE_GALE_MSV_DAY = 0.67;
+const RAD_FREE_SPACE_MSV_DAY = 1.84;
+const RAD_GALE_ELEVATION_M = -4500;
+
 export function estimateRadiation(durationHours, elevationM) {
-  // Surface GCR dose rate: ~0.67 mSv/day (from RAD data)
-  const baseDoseRate = 0.67 / 24; // mSv per hour
-  
-  // Atmospheric shielding varies with elevation
-  // Lower = more atmosphere = more shielding
-  const columnDensity = Math.exp(-elevationM / MARS.SCALE_HEIGHT);
-  const shieldingFactor = 1 / columnDensity; // Higher elevation = less shielding
-  
-  const adjustedRate = baseDoseRate * shieldingFactor;
+  const elevation = Number.isFinite(elevationM) ? elevationM : RAD_GALE_ELEVATION_M;
+  // Atmospheric column relative to Gale Crater
+  const columnRatio = Math.exp(-(elevation - RAD_GALE_ELEVATION_M) / MARS.SCALE_HEIGHT);
+  const transmission = RAD_SURFACE_GALE_MSV_DAY / RAD_FREE_SPACE_MSV_DAY;
+  const dailyDose = RAD_FREE_SPACE_MSV_DAY * Math.pow(transmission, columnRatio);
+  const adjustedRate = dailyDose / 24;
   const totalDose = adjustedRate * durationHours;
-  
+
   return {
     doseRate: Math.round(adjustedRate * 1000) / 1000, // mSv/hr
     totalDose: Math.round(totalDose * 100) / 100,     // mSv
-    dailyDose: Math.round(adjustedRate * 24 * 100) / 100, // mSv/day
-    annualDose: Math.round(adjustedRate * 24 * 365),   // mSv/year
-    nasaCareerLimit: 600, // mSv (NASA career limit)
-    daysToLimit: Math.round(600 / (adjustedRate * 24)),
+    dailyDose: Math.round(dailyDose * 100) / 100,     // mSv/day
+    annualDose: Math.round(dailyDose * 365),          // mSv/year
+    nasaCareerLimit: 600, // mSv (NASA-STD-3001 career effective dose limit)
+    daysToLimit: Math.round(600 / dailyDose),
   };
 }
 
@@ -166,17 +169,23 @@ export function estimatePowerConsumption(durationHours, tempC = -60) {
 }
 
 // Mars Date/Time
+// Mars Year numbering follows Clancy et al. (2000): Mars Year 1 began on 1955-04-11 (Ls = 0).
+const MY1_START_JD = 2435208.5;
+const MARS_YEAR_EARTH_DAYS = 686.9725;
+const SOL_EARTH_DAYS = 1.0274912517;
+
 export function marsDateFromEarthDate(earthDate = new Date()) {
   const millis = earthDate.getTime();
   const jdUT = 2440587.5 + (millis / 86400000);
   const jdTT = jdUT + (69.184 / 86400);
   const deltaJ2000 = jdTT - 2451545.0;
-  const msd = (deltaJ2000 - 4.5) / 1.0274912517 + 44796.0 - 0.00096;
-  
-  const marsYear = Math.floor((msd - 0) / MARS.YEAR_SOLS) + 1;
-  const solOfYear = Math.floor(msd % MARS.YEAR_SOLS);
+  const msd = (deltaJ2000 - 4.5) / SOL_EARTH_DAYS + 44796.0 - 0.00096;
+
+  const marsYear = Math.floor((jdUT - MY1_START_JD) / MARS_YEAR_EARTH_DAYS) + 1;
+  const yearStartJD = MY1_START_JD + (marsYear - 1) * MARS_YEAR_EARTH_DAYS;
+  const solOfYear = Math.floor((jdUT - yearStartJD) / SOL_EARTH_DAYS);
   const mtcHours = (msd % 1) * 24;
-  
+
   return {
     msd: Math.floor(msd),
     marsYear,

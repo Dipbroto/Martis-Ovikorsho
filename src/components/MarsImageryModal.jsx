@@ -90,7 +90,7 @@ export default function MarsImageryModal() {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-zinc-400 text-xs font-mono">✦</span>
                   <span className="text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.22em] text-[#ff8c69] font-medium">
-                    MARS WALK EXPLORER / RECONNAISSANCE ARCHIVES
+                    MARSWALK / RECONNAISSANCE ARCHIVES
                   </span>
                 </div>
                 <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">

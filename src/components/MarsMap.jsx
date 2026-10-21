@@ -9,11 +9,11 @@ import { marsDistance, calculateSlope, MARS } from '../utils/marsUtils';
 import CoordinateDisplay from './CoordinateDisplay';
 import POIMarkers from './POIMarkers';
 import RoverTraverses from './RoverTraverses';
-import { ResourceLayer, ResourcePanel, RESOURCE_OVERLAYS } from './ResourceOverlays';
-import { TerrainOverlayLayer, TerrainOverlayPanel, TERRAIN_OVERLAYS } from './TerrainOverlay';
+import { ResourceLayer, ResourcePanel } from './ResourceOverlays';
+import { TerrainOverlayLayer, TerrainOverlayPanel } from './TerrainOverlay';
 import { routeSignature } from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
-import { Compass, Route, Shield, Play, Pause, Ruler, Globe, Crosshair, RotateCcw, Video, VideoOff, Grid } from 'lucide-react';
+import { Play, Pause, Ruler, RotateCcw } from 'lucide-react';
 
 // Leaflet's geodesic <Circle> converts metres to degrees with Earth's radius when using EPSG:4326,
 // so real Martian distances have to be scaled up to render at the correct size on this map.
@@ -107,8 +107,13 @@ const MapEvents = () => {
   const isRulerActive = useMapStore((s) => s.isRulerActive);
   const addRulerPoint = useMapStore((s) => s.addRulerPoint);
   const clearSelection = useMapStore((s) => s.clearSelection);
+  const setViewCenter = useMapStore((s) => s.setViewCenter);
 
   useMapEvents({
+    moveend(e) {
+      const c = e.target.getCenter();
+      setViewCenter([c.lat, c.lng]);
+    },
     mousemove(e) {
       const lat = Math.max(-90, Math.min(90, e.latlng.lat));
       let lon = ((e.latlng.lng + 180) % 360);
@@ -145,8 +150,13 @@ const MapViewController = () => {
 
   useEffect(() => {
     if (mapCenter && Array.isArray(mapCenter) && mapCenter.length === 2) {
+      if (!mapCenter.every(Number.isFinite)) return;
       const targetZoom = Math.min(Math.max(typeof mapZoom === 'number' ? mapZoom : 2, 0), 12);
-      map.flyTo(mapCenter, targetZoom, { duration: 1.2 });
+      const size = map.getSize();
+      // flyTo divides by the container size; a hidden or zero-sized map (background tab, collapsed
+      // split view) would produce NaN coordinates and crash the map, so jump without animating there.
+      if (size.x > 0 && size.y > 0) map.flyTo(mapCenter, targetZoom, { duration: 1.2 });
+      else map.setView(mapCenter, targetZoom, { animate: false });
     }
   }, [mapCenter, mapZoom, map]);
 
@@ -209,31 +219,55 @@ const RoverSimulator = ({ waypoints }) => {
   const camFollowRef = useRef(camFollow);
   camFollowRef.current = camFollow;
 
-  const waypointLatLngs = useMemo(
-    () => (waypoints || []).map((w) => [w.lat, w.lon]),
-    [waypoints]
-  );
+  // The rover drives the full planned path when the planner produced one for these waypoints;
+  // otherwise straight legs between waypoints. `stations` maps each waypoint to its track index.
+  const routeGeometry = useMapStore((s) => s.routeGeometry);
+  const track = useMemo(() => {
+    const wps = waypoints || [];
+    const planned = routeGeometry
+      && routeGeometry.signature === routeSignature(wps)
+      && Array.isArray(routeGeometry.stations)
+      && routeGeometry.stations.length === wps.length;
+    if (planned) {
+      return {
+        pts: routeGeometry.points.map(([lat, lon, elevation]) => ({ lat, lon, elevation })),
+        stations: routeGeometry.stations,
+      };
+    }
+    return { pts: wps.map((w) => ({ lat: w.lat, lon: w.lon, elevation: w.elevation })), stations: wps.map((_, i) => i) };
+  }, [waypoints, routeGeometry]);
+
+  const trackLatLngs = useMemo(() => track.pts.map((p) => [p.lat, p.lon]), [track]);
+
+  // Index of the last waypoint (station) reached at a given track segment
+  const stationAt = (segIdx) => {
+    let station = 0;
+    track.stations.forEach((t, i) => { if (t <= segIdx) station = i; });
+    return station;
+  };
 
   // Precompute cumulative physical distances along route for constant medium speed
   const routeDistances = useMemo(() => {
-    if (!waypoints || waypoints.length < 2) return { cumDists: [0], totalDistKm: 0 };
+    const pts = track.pts;
+    if (pts.length < 2) return { cumDists: [0], totalDistKm: 0 };
     const cumDists = [0];
     let sum = 0;
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const d = Math.max(0.01, marsDistance(waypoints[i].lat, waypoints[i].lon, waypoints[i + 1].lat, waypoints[i + 1].lon));
+    for (let i = 0; i < pts.length - 1; i++) {
+      const d = Math.max(0.001, marsDistance(pts[i].lat, pts[i].lon, pts[i + 1].lat, pts[i + 1].lon));
       sum += d;
       cumDists.push(sum);
     }
     return { cumDists, totalDistKm: sum };
-  }, [waypoints]);
+  }, [track]);
 
   // Target spot calculation: if driveTargetWaypointId is set, drive to that specific station!
   const targetIndex = (driveTargetWaypointId && waypoints)
     ? waypoints.findIndex((w) => w.id === driveTargetWaypointId)
     : -1;
 
-  const targetDistKm = (targetIndex > 0 && routeDistances.cumDists[targetIndex])
-    ? routeDistances.cumDists[targetIndex]
+  const targetTrackIndex = targetIndex >= 0 ? track.stations[targetIndex] : -1;
+  const targetDistKm = (targetTrackIndex > 0 && routeDistances.cumDists[targetTrackIndex])
+    ? routeDistances.cumDists[targetTrackIndex]
     : routeDistances.totalDistKm;
 
   // Active target waypoint for popup & telemetry
@@ -241,9 +275,9 @@ const RoverSimulator = ({ waypoints }) => {
 
   // Traveled path behind the rover wheels. Its last vertex is advanced imperatively every frame.
   const traveledPositions = useMemo(() => {
-    const done = waypointLatLngs.slice(0, currentSegIdx + 1);
+    const done = trackLatLngs.slice(0, currentSegIdx + 1);
     return [...done, coordRef.current || anchorCoord || done[done.length - 1]].filter(Boolean);
-  }, [waypointLatLngs, currentSegIdx, anchorCoord]);
+  }, [trackLatLngs, currentSegIdx, anchorCoord]);
 
   // Sync initial coordinate when waypoints load or change, or progress reset
   useEffect(() => {
@@ -288,7 +322,7 @@ const RoverSimulator = ({ waypoints }) => {
     let lastTime = performance.now();
 
     // Trip distance: if targeted to a waypoint, the segment distance to target; otherwise total route
-    const tripDistKm = (targetIndex > 0 && targetDistKm > 0) ? targetDistKm : totalDistKm;
+    const tripDistKm = (targetTrackIndex > 0 && targetDistKm > 0) ? targetDistKm : totalDistKm;
 
     // Balanced, highly perceptible pacing:
     // - Very short manual points (< 5 km): ~6 to 8 seconds total traverse (clearly visible movement!)
@@ -300,7 +334,7 @@ const RoverSimulator = ({ waypoints }) => {
     const applyPosition = (latlng) => {
       coordRef.current = latlng;
       markerRef.current?.setLatLng(latlng);
-      const trail = [...waypointLatLngs.slice(0, segIdxRef.current + 1), latlng];
+      const trail = [...trackLatLngs.slice(0, segIdxRef.current + 1), latlng];
       trailGlowRef.current?.setLatLngs(trail);
       trailCoreRef.current?.setLatLngs(trail);
     };
@@ -322,7 +356,7 @@ const RoverSimulator = ({ waypoints }) => {
         marsAudio.playQuindarTone(false);
 
         // Snap to exact target coordinates
-        const arrivalWp = targetIndex >= 0 ? waypoints[targetIndex] : waypoints[waypoints.length - 1];
+        const arrivalWp = targetTrackIndex >= 0 ? track.pts[targetTrackIndex] : track.pts[track.pts.length - 1];
         if (arrivalWp) {
           const arrival = [arrivalWp.lat, arrivalWp.lon];
           applyPosition(arrival);
@@ -346,8 +380,8 @@ const RoverSimulator = ({ waypoints }) => {
       const segLength = Math.max(0.0001, segEndDist - segStartDist);
       const segFraction = Math.max(0, Math.min(1, (currentDistKm - segStartDist) / segLength));
 
-      const wpA = waypoints[segIdx];
-      const wpB = waypoints[segIdx + 1];
+      const wpA = track.pts[segIdx];
+      const wpB = track.pts[segIdx + 1];
 
       if (wpA && wpB) {
         const lat = wpA.lat + (wpB.lat - wpA.lat) * segFraction;
@@ -356,9 +390,10 @@ const RoverSimulator = ({ waypoints }) => {
         if (segIdx !== segIdxRef.current) {
           segIdxRef.current = segIdx;
           setCurrentSegIdx(segIdx);
-          // Keep active waypoint synced as rover physically crosses segments
-          if (useMapStore.getState().evaCurrentWaypointIndex !== segIdx) {
-            setEVACurrentWaypointIndex(segIdx);
+          // Keep the active waypoint synced as the rover passes stations
+          const station = stationAt(segIdx);
+          if (useMapStore.getState().evaCurrentWaypointIndex !== station) {
+            setEVACurrentWaypointIndex(station);
           }
         }
         applyPosition([lat, lon]);
@@ -427,7 +462,9 @@ const RoverSimulator = ({ waypoints }) => {
         setRoverProgress(progRef.current);
       }
     };
-  }, [isRoverDriving, waypoints, waypointLatLngs, targetDistKm, targetIndex, routeDistances, map, setEVACurrentWaypointIndex, setRoverProgress, setRoverDriving, setRoverBatterySoC, setRoverCurrentPosition]);
+    // stationAt only reads `track`, which is already a dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRoverDriving, waypoints, track, trackLatLngs, targetDistKm, targetTrackIndex, routeDistances, map, setEVACurrentWaypointIndex, setRoverProgress, setRoverDriving, setRoverBatterySoC, setRoverCurrentPosition]);
 
   const roverIcon = useMemo(
     () => createRoverIcon(telemetry.heading, isRoverDriving, telemetry.speed),
@@ -573,9 +610,7 @@ const MarsMap = () => {
 
   // New interactive states
   const showWalkbackLimits = useMapStore((s) => s.showWalkbackLimits);
-  const toggleWalkbackLimits = useMapStore((s) => s.toggleWalkbackLimits);
   const showGraticule = useMapStore((s) => s.showGraticule);
-  const toggleGraticule = useMapStore((s) => s.toggleGraticule);
   const isRoverDriving = useMapStore((s) => s.isRoverDriving);
   const setRoverDriving = useMapStore((s) => s.setRoverDriving);
   const roverProgress = useMapStore((s) => s.roverProgress);
@@ -583,24 +618,16 @@ const MarsMap = () => {
   const roverBatterySoC = useMapStore((s) => s.roverBatterySoC);
   const driveTargetWaypointId = useMapStore((s) => s.driveTargetWaypointId);
   const setDriveTargetWaypointId = useMapStore((s) => s.setDriveTargetWaypointId);
-  const camFollow = useMapStore((s) => s.camFollow);
-  const setCamFollow = useMapStore((s) => s.setCamFollow);
   const isRulerActive = useMapStore((s) => s.isRulerActive);
   const setRulerActive = useMapStore((s) => s.setRulerActive);
   const rulerPoints = useMapStore((s) => s.rulerPoints);
   const clearRuler = useMapStore((s) => s.clearRuler);
-  const setMapCenter = useMapStore((s) => s.setMapCenter);
-  const setMapZoom = useMapStore((s) => s.setMapZoom);
   const activeContingency = useMapStore((s) => s.activeContingency);
   const undoLastPoint = useMapStore((s) => s.undoLastPoint);
   const removeWaypoint = useMapStore((s) => s.removeWaypoint);
   const clearSelection = useMapStore((s) => s.clearSelection);
   const setPlacingWaypoint = useMapStore((s) => s.setPlacingWaypoint);
-  const setGuidedPlannerOpen = useMapStore((s) => s.setGuidedPlannerOpen);
   const showRoverTraverses = useMapStore((s) => s.showRoverTraverses);
-  const toggleRoverTraverses = useMapStore((s) => s.toggleRoverTraverses);
-  const terrainOverlay = useMapStore((s) => s.terrainOverlay);
-  const setTerrainOverlay = useMapStore((s) => s.setTerrainOverlay);
   const routeGeometry = useMapStore((s) => s.routeGeometry);
 
   // Global Keyboard Shortcuts (Ctrl+Z Undo, Escape Cancel, Backspace/Delete Delete Selected)
@@ -675,7 +702,7 @@ const MarsMap = () => {
           e.target.invalidateSize();
         }}
       >
-        <ZoomControl position="bottomright" />
+        <ZoomControl position="bottomleft" />
         <MapEvents />
         <MapViewController />
 
@@ -901,250 +928,9 @@ const MarsMap = () => {
         <RoverSimulator waypoints={waypoints} />
       </MapContainer>
 
-      {/* FLOATING MAP TOOLBAR (Positioned below TopBar with breathing room) */}
-      <div className="absolute top-[124px] left-6 right-6 sm:right-auto z-[400] flex flex-wrap items-center gap-1.5 bg-[#0B0C10]/95 backdrop-blur-2xl p-1.5 rounded-2xl border border-white/[0.08] shadow-hud-glass font-mono text-xs">
-        {/* Quick Global Mars / Jezero Views */}
-        <button
-          onClick={() => {
-            setMapCenter([0, 0]);
-            setMapZoom(1);
-          }}
-          className="px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-all border bg-space-900/80 text-space-300 hover:text-white hover:bg-space-850 border-white/[0.06] hover:border-mars-400/40"
-          title="Fit whole Mars planet in view (100% Global Scale)"
-        >
-          <Globe className="w-3.5 h-3.5 text-mars-400" />
-          <span className="hidden sm:inline">GLOBAL MARS (100%)</span>
-        </button>
-
-        <button
-          onClick={() => {
-            setMapCenter([18.4447, 77.4508]);
-            setMapZoom(4);
-          }}
-          className="px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-all border bg-space-900/80 text-space-300 hover:text-white hover:bg-space-850 border-white/[0.06] hover:border-cyber-cyan/40"
-          title="Zoom to Jezero Crater (Perseverance Landing Site)"
-        >
-          <Crosshair className="w-3.5 h-3.5 text-cyber-cyan" />
-          <span className="hidden sm:inline">JEZERO</span>
-        </button>
-
-        {/* Toggle Graticule / Lat-Lon Grid */}
-        <button
-          onClick={() => {
-            toggleGraticule();
-            marsAudio.playQuindarTone(false);
-          }}
-          className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-all border ${
-            showGraticule
-              ? 'bg-cyan-950/80 text-cyber-cyan border-cyan-500/40 shadow-sm'
-              : 'bg-space-900/80 text-space-400 border-white/[0.06] hover:text-white'
-          }`}
-          title="Toggle Latitude & Longitude Martian Grid Lines"
-        >
-          <Grid className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">GRID: {showGraticule ? 'ON' : 'OFF'}</span>
-        </button>
-
-        <button
-          onClick={() => setGuidedPlannerOpen(true)}
-          className="px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-bold transition-all border bg-gradient-to-r from-mars-600 to-amber-600 hover:from-mars-500 hover:to-amber-500 text-white border-white/20 shadow-md"
-          title="Guided flow: pick a site, plan a route on real terrain, check survival layers"
-        >
-          <Compass className="w-3.5 h-3.5" />
-          <span>PLAN</span>
-        </button>
-
-        {/* Real-terrain survival overlays */}
-        <div className="flex items-center gap-1 pl-1.5 ml-0.5 border-l border-white/[0.08]">
-          {Object.entries({ ...TERRAIN_OVERLAYS, ...RESOURCE_OVERLAYS }).map(([key, { label, icon: Icon, title }]) => (
-            <button
-              key={key}
-              onClick={() => {
-                setTerrainOverlay(key);
-                marsAudio.playQuindarTone(false);
-              }}
-              className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-all border ${
-                terrainOverlay === key
-                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50 shadow-sm'
-                  : 'bg-space-900/80 text-space-400 border-white/[0.06] hover:text-white'
-              }`}
-              title={title}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{label}</span>
-            </button>
-          ))}
-          <button
-            onClick={() => {
-              toggleRoverTraverses();
-              marsAudio.playQuindarTone(false);
-            }}
-            className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-all border ${
-              showRoverTraverses
-                ? 'bg-orange-950/80 text-orange-300 border-orange-500/50 shadow-sm'
-                : 'bg-space-900/80 text-space-400 border-white/[0.06] hover:text-white'
-            }`}
-            title="Real rover drive paths (NASA/JPL): where vehicles have actually gone"
-          >
-            <Route className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">TRACKS</span>
-          </button>
-        </div>
-
-        {/* Undo Last Point Button (active when waypoints or ruler points exist) */}
-        {(waypoints.length > 0 || rulerPoints.length > 0) && (
-          <button
-            onClick={() => {
-              undoLastPoint();
-              marsAudio.playQuindarTone(false);
-            }}
-            className="px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all border bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 hover:text-amber-100 border-amber-500/50 shadow-md font-bold"
-            title="Undo last placed point or measurement (Ctrl+Z)"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>UNDO {waypoints.length > 0 ? `(${waypoints.length})` : ''}</span>
-          </button>
-        )}
-
-        {/* Drive Rover Button */}
-        {waypoints && waypoints.length > 1 && (
-          (() => {
-            const targetIdx = driveTargetWaypointId 
-              ? waypoints.findIndex(w => w.id === driveTargetWaypointId) 
-              : -1;
-            const isAtEnd = roverProgress >= 0.99;
-            const isPausedMidway = !isRoverDriving && roverProgress > 0.01 && !isAtEnd;
-
-            let driveLabel = targetIdx > 0 ? `DRIVE TO #${targetIdx + 1}` : 'DRIVE ALL';
-            if (isRoverDriving) {
-              driveLabel = targetIdx > 0 ? `DRIVING TO #${targetIdx + 1}` : 'PAUSE';
-            } else if (isPausedMidway) {
-              driveLabel = targetIdx > 0 ? `RESUME TO #${targetIdx + 1}` : `RESUME (${(roverProgress * 100).toFixed(0)}%)`;
-            } else if (isAtEnd) {
-              driveLabel = targetIdx > 0 ? `REPLAY TO #${targetIdx + 1}` : 'REPLAY ROUTE';
-            }
-
-            return (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => {
-                    if (isRoverDriving) {
-                      setRoverDriving(false);
-                    } else {
-                      if (isAtEnd) {
-                        setRoverProgress(0);
-                      }
-                      setRoverDriving(true);
-                    }
-                  }}
-                  className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all shadow-md border ${
-                    isRoverDriving 
-                      ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse border-amber-400' 
-                      : isPausedMidway
-                      ? 'bg-gradient-to-r from-emerald-600 to-amber-600 hover:from-emerald-500 hover:to-amber-500 text-white border-white/20'
-                      : isAtEnd
-                      ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white border-white/20'
-                      : 'bg-space-900/90 hover:bg-space-850 text-amber-400 border-amber-500/40'
-                  }`}
-                  title={
-                    isRoverDriving 
-                      ? 'Pause Rover Drive' 
-                      : targetIdx > 0
-                      ? `Simulate rover drive to Station #${targetIdx + 1}`
-                      : 'Simulate rover traverse along entire route'
-                  }
-                >
-                  {isRoverDriving ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                  <span>{driveLabel}</span>
-                </button>
-
-                {/* If targeted to a specific station, allow one-click toggle to Drive All */}
-                {targetIdx > 0 && (
-                  <button
-                    onClick={() => {
-                      setDriveTargetWaypointId(null);
-                      if (isAtEnd) setRoverProgress(0);
-                      if (!isRoverDriving) setRoverDriving(true);
-                    }}
-                    className="px-2 py-1.5 rounded-lg bg-space-900/90 hover:bg-space-850 text-cyan-300 hover:text-white border border-cyan-500/40 text-xs font-mono font-bold transition-colors cursor-pointer"
-                    title="Switch to Drive Entire Route to Destination"
-                  >
-                    DRIVE ALL
-                  </button>
-                )}
-
-                {/* Cam Follow / Tracking Toggle Button */}
-                <button
-                  onClick={() => setCamFollow(!camFollow)}
-                  className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all border font-bold cursor-pointer ${
-                    camFollow
-                      ? 'bg-cyan-950/80 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
-                      : 'bg-space-900/80 border-white/[0.08] text-space-400 hover:text-white'
-                  }`}
-                  title={camFollow ? 'Vehicle Tracking Active: Camera follows vehicle automatically' : 'Free Camera: Manual pan and zoom'}
-                >
-                  {camFollow ? <Video className="w-3.5 h-3.5 text-cyan-400" /> : <VideoOff className="w-3.5 h-3.5" />}
-                  <span className="hidden md:inline">{camFollow ? 'TRACKING' : 'FREE CAM'}</span>
-                </button>
-
-                {roverProgress > 0.01 && !isRoverDriving && (
-                  <button
-                    onClick={() => {
-                      setRoverDriving(false);
-                      setRoverProgress(0);
-                      setDriveTargetWaypointId(null);
-                      marsAudio.playQuindarTone(false);
-                    }}
-                    className="p-1.5 rounded-lg bg-space-900/80 hover:bg-space-850 text-space-400 hover:text-white border border-white/[0.08] transition-colors"
-                    title="Reset Rover to Route Origin"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            );
-          })()
-        )}
-
-        {/* Walkback Limits Toggle */}
-        <button
-          onClick={toggleWalkbackLimits}
-          className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all border ${
-            showWalkbackLimits
-              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
-              : 'bg-space-900/80 text-space-400 hover:text-white border-white/[0.08]'
-          }`}
-          title="Toggle the 2 km and 5 km walkback planning rings (team assumptions; see RETURN for the life-support-based range)"
-        >
-          <Shield className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">WALKBACK: {showWalkbackLimits ? 'ON' : 'OFF'}</span>
-        </button>
-
-        {/* Ruler Measure Tool */}
-        <button
-          onClick={() => {
-            if (isRulerActive) {
-              setRulerActive(false);
-              clearRuler();
-            } else {
-              setRulerActive(true);
-            }
-          }}
-          className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all border ${
-            isRulerActive
-              ? 'bg-yellow-950/80 text-yellow-300 border-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.2)]'
-              : 'bg-space-900/80 text-space-400 hover:text-white border-white/[0.08]'
-          }`}
-          title="Measure distance & elevation between two points"
-        >
-          <Ruler className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">{isRulerActive ? 'RULER ACTIVE' : 'MEASURE'}</span>
-        </button>
-      </div>
-
       {/* PLACING WAYPOINT FLOATING HELPER BANNER */}
       {isPlacingWaypoint && (
-        <div className="absolute top-[176px] left-1/2 -translate-x-1/2 z-[400] flex items-center gap-3 bg-space-950/95 backdrop-blur-md px-4 py-2 rounded-full border border-mars-500/70 shadow-2xl font-mono text-xs text-white">
+        <div className="absolute top-[168px] left-1/2 -translate-x-1/2 z-[400] flex items-center gap-3 bg-space-950/95 backdrop-blur-md px-4 py-2 rounded-full border border-mars-500/70 shadow-2xl font-mono text-xs text-white">
           <span className="flex items-center gap-2 text-mars-400 font-bold">
             <span className="w-2.5 h-2.5 rounded-full bg-mars-500 animate-ping" />
             Click on Martian terrain to place Waypoint #{waypoints.length + 1}
@@ -1175,7 +961,7 @@ const MarsMap = () => {
 
       {/* ROVER TELEMETRY HUD (Floating when driving) */}
       {isRoverDriving && (
-        <div className="absolute top-[176px] left-24 z-[400] bg-space-950/95 backdrop-blur-md p-3.5 rounded-xl border border-amber-500/50 shadow-2xl font-mono text-xs w-68 flex flex-col gap-2">
+        <div className="absolute top-[168px] left-24 z-[400] bg-space-950/95 backdrop-blur-md p-3.5 rounded-xl border border-amber-500/50 shadow-2xl font-mono text-xs w-68 flex flex-col gap-2">
           <div className="flex items-center justify-between text-amber-400 font-bold border-b border-space-800 pb-1">
             <span className="flex items-center gap-1.5">
               <span>🚜</span> ROVER EN ROUTE
@@ -1218,7 +1004,7 @@ const MarsMap = () => {
 
       {/* RULER MEASUREMENT READOUT */}
       {isRulerActive && rulerPoints.length > 0 && (
-        <div className="absolute top-[176px] left-24 z-[400] bg-space-950/95 backdrop-blur-md p-3.5 rounded-xl border border-yellow-500/50 shadow-2xl font-mono text-xs w-72 flex flex-col gap-1.5">
+        <div className="absolute top-[168px] left-24 z-[400] bg-space-950/95 backdrop-blur-md p-3.5 rounded-xl border border-yellow-500/50 shadow-2xl font-mono text-xs w-72 flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-yellow-400 font-bold border-b border-space-800 pb-1">
             <span className="flex items-center gap-1.5">
               <Ruler className="w-3.5 h-3.5" />

@@ -1,6 +1,6 @@
 import useMapStore from '../store/useMapStore';
 import { Crosshair } from 'lucide-react';
-import { getElevation } from '../utils/elevationService';
+import { getElevationInfo } from '../utils/elevationService';
 import ProvenanceBadge from './ProvenanceBadge';
 
 const formatCoord = (val, isLat) => {
@@ -24,8 +24,13 @@ const CoordinateDisplay = () => {
   const isPlacingWaypoint = useMapStore(state => state.isPlacingWaypoint);
   const bottomPanelOpen = useMapStore(state => state.bottomPanelOpen);
   
-  // Real MOLA terrain elevation
-  const elevation = getElevation(cursorPosition.lat, cursorPosition.lon);
+  // Re-read once terrain grids finish loading
+  useMapStore(state => state.terrainVersion);
+  const elevationInfo = getElevationInfo(cursorPosition.lat, cursorPosition.lon);
+  const elevation = elevationInfo.elevation;
+  const elevationDetail = elevationInfo.kind === 'observed'
+    ? (elevationInfo.metersPerPixel >= 1000 ? `MOLA ${Math.round(elevationInfo.metersPerPixel / 1000)} km grid` : `HRSC-MOLA ${elevationInfo.metersPerPixel} m`)
+    : 'Landmark model (terrain loading)';
 
   return (
     <div 
@@ -37,7 +42,7 @@ const CoordinateDisplay = () => {
         zIndex: 400,
         transition: 'bottom 0.25s ease-out'
       }}
-      className="hud-bracket bg-[#0B0C10]/95 backdrop-blur-2xl rounded-2xl px-3.5 py-1.5 flex items-center gap-3 border border-white/[0.08] shadow-hud-glass pointer-events-none font-mono text-xs"
+      className="hud-bracket bg-[#0B0C10]/95 backdrop-blur-2xl rounded-2xl px-3.5 py-1.5 hidden sm:flex items-center gap-3 border border-white/[0.08] shadow-hud-glass pointer-events-none font-mono text-xs"
     >
       {/* Tactical Crosshair Icon */}
       <div className="relative flex items-center justify-center text-mars-400">
@@ -66,7 +71,7 @@ const CoordinateDisplay = () => {
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-space-300 uppercase tracking-[0.12em] font-sans">ELEV</span>
           <span className="text-white font-bold">{elevation.toLocaleString()} m</span>
-          <ProvenanceBadge type="DERIVED" size="xs" detail="MOLA-anchored model" />
+          <ProvenanceBadge type={elevationInfo.kind === 'observed' ? 'OBSERVED' : 'DERIVED'} size="xs" detail={elevationDetail} />
         </div>
       </div>
     </div>

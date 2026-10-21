@@ -35,6 +35,7 @@ export default function ScienceLabPage() {
     triggerLaserAblation,
     runAiAnalysis,
     handleCacheSample,
+    cacheError,
     paleoDiagnosis,
   } = useScienceLab();
 
@@ -49,7 +50,7 @@ export default function ScienceLabPage() {
           {/* Kicker with star cross */}
           <div className="flex items-center gap-2 mb-2 font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.25em] text-[#ff8c69] font-medium">
             <span>✦</span>
-            <span>MARS WALK EXPLORER · IN-SITU SURFACE PLANETARY SPECTROMETRY SUITE</span>
+            <span>MARSWALK · IN-SITU SURFACE PLANETARY SPECTROMETRY SUITE</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white font-sans">
@@ -265,6 +266,7 @@ export default function ScienceLabPage() {
                       </>
                     )}
                   </button>
+                  {cacheError && <p className="mt-1 text-[10px] font-mono text-amber-300">{cacheError}</p>}
                 </div>
               </div>
 
@@ -653,6 +655,7 @@ export default function ScienceLabPage() {
                   >
                     {cachedSuccess ? 'TUBE HERMETICALLY SEALED & REGISTERED' : 'EXECUTE NITROGEN PURGE & CRIMP SEAL'}
                   </button>
+                  {cacheError && <p className="mt-1 text-[10px] font-mono text-amber-300">{cacheError}</p>}
                 </div>
 
                 <div className="bg-[#07090e]/80 border border-white/[0.08] p-6 rounded-sm flex flex-col justify-between">

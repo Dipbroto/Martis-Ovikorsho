@@ -316,7 +316,7 @@ export default function MartianSkyEphemeris() {
         <div>
           <div className="flex items-center gap-2 mb-2 font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.25em] text-[#ff8c69] font-medium">
             <span>✦</span>
-            <span>MARS WALK EXPLORER · CELESTIAL ASTRODYNAMICS & EPHEMERIS</span>
+            <span>MARSWALK · CELESTIAL ASTRODYNAMICS & EPHEMERIS</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white font-sans">

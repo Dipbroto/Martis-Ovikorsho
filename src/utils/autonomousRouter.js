@@ -184,7 +184,8 @@ export async function generateAutonomousTraverse(origin, destination, options = 
 
   return {
     waypoints,
-    path: path.map((p) => [p.lat, p.lon]),
+    path: path.map((p) => [p.lat, p.lon, p.elevation]),
+    stations: keyIndices,
     grid,
     metrics: {
       mode,

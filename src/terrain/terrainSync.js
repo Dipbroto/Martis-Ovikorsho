@@ -21,7 +21,8 @@ function requestTerrain(state) {
   // Grids are only needed once someone is looking at the map or has a route
   if (state.activeTab !== 'map' && state.waypoints.length === 0) return;
   const points = [...state.waypoints];
-  if (Array.isArray(state.mapCenter)) points.push({ lat: state.mapCenter[0], lon: state.mapCenter[1] });
+  const center = state.viewCenter || state.mapCenter;
+  if (Array.isArray(center)) points.push({ lat: center[0], lon: center[1] });
   ensureTerrainFor(points).catch((err) => console.warn('Terrain grids unavailable:', err.message));
 }
 
@@ -38,7 +39,7 @@ export function startTerrainSync() {
 
   requestTerrain(useMapStore.getState());
   useMapStore.subscribe((state, prev) => {
-    if (state.waypoints !== prev.waypoints || state.mapCenter !== prev.mapCenter || state.activeTab !== prev.activeTab) {
+    if (state.waypoints !== prev.waypoints || state.mapCenter !== prev.mapCenter || state.viewCenter !== prev.viewCenter || state.activeTab !== prev.activeTab) {
       requestTerrain(state);
       if (state.waypoints !== prev.waypoints) refreshWaypointElevations();
     }

@@ -311,7 +311,7 @@ export default function AresCopilotModal() {
                   setAresCopilotOpen(false);
                 }}
                 className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all cursor-pointer"
-                title="Close A.R.E.S."
+                title="Close copilot"
               >
                 <X className="w-4 h-4" />
               </button>

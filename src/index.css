@@ -783,3 +783,74 @@ button:disabled {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* =========================================
+   UI FOUNDATIONS (readability, motion, focus)
+   ========================================= */
+
+/* Readable type floor: the interface used many 8-11px labels that are hard to read on a projector or phone.
+   These overrides lift them to a comfortable minimum without touching each component. */
+.text-\[8px\]  { font-size: 10px !important; line-height: 1.35 !important; }
+.text-\[9px\]  { font-size: 11px !important; line-height: 1.35 !important; }
+.text-\[10px\] { font-size: 12px !important; line-height: 1.4 !important; }
+.text-\[11px\] { font-size: 12.5px !important; line-height: 1.45 !important; }
+
+/* Decorative pulses are calmer; real "live" indicators keep the animation */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
+/* Visible keyboard focus everywhere */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Respect the operating-system "reduce motion" setting */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Semantic colour tokens used by the new survival UI: green = safe, amber = caution, red = danger, cyan = information */
+:root {
+  --ui-safe: #34d399;
+  --ui-caution: #fbbf24;
+  --ui-danger: #fb7185;
+  --ui-info: #38bdf8;
+  --ui-surface: rgba(10, 12, 18, 0.92);
+  --ui-surface-raised: rgba(20, 24, 34, 0.96);
+  --ui-border: rgba(255, 255, 255, 0.10);
+}
+
+.ui-panel {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
+}
+
+/* Popover menus in the map toolbar */
+.ui-menu {
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.65);
+}
+
+/* Logo: the trail across Mars draws itself on load and on hover */
+.mw-logo-trail {
+  stroke-dasharray: 1;
+  animation: mw-trail-in 1.1s cubic-bezier(0.3, 0.7, 0.2, 1) 0.2s both;
+}
+.group:hover .mw-logo-trail {
+  animation: mw-trail-hover 0.8s cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+@keyframes mw-trail-in { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes mw-trail-hover { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }

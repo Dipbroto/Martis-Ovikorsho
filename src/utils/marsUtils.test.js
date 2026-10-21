@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MARS, marsDistance, routeDistance, calculateSlope, slopeDifficulty } from './marsUtils';
+import { MARS, marsDistance, routeDistance, calculateSlope, slopeDifficulty, estimateRadiation, marsDateFromEarthDate } from './marsUtils';
 
 describe('marsDistance', () => {
   it('is zero for identical points', () => {
@@ -54,5 +54,28 @@ describe('slopeDifficulty', () => {
     expect(slopeDifficulty(2).level).toBe('Easy');
     expect(slopeDifficulty(-12).level).toBe('Steep');
     expect(slopeDifficulty(30).level).toBe('Extreme');
+  });
+});
+
+describe('estimateRadiation', () => {
+  it('reproduces the RAD surface measurement at Gale Crater', () => {
+    expect(estimateRadiation(24, -4500).dailyDose).toBeCloseTo(0.67, 2);
+  });
+
+  it('rises with altitude but stays below the free-space dose', () => {
+    const low = estimateRadiation(24, -7000).dailyDose;
+    const datum = estimateRadiation(24, 0).dailyDose;
+    const olympus = estimateRadiation(24, 21000).dailyDose;
+    expect(low).toBeLessThan(0.67);
+    expect(datum).toBeGreaterThan(0.67);
+    expect(olympus).toBeGreaterThan(datum);
+    expect(olympus).toBeLessThan(1.84);
+  });
+});
+
+describe('marsDateFromEarthDate', () => {
+  it('starts Mars Year 36 on 2021-02-07 and Mars Year 37 on 2022-12-26', () => {
+    expect(marsDateFromEarthDate(new Date('2021-02-08T00:00:00Z'))).toMatchObject({ marsYear: 36, solOfYear: 0 });
+    expect(marsDateFromEarthDate(new Date('2022-12-27T12:00:00Z')).marsYear).toBe(37);
   });
 });
