@@ -1,945 +1,482 @@
-import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Orbit, Sun, Compass, Play, Pause, RotateCcw, Camera, Activity, Eye, Clock, MapPin, ShieldCheck, Radio, AlertTriangle } from 'lucide-react';
-import useMapStore from '../store/useMapStore';
-import { marsAudio, playUiClick } from '../utils/audioSynthesizer';
-import { fetchJplEphemeris } from '../services/nasaApiService';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Play, Pause, Sun, Moon, Globe2, Clock, Radio, Eclipse, Info, RotateCcw, Telescope, Search, Loader2 } from 'lucide-react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ReferenceArea, CartesianGrid } from 'recharts';
+import { playUiClick } from '../utils/audioSynthesizer';
+import { skyAt, solTimeline, overlapFraction, nextTransitSol } from '../utils/marsSky';
+import { lsFromMsd, seasonFromLs, MARS_SOL_HOURS } from '../utils/marsSolar';
 
-// Scientific Observer Locations with distinct Martian latitudes and elevations
-const OBSERVER_LOCATIONS = [
-  {
-    id: 'jezero',
-    name: 'Jezero Crater',
-    sub: 'Perseverance Base',
-    lat: 18.4447,
-    lon: 77.4508,
-    elev: -2570,
-    phobosVisible: true,
-    desc: 'Equatorial paleolake basin. Optimal viewing for high-altitude solar transits.'
-  },
-  {
-    id: 'gale',
-    name: 'Gale Crater',
-    sub: 'Curiosity Base',
-    lat: -4.5895,
-    lon: 137.4417,
-    elev: -4500,
-    phobosVisible: true,
-    desc: 'Near-equatorial basin with Mount Sharp. Maximum Phobos angular diameter (~12 arcmin).'
-  },
-  {
-    id: 'olympus',
-    name: 'Olympus Mons Summit',
-    sub: 'Volcanic Caldera',
-    lat: 18.6500,
-    lon: -133.8000,
-    elev: 21287,
-    phobosVisible: true,
-    desc: 'Above 90% of the Martian atmosphere. Zero dust extinction, crystal-clear deep space dome.'
-  },
-  {
-    id: 'north_pole',
-    name: 'Vastitas Borealis',
-    sub: 'North Polar Cap',
-    lat: 75.0000,
-    lon: 0.0000,
-    elev: -4200,
-    phobosVisible: false,
-    desc: 'Extreme northern polar latitude. Phobos is permanently occluded below the horizon by Mars curvature.'
-  }
+const SITES = [
+  { id: 'jezero', name: 'Jezero Crater', sub: 'Perseverance', lat: 18.44, lon: 77.45 },
+  { id: 'gale', name: 'Gale Crater', sub: 'Curiosity', lat: -4.59, lon: 137.44 },
+  { id: 'elysium', name: 'Elysium Planitia', sub: 'InSight', lat: 4.5, lon: 135.62 },
+  { id: 'olympus', name: 'Olympus Mons', sub: 'Summit caldera', lat: 18.65, lon: -133.8 },
+  { id: 'arcadia', name: 'Arcadia Planitia', sub: 'Ice-rich plains', lat: 39.1, lon: -171.45 },
+  { id: 'pole', name: 'North polar cap', sub: 'Planum Boreum', lat: 75, lon: 0 },
 ];
 
-// Camera Filter Presets for Mastcam-Z Solar Transit
-const CAMERA_FILTERS = [
-  { id: 'solar_nd5', name: 'Solar ND5', wavelength: '540 nm (Amber)', color: '#F59E0B', bg: '#020203' },
-  { id: 'uv_chromosphere', name: 'Near-UV', wavelength: '440 nm (Chromosphere)', color: '#818CF8', bg: '#04040a' },
-  { id: 'nir_filter', name: 'Near-IR (NIR)', wavelength: '800 nm (Photosphere)', color: '#FB923C', bg: '#060302' },
-  { id: 'meda_sensor', name: 'MEDA (CCD)', wavelength: 'Radiometric Sensor', color: '#E2E8F0', bg: '#010102' }
-];
+const BODIES = {
+  sun: { name: 'Sun', color: '#fbbf24', icon: Sun },
+  phobos: { name: 'Phobos', color: '#e7e5e4', icon: Moon },
+  deimos: { name: 'Deimos', color: '#67e8f9', icon: Moon },
+  earth: { name: 'Earth', color: '#60a5fa', icon: Globe2 },
+};
+
+/** Mars Sol Date right now (Allison & McEwen 2000). */
+const msdNow = () => ((Date.now() / 86400000 + 2440587.5 + 69.184 / 86400) - 2405522.0028779) / 1.0274912517;
+const fmt = (h) => {
+  const x = ((h % 24) + 24) % 24;
+  const m = Math.round(x * 60);
+  return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+const compass = (az) => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(az / 45) % 8];
+const tooltipStyle = { backgroundColor: 'rgba(7,9,14,0.95)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, fontSize: 12 };
+
+// Fixed star field for the dome (seeded so it doesn't jump between renders)
+const STARS = (() => {
+  let s = 7;
+  const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  return Array.from({ length: 140 }, () => ({ a: r() * Math.PI * 2, d: Math.sqrt(r()), size: 0.4 + r() * 1.3, o: 0.35 + r() * 0.65 }));
+})();
+
+function Panel({ title, icon: Icon, right, children, className = '' }) {
+  return (
+    <section className={`rounded-2xl border border-white/10 bg-[#070a12]/70 backdrop-blur-xl p-5 sm:p-6 ${className}`}>
+      {(title || right) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <h3 className="flex items-center gap-2 text-base font-semibold text-white">{Icon && <Icon className="w-4 h-4 text-[#ffa07f]" />}{title}</h3>
+          {right}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+/** Looking straight up: north at the top, east on the LEFT (as on any sky chart). */
+function SkyDome({ sky, timeline, selected, onSelect }) {
+  const S = 360, C = S / 2, R = C - 22;
+  const proj = (alt, az) => {
+    const r = ((90 - alt) / 90) * R;
+    const a = (az * Math.PI) / 180;
+    return [C - r * Math.sin(a), C - r * Math.cos(a)];
+  };
+  const sunAlt = sky.sun.alt;
+  const night = Math.max(0, Math.min(1, (-sunAlt - 2) / 12)); // 0 day .. 1 full night
+  const twilight = Math.max(0, 1 - Math.abs(sunAlt - 2) / 10);
+  const [sx, sy] = proj(Math.max(sunAlt, -10), sky.sun.az);
+
+  const paths = useMemo(() => {
+    const out = {};
+    for (const key of Object.keys(BODIES)) {
+      const segs = [];
+      let cur = [];
+      for (const p of timeline.samples) {
+        if (p[key] > 0) cur.push(proj(p[key], p.az[key]).map((v) => v.toFixed(1)).join(','));
+        else if (cur.length) { segs.push(cur); cur = []; }
+      }
+      if (cur.length) segs.push(cur);
+      out[key] = segs.filter((sg) => sg.length > 1);
+    }
+    return out;
+    // proj only depends on constants
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeline]);
+
+  const dayTop = `rgba(196, 140, 84, ${0.85 * (1 - night)})`;
+  return (
+    <svg viewBox={`0 0 ${S} ${S}`} className="w-full max-w-[420px] mx-auto" role="img" aria-label="The sky overhead from the selected site">
+      <defs>
+        <radialGradient id="domeSky" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor={night > 0.5 ? '#070b18' : '#7a4a26'} stopOpacity={1} />
+          <stop offset="100%" stopColor={night > 0.5 ? '#02030a' : '#2a160b'} stopOpacity={1} />
+        </radialGradient>
+        <radialGradient id="sunGlow" cx={sx / S} cy={sy / S} r="0.45" gradientUnits="objectBoundingBox">
+          <stop offset="0%" stopColor="#7dd3fc" stopOpacity={0.75 * twilight} />
+          <stop offset="60%" stopColor="#0ea5e9" stopOpacity={0.12 * twilight} />
+          <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0} />
+        </radialGradient>
+        <clipPath id="domeClip"><circle cx={C} cy={C} r={R} /></clipPath>
+      </defs>
+      <circle cx={C} cy={C} r={R} fill="url(#domeSky)" />
+      <g clipPath="url(#domeClip)">
+        <circle cx={C} cy={C} r={R} fill={dayTop} opacity={0.6} />
+        <rect width={S} height={S} fill="url(#sunGlow)" />
+        {STARS.map((st, i) => (
+          <circle key={i} cx={C + Math.cos(st.a) * st.d * R} cy={C + Math.sin(st.a) * st.d * R} r={st.size} fill="#fff" opacity={st.o * night} />
+        ))}
+        {[30, 60].map((alt) => <circle key={alt} cx={C} cy={C} r={((90 - alt) / 90) * R} fill="none" stroke="rgba(255,255,255,0.14)" strokeDasharray="3 5" />)}
+        <line x1={C} y1={C - R} x2={C} y2={C + R} stroke="rgba(255,255,255,0.08)" />
+        <line x1={C - R} y1={C} x2={C + R} y2={C} stroke="rgba(255,255,255,0.08)" />
+        {Object.entries(paths).map(([key, segs]) => segs.map((sg, i) => (
+          <polyline key={`${key}-${i}`} points={sg.join(' ')} fill="none" stroke={BODIES[key].color} strokeOpacity={selected === key ? 0.7 : 0.22} strokeWidth={selected === key ? 1.6 : 1} strokeDasharray={key === 'sun' ? undefined : '2 4'} />
+        )))}
+      </g>
+      <circle cx={C} cy={C} r={R} fill="none" stroke="rgba(255,255,255,0.25)" />
+      {[['N', 0], ['E', 90], ['S', 180], ['W', 270]].map(([l, az]) => {
+        const [x, y] = proj(-9, az);
+        return <text key={l} x={x} y={y} fill="#a1a1aa" fontSize="12" textAnchor="middle" dominantBaseline="middle">{l}</text>;
+      })}
+      <text x={C + 4} y={C - ((60 / 90) * R) + 12} fill="rgba(255,255,255,0.35)" fontSize="9">30°</text>
+      <text x={C + 4} y={C - ((30 / 90) * R) + 12} fill="rgba(255,255,255,0.35)" fontSize="9">60°</text>
+
+      {/* Bodies above the horizon; labels step down when two bodies are close (e.g. Phobos crossing the Sun) */}
+      {(() => {
+        const placed = [];
+        return ['sun', 'phobos', 'earth', 'deimos'].map((key) => {
+          const b = sky[key];
+          if (b.alt <= 0) return null;
+          const [x, y] = proj(b.alt, b.az);
+          let dy = -9;
+          while (placed.some((q) => Math.abs(q.x - x) < 60 && Math.abs(q.y - (y + dy)) < 13)) dy += 14;
+          placed.push({ x, y: y + dy });
+          return { key, b, x, y, dy };
+        });
+      })().filter(Boolean).reverse().map(({ key, b, x, y, dy }) => {
+        const on = selected === key;
+        return (
+          <g key={key} transform={`translate(${x} ${y})`} onClick={() => onSelect(key)} className="cursor-pointer">
+            {key === 'sun' && <><circle r="16" fill="#fde68a" opacity="0.25" /><circle r="8" fill="#fffbeb" /></>}
+            {key === 'phobos' && <ellipse rx="6" ry="4.6" transform="rotate(-20)" fill={b.eclipsed ? '#7f1d1d' : `rgba(231,229,228,${0.35 + 0.65 * b.illumination})`} stroke="#fff" strokeOpacity="0.4" />}
+            {key === 'deimos' && <circle r="3.2" fill={`rgba(165,243,252,${0.4 + 0.6 * b.illumination})`} />}
+            {key === 'earth' && <><circle r="7" fill="#3b82f6" opacity="0.25" /><circle r="3.2" fill="#93c5fd" /></>}
+            {on && <circle r={key === 'sun' ? 14 : 11} fill="none" stroke="#fff" strokeWidth="1.5" />}
+            <text x="11" y={dy} fill="#fff" fontSize="11" fontWeight="600" style={{ paintOrder: 'stroke' }} stroke="rgba(0,0,0,0.7)" strokeWidth="3">{BODIES[key].name}</text>
+            <circle r="16" fill="transparent" />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function TransitViewer({ transit, fluxWm2 }) {
+  const example = !transit?.happens;
+  // Without a real transit today, play a centred example with this site's real Phobos-to-Sun size ratio
+  const b = example ? 0.25 : transit.impact;
+  const ratio = transit?.radiusRatio || 0.6;
+  const durationS = example ? 32 : transit.durationS;
+  const [p, setP] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const raf = useRef();
+  useEffect(() => {
+    if (!playing) return undefined;
+    let last = performance.now();
+    const playLen = 8000; // show the whole crossing in 8 s
+    const tick = (now) => {
+      const dt = now - last; last = now;
+      setP((v) => {
+        const nv = v + dt / playLen;
+        if (nv >= 1) { setPlaying(false); return 1; }
+        return nv;
+      });
+      raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, [playing]);
+  useEffect(() => { setP(0); setPlaying(false); }, [transit]);
+
+  const span = 1 + ratio; // path from first to last contact, in Sun radii
+  const xOf = (q) => -span * 1.15 + q * span * 2.3;
+  const x = xOf(p);
+  const cover = overlapFraction(Math.hypot(x, b), ratio);
+  const curve = useMemo(() => Array.from({ length: 121 }, (_, i) => {
+    const q = i / 120;
+    const xx = xOf(q);
+    return { t: Math.round(((q - 0.5) * durationS * 1.15) * 10) / 10, light: Math.round((1 - overlapFraction(Math.hypot(xx, b), ratio)) * 1000) / 10 };
+  // xOf only depends on ratio
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [b, ratio, durationS]);
+
+  const W = 320, H = 150, SR = 56;
+  return (
+    <div>
+      <div className="relative rounded-xl overflow-hidden border border-white/10 bg-black">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full block" role="img" aria-label="Phobos crossing the Sun">
+          <defs>
+            <radialGradient id="sunDisk"><stop offset="0%" stopColor="#fff7ed" /><stop offset="70%" stopColor="#fdba74" /><stop offset="100%" stopColor="#c2410c" /></radialGradient>
+          </defs>
+          <circle cx={W / 2} cy={H / 2} r={SR * 1.25} fill="#f97316" opacity="0.12" />
+          <circle cx={W / 2} cy={H / 2} r={SR} fill="url(#sunDisk)" />
+          <ellipse cx={W / 2 + x * SR} cy={H / 2 + b * SR} rx={ratio * SR * 1.12} ry={ratio * SR * 0.88} transform={`rotate(-18 ${W / 2 + x * SR} ${H / 2 + b * SR})`} fill="#050505" />
+          <text x="10" y="18" fill="#a1a1aa" fontSize="10">{example ? 'Example crossing at this site' : `Sol transit at ${fmt(transit.lst)} LST`}</text>
+          <text x={W - 10} y={H - 10} fill="#fde68a" fontSize="10" textAnchor="end">{Math.round(cover * 100)}% of the Sun covered</text>
+        </svg>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <button onClick={() => { playUiClick?.(); if (p >= 1) setP(0); setPlaying((v) => !v); }} className="flex items-center gap-2 rounded-lg bg-white text-black font-semibold px-3.5 py-2 text-sm hover:bg-zinc-200 cursor-pointer">
+          {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}{playing ? 'Pause' : p >= 1 ? 'Replay' : 'Play transit'}
+        </button>
+        <button onClick={() => { setPlaying(false); setP(0); }} className="w-9 h-9 rounded-lg border border-white/15 flex items-center justify-center text-zinc-300 hover:text-white cursor-pointer" aria-label="Reset transit"><RotateCcw className="w-4 h-4" /></button>
+        <input type="range" min="0" max="1" step="0.001" value={p} onChange={(e) => { setPlaying(false); setP(Number(e.target.value)); }} aria-label="Transit progress" className="flex-1 accent-amber-400 cursor-pointer" />
+      </div>
+      <div className="mt-4 h-28 -ml-3">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={curve} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+            <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+            <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => `${Math.round(v)} s`} stroke="#71717a" fontSize={11} tickLine={false} />
+            <YAxis domain={[50, 100]} stroke="#71717a" fontSize={11} unit="%" width={44} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={tooltipStyle} labelFormatter={(v) => `${v} s`} formatter={(v) => [`${v}%`, 'Sunlight']} />
+            <ReferenceLine x={Math.round(((p - 0.5) * durationS * 1.15) * 10) / 10} stroke="#fde68a" />
+            <Line type="monotone" dataKey="light" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="mt-2 text-sm text-zinc-300">
+        Sunlight dips to <strong className="text-white">{Math.round((1 - (example ? overlapFraction(b, ratio) : transit.maxCover)) * fluxWm2)} W/m²</strong> from {Math.round(fluxWm2)} W/m² for about {Math.round(durationS)} s. Solar panels lose the same share of power.
+      </p>
+    </div>
+  );
+}
 
 export default function MartianSkyEphemeris() {
-  const currentSol = useMapStore(s => s.currentSol);
+  const [site, setSite] = useState(SITES[0]);
+  const [sol, setSol] = useState(() => Math.floor(msdNow()));
+  const [lst, setLst] = useState(() => {
+    const m = msdNow();
+    return ((((m % 1) * 24 + SITES[0].lon / 15) % 24) + 24) % 24;
+  });
+  const [playing, setPlaying] = useState(false);
+  const [selected, setSelected] = useState('phobos');
+  const [search, setSearch] = useState(null); // null | 'busy' | { sol } | { none: true }
 
-  // Local Solar Time (00:00 to 24:39 in fractional hours: 0 to 24.65)
-  const [solTime, setSolTime] = useState(13.4); // Default 13:24 (afternoon transit window)
-  const [isTimeAdvancing, setIsTimeAdvancing] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState(OBSERVER_LOCATIONS[0]);
-  const [selectedBody, setSelectedBody] = useState('phobos');
-
-  // Eclipse Transit Simulator State
-  const [isEclipsePlaying, setIsEclipsePlaying] = useState(false);
-  const [transitTimeSec, setTransitTimeSec] = useState(0); // 0 to 38 seconds
-  const [playbackSpeed, setPlaybackSpeed] = useState(1); // 1x, 2x, 4x
-  const [selectedFilter, setSelectedFilter] = useState(CAMERA_FILTERS[0]);
-  const [audioEnabled] = useState(true);
-
-  // JPL API State
-  const [jplData, setJplData] = useState(null);
-  const [isSyncingJpl, setIsSyncingJpl] = useState(false);
-
-  const handleSyncJpl = async () => {
-    marsAudio.playUiClick?.();
-    setIsSyncingJpl(true);
-    setJplData(null);
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-      const data = await fetchJplEphemeris('401', '@499', today, tomorrow);
-      setJplData(data);
-      setIsSyncingJpl(false);
-      marsAudio.playUiSwoosh?.();
-    } catch (e) {
-      console.error(e);
-      // Live request unavailable (offline / CORS): show clearly-labelled static reference values
-      setJplData({
-        result: "OFFLINE REFERENCE VALUES - live JPL HORIZONS request was unavailable\n==========================================\nTARGET: 401 (Phobos)\nCENTER: @499 (Mars)\nGENERATED: " + new Date().toISOString() + "\n\nOrbital Period: 7h 39m 14s (0.3189 Sol)\nSemimajor Axis: 9,376 km (6,000 km altitude above surface)\nOrbital Inclination: 1.093° to Martian Equator\nEccentricity: 0.0151\nApparent Motion: West to East (faster than Mars rotates)\nTidal Acceleration: orbit decaying inward\n\nThese are published mean orbital elements, not a live ephemeris."
-      });
-      setIsSyncingJpl(false);
-    }
+  // Jump to the next sol with a Phobos transit visible from this site (runs after a paint so the button can show progress)
+  const findTransit = () => {
+    playUiClick?.();
+    setSearch('busy');
+    setTimeout(() => {
+      const found = nextTransitSol(site.lat, sol + 1, 400);
+      if (found == null) { setSearch({ none: true }); return; }
+      const tl = solTimeline(site.lat, found, 1);
+      setPlaying(false);
+      setSol(found);
+      setLst(Math.max(0, tl.transit.lst - 0.03));
+      setSelected('phobos');
+      setSearch({ sol: found });
+    }, 30);
   };
 
-  // Time advancement loop for Sky Dome (1 second = 0.05 sol hours)
-  useEffect(() => {
-    let timer;
-    if (isTimeAdvancing) {
-      timer = setInterval(() => {
-        setSolTime(prev => {
-          const next = prev + 0.04;
-          return next >= 24.65 ? 0 : next;
-        });
-      }, 80);
-    }
-    return () => clearInterval(timer);
-  }, [isTimeAdvancing]);
-
-  // Phobos Transit (Eclipse) Playback Loop (38 real-time seconds)
-  useEffect(() => {
-    let anim;
-    if (isEclipsePlaying) {
-      if (audioEnabled && transitTimeSec === 0) {
-        marsAudio.playQuindarTone?.(true);
-      }
-      anim = setInterval(() => {
-        setTransitTimeSec(prev => {
-          const next = prev + (0.2 * playbackSpeed);
-          if (next >= 38) {
-            setIsEclipsePlaying(false);
-            if (audioEnabled) marsAudio.playQuindarTone?.(false);
-            return 38;
-          }
-          return next;
-        });
-      }, 200);
-    }
-    return () => clearInterval(anim);
-  }, [isEclipsePlaying, playbackSpeed, audioEnabled, transitTimeSec]);
-
-  // Format Sol Time into HH:MM
-  const formatSolTime = (hoursFraction) => {
-    const totalMinutes = Math.round(hoursFraction * 60);
-    const hrs = Math.floor(totalMinutes / 60) % 25;
-    const mins = totalMinutes % 60;
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')} LST`;
+  // "Now" in local mean solar time at a site
+  const goNow = (s = site) => {
+    setSearch(null);
+    const m = msdNow();
+    setSol(Math.floor(m));
+    setLst(((((m % 1) * 24 + s.lon / 15) % 24) + 24) % 24);
   };
 
-  // Determine Martian Sky Atmosphere lighting based on Sol Time
-  const skyAtmosphere = useMemo(() => {
-    const t = solTime;
-    if (t >= 20.0 || t < 5.0) {
-      return {
-        phase: 'Martian Night',
-        bgGradient: 'radial-gradient(circle at center, #0B0E14 0%, #030407 100%)',
-        domeBorder: 'border-white/10',
-        skyGlowColor: 'rgba(56, 189, 248, 0.05)',
-        sunVisible: false,
-        starOpacity: 0.95
-      };
-    } else if (t >= 5.0 && t < 6.8) {
-      return {
-        phase: 'Martian Blue Dawn (Mie Scattering)',
-        bgGradient: 'radial-gradient(circle at 75% 70%, #0369a1 0%, #31130d 50%, #090b10 100%)',
-        domeBorder: 'border-cyan-500/40',
-        skyGlowColor: 'rgba(6, 182, 212, 0.35)',
-        sunVisible: true,
-        starOpacity: 0.35
-      };
-    } else if (t >= 6.8 && t < 17.2) {
-      return {
-        phase: 'Solar Noon (Butterscotch Ochre Sky)',
-        bgGradient: 'radial-gradient(circle at 50% 35%, #ca8a04 0%, #854d0e 35%, #451a03 75%, #180903 100%)',
-        domeBorder: 'border-amber-600/40',
-        skyGlowColor: 'rgba(217, 119, 6, 0.25)',
-        sunVisible: true,
-        starOpacity: 0.05
-      };
-    } else {
-      return {
-        phase: 'Martian Blue Sunset (Twilight Arch)',
-        bgGradient: 'radial-gradient(circle at 25% 70%, #0284c7 0%, #38bdf8 15%, #451a03 55%, #0b0d13 100%)',
-        domeBorder: 'border-cyan-400/50',
-        skyGlowColor: 'rgba(14, 165, 233, 0.4)',
-        sunVisible: true,
-        starOpacity: 0.4
-      };
-    }
-  }, [solTime]);
+  useEffect(() => {
+    if (!playing) return undefined;
+    const t = setInterval(() => setLst((v) => {
+      const n = v + 0.06;
+      if (n >= 24) { setSol((x) => x + 1); return n - 24; }
+      return n;
+    }), 60);
+    return () => clearInterval(t);
+  }, [playing]);
 
-  // Sun Position on Sky Dome
-  const sunSkyCoords = useMemo(() => {
-    const norm = (solTime - 6.0) / 12.0; // 0 at 6:00, 1 at 18:00
-    const isAboveHorizon = solTime >= 5.5 && solTime <= 18.8;
-    const angle = Math.PI - norm * Math.PI;
-    const radius = 95;
-    
-    const peakAlt = 90 - Math.abs(selectedLocation.lat);
-    const yMultiplier = peakAlt / 90;
-    
-    const x = 140 + Math.cos(angle) * radius;
-    const y = 140 - Math.sin(angle) * (radius * 0.85 * yMultiplier);
-    const altitudeDeg = Math.round(Math.max(0, Math.sin(norm * Math.PI) * peakAlt));
-    const azimuthDeg = Math.round(((norm * 180 + 90) % 360));
-    return { x, y, isAboveHorizon, altitudeDeg, azimuthDeg };
-  }, [solTime, selectedLocation.lat]);
+  const sky = useMemo(() => skyAt(site.lat, sol, lst), [site, sol, lst]);
+  const timeline = useMemo(() => solTimeline(site.lat, sol, 0.1), [site, sol]);
+  const ls = lsFromMsd(sol + lst / 24);
 
-  // Phobos Celestial Ephemeris
-  const phobosEphemeris = useMemo(() => {
-    if (!selectedLocation.phobosVisible) {
-      return { visible: false, reason: 'Permanently occluded by Mars curvature (Lat > 70.4°N)' };
-    }
-    const cycleProgress = (solTime / 7.65) % 1;
-    const angle = cycleProgress * Math.PI * 2;
-    const altitudeFraction = Math.sin(angle);
-    const isVisible = altitudeFraction > 0;
-    
-    const peakAlt = Math.max(0, 90 - Math.abs(selectedLocation.lat));
-    const yMultiplier = peakAlt / 90;
-    
-    const x = 140 - Math.cos(angle) * 88;
-    const y = 140 - altitudeFraction * 80 * yMultiplier;
-    
-    const sunAngle = ((solTime - 6.0) / 12.0) * Math.PI;
-    const phaseDiff = Math.abs(angle - sunAngle) % (Math.PI * 2);
-    let phaseName = 'Waxing Crescent';
-    let illumination = 38;
-    if (phaseDiff < 0.5) { phaseName = 'New Phobos (Transit Risk)'; illumination = 4; }
-    else if (phaseDiff < 1.4) { phaseName = 'Crescent'; illumination = 28; }
-    else if (phaseDiff < 2.0) { phaseName = 'First Quarter'; illumination = 50; }
-    else if (phaseDiff < 2.7) { phaseName = 'Waxing Gibbous'; illumination = 75; }
-    else { phaseName = 'Full Phobos (Opposition)'; illumination = 96; }
+  const nextEvent = (key, kind) => {
+    const list = timeline.events[key][kind];
+    return list.find((t) => t > lst) ?? list[0];
+  };
+  const sunUp = timeline.events.sun;
+  const earthWindow = timeline.samples.filter((p) => p.earth > 10).length * 0.1 * (MARS_SOL_HOURS / 24);
 
-    return {
-      visible: isVisible,
-      x, y,
-      altDeg: Math.round(Math.max(0, altitudeFraction * peakAlt)),
-      azDeg: Math.round((angle * 180 / Math.PI + 270) % 360),
-      illumination,
-      phaseName,
-      distKm: 5980 + Math.round(Math.sin(angle) * 320),
-      speedKmS: 2.138
-    };
-  }, [solTime, selectedLocation]);
+  const row = (key, extra) => {
+    const b = sky[key];
+    const up = b.alt > 0;
+    const B = BODIES[key];
+    const Icon = B.icon;
+    const rise = nextEvent(key, 'rises');
+    const set = nextEvent(key, 'sets');
+    return (
+      <button key={key} onClick={() => setSelected(key)} className={`w-full text-left rounded-xl border p-3 transition-colors cursor-pointer ${selected === key ? 'border-white/40 bg-white/[0.08]' : 'border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.05]'}`}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2 font-semibold"><Icon className="w-4 h-4" style={{ color: B.color }} />{B.name}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-full ${up ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/5 text-zinc-400'}`}>{up ? `${Math.round(b.alt)}° up, ${compass(b.az)}` : 'Below horizon'}</span>
+        </div>
+        <div className="mt-1.5 text-xs text-zinc-400 flex flex-wrap gap-x-3 gap-y-0.5">
+          {rise != null && <span>Rises {fmt(rise)}</span>}
+          {set != null && <span>Sets {fmt(set)}</span>}
+          {extra}
+        </div>
+      </button>
+    );
+  };
 
-  // Deimos Celestial Ephemeris
-  const deimosEphemeris = useMemo(() => {
-    const cycleProgress = (solTime / 30.3 + 0.35) % 1;
-    const angle = Math.PI - cycleProgress * Math.PI * 2;
-    const altitudeFraction = Math.sin(angle);
-    const isVisible = altitudeFraction > 0;
-    const peakAlt = Math.max(0, 90 - Math.abs(selectedLocation.lat));
-    const yMultiplier = peakAlt / 90;
-    const x = 140 + Math.cos(angle) * 98;
-    const y = 140 - altitudeFraction * 88 * yMultiplier;
-    return {
-      visible: isVisible,
-      x, y,
-      altDeg: Math.round(Math.max(0, altitudeFraction * peakAlt)),
-      distKm: 23460,
-      phaseName: 'Outer Synchronous'
-    };
-  }, [solTime, selectedLocation.lat]);
-
-  // Earth / Moon Coordinates
-  const earthEphemeris = useMemo(() => {
-    const norm = (solTime - 5.0) / 14.0;
-    const angle = Math.PI - norm * Math.PI;
-    const x = 140 + Math.cos(angle) * 110;
-    const y = 140 - Math.sin(angle) * 90;
-    return { x, y, visible: norm >= 0 && norm <= 1 };
-  }, [solTime]);
-
-  // Solar Transit calculation for Mastcam-Z
-  const currentTransitData = useMemo(() => {
-    const progress = transitTimeSec / 38; // 0 to 1
-    const phobosX = progress * 160; // 0 to 160 px across 144px sun
-    const phobosY = 68 + Math.sin(progress * Math.PI) * 12;
-
-    const distFromCenter = Math.abs(phobosX - 72);
-    let occlusionPct = 0;
-    if (distFromCenter < 50) {
-      const g = Math.exp(-Math.pow(distFromCenter / 25, 2));
-      occlusionPct = (g * 38.2).toFixed(1);
-    }
-
-    const baselineFluxWatts = 590; // Mars solar constant ~590 W/m²
-    const currentFluxWatts = Math.round(baselineFluxWatts * (1 - (parseFloat(occlusionPct) / 100)));
-    const batteryLossAmps = (parseFloat(occlusionPct) * 0.12).toFixed(2);
-
-    return {
-      phobosX,
-      phobosY,
-      occlusionPct,
-      currentFluxWatts,
-      batteryLossAmps
-    };
-  }, [transitTimeSec]);
-
-  // Photometric Light Curve Polyline Points
-  const lightCurvePoints = useMemo(() => {
-    const points = [];
-    for (let s = 0; s <= 38; s += 1) {
-      const g = Math.exp(-Math.pow((s - 19) / 8.5, 2));
-      const occ = g * 38.2;
-      const x = (s / 38) * 220;
-      const y = 10 + (occ / 38.2) * 35;
-      points.push(`${x},${y}`);
-    }
-    return points.join(' ');
-  }, []);
+  const t = timeline.transit;
+  const earthNote = sky.earth.elongation < 3
+    ? 'Earth is behind the Sun from here: radio contact is blocked for days around solar conjunction.'
+    : `Earth is ${Math.round(sky.earth.elongation)}° from the Sun, so it shines as ${sky.earth.evening ? 'an evening star after sunset' : 'a morning star before sunrise'}.`;
 
   return (
-    <div className="w-full text-white font-sans max-w-[1700px] mx-auto flex flex-col gap-6 pb-20 selection:bg-[#ff8c69]/30">
-      
-      {/* ======================================================== */}
-      {/* 1. TOP HEADER & TELEMETRY CONTROL BAR                    */}
-      {/* ======================================================== */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between border-b border-white/[0.08] pb-5 gap-6 pt-2">
-        <div>
-          <div className="flex items-center gap-2 mb-2 font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.25em] text-[#ff8c69] font-medium">
-            <span>✦</span>
-            <span>MARSWALK · CELESTIAL ASTRODYNAMICS & EPHEMERIS</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white font-sans">
-            Martian Sky Dome & Solar Transit
-          </h1>
-
-          <div className="flex flex-wrap items-center gap-3 mt-3 text-[11px] font-mono text-zinc-400">
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-white/[0.03] border border-white/[0.06]">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              NASA JPL HORIZONS DE430 EPHEMERIS
-            </span>
-            <span className="px-2.5 py-1 rounded-sm bg-white/[0.03] border border-white/[0.06]">
-              PHOBOS RETROGRADE MOTION (WEST → EAST)
-            </span>
-            <span className="px-2.5 py-1 rounded-sm bg-white/[0.03] border border-white/[0.06] text-zinc-300">
-              MASTCAM-Z 110MM TELEPHOTO ECLIPSE SUITE
-            </span>
-          </div>
-        </div>
-
-        {/* Live Mission Sol & Sync Actions */}
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <div className="flex items-center gap-2 bg-[#07090e]/90 p-1.5 rounded-sm border border-white/10 font-mono text-xs">
-            <div className="px-3 py-1 rounded-sm bg-white/[0.03] border border-white/[0.06] flex flex-col items-end">
-              <span className="text-[9px] text-zinc-400 uppercase tracking-widest">MISSION SOL</span>
-              <span className="font-bold text-[#ff8c69]">SOL {currentSol}</span>
-            </div>
-            <div className="px-3 py-1 rounded-sm bg-white/[0.03] border border-white/[0.06] flex flex-col items-end">
-              <span className="text-[9px] text-zinc-400 uppercase tracking-widest">LOCAL SOLAR TIME</span>
-              <span className="font-bold text-white">{formatSolTime(solTime)}</span>
-            </div>
-          </div>
-
-          <button
-            onClick={handleSyncJpl}
-            disabled={isSyncingJpl}
-            className={`px-5 py-2.5 text-xs font-mono font-bold uppercase tracking-wider rounded-sm transition-all cursor-pointer flex items-center gap-2 shadow-sm ${
-              jplData 
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
-                : isSyncingJpl 
-                  ? 'bg-white/10 text-zinc-400 border border-white/20' 
-                  : 'bg-white hover:bg-zinc-200 text-black'
-            }`}
-          >
-            {isSyncingJpl ? <Radio className="w-3.5 h-3.5 animate-pulse" /> : <Orbit className="w-3.5 h-3.5" />}
-            <span>{jplData ? 'JPL SYNCED' : isSyncingJpl ? 'SYNCING...' : 'SYNC JPL API'}</span>
-          </button>
-        </div>
+    <div className="relative min-h-screen text-white font-sans -mt-24 -mx-6 sm:-mx-10 lg:-mx-14">
+      {/* Background: a Martian canyon under the Milky Way */}
+      <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true">
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/textures/sky-canyon.jpg')" }} />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-[#03040a]/60 to-[#03040a]" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#03040a]/80 via-transparent to-transparent" />
       </div>
 
-      {/* ======================================================== */}
-      {/* 2. TOP CONTROL DECK: LOCATION & DIURNAL SCRUBBER         */}
-      {/* ======================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-        
-        {/* Left: Observer Ground Datum (Col 5) */}
-        <div className="lg:col-span-5 bg-[#07090e]/80 border border-white/[0.08] p-5 rounded-sm flex flex-col justify-between gap-3 shadow-md">
-          <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
-            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-400 flex items-center gap-1.5">
-              <MapPin className="w-3 h-3 text-[#ff8c69]" />
-              <span>01 / OBSERVER GROUND STATION</span>
-            </span>
-            <span className="text-[10px] font-mono text-[#ff8c69] font-bold">
-              {selectedLocation.lat.toFixed(2)}°, {selectedLocation.lon.toFixed(2)}°
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            {OBSERVER_LOCATIONS.map((loc) => {
-              const isSelected = selectedLocation.id === loc.id;
-              return (
-                <button
-                  key={loc.id}
-                  onClick={() => {
-                    playUiClick?.();
-                    setSelectedLocation(loc);
-                    useMapStore.getState().setMapCenter?.([loc.lat, loc.lon]);
-                  }}
-                  className={`p-3 rounded-sm border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                    isSelected
-                      ? 'bg-white/[0.08] border-l-2 border-l-[#ff8c69] border-y-white/20 border-r-white/20 text-white shadow-sm'
-                      : 'bg-black/40 border-white/[0.05] hover:border-white/20 text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1 mb-1">
-                    <span className="font-bold text-xs text-white truncate font-sans">{loc.name}</span>
-                    {!loc.phobosVisible && (
-                      <span className="text-[8px] font-mono bg-red-950/80 text-red-300 px-1 py-0.2 rounded border border-red-500/30">
-                        OCCLUDED
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
-                    <span>{loc.sub}</span>
-                    <span className="text-zinc-500">{loc.elev > 0 ? `+${loc.elev}m` : `${loc.elev}m`}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="text-[11px] font-mono text-zinc-400 leading-snug pt-1">
-            {selectedLocation.desc}
+      <div className="relative z-10 max-w-[1500px] mx-auto px-5 sm:px-10 lg:px-14 pt-28 pb-24">
+        <header className="max-w-3xl">
+          <p className="text-sm font-medium text-[#ffa07f] flex items-center gap-2"><Telescope className="w-4 h-4" />Sky Watch</p>
+          <h1 className="mt-2 text-4xl sm:text-6xl font-bold tracking-tight leading-[1.04]">Look up from Mars.</h1>
+          <p className="mt-4 text-lg text-zinc-300 leading-relaxed">
+            See where the Sun, Phobos, Deimos and Earth are from any site, hour by hour. Know when daylight ends, when Earth is in view for a radio call home, and when Phobos dims the Sun.
           </p>
-        </div>
+        </header>
 
-        {/* Right: Sol Diurnal Cycle & Sun Elevation Scrubber (Col 7) */}
-        <div className="lg:col-span-7 bg-[#07090e]/80 border border-white/[0.08] p-5 rounded-sm flex flex-col justify-between gap-3 shadow-md">
-          <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
-            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-400 flex items-center gap-1.5">
-              <Clock className="w-3 h-3 text-[#ff8c69]" />
-              <span>02 / SOL DIURNAL CYCLE & SUN SCRUBBER</span>
-            </span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-sm bg-white/[0.04] border border-white/[0.08] text-white font-medium">
-              {skyAtmosphere.phase}
-            </span>
-          </div>
-
-          {/* Time Scrubber */}
-          <div className="flex flex-col gap-2 pt-1">
-            <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
-              <span>00:00 (Midnight)</span>
-              <span className="text-cyan-400">06:00 (Blue Dawn)</span>
-              <span className="text-[#ff8c69] font-bold">12:20 (Solar Noon)</span>
-              <span className="text-cyan-400">18:12 (Blue Sunset)</span>
-              <span>24:39 (Night)</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="24.65"
-              step="0.1"
-              value={solTime}
-              onChange={(e) => setSolTime(parseFloat(e.target.value))}
-              className="w-full accent-[#ff8c69] h-1.5 bg-black/60 rounded-sm cursor-pointer"
-            />
-          </div>
-
-          {/* Fast Quick Jumps & Diurnal Play Toggle */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsTimeAdvancing(!isTimeAdvancing)}
-                className={`px-3.5 py-1.5 rounded-sm text-xs font-mono font-bold tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
-                  isTimeAdvancing
-                    ? 'bg-[#ff8c69] text-black shadow-sm'
-                    : 'bg-white text-black hover:bg-zinc-200'
-                }`}
-              >
-                {isTimeAdvancing ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 fill-current" />}
-                <span>{isTimeAdvancing ? 'PAUSE TIME' : 'RUN DIURNAL CYCLE'}</span>
-              </button>
-
-              <button
-                onClick={() => setSolTime(13.4)}
-                className="px-3 py-1.5 rounded-sm bg-black/40 hover:bg-white/5 border border-white/10 hover:border-white/30 text-zinc-300 hover:text-white text-[11px] font-mono cursor-pointer transition-all"
-              >
-                13:24 (Transit Window)
-              </button>
-
-              <button
-                onClick={() => setSolTime(18.2)}
-                className="px-3 py-1.5 rounded-sm bg-black/40 hover:bg-white/5 border border-white/10 hover:border-white/30 text-zinc-300 hover:text-white text-[11px] font-mono cursor-pointer transition-all"
-              >
-                18:12 (Blue Sunset)
-              </button>
-            </div>
-
-            <div className="text-[11px] font-mono text-zinc-400 flex items-center gap-2">
-              <span>SUN ALTITUDE: <strong className="text-white font-bold">{sunSkyCoords.altitudeDeg}°</strong></span>
-              <span>•</span>
-              <span>AZIMUTH: <strong className="text-white font-bold">{sunSkyCoords.azimuthDeg}°</strong></span>
+        {/* Site + time */}
+        <div className="mt-8 grid lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-7 rounded-2xl border border-white/10 bg-[#070a12]/70 backdrop-blur-xl p-4">
+            <div className="text-xs text-zinc-400 mb-2">Where are you standing?</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {SITES.map((s) => (
+                <button key={s.id} onClick={() => { playUiClick?.(); setSite(s); goNow(s); }} className={`text-left rounded-xl border px-3 py-2 transition-colors cursor-pointer ${site.id === s.id ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
+                  <div className="text-sm font-semibold leading-tight">{s.name}</div>
+                  <div className="text-xs text-zinc-400">{s.sub} · {Math.abs(s.lat)}°{s.lat >= 0 ? 'N' : 'S'}</div>
+                </button>
+              ))}
             </div>
           </div>
-        </div>
-
-      </div>
-
-      {/* ======================================================== */}
-      {/* 3. MAIN DUAL OBSERVATORY WORKSPACE                       */}
-      {/* ======================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        
-        {/* PANEL 1: 360° OBSERVER SKY DOME (ZENITH VIEW) */}
-        <div className="bg-[#07090e]/90 border border-white/[0.08] p-6 rounded-sm flex flex-col items-center gap-5 shadow-xl">
-          <div className="w-full flex items-center justify-between pb-3 border-b border-white/[0.06]">
-            <div className="flex items-center gap-2">
-              <Compass className="w-3.5 h-3.5 text-[#ff8c69]" />
-              <span className="text-xs font-bold text-white uppercase tracking-wider font-sans">
-                Observer Sky Dome (Zenith View)
-              </span>
-            </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-sm bg-white/[0.03] border border-white/[0.08] text-zinc-400">
-              JPL DE430 PROJECTION
-            </span>
-          </div>
-
-          {/* Planetarium Celestial Dome Canvas */}
-          <div className="relative w-[290px] h-[290px] flex items-center justify-center">
-            <div 
-              className={`w-[280px] h-[280px] rounded-full border-2 shadow-[inset_0_0_50px_rgba(0,0,0,0.9)] relative overflow-hidden transition-all duration-700 ${skyAtmosphere.domeBorder}`}
-              style={{ background: skyAtmosphere.bgGradient }}
-            >
-              {/* Star Field Background */}
-              <div 
-                className="absolute inset-0 pointer-events-none transition-opacity duration-700"
-                style={{ opacity: skyAtmosphere.starOpacity }}
-              >
-                <div className="absolute w-1 h-1 bg-white rounded-full top-14 left-24 shadow-[0_0_4px_#fff]" />
-                <div className="absolute w-1 h-1 bg-white rounded-full top-20 left-28 opacity-80" />
-                <div className="absolute w-1.5 h-1.5 bg-blue-200 rounded-full top-16 right-24 shadow-[0_0_6px_#60a5fa]" title="Deneb (North Celestial Pole on Mars)" />
-                <div className="absolute w-1 h-1 bg-white rounded-full top-24 right-20 opacity-70" />
-                <div className="absolute w-1 h-1 bg-amber-100 rounded-full bottom-20 left-16 shadow-[0_0_4px_#fbbf24]" />
-                <div className="absolute w-1.5 h-1.5 bg-cyan-200 rounded-full bottom-14 right-28 shadow-[0_0_5px_#38bdf8]" />
-                <div className="absolute w-1 h-1 bg-white rounded-full bottom-28 right-16 opacity-60" />
-                <div className="absolute w-1 h-1 bg-white rounded-full top-36 left-12 opacity-50" />
-              </div>
-
-              {/* Altitude Rings */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-[190px] h-[190px] rounded-full border border-white/10 border-dashed" />
-                <div className="w-[95px] h-[95px] rounded-full border border-white/15 border-dashed" />
-                <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" title="Zenith (90° Altitude)" />
-              </div>
-
-              {/* Cardinal Directions */}
-              <span className="absolute top-2 left-1/2 -translate-x-1/2 text-[9px] font-mono text-zinc-400">NORTH</span>
-              <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-mono text-zinc-400">SOUTH</span>
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-cyan-400 font-bold" title="Phobos Rises in the West!">WEST (Rise)</span>
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-[#ff8c69] font-bold" title="Phobos Sets in the East!">EAST (Set)</span>
-
-              {/* THE SUN */}
-              {sunSkyCoords.isAboveHorizon && (
-                <div 
-                  onClick={() => setSelectedBody('sun')}
-                  className="absolute cursor-pointer group transition-all duration-300 z-20"
-                  style={{ left: sunSkyCoords.x - 12, top: sunSkyCoords.y - 12 }}
-                >
-                  <div className="relative w-6 h-6 flex items-center justify-center">
-                    <div 
-                      className="absolute inset-0 rounded-full animate-pulse" 
-                      style={{ 
-                        backgroundColor: solTime < 7 || solTime > 17 ? '#38bdf8' : '#fbbf24', 
-                        filter: 'blur(8px)', 
-                        transform: 'scale(1.8)' 
-                      }} 
-                    />
-                    <div className="w-4 h-4 rounded-full bg-white shadow-[0_0_12px_#ffffff] z-10" />
-                  </div>
-                </div>
-              )}
-
-              {/* PHOBOS (Inner Moon) */}
-              {phobosEphemeris.visible && (
-                <div 
-                  onClick={() => setSelectedBody('phobos')}
-                  className="absolute cursor-pointer group transition-all duration-300 z-30"
-                  style={{ left: phobosEphemeris.x - 10, top: phobosEphemeris.y - 10 }}
-                >
-                  <div className="relative flex items-center gap-1.5">
-                    <div className="w-5 h-4 bg-stone-300 rounded-[45%_55%_65%_35%] border border-stone-200 shadow-[0_0_8px_rgba(255,255,255,0.7)] group-hover:scale-125 transition-transform relative">
-                      <div className="absolute top-0.5 left-0.5 w-1.5 h-1.5 rounded-full bg-stone-600/80" />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* DEIMOS (Outer Moon) */}
-              {deimosEphemeris.visible && (
-                <div 
-                  onClick={() => setSelectedBody('deimos')}
-                  className="absolute cursor-pointer group transition-all duration-300 z-20"
-                  style={{ left: deimosEphemeris.x - 6, top: deimosEphemeris.y - 6 }}
-                >
-                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-100 shadow-[0_0_6px_#a5f3fc] group-hover:scale-125 transition-transform" />
-                </div>
-              )}
-
-              {/* EARTH & MOON */}
-              {earthEphemeris.visible && (
-                <div 
-                  onClick={() => setSelectedBody('earth')}
-                  className="absolute cursor-pointer group transition-all duration-300 z-20"
-                  style={{ left: earthEphemeris.x, top: earthEphemeris.y }}
-                >
-                  <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#38bdf8] animate-pulse" />
-                    <div className="w-0.5 h-0.5 rounded-full bg-white opacity-80" />
-                  </div>
-                </div>
-              )}
-
-              {/* Occlusion Warning */}
-              {!selectedLocation.phobosVisible && (
-                <div className="absolute inset-0 bg-black/85 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 text-center">
-                  <AlertTriangle className="w-6 h-6 text-red-400 mb-1" />
-                  <span className="text-xs font-bold text-white font-mono uppercase">PHOBOS BELOW HORIZON</span>
-                  <span className="text-[10px] text-zinc-400 mt-1 max-w-[200px] font-mono leading-tight">
-                    Above 70.4°N latitude, Phobos remains permanently occluded by Mars curvature.
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Ephemeris Live Telemetry Card */}
-          <div className="w-full bg-black/50 p-4 rounded-sm border border-white/[0.08] flex flex-col gap-2.5">
-            <div className="flex items-center justify-between text-xs border-b border-white/[0.06] pb-2">
-              <span className="text-white font-bold flex items-center gap-1.5 font-mono text-[11px] uppercase">
-                <Eye className="w-3.5 h-3.5 text-[#ff8c69]" />
-                <span>EPHEMERIS: {selectedBody.toUpperCase()}</span>
-              </span>
-              <span className="text-[10px] text-[#ff8c69] font-bold font-mono">
-                {phobosEphemeris.visible ? phobosEphemeris.phaseName : 'Below Horizon'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5 text-xs font-mono">
-              <div className="bg-white/[0.03] p-2.5 rounded-sm border border-white/[0.05]">
-                <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">ALT / AZ</span>
-                <span className="text-white font-bold">{phobosEphemeris.altDeg || 0}° / {phobosEphemeris.azDeg || 0}°</span>
-              </div>
-              <div className="bg-white/[0.03] p-2.5 rounded-sm border border-white/[0.05]">
-                <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">RANGE</span>
-                <span className="text-white font-bold">{phobosEphemeris.distKm || 5980} km</span>
-              </div>
-              <div className="bg-white/[0.03] p-2.5 rounded-sm border border-white/[0.05]">
-                <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">ILLUMINATION</span>
-                <span className="text-cyan-400 font-bold">{phobosEphemeris.illumination || 38}%</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400 pt-1">
-              <span>ORBIT MOTION: <strong className="text-white">WEST → EAST (RETROGRADE)</strong></span>
-              <span>ORBIT SPEED: <strong className="text-white">2.14 KM/S</strong></span>
-            </div>
-          </div>
-        </div>
-
-        {/* PANEL 2: MASTCAM-Z PHOBOS SOLAR ECLIPSE TELEPHOTO CAMERA */}
-        <div className="bg-[#07090e]/90 border border-white/[0.08] p-6 rounded-sm flex flex-col gap-4 shadow-xl">
-          <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
-            <div className="flex items-center gap-2">
-              <Camera className="w-3.5 h-3.5 text-[#ff8c69]" />
+          <div className="lg:col-span-5 rounded-2xl border border-white/10 bg-[#070a12]/70 backdrop-blur-xl p-4 flex flex-col justify-between gap-3">
+            <div className="flex items-end justify-between gap-3">
               <div>
-                <span className="text-xs font-bold text-white uppercase tracking-wider font-sans block">
-                  Mastcam-Z Solar Transit (Eclipse) Simulator
-                </span>
-                <span className="text-[10px] text-zinc-400 font-mono">110mm Telephoto Solar Optics · Perseverance Rover Event</span>
+                <div className="text-xs text-zinc-400">Local solar time · Sol {sol}</div>
+                <div className="text-4xl font-semibold tabular-nums font-mono">{fmt(lst)}</div>
+                <div className="text-xs text-zinc-400 mt-0.5">{seasonFromLs(ls)} · Ls {ls.toFixed(0)}°</div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setPlaying((v) => !v)} className="flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-white text-black font-semibold px-3 py-2 text-sm hover:bg-zinc-200 cursor-pointer">
+                  {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}{playing ? 'Pause' : 'Play sol'}
+                </button>
+                <button onClick={() => { setPlaying(false); goNow(); }} className="rounded-lg border border-white/15 px-3 py-2 text-sm hover:bg-white/10 cursor-pointer">Now</button>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-sm bg-red-950/80 text-red-300 border border-red-500/30">
-              REC · T+{Math.floor(transitTimeSec)}s
-            </span>
+            <input type="range" min="0" max="23.99" step="0.01" value={lst} onChange={(e) => { setPlaying(false); setLst(Number(e.target.value)); }} aria-label="Local solar time" className="w-full accent-[#ff7b4d] cursor-pointer" />
           </div>
+        </div>
 
-          {/* TELEPHOTO VIEWFINDER SCREEN */}
-          <div 
-            className="w-full h-52 rounded-sm border border-white/10 relative overflow-hidden flex items-center justify-center shadow-inner"
-            style={{ backgroundColor: selectedFilter.bg }}
-          >
-            {/* Viewfinder Reticle & HUD Overlay */}
-            <div className="absolute top-2.5 left-3 text-[9px] font-mono text-white/50 pointer-events-none z-30">
-              FOV 5.8° · 110mm f/8 · EXP 1/2500s
-            </div>
-            <div className="absolute top-2.5 right-3 text-[9px] font-mono text-[#ff8c69] pointer-events-none z-30">
-              FILTER: {selectedFilter.name.toUpperCase()}
-            </div>
-            
-            {/* Crosshairs & Brackets */}
-            <div className="absolute w-5 h-5 border-t border-l border-white/30 top-2 left-2 pointer-events-none" />
-            <div className="absolute w-5 h-5 border-t border-r border-white/30 top-2 right-2 pointer-events-none" />
-            <div className="absolute w-5 h-5 border-b border-l border-white/30 bottom-2 left-2 pointer-events-none" />
-            <div className="absolute w-5 h-5 border-b border-r border-white/30 bottom-2 right-2 pointer-events-none" />
+        {/* Dome + bodies */}
+        <div className="mt-6 grid lg:grid-cols-12 gap-6 items-start">
+          <Panel title="The sky overhead" icon={Telescope} className="lg:col-span-7" right={<span className="text-xs text-zinc-400">Looking straight up · lines show the whole sol</span>}>
+            <SkyDome sky={sky} timeline={timeline} selected={selected} onSelect={setSelected} />
+            <p className="mt-3 text-xs text-zinc-500 text-center">East is on the left because you are looking up. Phobos races west to east; everything else drifts east to west.</p>
+          </Panel>
 
-            {/* THE SOLAR DISK */}
-            <div className="relative w-36 h-36 rounded-full flex items-center justify-center">
-              <div 
-                className="absolute inset-0 rounded-full animate-pulse"
-                style={{
-                  backgroundColor: selectedFilter.color,
-                  filter: 'blur(20px)',
-                  opacity: 0.4
-                }}
-              />
-              
-              <svg width="140" height="140" className="rounded-full shadow-[0_0_40px_rgba(245,158,11,0.4)]">
-                <defs>
-                  <radialGradient id="solarGradient2" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#FFFFFF" />
-                    <stop offset="40%" stopColor={selectedFilter.color} />
-                    <stop offset="85%" stopColor="#B45309" />
-                    <stop offset="100%" stopColor="#451A03" />
-                  </radialGradient>
-                </defs>
-                <circle cx="70" cy="70" r="70" fill="url(#solarGradient2)" />
-
-                {/* Sunspots */}
-                <circle cx="50" cy="60" r="2.8" fill="#290B03" />
-                <circle cx="52" cy="62" r="1.4" fill="#120401" />
-                <circle cx="92" cy="80" r="3.5" fill="#290B03" />
-                <circle cx="93" cy="81" r="1.8" fill="#120401" />
-              </svg>
-
-              {/* TRANSITING PHOBOS SILHOUETTE */}
-              <div 
-                className="absolute pointer-events-none transition-all duration-100 z-20"
-                style={{ 
-                  left: currentTransitData.phobosX - 25, 
-                  top: currentTransitData.phobosY - 20,
-                  transform: 'rotate(-12deg)'
-                }}
-              >
-                <svg width="52" height="42" viewBox="0 0 52 42">
-                  <path
-                    d="M 12,20 C 10,12 16,5 26,4 C 36,3 44,8 48,16 C 52,24 50,34 42,39 C 34,42 26,41 18,38 C 12,36 8,30 10,24 Z"
-                    fill="#050505"
-                    stroke="#000000"
-                    strokeWidth="1.5"
-                  />
-                  <path
-                    d="M 22,4 C 24,7 28,7 30,4 Z"
-                    fill="#B45309"
-                    opacity="0.35"
-                  />
-                </svg>
+          <div className="lg:col-span-5 flex flex-col gap-3">
+            <Panel title="In the sky now" icon={Clock}>
+              <div className="space-y-2">
+                {row('sun', sunUp.rises.length || sunUp.sets.length ? <span>{Math.round(sky.sun.fluxWm2)} W/m² above the air</span> : <span>{timeline.samples.some((p) => p.sun > 0) ? 'Up all sol' : 'Polar night'}</span>)}
+                {row('phobos', site.lat > 70 ? <span>Never rises this far north</span> : <span>{sky.phobos.eclipsed ? "In Mars's shadow" : `${Math.round(sky.phobos.illumination * 100)}% lit`} · {Math.round(sky.phobos.distKm).toLocaleString()} km</span>)}
+                {row('deimos', <span>{Math.round(sky.deimos.illumination * 100)}% lit · looks like a bright star</span>)}
+                {row('earth', <span>{sky.earth.distAu.toFixed(2)} AU away</span>)}
               </div>
-            </div>
-
-            {/* HUD Flux & Occlusion Telemetry */}
-            <div className="absolute bottom-2 left-3 text-[10px] font-mono text-zinc-300 bg-black/80 px-2 py-0.5 rounded-sm border border-white/10 z-30">
-              SOLAR FLUX: <strong className="text-[#ff8c69]">{currentTransitData.currentFluxWatts} W/m²</strong> (-{currentTransitData.occlusionPct}%)
-            </div>
-            <div className="absolute bottom-2 right-3 text-[10px] font-mono text-zinc-300 bg-black/80 px-2 py-0.5 rounded-sm border border-white/10 z-30">
-              OCCLUSION: <strong className="text-cyan-400">{currentTransitData.occlusionPct}%</strong>
-            </div>
+            </Panel>
           </div>
+        </div>
 
-          {/* FILTER SELECTION TABS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-            {CAMERA_FILTERS.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => {
-                  playUiClick?.();
-                  setSelectedFilter(f);
-                }}
-                className={`px-2.5 py-1.5 rounded-sm border text-[10px] font-mono uppercase tracking-wider transition-all cursor-pointer truncate ${
-                  selectedFilter.id === f.id
-                    ? 'bg-white text-black font-bold border-white shadow-sm'
-                    : 'bg-black/40 text-zinc-400 hover:text-white border-white/[0.06] hover:border-white/20'
-                }`}
-              >
-                {f.name}
+        {/* Altitude chart */}
+        <Panel title="Over the whole sol" icon={Sun} className="mt-6" right={<span className="text-xs text-zinc-400">Height above the horizon · tap to jump in time</span>}>
+          <div className="h-64 -ml-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={timeline.samples} margin={{ top: 8, right: 12, bottom: 0, left: 0 }} onClick={(e) => { if (e?.activeLabel != null) { setPlaying(false); setLst(Number(e.activeLabel)); } }}>
+                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                {sunUp.rises[0] != null && sunUp.sets[0] != null && sunUp.rises[0] < sunUp.sets[0] && (
+                  <ReferenceArea x1={sunUp.rises[0]} x2={sunUp.sets[0]} fill="#fbbf24" fillOpacity={0.06} />
+                )}
+                <XAxis dataKey="lst" type="number" domain={[0, 24]} ticks={[0, 6, 12, 18, 24]} tickFormatter={(v) => `${String(v).padStart(2, '0')}:00`} stroke="#71717a" fontSize={11} tickLine={false} />
+                <YAxis domain={[-90, 90]} ticks={[-90, -45, 0, 45, 90]} stroke="#71717a" fontSize={11} unit="°" width={44} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={tooltipStyle} labelFormatter={(v) => `${fmt(v)} local time`} formatter={(v, n) => [`${Math.round(v)}°`, BODIES[n]?.name || n]} />
+                <ReferenceLine y={0} stroke="rgba(255,255,255,0.35)" label={{ value: 'Horizon', position: 'insideTopLeft', fill: '#a1a1aa', fontSize: 11 }} />
+                <ReferenceLine x={lst} stroke="#fff" strokeDasharray="4 4" />
+                {Object.entries(BODIES).map(([key, B]) => (
+                  <Line key={key} type="monotone" dataKey={key} stroke={B.color} strokeWidth={selected === key ? 2.6 : 1.4} strokeOpacity={selected === key ? 1 : 0.6} dot={false} isAnimationActive={false} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {Object.entries(BODIES).map(([key, B]) => (
+              <button key={key} onClick={() => setSelected(key)} className={`flex items-center gap-2 text-xs rounded-full px-3 py-1 border cursor-pointer ${selected === key ? 'border-white/40 bg-white/10' : 'border-white/10'}`}>
+                <span className="w-3 h-0.5 rounded" style={{ background: B.color }} />{B.name}
               </button>
             ))}
           </div>
+        </Panel>
 
-          {/* PHOTOMETRIC LIGHT CURVE GRAPH */}
-          <div className="bg-black/50 p-3 rounded-sm border border-white/[0.08] flex flex-col gap-1.5">
-            <div className="flex items-center justify-between text-[10px] font-mono">
-              <span className="text-zinc-300 font-bold flex items-center gap-1.5">
-                <Activity className="w-3 h-3 text-[#ff8c69]" />
-                <span>PHOTOMETRIC FLUX CURVE (MEDA RADIOMETRIC SENSOR)</span>
-              </span>
-              <span className="text-zinc-400">Baseline: 590 W/m² → Dip: 365 W/m²</span>
+        {/* Survival-relevant cards */}
+        <div className="mt-6 grid lg:grid-cols-3 gap-6 items-start">
+          <Panel title="Daylight for an EVA" icon={Sun}>
+            {sunUp.rises.length && sunUp.sets.length ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Sunrise</div><div className="text-xl font-semibold tabular-nums">{fmt(sunUp.rises[0])}</div></div>
+                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Sunset</div><div className="text-xl font-semibold tabular-nums">{fmt(sunUp.sets[sunUp.sets.length - 1])}</div></div>
+                </div>
+                <p className="mt-3 text-sm text-zinc-300">Highest sun today: <strong className="text-white">{Math.round(Math.max(...timeline.samples.map((p) => p.sun)))}°</strong>. Plan to be back before sunset: the cold and dark arrive within minutes.</p>
+              </>
+            ) : (
+              <p className="text-sm text-zinc-300">{timeline.samples.some((p) => p.sun > 0) ? 'Polar day: the Sun never sets here this season.' : 'Polar night: the Sun stays below the horizon all sol. No solar power, no daylight EVA.'}</p>
+            )}
+            <p className="mt-3 text-xs text-zinc-500">Martian sunsets are blue: fine dust scatters blue light forward, around the Sun.</p>
+          </Panel>
+
+          <Panel title="Calling Earth" icon={Radio}>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Signal delay, one way</div><div className="text-xl font-semibold tabular-nums">{sky.earth.lightMinutes.toFixed(1)} min</div></div>
+              <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Earth well above horizon</div><div className="text-xl font-semibold tabular-nums">{earthWindow.toFixed(1)} h</div></div>
             </div>
+            <p className="mt-3 text-sm text-zinc-300">{earthNote}</p>
+            <p className="mt-2 text-sm text-zinc-300">A question to Mission Control and its answer take <strong className="text-white">{(sky.earth.lightMinutes * 2).toFixed(0)} min</strong> at best. In an emergency on an EVA, the crew decides alone.</p>
+            <p className="mt-3 text-xs text-zinc-500">Direct radio to Earth needs Earth above the horizon (here: more than 10°); orbiters relay the rest of the time.</p>
+          </Panel>
 
-            <div className="relative w-full h-11 flex items-center">
-              <svg width="100%" height="44" viewBox="0 0 220 44" className="overflow-visible">
-                <line x1="0" y1="10" x2="220" y2="10" stroke="#334155" strokeDasharray="3 3" />
-                <line x1="0" y1="40" x2="220" y2="40" stroke="#ef4444" strokeDasharray="2 2" opacity="0.4" />
-                
-                <polyline
-                  fill="none"
-                  stroke="#ff8c69"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  points={lightCurvePoints}
-                />
-
-                <circle
-                  cx={(transitTimeSec / 38) * 220}
-                  cy={10 + (parseFloat(currentTransitData.occlusionPct) / 38.2) * 30}
-                  r="3.5"
-                  fill="#00FFCC"
-                  className="shadow-[0_0_8px_#00FFCC]"
-                />
-              </svg>
-            </div>
-          </div>
-
-          {/* PLAYBACK CONTROLS */}
-          <div className="flex flex-col gap-2 pt-1">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  if (transitTimeSec >= 38) setTransitTimeSec(0);
-                  setIsEclipsePlaying(!isEclipsePlaying);
-                }}
-                className={`flex-1 py-2.5 rounded-sm font-mono font-bold uppercase tracking-wider text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
-                  isEclipsePlaying
-                    ? 'bg-red-600 hover:bg-red-500 text-white'
-                    : 'bg-white hover:bg-zinc-200 text-black'
-                }`}
-              >
-                {isEclipsePlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                <span>{isEclipsePlaying ? 'PAUSE TRANSIT' : transitTimeSec >= 38 ? 'REPLAY TRANSIT' : 'START 38S SOLAR ECLIPSE'}</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  playUiClick?.();
-                  setIsEclipsePlaying(false);
-                  setTransitTimeSec(0);
-                }}
-                className="p-2.5 rounded-sm bg-black/40 hover:bg-white/5 border border-white/10 text-zinc-300 hover:text-white cursor-pointer"
-                title="Reset to T-0s"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-
-              <div className="flex items-center bg-black/50 rounded-sm p-0.5 border border-white/10 font-mono">
-                {[1, 2, 4].map(speed => (
-                  <button
-                    key={speed}
-                    onClick={() => setPlaybackSpeed(speed)}
-                    className={`px-2 py-1 text-[10px] font-bold cursor-pointer rounded-xs ${
-                      playbackSpeed === speed ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    {speed}x
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <input
-              type="range"
-              min="0"
-              max="38"
-              step="0.1"
-              value={transitTimeSec}
-              onChange={(e) => setTransitTimeSec(parseFloat(e.target.value))}
-              className="w-full accent-[#ff8c69] h-1.5 bg-black/60 rounded-sm cursor-pointer"
-            />
-          </div>
+          <Panel title="Phobos crosses the Sun" icon={Eclipse}>
+            {site.lat > 70 ? (
+              <p className="text-sm text-zinc-300">Phobos never rises above 70° latitude, so there are no transits here.</p>
+            ) : (
+              <>
+                <p className="text-sm text-zinc-300 mb-3">
+                  {t?.happens
+                    ? <>This sol Phobos passes in front of the Sun at <strong className="text-white">{fmt(t.lst)}</strong>, for about <strong className="text-white">{Math.round(t.durationS)} s</strong>, covering up to <strong className="text-white">{Math.round(t.maxCover * 100)}%</strong> of it.</>
+                    : <>No transit from here this sol{t ? `: the closest pass is ${t.sepDeg.toFixed(1)}° from the Sun at ${fmt(t.lst)}` : ''}. Below is what one looks like at this site.</>}
+                </p>
+                <TransitViewer transit={t} fluxWm2={sky.sun.fluxWm2} />
+                <button onClick={findTransit} disabled={search === 'busy'} className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 text-amber-100 py-2.5 text-sm font-medium hover:bg-amber-500/20 transition disabled:opacity-60 cursor-pointer">
+                  {search === 'busy' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  {search === 'busy' ? 'Searching the coming sols…' : 'Find the next transit from here'}
+                </button>
+                {search?.none && <p className="mt-2 text-xs text-zinc-400">No transit from this site in the next 400 sols.</p>}
+              </>
+            )}
+          </Panel>
         </div>
 
+        {/* Facts */}
+        <div className="mt-6 grid md:grid-cols-3 gap-4">
+          {[
+            ['Phobos is falling', 'It orbits just 6,000 km up and spirals in by about 1.8 m every century. In 30 to 50 million years it will break apart into a ring.'],
+            ['Two very different moons', 'Phobos rises in the west and crosses the sky in about 4 hours. Deimos is so slow it can stay up for more than two sols.'],
+            ['Earth, the evening star', 'From Mars, Earth never strays more than about 47° from the Sun, so you only see it near dusk or dawn, with the Moon beside it.'],
+          ].map(([h, p]) => (
+            <motion.div key={h} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.35 }} className="rounded-2xl border border-white/10 bg-[#070a12]/60 backdrop-blur p-5">
+              <div className="font-semibold">{h}</div>
+              <p className="mt-1.5 text-sm text-zinc-300 leading-relaxed">{p}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <p className="mt-6 text-xs text-zinc-500 flex items-start gap-2 max-w-4xl">
+          <Info className="w-4 h-4 shrink-0" />
+          Sun position from the Mars24 season model (Allison &amp; McEwen 2000). Earth from JPL Keplerian elements of Earth and Mars. Phobos and Deimos use their real orbit sizes and periods with full parallax, but their starting position is not tied to a live ephemeris, so moonrise and transit times are representative, not predictions.
+        </p>
       </div>
-
-      {/* ======================================================== */}
-      {/* 4. SCIENTIFIC RELEVANCE & ASTRODYNAMICS CARDS            */}
-      {/* ======================================================== */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="bg-[#07090e]/80 p-5 rounded-sm border border-white/[0.08] flex flex-col gap-2 shadow-sm">
-          <div className="flex items-center gap-2 text-[#ff8c69] font-mono text-xs font-bold uppercase tracking-wider">
-            <Orbit className="w-3.5 h-3.5" />
-            <span>Phobos Tidal Orbit Decay</span>
-          </div>
-          <p className="text-xs text-zinc-300 font-light leading-relaxed">
-            Phobos is closer to its primary than any other moon in the Solar System (6,000 km altitude). Tidal forces are slowing it down, causing its orbit to decay inward by <strong className="text-white font-medium">1.8 cm/year</strong>. In ~30 to 50 million years, Phobos will breach Mars' Roche limit and shatter into a ring.
-          </p>
-        </div>
-
-        <div className="bg-[#07090e]/80 p-5 rounded-sm border border-white/[0.08] flex flex-col gap-2 shadow-sm">
-          <div className="flex items-center gap-2 text-cyan-400 font-mono text-xs font-bold uppercase tracking-wider">
-            <Sun className="w-3.5 h-3.5" />
-            <span>Martian Blue Twilight Optics</span>
-          </div>
-          <p className="text-xs text-zinc-300 font-light leading-relaxed">
-            While Earth has blue daytime skies and red sunsets, Mars is the exact opposite. Fine ferric oxide dust suspended in the thin air scatters blue light preferentially in the forward direction (Mie scattering), painting an eerie cyan halo around sunrise and sunset.
-          </p>
-        </div>
-
-        <div className="bg-[#07090e]/80 p-5 rounded-sm border border-white/[0.08] flex flex-col gap-2 shadow-sm">
-          <div className="flex items-center gap-2 text-purple-400 font-mono text-xs font-bold uppercase tracking-wider">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Surface Solar Power Impact</span>
-          </div>
-          <p className="text-xs text-zinc-300 font-light leading-relaxed">
-            During solar transits, sunlight drops by up to <strong className="text-white font-medium">38.2%</strong> for ~38 seconds. For solar-powered rovers and human surface solar arrays, this dip causes a temporary power sag of ~{currentTransitData.batteryLossAmps} Amps, tracked by MEDA radiometers.
-          </p>
-        </div>
-      </div>
-
-      {/* ======================================================== */}
-      {/* 5. RAW NASA JPL HORIZONS API OVERLAY MODAL / TERMINAL     */}
-      {/* ======================================================== */}
-      <AnimatePresence>
-        {jplData && (
-          <motion.div 
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 15 }}
-            className="w-full bg-[#07090e] border border-emerald-500/30 rounded-sm p-6 shadow-2xl flex flex-col gap-3 font-mono text-xs"
-          >
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-              <div className="flex items-center gap-2 text-emerald-400">
-                <Radio className="w-4 h-4 animate-pulse" />
-                <span className="font-bold tracking-widest uppercase">NASA JPL HORIZONS API LIVE DATA REPORT</span>
-              </div>
-              <button 
-                onClick={() => setJplData(null)} 
-                className="text-zinc-400 hover:text-white px-2 py-1 rounded bg-white/[0.05] border border-white/10 cursor-pointer"
-              >
-                ✕ CLOSE TERMINAL
-              </button>
-            </div>
-            <div className="bg-black/80 p-4 rounded-sm border border-white/5 max-h-60 overflow-y-auto custom-scrollbar">
-              <pre className="text-[11px] text-emerald-300/90 leading-relaxed whitespace-pre font-mono">
-                {jplData.result ? jplData.result : JSON.stringify(jplData, null, 2)}
-              </pre>
-            </div>
-            <div className="text-[10px] text-zinc-500 flex justify-between items-center pt-1">
-              <span>TARGET: 401 (PHOBOS) · CENTER: @499 (MARS)</span>
-              <span className="text-emerald-400">SYNCHRONIZATION ACTIVE</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
     </div>
   );
 }

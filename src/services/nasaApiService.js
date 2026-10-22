@@ -1,7 +1,6 @@
 import { ROCK_TARGETS } from '../data/rockTargets';
 
 const NASA_IMAGE_API = 'https://images-api.nasa.gov';
-const JPL_HORIZONS_API = 'https://ssd.jpl.nasa.gov/api/horizons.api';
 
 /**
  * Fetches dynamic imagery from the NASA Image and Video Library API.
@@ -62,27 +61,6 @@ export const fetchMarsImagery = async (query = 'Mars Perseverance', page = 1) =>
   }
 };
 
-/**
- * Fetches Ephemeris data from the JPL Horizons API.
- * Uses a proxy/JSONP architecture for browser safety, or falls back to simulation if blocked.
- */
-export const fetchJplEphemeris = async (target = '401', center = '@499', startTime, stopTime) => {
-  try {
-    // 401 = Phobos, 402 = Deimos, 499 = Mars Center, 10 = Sun
-    // Note: In a true production app, this would be routed through a backend to avoid CORS/rate limits.
-    // For this implementation, we query directly.
-    const url = `${JPL_HORIZONS_API}?format=json&COMMAND='${target}'&OBJ_DATA='YES'&MAKE_EPHEM='YES'&EPHEM_TYPE='OBSERVER'&CENTER='${center}'&START_TIME='${startTime}'&STOP_TIME='${stopTime}'&STEP_SIZE='1 h'`;
-    
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('JPL Horizons API request failed');
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error("Error fetching JPL Horizons data:", error);
-    throw error;
-  }
-};
 
 /**
  * Returns the curated astrobiological science targets bundled with the app
