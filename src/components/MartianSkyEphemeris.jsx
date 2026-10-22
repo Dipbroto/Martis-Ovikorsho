@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Pause, Sun, Moon, Globe2, Clock, Radio, Eclipse, Info, Telescope, Search, Loader2 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ReferenceArea, CartesianGrid } from 'recharts';
 import { playUiClick } from '../utils/audioSynthesizer';
 import TransitViewer from './sky/TransitViewer';
-import { skyAt, solTimeline, nextTransitSol } from '../utils/marsSky';
+import { skyAt, solTimeline, nextTransitSol, starsAndPlanets } from '../utils/marsSky';
 import { lsFromMsd, seasonFromLs, MARS_SOL_HOURS } from '../utils/marsSolar';
 
 const SITES = [
@@ -33,12 +33,13 @@ const fmt = (h) => {
 const compass = (az) => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(az / 45) % 8];
 const tooltipStyle = { backgroundColor: 'rgba(7,9,14,0.95)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, fontSize: 12 };
 
-// Fixed star field for the dome (seeded so it doesn't jump between renders)
-const STARS = (() => {
-  let s = 7;
-  const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-  return Array.from({ length: 140 }, () => ({ a: r() * Math.PI * 2, d: Math.sqrt(r()), size: 0.4 + r() * 1.3, o: 0.35 + r() * 0.65 }));
+// Faint background stars: random but fixed positions on the celestial sphere, so they turn with the real sky
+const FAINT_STARS = (() => {
+  let seed = 7;
+  const r = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  return Array.from({ length: 260 }, () => [r() * 360, (Math.asin(2 * r() - 1) * 180) / Math.PI, 2.5 + r() * 2.5]);
 })();
+
 
 function Panel({ title, icon: Icon, right, children, className = '' }) {
   return (
@@ -54,13 +55,23 @@ function Panel({ title, icon: Icon, right, children, className = '' }) {
   );
 }
 
-/** Looking straight up: north at the top, east on the LEFT (as on any sky chart). */
-function SkyDome({ sky, timeline, selected, onSelect }) {
+const PLANET_COLORS = { Mercury: '#d6d3d1', Venus: '#fef3c7', Jupiter: '#fde7c2', Saturn: '#f5deb3' };
+
+/**
+ * Looking straight up: north at the top, east on the LEFT (as on any sky chart).
+ * Hover anything to identify it; drag sideways to move time and watch the sky turn.
+ */
+function SkyDome({ sky, objects, timeline, selected, onSelect, onDragTime }) {
   const S = 360, C = S / 2, R = C - 22;
   const proj = (alt, az) => {
     const r = ((90 - alt) / 90) * R;
     const a = (az * Math.PI) / 180;
     return [C - r * Math.sin(a), C - r * Math.cos(a)];
+  };
+  const unproj = (x, y) => {
+    const dx = C - x, dy = C - y;
+    const r = Math.hypot(dx, dy);
+    return { alt: 90 - (r / R) * 90, az: ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360, inside: r <= R };
   };
   const sunAlt = sky.sun.alt;
   const night = Math.max(0, Math.min(1, (-sunAlt - 2) / 12)); // 0 day .. 1 full night
@@ -84,86 +95,198 @@ function SkyDome({ sky, timeline, selected, onSelect }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeline]);
 
-  const dayTop = `rgba(196, 140, 84, ${0.85 * (1 - night)})`;
-  return (
-    <svg viewBox={`0 0 ${S} ${S}`} className="w-full max-w-[420px] mx-auto" role="img" aria-label="The sky overhead from the selected site">
-      <defs>
-        <radialGradient id="domeSky" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor={night > 0.5 ? '#070b18' : '#7a4a26'} stopOpacity={1} />
-          <stop offset="100%" stopColor={night > 0.5 ? '#02030a' : '#2a160b'} stopOpacity={1} />
-        </radialGradient>
-        {/* Mars's sky is blue-white close to the Sun all day (forward-scattering dust), strongest at twilight */}
-        <radialGradient id="sunGlow" cx={sx / S} cy={sy / S} r={0.18 + 0.27 * twilight} gradientUnits="objectBoundingBox">
-          <stop offset="0%" stopColor="#e0f2fe" stopOpacity={Math.max(0.55 * (1 - night), 0.8 * twilight)} />
-          <stop offset="45%" stopColor="#7dd3fc" stopOpacity={Math.max(0.18 * (1 - night), 0.3 * twilight)} />
-          <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0} />
-        </radialGradient>
-        {/* Dusty haze thickens towards the horizon */}
-        <radialGradient id="horizonHaze" cx="50%" cy="50%" r="50%">
-          <stop offset="70%" stopColor="#d6a679" stopOpacity={0} />
-          <stop offset="100%" stopColor="#d6a679" stopOpacity={0.45 * (1 - night)} />
-        </radialGradient>
-        <clipPath id="domeClip"><circle cx={C} cy={C} r={R} /></clipPath>
-      </defs>
-      <circle cx={C} cy={C} r={R} fill="url(#domeSky)" />
-      <g clipPath="url(#domeClip)">
-        <circle cx={C} cy={C} r={R} fill={dayTop} opacity={0.6} />
-        <circle cx={C} cy={C} r={R} fill="url(#horizonHaze)" />
-        <rect width={S} height={S} fill="url(#sunGlow)" />
-        {STARS.map((st, i) => (
-          <circle key={i} cx={C + Math.cos(st.a) * st.d * R} cy={C + Math.sin(st.a) * st.d * R} r={st.size} fill="#fff" opacity={st.o * night} />
-        ))}
-        {[30, 60].map((alt) => <circle key={alt} cx={C} cy={C} r={((90 - alt) / 90) * R} fill="none" stroke="rgba(255,255,255,0.14)" strokeDasharray="3 5" />)}
-        <line x1={C} y1={C - R} x2={C} y2={C + R} stroke="rgba(255,255,255,0.08)" />
-        <line x1={C - R} y1={C} x2={C + R} y2={C} stroke="rgba(255,255,255,0.08)" />
-        {Object.entries(paths).map(([key, segs]) => segs.map((sg, i) => (
-          <polyline key={`${key}-${i}`} points={sg.join(' ')} fill="none" stroke={BODIES[key].color} strokeOpacity={selected === key ? 0.7 : 0.22} strokeWidth={selected === key ? 1.6 : 1} strokeDasharray={key === 'sun' ? undefined : '2 4'} />
-        )))}
-      </g>
-      <circle cx={C} cy={C} r={R} fill="none" stroke="rgba(255,255,255,0.25)" />
-      {[['N', 0], ['E', 90], ['S', 180], ['W', 270]].map(([l, az]) => {
-        const [x, y] = proj(-9, az);
-        return <text key={l} x={x} y={y} fill="#a1a1aa" fontSize="12" textAnchor="middle" dominantBaseline="middle">{l}</text>;
-      })}
-      <text x={C + 4} y={C - ((60 / 90) * R) + 12} fill="rgba(255,255,255,0.35)" fontSize="9">30°</text>
-      <text x={C + 4} y={C - ((30 / 90) * R) + 12} fill="rgba(255,255,255,0.35)" fontSize="9">60°</text>
+  // What can actually be seen: the bright stars and planets come out in twilight, faint ones only at night
+  const visibleObjects = objects.filter((o) => o.alt > 0 && (o.kind === 'faint' ? night > 0.3 : o.mag < 1 ? night > 0.05 : night > 0.2));
 
-      {/* Bodies above the horizon; labels step down when two bodies are close (e.g. Phobos crossing the Sun) */}
-      {(() => {
-        const placed = [];
-        return ['sun', 'phobos', 'earth', 'deimos'].map((key) => {
-          const b = sky[key];
-          if (b.alt <= 0) return null;
-          const [x, y] = proj(b.alt, b.az);
-          let dy = -9;
-          while (placed.some((q) => Math.abs(q.x - x) < 60 && Math.abs(q.y - (y + dy)) < 13)) dy += 14;
-          placed.push({ x, y: y + dy });
-          return { key, b, x, y, dy };
-        });
-      })().filter(Boolean).reverse().map(({ key, b, x, y, dy }) => {
-        const on = selected === key;
-        return (
-          <g key={key} transform={`translate(${x} ${y})`} onClick={() => onSelect(key)} className="cursor-pointer">
-            {key === 'sun' && <><circle r="16" fill="#fde68a" opacity="0.25" /><circle r="8" fill="#fffbeb" /></>}
-            {key === 'phobos' && <ellipse rx="6" ry="4.6" transform="rotate(-20)" fill={b.eclipsed ? '#7f1d1d' : `rgba(231,229,228,${0.35 + 0.65 * b.illumination})`} stroke="#fff" strokeOpacity="0.4" />}
-            {key === 'deimos' && <circle r="3.2" fill={`rgba(165,243,252,${0.4 + 0.6 * b.illumination})`} />}
-            {key === 'earth' && <><circle r="7" fill="#3b82f6" opacity="0.25" /><circle r="3.2" fill="#93c5fd" /></>}
-            {on && <circle r={key === 'sun' ? 14 : 11} fill="none" stroke="#fff" strokeWidth="1.5" />}
-            <text x="11" y={dy} fill="#fff" fontSize="11" fontWeight="600" style={{ paintOrder: 'stroke' }} stroke="rgba(0,0,0,0.7)" strokeWidth="3">{BODIES[key].name}</text>
-            <circle r="16" fill="transparent" />
-          </g>
-        );
-      })}
-    </svg>
+  // Everything you can point at, in screen coordinates
+  const targets = useMemo(() => {
+    const list = [];
+    for (const key of ['sun', 'phobos', 'deimos', 'earth']) {
+      const b = sky[key];
+      if (b.alt > 0) list.push({ id: key, name: BODIES[key].name, kind: key === 'sun' ? 'Star' : key === 'earth' ? 'Planet' : 'Moon of Mars', b, xy: proj(b.alt, b.az) });
+    }
+    for (const o of visibleObjects) if (o.name) list.push({ id: o.name, name: o.name, kind: o.kind === 'planet' ? 'Planet' : 'Star', b: o, xy: proj(o.alt, o.az) });
+    return list;
+    // proj only depends on constants
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sky, visibleObjects]);
+
+  const svgRef = useRef(null);
+  const [hover, setHover] = useState(null); // { x, y, alt, az, target }
+  const dragRef = useRef(null);
+
+  const local = (e) => {
+    const r = svgRef.current.getBoundingClientRect();
+    return { x: ((e.clientX - r.left) / r.width) * S, y: ((e.clientY - r.top) / r.height) * S, scale: r.width / S };
+  };
+  const nearest = (x, y) => {
+    let best = null;
+    for (const t of targets) {
+      const d = Math.hypot(t.xy[0] - x, t.xy[1] - y);
+      if (d < 16 && (!best || d < best.d)) best = { ...t, d };
+    }
+    return best;
+  };
+  const onMove = (e) => {
+    const { x, y } = local(e);
+    if (dragRef.current) {
+      const dx = x - dragRef.current.x;
+      if (Math.abs(dx) > 3) dragRef.current.moved = true;
+      if (dragRef.current.moved) {
+        onDragTime((dx / S) * 6); // a full sweep across the dome is 6 hours
+        dragRef.current.x = x;
+      }
+    }
+    const pos = unproj(x, y);
+    setHover(pos.inside ? { x, y, alt: pos.alt, az: pos.az, target: nearest(x, y) } : null);
+  };
+
+  const dayTop = `rgba(196, 140, 84, ${0.85 * (1 - night)})`;
+  const label = (key) => (key === 'Sirius' || key === 'Canopus' || key === 'Vega' || key === 'Deneb' || key === 'Arcturus');
+
+  return (
+    <div className="relative max-w-[440px] mx-auto">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${S} ${S}`}
+        className="w-full block touch-none cursor-grab active:cursor-grabbing select-none"
+        role="img"
+        aria-label="The sky overhead from the selected site. Drag sideways to move time."
+        onPointerDown={(e) => { dragRef.current = { x: local(e).x, moved: false }; e.currentTarget.setPointerCapture(e.pointerId); }}
+        onPointerMove={onMove}
+        onPointerUp={(e) => {
+          const wasDrag = dragRef.current?.moved;
+          dragRef.current = null;
+          if (!wasDrag) { const { x, y } = local(e); const t = nearest(x, y); if (t && BODIES[t.id]) onSelect(t.id); }
+        }}
+        onPointerLeave={() => { if (!dragRef.current) setHover(null); }}
+      >
+        <defs>
+          <radialGradient id="domeSky" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={night > 0.5 ? '#070b18' : '#7a4a26'} stopOpacity={1} />
+            <stop offset="100%" stopColor={night > 0.5 ? '#02030a' : '#2a160b'} stopOpacity={1} />
+          </radialGradient>
+          {/* Mars's sky is blue-white close to the Sun all day (forward-scattering dust), strongest at twilight */}
+          <radialGradient id="sunGlow" cx={sx / S} cy={sy / S} r={0.18 + 0.27 * twilight} gradientUnits="objectBoundingBox">
+            <stop offset="0%" stopColor="#e0f2fe" stopOpacity={Math.max(0.55 * (1 - night), 0.8 * twilight)} />
+            <stop offset="45%" stopColor="#7dd3fc" stopOpacity={Math.max(0.18 * (1 - night), 0.3 * twilight)} />
+            <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0} />
+          </radialGradient>
+          {/* Dusty haze thickens towards the horizon */}
+          <radialGradient id="horizonHaze" cx="50%" cy="50%" r="50%">
+            <stop offset="70%" stopColor="#d6a679" stopOpacity={0} />
+            <stop offset="100%" stopColor="#d6a679" stopOpacity={0.45 * (1 - night)} />
+          </radialGradient>
+          <clipPath id="domeClip"><circle cx={C} cy={C} r={R} /></clipPath>
+        </defs>
+        <circle cx={C} cy={C} r={R} fill="url(#domeSky)" />
+        <g clipPath="url(#domeClip)">
+          <circle cx={C} cy={C} r={R} fill={dayTop} opacity={0.6} />
+          <circle cx={C} cy={C} r={R} fill="url(#horizonHaze)" />
+          <rect width={S} height={S} fill="url(#sunGlow)" />
+          {/* Stars and planets */}
+          {visibleObjects.map((o, i) => {
+            const [x, y] = proj(o.alt, o.az);
+            const size = Math.max(0.5, 2.6 - o.mag * 0.55);
+            const fade = o.kind === 'faint' ? night * 0.7 : Math.min(1, night * 3);
+            if (o.kind === 'planet') {
+              return (
+                <g key={`p-${o.name}`} opacity={fade}>
+                  <circle cx={x} cy={y} r={size + 3} fill={PLANET_COLORS[o.name]} opacity="0.18" />
+                  <circle cx={x} cy={y} r={size} fill={PLANET_COLORS[o.name]} />
+                  <text x={x + 6} y={y - 5} fill="#fde68a" fontSize="10" fontWeight="600" style={{ paintOrder: 'stroke' }} stroke="rgba(0,0,0,0.75)" strokeWidth="3">{o.name}</text>
+                </g>
+              );
+            }
+            return (
+              <g key={`s-${o.name || i}`} opacity={fade}>
+                <circle cx={x} cy={y} r={o.kind === 'faint' ? 0.4 + (5 - o.mag) * 0.25 : size} fill="#fff" />
+                {o.kind === 'star' && label(o.name) && <text x={x + 5} y={y - 4} fill="rgba(255,255,255,0.7)" fontSize="9">{o.name}</text>}
+              </g>
+            );
+          })}
+          {[30, 60].map((alt) => <circle key={alt} cx={C} cy={C} r={((90 - alt) / 90) * R} fill="none" stroke="rgba(255,255,255,0.14)" strokeDasharray="3 5" />)}
+          <line x1={C} y1={C - R} x2={C} y2={C + R} stroke="rgba(255,255,255,0.08)" />
+          <line x1={C - R} y1={C} x2={C + R} y2={C} stroke="rgba(255,255,255,0.08)" />
+          {Object.entries(paths).map(([key, segs]) => segs.map((sg, i) => (
+            <polyline key={`${key}-${i}`} points={sg.join(' ')} fill="none" stroke={BODIES[key].color} strokeOpacity={selected === key ? 0.7 : 0.22} strokeWidth={selected === key ? 1.6 : 1} strokeDasharray={key === 'sun' ? undefined : '2 4'} />
+          )))}
+          {/* Pointer crosshair */}
+          {hover && !hover.target && (
+            <g opacity="0.6" pointerEvents="none">
+              <circle cx={C} cy={C} r={((90 - hover.alt) / 90) * R} fill="none" stroke="#fff" strokeOpacity="0.35" strokeDasharray="2 3" />
+              <line x1={C} y1={C} x2={hover.x} y2={hover.y} stroke="#fff" strokeOpacity="0.35" strokeDasharray="2 3" />
+              <circle cx={hover.x} cy={hover.y} r="3" fill="none" stroke="#fff" />
+            </g>
+          )}
+        </g>
+        <circle cx={C} cy={C} r={R} fill="none" stroke="rgba(255,255,255,0.25)" />
+        {[['N', 0], ['E', 90], ['S', 180], ['W', 270]].map(([l, az]) => {
+          const [x, y] = proj(-9, az);
+          return <text key={l} x={x} y={y} fill="#a1a1aa" fontSize="12" textAnchor="middle" dominantBaseline="middle">{l}</text>;
+        })}
+        <text x={C + 4} y={C - ((60 / 90) * R) + 12} fill="rgba(255,255,255,0.35)" fontSize="9">30°</text>
+        <text x={C + 4} y={C - ((30 / 90) * R) + 12} fill="rgba(255,255,255,0.35)" fontSize="9">60°</text>
+
+        {/* Sun, moons and Earth; labels step down when two are close (e.g. Phobos crossing the Sun) */}
+        {(() => {
+          const placed = [];
+          return ['sun', 'phobos', 'earth', 'deimos'].map((key) => {
+            const b = sky[key];
+            if (b.alt <= 0) return null;
+            const [x, y] = proj(b.alt, b.az);
+            let dy = -9;
+            while (placed.some((q) => Math.abs(q.x - x) < 60 && Math.abs(q.y - (y + dy)) < 13)) dy += 14;
+            placed.push({ x, y: y + dy });
+            return { key, b, x, y, dy };
+          });
+        })().filter(Boolean).reverse().map(({ key, b, x, y, dy }) => {
+          const on = selected === key || hover?.target?.id === key;
+          return (
+            <g key={key} transform={`translate(${x} ${y})`} className="cursor-pointer">
+              {key === 'sun' && <><circle r="16" fill="#fde68a" opacity="0.25" /><circle r="8" fill="#fffbeb" /></>}
+              {key === 'phobos' && <ellipse rx="6" ry="4.6" transform="rotate(-20)" fill={b.eclipsed ? '#7f1d1d' : `rgba(231,229,228,${0.35 + 0.65 * b.illumination})`} stroke="#fff" strokeOpacity="0.4" />}
+              {key === 'deimos' && <circle r="3.2" fill={`rgba(165,243,252,${0.4 + 0.6 * b.illumination})`} />}
+              {key === 'earth' && <><circle r="7" fill="#3b82f6" opacity="0.25" /><circle r="3.2" fill="#93c5fd" /></>}
+              {on && <circle r={key === 'sun' ? 14 : 11} fill="none" stroke="#fff" strokeWidth="1.5" />}
+              <text x="11" y={dy} fill="#fff" fontSize="11" fontWeight="600" style={{ paintOrder: 'stroke' }} stroke="rgba(0,0,0,0.7)" strokeWidth="3">{BODIES[key].name}</text>
+            </g>
+          );
+        })}
+        {hover?.target && !BODIES[hover.target.id] && (
+          <circle cx={hover.target.xy[0]} cy={hover.target.xy[1]} r="8" fill="none" stroke="#fff" strokeWidth="1.2" pointerEvents="none" />
+        )}
+      </svg>
+
+      {/* Hover card */}
+      {hover && (
+        <div
+          className="pointer-events-none absolute z-10 rounded-lg border border-white/15 bg-black/85 backdrop-blur px-2.5 py-1.5 text-xs text-white shadow-xl whitespace-nowrap"
+          style={{ left: `${(hover.x / S) * 100}%`, top: `${(hover.y / S) * 100}%`, transform: `translate(${hover.x > C ? 'calc(-100% - 12px)' : '12px'}, -50%)` }}
+        >
+          {hover.target ? (
+            <>
+              <div className="font-semibold">{hover.target.name} <span className="text-zinc-400 font-normal">· {hover.target.kind}</span></div>
+              <div className="text-zinc-300 tabular-nums">{Math.round(hover.target.b.alt)}° up · {Math.round(hover.target.b.az)}° {compass(hover.target.b.az)}</div>
+              {hover.target.b.distAu != null && <div className="text-zinc-400 tabular-nums">{hover.target.b.distAu.toFixed(2)} AU from Mars</div>}
+              {hover.target.b.distKm != null && <div className="text-zinc-400 tabular-nums">{Math.round(hover.target.b.distKm).toLocaleString()} km away</div>}
+              {hover.target.b.mag != null && <div className="text-zinc-400">Brightness: magnitude {hover.target.b.mag.toFixed(1)}</div>}
+            </>
+          ) : (
+            <div className="tabular-nums">{Math.round(hover.alt)}° up · {Math.round(hover.az)}° {compass(hover.az)}</div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
 export default function MartianSkyEphemeris() {
-  const [site, setSite] = useState(SITES[0]);
+  const [site, setSite] = useState(() => SITES.find((x) => x.id === 'gale'));
   const [sol, setSol] = useState(() => Math.floor(msdNow()));
   const [lst, setLst] = useState(() => {
     const m = msdNow();
-    return ((((m % 1) * 24 + SITES[0].lon / 15) % 24) + 24) % 24;
+    return ((((m % 1) * 24 + SITES.find((x) => x.id === 'gale').lon / 15) % 24) + 24) % 24;
   });
   const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState('phobos');
@@ -204,6 +327,7 @@ export default function MartianSkyEphemeris() {
   }, [playing]);
 
   const sky = useMemo(() => skyAt(site.lat, sol, lst), [site, sol, lst]);
+  const objects = useMemo(() => starsAndPlanets(site.lat, sol, lst, FAINT_STARS), [site, sol, lst]);
   const timeline = useMemo(() => solTimeline(site.lat, sol, 0.1), [site, sol]);
   const ls = lsFromMsd(sol + lst / 24);
 
@@ -293,8 +417,15 @@ export default function MartianSkyEphemeris() {
         {/* Dome + bodies */}
         <div className="mt-6 grid lg:grid-cols-12 gap-6 items-start">
           <Panel title="The sky overhead" icon={Telescope} className="lg:col-span-7" right={<span className="text-xs text-zinc-400">Looking straight up · lines show the whole sol</span>}>
-            <SkyDome sky={sky} timeline={timeline} selected={selected} onSelect={setSelected} />
-            <p className="mt-3 text-xs text-zinc-500 text-center">East is on the left because you are looking up. Phobos races west to east; everything else drifts east to west.</p>
+            <SkyDome
+              sky={sky}
+              objects={objects}
+              timeline={timeline}
+              selected={selected}
+              onSelect={setSelected}
+              onDragTime={(dh) => { setPlaying(false); setLst((v) => (((v + dh) % 24) + 24) % 24); }}
+            />
+            <p className="mt-3 text-xs text-zinc-500 text-center">Point at anything to name it · drag sideways to move time · east is on the left because you are looking up.</p>
           </Panel>
 
           <div className="lg:col-span-5 flex flex-col gap-3">
@@ -304,6 +435,11 @@ export default function MartianSkyEphemeris() {
                 {row('phobos', site.lat > 70 ? <span>Never rises this far north</span> : <span>{sky.phobos.eclipsed ? "In Mars's shadow" : `${Math.round(sky.phobos.illumination * 100)}% lit`} · {Math.round(sky.phobos.distKm).toLocaleString()} km</span>)}
                 {row('deimos', <span>{Math.round(sky.deimos.illumination * 100)}% lit · looks like a bright star</span>)}
                 {row('earth', <span>{sky.earth.distAu.toFixed(2)} AU away</span>)}
+              </div>
+              <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 text-xs text-zinc-300">
+                <span className="text-zinc-400">Planets above the horizon: </span>
+                {objects.filter((o) => o.kind === 'planet' && o.alt > 0).map((o) => `${o.name} (${Math.round(o.alt)}°, ${compass(o.az)})`).join(' · ') || 'none right now'}
+                {sky.sun.alt > -4 && objects.some((o) => o.kind === 'planet' && o.alt > 0) && <span className="text-zinc-500"> · lost in daylight until dusk</span>}
               </div>
             </Panel>
           </div>

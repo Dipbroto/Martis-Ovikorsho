@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { earthFromMars, overlapFraction, skyAt, solTimeline } from './marsSky';
+import { earthFromMars, overlapFraction, skyAt, solTimeline, starsAndPlanets } from './marsSky';
 import { jdFromMsd, lsFromMsd, solarDeclination, sunElevation } from './marsSolar';
 
 const MSD = 53000;
@@ -52,5 +52,18 @@ describe('Mars sky', () => {
     const partial = overlapFraction(1, 0.6);
     expect(partial).toBeGreaterThan(0);
     expect(partial).toBeLessThan(0.36);
+  });
+
+  it('places stars by the right rules: Deneb near the Mars north pole, a star circles the pole', () => {
+    // Mars's north pole points close to Deneb (about 10 deg away), so from the north pole Deneb is high all sol
+    const alts = [0, 6, 12, 18].map((h) => starsAndPlanets(90 - 1e-6, MSD, h).find((o) => o.name === 'Deneb').alt);
+    alts.forEach((a) => expect(a).toBeGreaterThan(70));
+    // Stars rise and set once a sol from the equator
+    const sirius = [0, 6, 12, 18].map((h) => starsAndPlanets(0, MSD, h).find((o) => o.name === 'Sirius').alt);
+    expect(Math.max(...sirius)).toBeGreaterThan(0);
+    expect(Math.min(...sirius)).toBeLessThan(0);
+    const planets = starsAndPlanets(0, MSD, 0).filter((o) => o.kind === 'planet');
+    expect(planets.map((p) => p.name)).toEqual(['Mercury', 'Venus', 'Jupiter', 'Saturn']);
+    planets.forEach((p) => expect(p.distAu).toBeGreaterThan(0.3));
   });
 });

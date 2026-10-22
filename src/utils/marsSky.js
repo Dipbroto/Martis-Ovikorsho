@@ -57,6 +57,14 @@ const ELEMENTS = {
     0.00000562, -0.00004392, -0.01294668, 35999.37244981, 0.32327364, 0],
   mars: [1.52371034, 0.0933941, 1.84969142, -4.55343205, -23.94362959, 49.55953891,
     0.00001847, 0.00007882, -0.00813131, 19140.30268499, 0.44441088, -0.29257343],
+  mercury: [0.38709927, 0.20563593, 7.00497902, 252.2503235, 77.45779628, 48.33076593,
+    0.00000037, 0.00001906, -0.00594749, 149472.67411175, 0.16047689, -0.12534081],
+  venus: [0.72333566, 0.00677672, 3.39467605, 181.9790995, 131.60246718, 76.67984255,
+    0.0000039, -0.00004107, -0.0007889, 58517.81538729, 0.00268329, -0.27769418],
+  jupiter: [5.202887, 0.04838624, 1.30439695, 34.39644051, 14.72847983, 100.47390909,
+    -0.00011607, -0.00013253, -0.00183714, 3034.74612775, 0.21252668, 0.20469106],
+  saturn: [9.53667594, 0.05386179, 2.48599187, 49.95424423, 92.59887831, 113.66242448,
+    -0.0012506, -0.00050991, 0.00193609, 1222.49362201, -0.41897216, -0.28867794],
 };
 
 function heliocentric(planet, jd) {
@@ -117,6 +125,67 @@ export function earthFromMars(jd) {
     ],
     sunDecDeg: Math.asin(sunEq[2]) * R2D,
   };
+}
+
+// ---------- stars and planets ----------
+
+// The 20 brightest stars plus a few well-known ones: [name, RA deg, Dec deg (J2000), magnitude]
+export const BRIGHT_STARS = [
+  ['Sirius', 101.287, -16.716, -1.46], ['Canopus', 95.988, -52.696, -0.74], ['Rigil Kentaurus', 219.902, -60.834, -0.27],
+  ['Arcturus', 213.915, 19.182, -0.05], ['Vega', 279.234, 38.784, 0.03], ['Capella', 79.172, 45.998, 0.08],
+  ['Rigel', 78.634, -8.202, 0.13], ['Procyon', 114.825, 5.225, 0.34], ['Achernar', 24.429, -57.237, 0.46],
+  ['Betelgeuse', 88.793, 7.407, 0.5], ['Hadar', 210.956, -60.373, 0.61], ['Altair', 297.696, 8.868, 0.77],
+  ['Acrux', 186.65, -63.099, 0.77], ['Aldebaran', 68.98, 16.509, 0.85], ['Antares', 247.352, -26.432, 0.96],
+  ['Spica', 201.298, -11.161, 0.97], ['Pollux', 116.329, 28.026, 1.14], ['Fomalhaut', 344.413, -29.622, 1.16],
+  ['Deneb', 310.358, 45.28, 1.25], ['Mimosa', 191.93, -59.689, 1.25], ['Regulus', 152.093, 11.967, 1.35],
+  ['Bellatrix', 81.283, 6.35, 1.64], ['Alnilam', 84.053, -1.202, 1.69], ['Alnitak', 85.19, -1.943, 1.77],
+  ['Mintaka', 83.002, -0.299, 2.23], ['Polaris', 37.955, 89.264, 1.98], ['Alderamin', 319.645, 62.586, 2.45],
+];
+
+export const PLANETS = {
+  mercury: { name: 'Mercury', mag: -0.5 },
+  venus: { name: 'Venus', mag: -3.4 },
+  jupiter: { name: 'Jupiter', mag: -2.0 },
+  saturn: { name: 'Saturn', mag: 0.7 },
+};
+
+/** Unit vector in the sun-fixed Mars frame for an equatorial (J2000) direction, given the Sun's Mars-equatorial RA. */
+const sunFixed = (eq, raSun) => {
+  const ra = Math.atan2(eq[1], eq[0]);
+  const c = Math.cos(Math.asin(Math.max(-1, Math.min(1, eq[2]))));
+  return [c * Math.cos(ra - raSun), c * Math.sin(ra - raSun), eq[2]];
+};
+
+/**
+ * Stars and planets for an observer: [{ name, kind, alt, az, mag, distAu? }].
+ * Stars are fixed (J2000, no precession: fine for a sky chart). Planets from the same Keplerian
+ * elements as Earth, as seen from Mars.
+ */
+export function starsAndPlanets(latDeg, msd, lst, background = []) {
+  const t = Math.floor(msd) + lst / 24;
+  const jd = jdFromMsd(t);
+  const obs = observer(latDeg, lst);
+  const mars = heliocentric('mars', jd);
+  const sunEq = norm(toMarsEq(toEquatorial(scale(mars, -1))));
+  const raSun = Math.atan2(sunEq[1], sunEq[0]);
+  const out = [];
+  // `background` are decorative faint stars ([ra, dec, mag]) that turn with the real sky
+  for (const [ra, dec, mag] of background) {
+    const r = ra * D2R, d = dec * D2R;
+    const eq = norm(toMarsEq([Math.cos(d) * Math.cos(r), Math.cos(d) * Math.sin(r), Math.sin(d)]));
+    out.push({ name: null, kind: 'faint', mag, ...altAz(sunFixed(eq, raSun), obs) });
+  }
+  for (const [name, ra, dec, mag] of BRIGHT_STARS) {
+    const r = ra * D2R, d = dec * D2R;
+    const eq = norm(toMarsEq([Math.cos(d) * Math.cos(r), Math.cos(d) * Math.sin(r), Math.sin(d)]));
+    out.push({ name, kind: 'star', mag, ...altAz(sunFixed(eq, raSun), obs) });
+  }
+  for (const [key, p] of Object.entries(PLANETS)) {
+    const rel = sub(heliocentric(key, jd), mars);
+    const eq = norm(toMarsEq(toEquatorial(rel)));
+    out.push({ name: p.name, kind: 'planet', mag: p.mag, distAu: len(rel), ...altAz(sunFixed(eq, raSun), obs) });
+  }
+  return out;
 }
 
 // ---------- the sky at one moment ----------
