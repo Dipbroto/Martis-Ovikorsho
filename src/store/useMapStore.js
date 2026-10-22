@@ -158,7 +158,7 @@ const useMapStore = create((set, get) => ({
   // ========================
   showWalkbackLimits: false, // fixed 2/5 km team rings; the real return range is the Return overlay
   toggleWalkbackLimits: () => set((state) => ({ showWalkbackLimits: !state.showWalkbackLimits })),
-  showGraticule: true,
+  showGraticule: false,
   toggleGraticule: () => set((state) => ({ showGraticule: !state.showGraticule })),
 
   showRoverTraverses: false,

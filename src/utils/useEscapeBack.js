@@ -23,6 +23,7 @@ const STEPS = [
   [(s) => s.activeTab === 'map' && s.terrainOverlay, (s) => s.setTerrainOverlay(s.terrainOverlay)],
   [(s) => s.activeTab === 'map' && s.bottomPanelOpen, (s) => s.setBottomPanelOpen(false)],
   [(s) => s.activeTab === 'map' && s.selectedPOI, (s) => s.clearSelection()],
+  [(s) => s.activeTab === 'map' && s.sidebarOpen, (s) => s.setSidebarOpen(false)],
   [(s) => s.activeTab === 'map' && s.isRoverDriving, (s) => s.setRoverDriving(false)],
   [(s) => s.activeTab === 'map' && s.viewMode !== '2d', (s) => s.setViewMode('2d')],
   [(s) => s.activeTab === 'map' && s.selectedWaypointId, (s) => s.clearSelection()],

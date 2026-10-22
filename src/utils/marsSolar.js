@@ -11,8 +11,8 @@ export const MARS_SOL_HOURS = 24.65979; // length of a sol in hours
 /** Julian date (TT) from a Mars Sol Date. */
 export const jdFromMsd = (msd) => 2451549.5 + (msd - 44796.0 + 0.0009626) * 1.0274912517;
 
-/** Areocentric solar longitude Ls (0-360 degrees) at a Julian date (TT). */
-export function lsFromJd(jdTT) {
+/** Ls and the equation of centre (both degrees) at a Julian date (TT). */
+function solarTerms(jdTT) {
   const dt = jdTT - 2451545.0;
   const M = rad(mod360(19.3871 + 0.52402073 * dt)); // Mars mean anomaly
   const alphaFMS = 270.3863 + 0.52403840 * dt;     // fictitious mean sun angle
@@ -22,10 +22,32 @@ export function lsFromJd(jdTT) {
   ].reduce((sum, [A, tau, phi]) => sum + A * Math.cos(rad(0.985626 * dt / tau + phi)), 0);
   const eqCenter = (10.691 + 3.0e-7 * dt) * Math.sin(M) + 0.623 * Math.sin(2 * M) + 0.050 * Math.sin(3 * M)
     + 0.005 * Math.sin(4 * M) + 0.0005 * Math.sin(5 * M) + pbs;
-  return mod360(alphaFMS + eqCenter);
+  return { ls: mod360(alphaFMS + eqCenter), eqCenter };
 }
 
-export const lsFromDate = (date = new Date()) => lsFromJd(2440587.5 + date.getTime() / 86400000 + 69.184 / 86400);
+/** Areocentric solar longitude Ls (0-360 degrees) at a Julian date (TT). */
+export const lsFromJd = (jdTT) => solarTerms(jdTT).ls;
+
+const jdTTFromDate = (date) => 2440587.5 + date.getTime() / 86400000 + 69.184 / 86400;
+
+export const lsFromDate = (date = new Date()) => lsFromJd(jdTTFromDate(date));
+
+/** Mars Sol Date at a moment; its fraction of a sol is Mars Coordinated Time (A&M 2000 eq. C-2). */
+export const msdFromDate = (date = new Date()) => (jdTTFromDate(date) - 2451549.5) / 1.0274912517 + 44796.0 - 0.0009626;
+
+/**
+ * Where on Mars the Sun is straight overhead at `date`: { lat, lon } in degrees (longitude east),
+ * from Mars Coordinated Time and the equation of time (A&M 2000 eqs. C-1 to C-4).
+ */
+export function subsolarPoint(date = new Date()) {
+  const { ls, eqCenter } = solarTerms(jdTTFromDate(date));
+  const L = rad(ls);
+  const eot = 2.861 * Math.sin(2 * L) - 0.071 * Math.sin(4 * L) + 0.002 * Math.sin(6 * L) - eqCenter;
+  const msd = msdFromDate(date);
+  const west = mod360((msd - Math.floor(msd)) * 360 + eot + 180);
+  const east = mod360(-west);
+  return { lat: solarDeclination(ls), lon: east > 180 ? east - 360 : east, ls };
+}
 export const lsFromMsd = (msd) => lsFromJd(jdFromMsd(msd));
 
 /** Solar declination (degrees) for a given Ls. */

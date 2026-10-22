@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lsFromDate, daylight, solarDeclination, sunElevation, seasonFromLs } from './marsSolar';
+import { lsFromDate, daylight, solarDeclination, sunElevation, seasonFromLs, msdFromDate, subsolarPoint } from './marsSolar';
 
 describe('areocentric solar longitude', () => {
   it('is ~0 at the start of Mars Year 36 (2021-02-07) and Mars Year 37 (2022-12-26)', () => {
@@ -38,5 +38,25 @@ describe('daylight', () => {
   it('names the season', () => {
     expect(seasonFromLs(45)).toBe('Northern spring');
     expect(seasonFromLs(300)).toBe('Northern winter');
+  });
+});
+
+describe('subsolar point', () => {
+  // Worked example in Allison & McEwen (2000) / Mars24: 2000-01-06 00:00 UTC
+  const d = new Date('2000-01-06T00:00:00Z');
+
+  it('matches the published Mars Sol Date and subsolar longitude', () => {
+    expect(msdFromDate(d)).toBeCloseTo(44795.9998, 3);
+    // 174.4 deg west = -174.4 deg east
+    expect(subsolarPoint(d).lon).toBeCloseTo(-174.4, 0);
+    expect(subsolarPoint(d).lat).toBeCloseTo(solarDeclination(lsFromDate(d)), 6);
+  });
+
+  it('moves west by about 14.6 degrees per Earth hour', () => {
+    const a = subsolarPoint(d).lon;
+    const b = subsolarPoint(new Date(d.getTime() + 3600e3)).lon;
+    const westward = ((a - b) + 360) % 360;
+    expect(westward).toBeGreaterThan(14.4);
+    expect(westward).toBeLessThan(14.8);
   });
 });

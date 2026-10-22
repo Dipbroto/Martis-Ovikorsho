@@ -3,6 +3,10 @@
 
 const TREK_BASE = 'https://trek.nasa.gov/tiles/Mars/EQ';
 
+// HRSC-MOLA blended hillshade (200 m/px, Trek tiles to zoom 7). Laid over the colour imagery as
+// shading only, so the photos get real relief instead of looking flat.
+export const RELIEF_SHADE_URL = `${TREK_BASE}/Mars_MOLA_blend200ppx_HRSC_Shade_clon0dd_200mpp_lzw/1.0.0/default/default028mm/{z}/{y}/{x}.png`;
+
 export const LAYER_CATEGORIES = {
   IMAGERY: 'Imagery',
   TOPOGRAPHY: 'Topography',

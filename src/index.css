@@ -876,7 +876,12 @@ button:disabled {
 .leaflet-tooltip.route-end-label::before { display: none; }
 
 /* NASA HD surface: the Viking mosaic adds only its colour to the detailed THEMIS/CTX images below */
-.tile-blend-color { mix-blend-mode: color; filter: saturate(1.5); }
+/* Map imagery grading: the Viking mosaic is slightly over-saturated, so it is calmed a little, and the
+   HRSC-MOLA hillshade is blended in as light and shadow only. Its flat ground is grey 180/255, so it is
+   darkened to 50% (neutral for soft-light, leaving flat ground unchanged) and its contrast stretched. */
+.tile-blend-color { mix-blend-mode: color; filter: saturate(1.05); }
+.tile-photo { filter: saturate(0.86) contrast(1.06); }
+.tile-blend-relief { mix-blend-mode: soft-light; filter: brightness(0.71) contrast(3.2); }
 
 /* Route safety scan: a radar sweep while the checks run */
 .radar-sweep {

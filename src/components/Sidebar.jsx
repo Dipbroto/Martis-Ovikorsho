@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, Layers, Route, MapPin, Rocket, ChevronLeft, ChevronRight } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
@@ -24,6 +24,18 @@ export default function Sidebar() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // On a phone the open panel covers the map, so a tap on the map puts it away
+  const panelRef = useRef(null);
+  useEffect(() => {
+    if (!sidebarOpen) return undefined;
+    const onDown = (e) => {
+      if (window.innerWidth >= 640 || panelRef.current?.contains(e.target)) return;
+      if (e.target.closest?.('.leaflet-container, canvas')) setSidebarOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [sidebarOpen, setSidebarOpen]);
 
   const tabs = [
     { id: 'guide', label: 'Guide', icon: ShieldCheck },
@@ -63,6 +75,7 @@ export default function Sidebar() {
 
   return (
     <motion.div
+      ref={panelRef}
       initial={false}
       animate={{ width: sidebarOpen ? openWidth : 54 }}
       transition={{ type: 'spring', stiffness: 420, damping: 40, mass: 0.8 }}
@@ -91,9 +104,11 @@ export default function Sidebar() {
               <button
                 key={tab.id}
                 onClick={() => {
-                  setSidebarTab(tab.id);
-                  if (!sidebarOpen) setSidebarOpen(true);
+                  // The open tab's button closes the panel, like an activity bar
+                  if (sidebarOpen && isActive) setSidebarOpen(false);
+                  else setSidebarTab(tab.id);
                 }}
+                aria-pressed={isActive && sidebarOpen}
                 className={`relative flex items-center gap-2 py-2 px-2.5 rounded-xl transition-all text-sm font-medium shrink-0 ${
                   sidebarOpen ? 'flex-1 min-w-[64px] justify-center' : 'w-full justify-center'
                 } ${
@@ -101,7 +116,7 @@ export default function Sidebar() {
                     ? 'bg-[#F16938]/15 text-stone-100 border border-[#F16938]/50 shadow-[0_0_12px_rgba(241,105,56,0.18)]'
                     : 'text-stone-400 hover:text-white hover:bg-white/[0.04] border border-transparent'
                 }`}
-                title={tab.label}
+                title={isActive && sidebarOpen ? `${tab.label} (click to close)` : tab.label}
               >
                 <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#F16938]' : 'text-stone-400'}`} />
                 {sidebarOpen && (
@@ -138,10 +153,10 @@ export default function Sidebar() {
       </div>
       </div>
 
-      {/* Collapse Handle */}
+      {/* Collapse handle: pinned beside the tab bar, so it stays put whatever height the panel is */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="absolute top-1/2 -right-3.5 -translate-y-1/2 w-7 h-14 bg-[#070A10]/95 border border-white/[0.12] hover:border-[#F16938]/60 rounded-r-xl flex items-center justify-center text-stone-300 hover:text-[#F16938] transition-colors z-50 shadow-lg cursor-pointer"
+        className="absolute top-2 -right-3.5 w-7 h-10 bg-[#070A10]/95 border border-white/[0.12] hover:border-[#F16938]/60 rounded-r-xl flex items-center justify-center text-stone-300 hover:text-[#F16938] transition-colors z-50 shadow-lg cursor-pointer"
         title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
         aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         aria-expanded={sidebarOpen}

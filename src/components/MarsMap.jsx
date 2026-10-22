@@ -3,7 +3,7 @@ import { MapContainer, Pane, TileLayer, useMap, useMapEvents, CircleMarker, Popu
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import useMapStore from '../store/useMapStore';
-import { marsLayers } from '../data/marsLayers';
+import { marsLayers, RELIEF_SHADE_URL } from '../data/marsLayers';
 import { getElevation } from '../utils/elevationService';
 import { marsDistance, calculateSlope, MARS } from '../utils/marsUtils';
 import CoordinateDisplay from './CoordinateDisplay';
@@ -532,28 +532,23 @@ function routeKmTicks(line) {
 // Whole-planet views look best in the plain Viking colour mosaic; the HD stack takes over from here
 const HD_FROM_ZOOM = 5;
 
-// Mars Graticule Definitions (Parallels & Meridians)
-const MARS_LAT_GRID = [
-  { lat: 80, label: '80°N - North Polar Cap', color: '#06b6d4', dash: '3, 6', weight: 1.2 },
-  { lat: 60, label: '60°N - Vastitas Borealis', color: '#38bdf8', dash: '4, 4', weight: 1 },
-  { lat: 30, label: '30°N - Northern Plains', color: '#94a3b8', dash: '4, 4', weight: 1 },
-  { lat: 0, label: '0° EQUATOR', color: '#f59e0b', dash: '', weight: 2 },
-  { lat: -30, label: '30°S - Southern Highlands', color: '#94a3b8', dash: '4, 4', weight: 1 },
-  { lat: -60, label: '60°S - Hellas / Argyre', color: '#38bdf8', dash: '4, 4', weight: 1 },
-  { lat: -80, label: '80°S - South Polar Cap', color: '#06b6d4', dash: '3, 6', weight: 1.2 },
-];
+// Mars graticule: thin neutral lines every 30 degrees, a touch stronger on the equator and prime
+// meridian, with small plain labels, like a reference grid on a NASA map rather than a game overlay
+const MARS_LAT_GRID = [60, 30, 0, -30, -60].map((lat) => ({
+  lat,
+  label: lat === 0 ? '0°' : `${Math.abs(lat)}°${lat > 0 ? 'N' : 'S'}`,
+  opacity: lat === 0 ? 0.32 : 0.16,
+}));
 
-const MARS_LON_GRID = [
-  { lon: -120, label: '120°W', color: '#94a3b8', dash: '3, 6', weight: 1 },
-  { lon: -60, label: '60°W', color: '#64748b', dash: '3, 6', weight: 1 },
-  { lon: 0, label: '0° PRIME MERIDIAN', color: '#f59e0b', dash: '', weight: 2 },
-  { lon: 60, label: '60°E', color: '#64748b', dash: '3, 6', weight: 1 },
-  { lon: 120, label: '120°E', color: '#94a3b8', dash: '3, 6', weight: 1 },
-];
+const MARS_LON_GRID = [-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150].map((lon) => ({
+  lon,
+  label: lon === 0 ? '0°' : `${Math.abs(lon)}°${lon > 0 ? 'E' : 'W'}`,
+  opacity: lon === 0 ? 0.32 : 0.16,
+}));
 
-const graticuleLabelIcon = (label, color, background, transform) => L.divIcon({
+const graticuleLabelIcon = (label, transform) => L.divIcon({
   className: 'graticule-label',
-  html: `<div style="font-family: monospace; font-size: 9px; font-weight: 700; color: ${color}; background: ${background}; padding: 1px 5px; border-radius: 3px; border: 1px solid ${color}50; white-space: nowrap; pointer-events: none; transform: ${transform};">${label}</div>`,
+  html: `<div style="font-size: 10px; font-weight: 500; letter-spacing: 0.02em; color: rgba(255,255,255,0.62); text-shadow: 0 1px 2px rgba(0,0,0,0.9); white-space: nowrap; pointer-events: none; transform: ${transform};">${label}</div>`,
   iconSize: [0, 0],
   iconAnchor: [0, 0],
 });
@@ -561,13 +556,13 @@ const graticuleLabelIcon = (label, color, background, transform) => L.divIcon({
 // Icons are built once; recreating divIcons on every render makes Leaflet rebuild every label's DOM
 const LAT_GRID_LAYERS = MARS_LAT_GRID.map((item) => ({
   ...item,
-  leftIcon: graticuleLabelIcon(item.label, item.color, 'rgba(5,6,8,0.88)', 'translateY(-50%)'),
-  rightIcon: graticuleLabelIcon(item.label, item.color, 'rgba(5,6,8,0.88)', 'translate(-100%, -50%)'),
+  leftIcon: graticuleLabelIcon(item.label, 'translate(4px, -110%)'),
+  rightIcon: graticuleLabelIcon(item.label, 'translate(calc(-100% - 4px), -110%)'),
 }));
 
 const LON_GRID_LAYERS = MARS_LON_GRID.map((item) => ({
   ...item,
-  icon: graticuleLabelIcon(item.label, item.color, 'rgba(5,6,8,0.9)', 'translate(-50%, 4px)'),
+  icon: graticuleLabelIcon(item.label, 'translate(4px, 2px)'),
 }));
 
 // Martian Planetary Graticule (Latitude & Longitude Grid) - fully static, so memoised
@@ -578,13 +573,7 @@ const Graticule = React.memo(function Graticule() {
         <React.Fragment key={`lat-${item.lat}`}>
           <Polyline
             positions={[[item.lat, -180], [item.lat, 180]]}
-            pathOptions={{
-              color: item.color,
-              weight: item.weight,
-              dashArray: item.dash || undefined,
-              opacity: 0.55,
-              interactive: false,
-            }}
+            pathOptions={{ color: '#ffffff', weight: 1, opacity: item.opacity, interactive: false }}
           />
           <Marker position={[item.lat, -170]} interactive={false} icon={item.leftIcon} />
           <Marker position={[item.lat, 170]} interactive={false} icon={item.rightIcon} />
@@ -595,15 +584,9 @@ const Graticule = React.memo(function Graticule() {
         <React.Fragment key={`lon-${item.lon}`}>
           <Polyline
             positions={[[-85, item.lon], [85, item.lon]]}
-            pathOptions={{
-              color: item.color,
-              weight: item.weight,
-              dashArray: item.dash || undefined,
-              opacity: 0.45,
-              interactive: false,
-            }}
+            pathOptions={{ color: '#ffffff', weight: 1, opacity: item.opacity, interactive: false }}
           />
-          <Marker position={[-2.5, item.lon]} interactive={false} icon={item.icon} />
+          <Marker position={[0, item.lon]} interactive={false} icon={item.icon} />
         </React.Fragment>
       ))}
     </>
@@ -737,6 +720,7 @@ const MarsMap = () => {
           return (
             <TileLayer
               key={layer.id}
+              className={layer.id === 'viking-color' ? 'tile-photo' : undefined}
               url={layer.url}
               opacity={opacity}
               attribution={layer.attribution}
@@ -748,6 +732,12 @@ const MarsMap = () => {
             />
           );
         })}
+
+        {/* Real relief: the HRSC-MOLA hillshade blended over the photos as light and shadow only.
+            It is sharp to zoom 7; past zoom 9 it would only blur, and CTX carries its own shading. */}
+        {(vikingOn || activeLayers.includes('nasa-hd')) && (
+          <TileLayer url={RELIEF_SHADE_URL} className="tile-blend-relief" noWrap bounds={[[-90, -180], [90, 180]]} maxNativeZoom={7} maxZoom={9} />
+        )}
 
         {/* Real-terrain survival analysis (slope / point of no return / radio coverage) */}
         <Pane name="terrain-analysis" style={{ zIndex: 350 }}>
