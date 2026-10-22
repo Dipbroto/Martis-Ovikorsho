@@ -160,6 +160,25 @@ function simplifyIndices(points, tolerance) {
   return out;
 }
 
+/** Cells inside any blocked disc ({ lat, lon, radiusM }), or null when nothing is blocked. */
+function blockedMask(grid, blocked, dx, dy) {
+  if (!blocked.length) return null;
+  const { width: W, height: H } = grid;
+  const mask = new Uint8Array(W * H);
+  for (const zone of blocked) {
+    const centre = toCell(grid, zone.lat, zone.lon);
+    const zr = Math.floor(centre / W), zc = centre % W;
+    const nr = Math.ceil(zone.radiusM / dy) + 1;
+    for (let r = Math.max(0, zr - nr); r <= Math.min(H - 1, zr + nr); r++) {
+      const nc = Math.ceil(zone.radiusM / dx[r]) + 1;
+      for (let c = Math.max(0, zc - nc); c <= Math.min(W - 1, zc + nc); c++) {
+        if (Math.hypot((c - zc) * dx[r], (r - zr) * dy) <= zone.radiusM) mask[r * W + c] = 1;
+      }
+    }
+  }
+  return mask;
+}
+
 /**
  * Least-cost walking route between two points.
  * Returns { path: [{lat, lon, elevation, distanceM, energyJ, timeS}], keyIndices, metrics } or
@@ -177,19 +196,8 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
   const t = toCell(grid, goal.lat, goal.lon);
   if (data[s] === nodata || data[t] === nodata) throw new Error('Start or destination has no terrain data');
 
-  // Cells closed off (e.g. by a rockfall): discs of radiusM around a point; start and goal stay open
-  const closedOff = blocked.length ? new Uint8Array(N) : null;
-  for (const zone of blocked) {
-    const centre = toCell(grid, zone.lat, zone.lon);
-    const zr = Math.floor(centre / W), zc = centre % W;
-    const nr = Math.ceil(zone.radiusM / dy) + 1;
-    for (let r = Math.max(0, zr - nr); r <= Math.min(H - 1, zr + nr); r++) {
-      const nc = Math.ceil(zone.radiusM / dx[r]) + 1;
-      for (let c = Math.max(0, zc - nc); c <= Math.min(W - 1, zc + nc); c++) {
-        if (Math.hypot((c - zc) * dx[r], (r - zr) * dy) <= zone.radiusM) closedOff[r * W + c] = 1;
-      }
-    }
-  }
+  // Cells closed off (e.g. by a rockfall); start and goal stay open
+  const closedOff = blockedMask(grid, blocked, dx, dy);
   if (closedOff) { closedOff[s] = 0; closedOff[t] = 0; }
 
   const tRow = Math.floor(t / W), tCol = t % W;
@@ -286,12 +294,14 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
  * direction 'from': cost of walking from base out to each cell.
  * The search stops once costs exceed `maxCostJ`.
  */
-export function returnCostField(grid, base, { assumptions = EVA_ASSUMPTIONS, maxCostJ = Infinity, direction = 'to' } = {}) {
+export function returnCostField(grid, base, { assumptions = EVA_ASSUMPTIONS, maxCostJ = Infinity, direction = 'to', blocked = [] } = {}) {
   const { width: W, height: H, data, nodata } = grid;
   const { dx, dy } = rowGeometry(grid);
   const cost = new Float32Array(W * H).fill(Infinity);
   const done = new Uint8Array(W * H);
   const b = toCell(grid, base.lat, base.lon);
+  const closedOff = blockedMask(grid, blocked, dx, dy);
+  if (closedOff) closedOff[b] = 0;
   const heap = new MinHeap(4096);
   cost[b] = 0;
   heap.push(0, b);
@@ -306,7 +316,7 @@ export function returnCostField(grid, base, { assumptions = EVA_ASSUMPTIONS, max
       const nr = r + dr, nc = c + dc;
       if (nr < 0 || nr >= H || nc < 0 || nc >= W) continue;
       const u = nr * W + nc;
-      if (done[u] || data[u] === nodata) continue;
+      if (done[u] || data[u] === nodata || (closedOff && closedOff[u])) continue;
       // 'to': walking u -> v (towards base); 'from': walking v -> u (away from base)
       const dist = Math.hypot(dc * (dx[r] + dx[nr]) / 2, dr * dy);
       if (knightMoveBlocked(data, nodata, W, nr, nc, -dr, -dc, dist, assumptions)) continue;

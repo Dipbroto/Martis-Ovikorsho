@@ -48,3 +48,17 @@ describe('drills', () => {
     expect(r.doseHome).toBeCloseTo(10 * r.returnH, 6);
   });
 });
+
+describe('survival profile', () => {
+  it('finds the point of no return for a big oxygen loss and none for a small one', async () => {
+    const { survivalProfile } = await import('./drills');
+    const along = alongPath(points);
+    // home cost: straight back at ~280 W, 3 km/h
+    const homeCostAt = (lat, lon) => (Math.hypot(lat - points[0][0], lon - points[0][1]) * 59160 / (3 / 3.6)) * 280;
+    const big = survivalProfile({ points, along, scenarioId: 'o2_leak', value: 90, homeCostAt });
+    const small = survivalProfile({ points, along, scenarioId: 'o2_leak', value: 10, homeCostAt });
+    expect(small.noReturnKm).toBeNull();
+    expect(big.noReturnKm).not.toBeNull();
+    expect(big.points[0].spare).toBeGreaterThan(big.points[big.points.length - 1].spare);
+  });
+});

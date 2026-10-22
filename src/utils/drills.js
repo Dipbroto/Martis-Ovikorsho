@@ -115,6 +115,81 @@ export function pointAt(points, along, fraction) {
 }
 
 /**
+ * How a scenario changes the walk home: share of remaining life support kept, walking assumptions,
+ * and closed-off ground. The rockfall lands on the way you came in, halfway back from `fraction`.
+ */
+export function scenarioSetup(scenarioId, value, points, along, fraction) {
+  const assumptions = { ...EVA_ASSUMPTIONS };
+  const blocked = [];
+  const notes = [];
+  let keep = 1;
+  let block = null;
+  if (scenarioId === 'o2_leak') {
+    keep = 1 - value / 100;
+    notes.push(`${value}% of the oxygen left is lost.`);
+  }
+  if (scenarioId === 'dust_storm') {
+    assumptions.flatSpeedKmh = EVA_ASSUMPTIONS.flatSpeedKmh * stormPaceShare(value);
+    notes.push(`Walking pace drops to ${Math.round(stormPaceShare(value) * 100)}% in poor visibility (assumption).`);
+  }
+  if (scenarioId === 'rockfall') {
+    block = { ...pointAt(points, along, fraction * 0.5), radiusM: value };
+    blocked.push({ lat: block.lat, lon: block.lon, radiusM: value });
+  }
+  return { keep, assumptions, blocked, block, notes };
+}
+
+/** Plain-language severity for the scenario slider. */
+export function severityLabel(scenarioId, v) {
+  if (scenarioId === 'o2_leak') return v < 35 ? 'Slow leak' : v < 70 ? 'Major leak' : 'Near-total loss';
+  if (scenarioId === 'dust_storm') return v < 2.5 ? 'Local dust (τ ~2)' : v < 6 ? 'Regional storm (2007-like)' : 'Global storm (2018: τ 10.8)';
+  if (scenarioId === 'spe') return v < 5 ? 'Moderate event' : v < 15 ? 'Strong event' : 'Extreme event';
+  return v < 400 ? 'Small slide' : v < 900 ? 'Large slide' : 'Major collapse';
+}
+
+/**
+ * Spare life support (hours) if the emergency hit at each point of the walk, from a return-cost
+ * field (`homeCostAt(lat, lon)` in joules, Infinity if no way home). The last point with spare >= 0
+ * before the first failure is the point of no return for this emergency.
+ */
+export function survivalProfile({ points, along, scenarioId, value, homeCostAt, isBlocked = () => false, samples = 80 }) {
+  const total = lifeSupportBudgetJ();
+  const { keep } = scenarioSetup(scenarioId, value, points, along, 1);
+  const out = [];
+  let noReturnKm = null;
+  for (let i = 0; i <= samples; i++) {
+    const f = i / samples;
+    const p = pointAt(points, along, f);
+    // Inside the closed-off area itself there is no "walk home" to judge: leave a gap
+    if (isBlocked(p.lat, p.lon)) { out.push({ f, km: Math.round(p.km * 100) / 100, spare: null, blocked: true }); continue; }
+    const remaining = (total - p.energyJ) * keep;
+    const need = homeCostAt(p.lat, p.lon);
+    const spare = Number.isFinite(need) ? energyToHours(remaining - need) : -energyToHours(total);
+    out.push({ f, km: Math.round(p.km * 100) / 100, spare: Math.round(spare * 100) / 100 });
+    if (noReturnKm === null && spare < 0) noReturnKm = i === 0 ? 0 : out[i - 1].km;
+    // A gap from a blocked area does not count as the last safe point
+  }
+  return { points: out, noReturnKm };
+}
+
+/** What the crew should do, given a drill result. */
+export function recommendation(r) {
+  if (!r || r.error) return 'Stay put, report your position and wait for the rover: there is no walkable way home from here.';
+  const id = r.scenario.id;
+  if (!r.makesIt) {
+    if (id === 'spe' && r.cave && r.cave.hours < r.returnH) return `Do not walk home. Head for the cave ${r.cave.km.toFixed(1)} km away and call the rover to you.`;
+    return 'Do not start the walk home alone. Stop, conserve oxygen and call the rover to come to you.';
+  }
+  if (id === 'spe') {
+    if (r.cave && r.cave.dose < r.doseHome * 0.6) return `Shelter in the cave ${r.cave.km.toFixed(1)} km away: about ${Math.round(r.cave.dose)} mSv instead of ${Math.round(r.doseHome)} mSv walking home.`;
+    return 'Walk straight home by the fastest route; drop anything that slows you down.';
+  }
+  if (id === 'dust_storm') return 'Tether up and follow your recorded track home. The habitat should switch to storm power now.';
+  if (id === 'rockfall') return `Take the new route around the slide (${r.detourKm != null ? `+${r.detourKm.toFixed(1)} km` : 'a detour'}). Stay off fresh slopes.`;
+  return r.marginShare < 0.12 ? 'Turn back immediately on the planned route and report pressure every 10 minutes.' : 'Turn back now on the planned route; there is enough oxygen if you keep moving.';
+}
+
+/**
  * Runs one drill. `planTraverse(start, goal, options)` is the terrain planner (injected so this
  * stays testable). `caves` is the cave catalog list (optional, for radiation shelter).
  */
@@ -125,25 +200,8 @@ export async function runDrill({ points, scenarioId, fraction, value, planTraver
   const base = { lat: points[0][0], lon: points[0][1] };
 
   const total = lifeSupportBudgetJ();
-  let remaining = total - here.energyJ;
-  const assumptions = { ...EVA_ASSUMPTIONS };
-  const blocked = [];
-  const notes = [];
-
-  if (scenarioId === 'o2_leak') {
-    remaining *= 1 - value / 100;
-    notes.push(`${value}% of the oxygen left is lost.`);
-  }
-  if (scenarioId === 'dust_storm') {
-    assumptions.flatSpeedKmh = EVA_ASSUMPTIONS.flatSpeedKmh * stormPaceShare(value);
-    notes.push(`Walking pace drops to ${Math.round(stormPaceShare(value) * 100)}% in poor visibility (assumption).`);
-  }
-  let block = null;
-  if (scenarioId === 'rockfall') {
-    // The fall lands on the way you came in, halfway back to base
-    block = { ...pointAt(points, along, fraction * 0.5), radiusM: value };
-    blocked.push({ lat: block.lat, lon: block.lon, radiusM: value });
-  }
+  const { keep, assumptions, blocked, block, notes } = scenarioSetup(scenarioId, value, points, along, fraction);
+  const remaining = (total - here.energyJ) * keep;
 
   let back;
   try {

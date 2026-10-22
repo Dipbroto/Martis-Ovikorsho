@@ -8,15 +8,18 @@ import { useShallow } from 'zustand/react/shallow';
 import useMapStore, { routeSignature } from '../store/useMapStore';
 import { AUTONOMOUS_TARGET_PAIRS, generateAutonomousTraverse } from '../utils/autonomousRouter';
 import { applyPlannedRoute } from '../services/routePlanningService';
-import { planTraverse } from '../terrain/terrainClient';
+import { planTraverse, computeReturnField } from '../terrain/terrainClient';
+import { latLonToPixel } from '../terrain/dem';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as ChartTooltip, ReferenceLine, CartesianGrid } from 'recharts';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Circle, Tooltip, ZoomControl, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { marsLayers } from '../data/marsLayers';
-import { SCENARIOS, runDrill, verdict } from '../utils/drills';
+import { SCENARIOS, runDrill, verdict, alongPath, scenarioSetup, survivalProfile, severityLabel, recommendation } from '../utils/drills';
 import { energyToHours, lifeSupportBudgetJ } from '../terrain/evaModel';
 import { playUiClick } from '../utils/audioSynthesizer';
 
+const NOUN = { o2_leak: 'oxygen fault', dust_storm: 'dust storm', spe: 'radiation storm', rockfall: 'rockfall' };
 const ICONS = { o2_leak: ShieldAlert, dust_storm: Wind, spe: Radiation, rockfall: Mountain };
 const TONES = {
   rose: { ring: 'border-rose-400/60 bg-rose-500/10', icon: 'bg-rose-500 text-white', text: 'text-rose-300' },
@@ -59,7 +62,10 @@ function FitTo({ bounds }) {
   useEffect(() => {
     if (!bounds) return;
     map.invalidateSize();
-    map.fitBounds(bounds, { padding: [36, 36], maxZoom: 13, animate: false });
+    // Show the walk in its setting: fit, then step back one level; never closer than zoom 11, where
+    // the NASA imagery is still sharp (closer in, gaps in the CTX mosaic fall back to blurry THEMIS)
+    map.fitBounds(bounds, { padding: [48, 48], maxZoom: 11, animate: false });
+    map.setZoom(Math.min(11, map.getZoom() - 0.5), { animate: false });
   }, [map, bounds]);
   return null;
 }
@@ -87,7 +93,8 @@ function DrillMap({ points, result }) {
         center={out[0]}
         zoom={10}
         minZoom={4}
-        maxZoom={14}
+        maxZoom={13}
+        zoomSnap={0.25}
         zoomControl={false}
         attributionControl={false}
         scrollWheelZoom={false}
@@ -217,6 +224,65 @@ function CrewDrill({ scenario }) {
   );
 }
 
+
+function Step({ n, title, children, className = '' }) {
+  return (
+    <div className={className}>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-6 h-6 rounded-full bg-[#F26A3D] text-white text-xs font-bold flex items-center justify-center">{n}</span>
+        <span className="text-sm font-semibold text-white">{title}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Spare life support if the emergency hits at each point of the walk. */
+function SurvivalChart({ profile, km, onPick, busy }) {
+  // Split into a "gets home" part and a "does not" part so each gets its own colour
+  const data = profile.points.map((p) => {
+    const v = p.spare == null ? null : Math.max(-3, p.spare);
+    return { ...p, spare: v, ok: v != null && v >= 0 ? v : null, fail: v != null && v < 0 ? v : null };
+  });
+  // Close each colour at the zero line where the outcome flips, so the two areas meet
+  for (let i = 1; i < data.length; i++) {
+    const a = data[i - 1], b = data[i];
+    if (a.ok != null && b.fail != null) { a.fail = 0; }
+    if (a.fail != null && b.ok != null) { b.fail = 0; a.ok = 0; }
+  }
+  const vals = data.filter((d) => d.spare != null).map((d) => d.spare);
+  const max = Math.max(0.5, ...vals);
+  const min = Math.min(-0.5, ...vals);
+  return (
+    <div className={`h-52 -ml-3 transition-opacity ${busy ? 'opacity-50' : ''}`}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 18, right: 12, bottom: 0, left: 0 }} onClick={(e) => { if (e?.activePayload?.[0]) onPick(e.activePayload[0].payload.f); }}>
+          <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+          <XAxis dataKey="km" type="number" domain={[0, 'dataMax']} tickFormatter={(v) => `${v} km`} stroke="#71717a" fontSize={11} tickLine={false} />
+          <YAxis domain={[min, max]} tickFormatter={(v) => `${v > 0 ? '+' : ''}${v.toFixed(0)} h`} stroke="#71717a" fontSize={11} width={48} tickLine={false} axisLine={false} />
+          <ChartTooltip content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            const v = payload[0].payload.spare;
+            return (
+              <div className="rounded-lg border border-white/15 bg-black/90 px-2.5 py-1.5 text-xs">
+                <div className="text-zinc-400">Hits at {label} km</div>
+                <div className={v == null ? 'text-zinc-300' : v >= 0 ? 'text-emerald-300' : 'text-rose-300'}>{v == null ? 'Inside the blocked area' : v >= 0 ? `Gets home, ${hm(v)} to spare` : 'Does not make it home'}</div>
+              </div>
+            );
+          }} />
+          <ReferenceLine y={0} stroke="rgba(255,255,255,0.4)" />
+          {profile.noReturnKm != null && (
+            <ReferenceLine x={profile.noReturnKm} stroke="#fb7185" strokeWidth={1.5} strokeDasharray="4 4" />
+          )}
+          <ReferenceLine x={km} stroke="#fff" strokeWidth={1.5} />
+          <Area type="monotone" dataKey="ok" baseValue={0} stroke="#34d399" strokeWidth={2.2} fill="#34d399" fillOpacity={0.22} connectNulls={false} isAnimationActive={false} />
+          <Area type="monotone" dataKey="fail" baseValue={0} stroke="#fb7185" strokeWidth={2.2} fill="#fb7185" fillOpacity={0.3} connectNulls={false} isAnimationActive={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export default function ContingencySimulatorPage() {
   const s = useMapStore(useShallow((st) => ({
     waypoints: st.waypoints, routeGeometry: st.routeGeometry, setActiveTab: st.setActiveTab,
@@ -226,17 +292,19 @@ export default function ContingencySimulatorPage() {
 
   const myRoute = s.routeGeometry && s.waypoints.length > 1 && s.routeGeometry.signature === routeSignature(s.waypoints) ? s.routeGeometry : null;
   const [source, setSource] = useState(myRoute ? 'mine' : 'jezero-delta');
-  const [planned, setPlanned] = useState({}); // pair id -> planner result
+  const [planned, setPlanned] = useState({});
   const [planning, setPlanning] = useState(false);
   const [scenarioId, setScenarioId] = useState('o2_leak');
   const scenario = SCENARIOS[scenarioId];
   const [values, setValues] = useState(() => Object.fromEntries(Object.values(SCENARIOS).map((x) => [x.id, x.param.def])));
+  const value = values[scenarioId];
   const [fraction, setFraction] = useState(0.8);
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const [profileBusy, setProfileBusy] = useState(false);
   const [caves, setCaves] = useState([]);
 
-  // The route being drilled
   const pair = AUTONOMOUS_TARGET_PAIRS.find((p) => p.id === source);
   useEffect(() => {
     if (source === 'mine' || !pair || planned[pair.id]) return;
@@ -249,28 +317,61 @@ export default function ContingencySimulatorPage() {
     return () => { cancelled = true; };
   }, [source, pair, planned]);
   const points = source === 'mine' ? myRoute?.points : planned[source]?.path;
+  const along = useMemo(() => (points?.length ? alongPath(points) : null), [points]);
 
   useEffect(() => {
     fetch('/data/caves.json').then((r) => (r.ok ? r.json() : null)).then((d) => setCaves(d?.caves || [])).catch(() => {});
   }, []);
 
-
-  // Re-run the drill (debounced) whenever an input changes
+  // The emergency at the chosen point (debounced)
   const runId = useRef(0);
   useEffect(() => {
     if (!points?.length) return undefined;
     const id = ++runId.current;
     setBusy(true);
     const t = setTimeout(() => {
-      runDrill({ points, scenarioId, fraction, value: values[scenarioId], planTraverse, caves })
+      runDrill({ points, scenarioId, fraction, value, planTraverse, caves })
         .then((r) => { if (id === runId.current) setResult(r); })
         .finally(() => { if (id === runId.current) setBusy(false); });
     }, 220);
     return () => clearTimeout(t);
-  }, [points, scenarioId, fraction, values, caves]);
+  }, [points, scenarioId, fraction, value, caves]);
+
+  // The same emergency at every point of the walk, from one return-cost field over the terrain.
+  // The field only depends on the walk and, for storms and rockfalls, on the slider.
+  const fieldKey = scenarioId === 'dust_storm' ? `dust:${value}` : scenarioId === 'rockfall' ? `rock:${value}:${fraction.toFixed(2)}` : 'plain';
+  const profId = useRef(0);
+  useEffect(() => {
+    if (!points?.length || !along) return undefined;
+    const id = ++profId.current;
+    setProfileBusy(true);
+    const t = setTimeout(async () => {
+      try {
+        const { assumptions, blocked } = scenarioSetup(scenarioId, value, points, along, fraction);
+        const { grid, field } = await computeReturnField({ lat: points[0][0], lon: points[0][1] }, { maxCostJ: lifeSupportBudgetJ() * 1.05, assumptions, blocked });
+        if (id !== profId.current) return;
+        const homeCostAt = (lat, lon) => {
+          const { x, y } = latLonToPixel(grid, lat, lon);
+          const c = Math.floor(x), r = Math.floor(y);
+          if (c < 0 || r < 0 || c >= grid.width || r >= grid.height) return Infinity;
+          return field[r * grid.width + c];
+        };
+        const R = 3389500 * (Math.PI / 180);
+        const isBlocked = (lat, lon) => blocked.some((z) => Math.hypot((lat - z.lat) * R, (lon - z.lon) * R * Math.cos((lat * Math.PI) / 180)) <= z.radiusM + grid.metersPerPixel * 1.5);
+        setProfile(survivalProfile({ points, along, scenarioId, value, homeCostAt, isBlocked }));
+      } catch {
+        if (id === profId.current) setProfile(null);
+      } finally {
+        if (id === profId.current) setProfileBusy(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+    // fieldKey captures when value / fraction matter
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [points, along, scenarioId, fieldKey, scenarioId === 'o2_leak' ? value : 0]);
 
   const v = result ? verdict(result) : null;
-  const L = v ? LEVEL[v.level] : LEVEL.ok;
+  const lv = v ? LEVEL[v.level] : LEVEL.ok;
   const total = energyToHours(lifeSupportBudgetJ());
 
   const practiseOnMap = () => {
@@ -283,6 +384,8 @@ export default function ContingencySimulatorPage() {
   };
 
   const SIcon = ICONS[scenarioId];
+  const T = TONES[scenario.tone];
+  const routeName = source === 'mine' ? 'My planned route' : pair?.name;
 
   return (
     <div className="relative min-h-screen text-white font-sans -mt-24 -mx-6 sm:-mx-10 lg:-mx-14">
@@ -293,88 +396,121 @@ export default function ContingencySimulatorPage() {
       </div>
 
       <div className="relative z-10 max-w-[1500px] mx-auto px-5 sm:px-10 lg:px-14 pt-28 pb-24">
-        <header className="max-w-3xl">
-          <p className="text-sm font-medium text-[#ffa07f] flex items-center gap-2"><ShieldAlert className="w-4 h-4" />Contingency drills</p>
-          <h1 className="mt-2 text-4xl sm:text-6xl font-bold tracking-tight leading-[1.04]">Practise the worst day before it happens.</h1>
-          <p className="mt-4 text-lg text-zinc-300 leading-relaxed">
-            Pick a walk and an emergency, choose where it hits, and see on the real terrain whether the crew gets home. Then drill the steps until they are automatic.
-          </p>
+        <header className="flex flex-wrap items-end justify-between gap-6">
+          <div className="max-w-3xl">
+            <p className="text-sm font-medium text-[#ffa07f] flex items-center gap-2"><ShieldAlert className="w-4 h-4" />Contingency drills</p>
+            <h1 className="mt-2 text-4xl sm:text-6xl font-bold tracking-tight leading-[1.04]">Practise the worst day before it happens.</h1>
+            <p className="mt-4 text-lg text-zinc-300 leading-relaxed">
+              Pick a walk and an emergency. MarsWalk replans the way home on the real terrain, shows where on the walk you could still survive it, and drills the crew on what to do.
+            </p>
+          </div>
+          {/* Live status of the current drill */}
+          {v && (
+            <div className={`rounded-2xl border px-4 py-3 backdrop-blur-xl ${lv.box}`}>
+              <div className="text-[11px] uppercase tracking-wider text-zinc-400">Current drill</div>
+              <div className={`flex items-center gap-2 font-semibold ${lv.text}`}><lv.Icon className="w-4 h-4" />{v.text}</div>
+              <div className="text-xs text-zinc-400">{scenario.short} · {result.here.km.toFixed(1)} km out · {routeName}</div>
+            </div>
+          )}
         </header>
 
-        {/* 1. Route + 2. Emergency */}
-        <div className="mt-8 grid lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-5 rounded-2xl border border-white/10 bg-[#07090f]/75 backdrop-blur-xl p-4">
-            <div className="text-xs text-zinc-400 mb-2">1 · The walk</div>
-            <div className="grid grid-cols-2 gap-2">
+        {/* Setup */}
+        <section className="mt-8 rounded-2xl border border-white/10 bg-[#07090f]/80 backdrop-blur-xl p-5 sm:p-6 grid lg:grid-cols-12 gap-6">
+          <Step n={1} title="Choose the walk" className="lg:col-span-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5 max-h-[300px] overflow-y-auto custom-scrollbar-y pr-1">
               {myRoute && (
-                <button onClick={() => setSource('mine')} className={`text-left rounded-xl border px-3 py-2 cursor-pointer ${source === 'mine' ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
+                <button onClick={() => setSource('mine')} className={`text-left rounded-xl border px-3 py-2 cursor-pointer transition-colors ${source === 'mine' ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
                   <div className="text-sm font-semibold">My planned route</div>
                   <div className="text-xs text-zinc-400 truncate">{s.waypoints[0]?.name}</div>
                 </button>
               )}
               {AUTONOMOUS_TARGET_PAIRS.map((p) => (
-                <button key={p.id} onClick={() => setSource(p.id)} className={`text-left rounded-xl border px-3 py-2 cursor-pointer ${source === p.id ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
-                  <div className="text-sm font-semibold leading-tight truncate">{p.location.split(' (')[0]}</div>
-                  <div className="text-xs text-zinc-400 truncate">{p.name}</div>
+                <button key={p.id} onClick={() => setSource(p.id)} className={`text-left rounded-xl border px-3 py-2 cursor-pointer transition-colors ${source === p.id ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
+                  <div className="text-sm font-semibold leading-tight truncate">{p.name}</div>
+                  <div className="text-xs text-zinc-400 truncate">{p.location}</div>
                 </button>
               ))}
             </div>
-          </div>
-          <div className="lg:col-span-7 rounded-2xl border border-white/10 bg-[#07090f]/75 backdrop-blur-xl p-4">
-            <div className="text-xs text-zinc-400 mb-2">2 · What goes wrong</div>
+          </Step>
+
+          <Step n={2} title="What goes wrong" className="lg:col-span-5">
             <div className="grid grid-cols-2 gap-2">
               {Object.values(SCENARIOS).map((x) => {
                 const Icon = ICONS[x.id];
                 const on = scenarioId === x.id;
-                const T = TONES[x.tone];
+                const TT = TONES[x.tone];
                 return (
-                  <button key={x.id} onClick={() => { playUiClick?.(); setScenarioId(x.id); }} className={`text-left rounded-xl border p-3 transition-colors cursor-pointer ${on ? T.ring : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
-                    <div className="flex items-center gap-2.5">
-                      <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${on ? T.icon : 'bg-white/10 text-zinc-300'}`}><Icon className="w-4 h-4" /></span>
-                      <span className="font-semibold text-sm">{x.title}</span>
-                    </div>
-                    <p className="mt-1.5 text-xs text-zinc-400 leading-snug hidden sm:block">{x.blurb}</p>
+                  <button key={x.id} onClick={() => { playUiClick?.(); setScenarioId(x.id); }} className={`relative overflow-hidden text-left rounded-xl border p-3 transition-all cursor-pointer ${on ? `${TT.ring} shadow-lg` : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
+                    <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${on ? TT.icon : 'bg-white/10 text-zinc-300'}`}><Icon className="w-[18px] h-[18px]" /></span>
+                    <div className="mt-2 font-semibold text-sm leading-tight">{x.title}</div>
+                    <p className="mt-1 text-[11px] text-zinc-400 leading-snug line-clamp-3">{x.blurb}</p>
                   </button>
                 );
               })}
             </div>
-          </div>
-        </div>
+          </Step>
 
-        {/* 3. Controls */}
-        <div className="mt-4 rounded-2xl border border-white/10 bg-[#07090f]/75 backdrop-blur-xl p-4 grid md:grid-cols-2 gap-5">
-          <div>
-            <div className="flex justify-between text-sm"><label htmlFor="hit-at" className="text-zinc-300">3 · Where it hits</label><span className="tabular-nums text-white">{result ? `${result.here.km.toFixed(1)} of ${result.along.totalKm.toFixed(1)} km` : `${Math.round(fraction * 100)}%`}</span></div>
-            <input id="hit-at" type="range" min="0.02" max="1" step="0.01" value={fraction} onChange={(e) => setFraction(Number(e.target.value))} className="mt-2 w-full accent-rose-400 cursor-pointer" />
-            <div className="flex justify-between text-[11px] text-zinc-500"><span>Just left base</span><span>At the destination</span></div>
-          </div>
-          <div>
-            <div className="flex justify-between text-sm"><label htmlFor="sev" className="text-zinc-300">{scenario.param.label}</label><span className="tabular-nums text-white">{values[scenarioId]}{scenario.param.unit}</span></div>
-            <input id="sev" type="range" min={scenario.param.min} max={scenario.param.max} step={scenario.param.step} value={values[scenarioId]} onChange={(e) => setValues((m) => ({ ...m, [scenarioId]: Number(e.target.value) }))} className="mt-2 w-full accent-amber-400 cursor-pointer" />
-            <div className="flex justify-between text-[11px] text-zinc-500"><span>Milder</span><span>Worse</span></div>
-          </div>
-        </div>
+          <Step n={3} title="When and how bad" className="lg:col-span-3">
+            <div className="space-y-5">
+              <div>
+                <div className="flex justify-between text-sm"><label htmlFor="hit-at" className="text-zinc-300">Hits at</label><span className="tabular-nums font-semibold">{along ? `${(fraction * along.totalKm).toFixed(1)} km` : '—'}</span></div>
+                <input id="hit-at" type="range" min="0.02" max="1" step="0.01" value={fraction} onChange={(e) => setFraction(Number(e.target.value))} className="mt-2 w-full accent-rose-400 cursor-pointer" />
+                <div className="flex justify-between text-[11px] text-zinc-500"><span>Near base</span><span>Destination{along ? ` · ${along.totalKm.toFixed(1)} km` : ''}</span></div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm gap-2"><label htmlFor="sev" className="text-zinc-300">{scenario.param.label}</label><span className="tabular-nums font-semibold shrink-0">{value}{scenario.param.unit}</span></div>
+                <input id="sev" type="range" min={scenario.param.min} max={scenario.param.max} step={scenario.param.step} value={value} onChange={(e) => setValues((m) => ({ ...m, [scenarioId]: Number(e.target.value) }))} className="mt-2 w-full accent-amber-400 cursor-pointer" />
+                <div className={`mt-1 inline-flex text-[11px] px-2 py-0.5 rounded-full border ${T.ring} ${T.text}`}>{severityLabel(scenarioId, value)}</div>
+              </div>
+            </div>
+          </Step>
+        </section>
 
-        {/* Result */}
+        {/* Outcome */}
         <div className="mt-6 grid lg:grid-cols-12 gap-6 items-start">
-          <Panel title="On the real terrain" icon={MapIcon} className="lg:col-span-7" right={(busy || planning) && <span className="flex items-center gap-1.5 text-xs text-zinc-400"><Loader2 className="w-3.5 h-3.5 animate-spin" />{planning ? 'Planning the walk…' : 'Planning the way home…'}</span>}>
-            {points?.length ? <DrillMap points={points} result={result} /> : <div className="aspect-[4/3] rounded-xl bg-black/40 flex items-center justify-center text-zinc-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Planning the walk on real terrain…</div>}
-            <button onClick={practiseOnMap} disabled={!points?.length} className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-white/15 py-2.5 text-sm hover:bg-white/10 transition disabled:opacity-50 cursor-pointer">
-              <MapIcon className="w-4 h-4" />Run this emergency on the map
-            </button>
-          </Panel>
+          <div className="lg:col-span-7 flex flex-col gap-6">
+            <Panel title="The way home, on real NASA imagery" icon={MapIcon} right={(busy || planning) && <span className="flex items-center gap-1.5 text-xs text-zinc-400"><Loader2 className="w-3.5 h-3.5 animate-spin" />{planning ? 'Planning the walk…' : 'Replanning the way home…'}</span>}>
+              {points?.length ? <DrillMap points={points} result={result} /> : <div className="aspect-[4/3] rounded-xl bg-black/40 flex items-center justify-center text-zinc-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Planning the walk on real terrain…</div>}
+            </Panel>
 
-          <div className="lg:col-span-5 flex flex-col gap-4">
+            <Panel title="Where on the walk could you survive it?" icon={Footprints} right={<span className="text-xs text-zinc-400">Tap the chart to move the emergency</span>}>
+              {profile ? (
+                <>
+                  <SurvivalChart profile={profile} km={along ? fraction * along.totalKm : 0} onPick={(f) => setFraction(Math.max(0.02, f))} busy={profileBusy} />
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400">
+                    <span className="flex items-center gap-1.5"><i className="w-3 h-2 rounded-sm bg-emerald-400/60" />Gets home, with this much spare</span>
+                    <span className="flex items-center gap-1.5"><i className="w-3 h-2 rounded-sm bg-rose-400/60" />Does not get home</span>
+                    <span className="flex items-center gap-1.5"><i className="w-3 h-0.5 bg-white" />Where it hits now</span>
+                    {profile.noReturnKm != null && <span className="flex items-center gap-1.5"><i className="w-3 border-t border-dashed border-rose-400" />Point of no return</span>}
+                  </div>
+                  <p className="mt-3 text-sm text-zinc-300">
+                    {scenarioId === 'rockfall' && profile.points.some((p) => p.blocked) && <span className="block mb-1 text-zinc-400">The gap is the slide itself. </span>}
+                    {profile.noReturnKm == null
+                      ? <>With this {NOUN[scenarioId]}, the crew can get home <strong className="text-emerald-300">from anywhere on the walk</strong>.</>
+                      : profile.noReturnKm === 0
+                        ? <><strong className="text-rose-300">Nowhere on this walk is safe</strong> with this {NOUN[scenarioId]}: shorten the walk or carry more reserve.</>
+                        : <>Past <strong className="text-rose-300">{profile.noReturnKm.toFixed(1)} km</strong> this {NOUN[scenarioId]} would leave the crew unable to get home. Treat that as the turn-back point.</>}
+                  </p>
+                </>
+              ) : <div className="h-52 flex items-center justify-center text-sm text-zinc-400"><Loader2 className="w-4 h-4 animate-spin mr-2" />Working out the whole walk…</div>}
+            </Panel>
+          </div>
+
+          <div className="lg:col-span-5 flex flex-col gap-4 lg:sticky lg:top-24">
             {v && (
-              <motion.div key={v.text + v.level} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border p-5 backdrop-blur-xl ${L.box}`}>
-                <div className={`flex items-center gap-2 text-xl font-bold ${L.text}`}><L.Icon className="w-6 h-6" />{v.text}</div>
+              <motion.div key={v.text + v.level} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border p-5 backdrop-blur-xl ${lv.box}`}>
+                <div className="flex items-center gap-2 text-xs text-zinc-400"><SIcon className="w-3.5 h-3.5" />{scenario.title} · {result.here.km.toFixed(1)} km out</div>
+                <div className={`mt-1 flex items-center gap-2 text-2xl font-bold ${lv.text}`}><lv.Icon className="w-7 h-7" />{v.text}</div>
                 <p className="mt-1 text-sm text-zinc-200">{v.sub}</p>
+                <div className="mt-4 rounded-xl bg-black/30 border border-white/10 p-3">
+                  <div className="text-[11px] uppercase tracking-wider text-zinc-400">What the crew should do</div>
+                  <p className="mt-1 text-sm text-white leading-relaxed">{recommendation(result)}</p>
+                </div>
               </motion.div>
             )}
 
             {result && !result.error && (
               <Panel title="The numbers" icon={SIcon}>
-                {/* Life support: used | lost | needed to get home | spare (or shortfall) */}
                 {(() => {
                   const used = result.usedH, lost = Math.max(0, total - used - result.remainingH), need = result.returnNeedH;
                   const spare = Math.max(0, result.remainingH - need);
@@ -404,25 +540,35 @@ export default function ContingencySimulatorPage() {
                 <dl className="mt-4 grid grid-cols-2 gap-2.5 [&_dd]:text-sm sm:[&_dd]:text-base">
                   <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400 flex items-center gap-1"><Footprints className="w-3.5 h-3.5" />Walked so far</dt><dd className="font-semibold tabular-nums">{result.here.km.toFixed(1)} km · {hm(result.here.timeS / 3600)}</dd></div>
                   <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400 flex items-center gap-1"><Home className="w-3.5 h-3.5" />Way home</dt><dd className="font-semibold tabular-nums">{result.returnKm.toFixed(1)} km · {hm(result.returnH)}</dd></div>
-                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400">Life support left now</dt><dd className="font-semibold tabular-nums">{hm(result.remainingH)}</dd></div>
-                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400">Left on arrival</dt><dd className={`font-semibold tabular-nums ${result.makesIt ? 'text-emerald-300' : 'text-rose-300'}`}>{result.makesIt ? hm(result.leftH) : 'runs out'}</dd></div>
                   {scenarioId === 'rockfall' && result.detourKm != null && (
                     <div className="col-span-2 rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400">Detour around the rockfall</dt><dd className="font-semibold tabular-nums">+{result.detourKm.toFixed(1)} km</dd></div>
                   )}
                   {scenarioId === 'dust_storm' && (
-                    <div className="col-span-2 rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400 flex items-center gap-1"><Sun className="w-3.5 h-3.5" />Habitat solar power</dt><dd className="font-semibold tabular-nums">{Math.round(result.powerShare * 100)}% of normal</dd><p className="text-[11px] text-zinc-500 mt-1">Fitted to Opportunity’s power in the 2018 global storm.</p></div>
+                    <div className="col-span-2 rounded-xl bg-white/[0.04] border border-white/[0.07] p-3">
+                      <dt className="text-xs text-zinc-400 flex items-center gap-1"><Sun className="w-3.5 h-3.5" />Habitat solar power</dt>
+                      <dd className="font-semibold tabular-nums">{Math.round(result.powerShare * 100)}% of normal</dd>
+                      <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-amber-400" style={{ width: `${result.powerShare * 100}%` }} /></div>
+                      <p className="text-[11px] text-zinc-500 mt-1.5">Fitted to Opportunity’s power in the 2018 global storm.</p>
+                    </div>
                   )}
                   {scenarioId === 'spe' && (
                     <>
                       <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400">Dose walking home</dt><dd className={`font-semibold tabular-nums ${result.doseHome > 100 ? 'text-amber-300' : ''}`}>{Math.round(result.doseHome)} mSv</dd></div>
                       <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400 flex items-center gap-1"><Tent className="w-3.5 h-3.5" />Nearest cave</dt><dd className="font-semibold tabular-nums">{result.cave ? `${result.cave.km < 10 ? result.cave.km.toFixed(1) : Math.round(result.cave.km)} km` : '—'}</dd></div>
-                      <p className="col-span-2 text-[11px] text-zinc-500">NASA’s 30-day limit is 250 mSv; a normal sol on Mars is about 0.7 mSv. The dose rate in a storm is an assumption: set it with the slider.</p>
+                      <div className="col-span-2">
+                        <div className="flex justify-between text-[11px] text-zinc-400 mb-1"><span>Dose vs NASA 30-day limit (250 mSv)</span><span className="tabular-nums">{Math.round((result.doseHome / 250) * 100)}%</span></div>
+                        <div className="h-1.5 rounded-full bg-white/10 overflow-hidden"><div className={`h-full ${result.doseHome > 125 ? 'bg-amber-400' : 'bg-violet-400'}`} style={{ width: `${Math.min(100, (result.doseHome / 250) * 100)}%` }} /></div>
+                      </div>
                     </>
                   )}
                 </dl>
                 {result.notes.map((n) => <p key={n} className="mt-2 text-xs text-zinc-400">{n}</p>)}
               </Panel>
             )}
+
+            <button onClick={practiseOnMap} disabled={!points?.length} className="w-full flex items-center justify-center gap-2 rounded-xl bg-white text-black font-semibold py-3 text-sm hover:bg-zinc-200 transition disabled:opacity-50 cursor-pointer">
+              <MapIcon className="w-4 h-4" />Run this emergency on the map
+            </button>
           </div>
         </div>
 
@@ -433,7 +579,7 @@ export default function ContingencySimulatorPage() {
 
         <p className="mt-6 text-xs text-zinc-500 flex items-start gap-2 max-w-4xl">
           <Info className="w-4 h-4 shrink-0" />
-          The walk home is planned on the same HRSC-MOLA 200 m terrain and walking-energy model as every route in MarsWalk. Oxygen loss, storm pace, rockfall size and storm dose rate are assumptions you set; the dust-storm power curve is fitted to Opportunity’s 2018 data.
+          The walk home is planned on the same HRSC-MOLA 200 m terrain and walking-energy model as every route in MarsWalk; the survival chart uses a return-cost field over the same terrain. Oxygen loss, storm pace, rockfall size and storm dose rate are assumptions you set; the dust-storm power curve is fitted to Opportunity’s 2018 data.
         </p>
       </div>
     </div>

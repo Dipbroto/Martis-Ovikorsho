@@ -129,3 +129,15 @@ describe('planRoute with blocked zones', () => {
     }
   });
 });
+
+describe('returnCostField with blocked zones', () => {
+  it('costs more to come home from behind a closed-off area', () => {
+    const g = makeGrid(() => 0);
+    const base = at(g, 20, 2), far = at(g, 20, 38), mid = at(g, 20, 20);
+    const idx = (p) => Math.floor((g.north - p.lat) / 0.01) * g.width + Math.floor((p.lon - g.west) / 0.01);
+    const open = returnCostField(g, base);
+    const shut = returnCostField(g, base, { blocked: [{ lat: mid.lat, lon: mid.lon, radiusM: 3000 }] });
+    expect(shut[idx(far)]).toBeGreaterThan(open[idx(far)] * 1.03);
+    expect(shut[idx(mid)]).toBe(Infinity);
+  });
+});
