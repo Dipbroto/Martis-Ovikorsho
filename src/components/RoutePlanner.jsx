@@ -247,18 +247,12 @@ export default function RoutePlanner() {
   };
 
   return (
-    <div className="flex flex-col space-y-3 p-4 glass-panel rounded-xl text-primary w-full h-full max-h-[100%] overflow-hidden">
-      {/* Header */}
+    <div className="flex flex-col space-y-3 text-primary w-full">
+      {/* The panel title is in the sidebar header; this line says what the numbers rest on */}
       <div className="flex justify-between items-center shrink-0">
-        <div>
-          <h2 className="text-lg font-display text-mars-400 flex items-center gap-2">
-            <Route className="w-5 h-5" />
-            <span>Marswalk Route Planner</span>
-          </h2>
-          <div className="flex items-center gap-2 mt-0.5">
-            <ProvenanceBadge type="DERIVED" size="xs" detail="IAU Geodesy" />
-            <span className="text-[10px] text-space-400 font-mono">0.38g Human Bioenergetics</span>
-          </div>
+        <div className="flex items-center gap-2">
+          <ProvenanceBadge type="DERIVED" size="xs" detail="IAU Geodesy" />
+          <span className="text-xs text-zinc-400">0.38 g human bioenergetics</span>
         </div>
 
         {isPlacingWaypoint && (
@@ -305,7 +299,7 @@ export default function RoutePlanner() {
         <>
           {/* NASA Presets Quick Selector */}
           <div className="bg-space-900/80 p-2.5 rounded-lg border border-space-700/60 shrink-0">
-            <div className="text-[10px] uppercase font-mono tracking-wider text-space-400 mb-1.5 flex items-center justify-between">
+            <div className="text-xs font-medium text-zinc-300 mb-2 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Compass className="w-3.5 h-3.5 text-mars-400" />
                 <span>Example expeditions</span>

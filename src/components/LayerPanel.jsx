@@ -1,89 +1,88 @@
 import { useState } from 'react';
-import useMapStore from '../store/useMapStore';
-import { Layers, Eye, EyeOff, Info, ChevronDown, ChevronRight, Mountain, Thermometer, FlaskConical, Map as MapIcon } from 'lucide-react';
+import { ChevronDown, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ProvenanceBadge from './ProvenanceBadge';
+import useMapStore from '../store/useMapStore';
 import { marsLayers, LAYER_CATEGORIES } from '../data/marsLayers';
-
-const categoryIcons = {
-  'topography': Mountain,
-  'thermal': Thermometer,
-  'composition': FlaskConical,
-  'imagery': MapIcon
-};
 
 // Layers are grouped by the category labels defined in the layer data
 const CATEGORY_LIST = Object.values(LAYER_CATEGORIES);
 
+const Switch = ({ on }) => (
+  <span className={`relative inline-block w-9 h-5 rounded-full shrink-0 transition-colors ${on ? 'bg-[#F26A3D]' : 'bg-white/15'}`}>
+    <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-4' : ''}`} />
+  </span>
+);
+
 const LayerItem = ({ layer, isActive, opacity, onToggle, onOpacityChange }) => {
   const [showInfo, setShowInfo] = useState(false);
+  const derived = layer.category === LAYER_CATEGORIES.DERIVED;
 
   return (
-    <div className="mb-3">
-      <div className="flex items-center justify-between mb-2 gap-2 group">
-        <button 
-          className={`flex items-center gap-2 flex-1 text-left min-w-0 transition-colors ${isActive ? 'text-mars-400' : 'text-stone-300 hover:text-white'}`}
+    <div className={`rounded-xl border transition-colors ${isActive ? 'border-[#F26A3D]/35 bg-[#F26A3D]/[0.06]' : 'border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04]'}`}>
+      <div className="flex items-center gap-2 pr-2">
+        <button
           onClick={() => onToggle(layer.id)}
+          role="switch"
+          aria-checked={isActive}
+          className="flex-1 min-w-0 flex items-center gap-3 text-left pl-3 py-2.5 cursor-pointer"
         >
-          {isActive ? <Eye size={14} className="shrink-0 drop-shadow-[0_0_8px_rgba(241,105,56,0.6)]" /> : <EyeOff size={14} className="text-stone-500 shrink-0 group-hover:text-stone-400" />}
-          <span className="font-sans text-xs tracking-wide truncate">{layer.name}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium text-white leading-snug">{layer.name}</span>
+            <span className="block text-xs text-zinc-400 leading-snug mt-0.5">{[layer.mission, layer.resolution].filter(Boolean).join(' · ')}</span>
+          </span>
+          <Switch on={isActive} />
         </button>
-        <ProvenanceBadge 
-          type={layer.category === 'Derived' ? 'DERIVED' : 'OBSERVED'} 
-          size="xs" 
-          detail={layer.instrument} 
-        />
-        <button onClick={() => setShowInfo(!showInfo)} className="w-5 h-5 flex items-center justify-center rounded bg-white/[0.02] border border-transparent hover:border-white/10 text-stone-500 hover:text-cyan-400 transition-colors shrink-0">
-          <Info size={12} />
+        <button
+          onClick={() => setShowInfo((v) => !v)}
+          aria-expanded={showInfo}
+          aria-label={`About ${layer.name}`}
+          title="About this layer"
+          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0 cursor-pointer ${showInfo ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-white hover:bg-white/10'}`}
+        >
+          <Info className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {isActive && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="flex items-center gap-3 pl-6 pr-2 mb-2">
-              <span className="text-xs text-space-400 w-8">{Math.round(opacity)}%</span>
-              <input 
-                type="range" 
-                min="0" max="100" 
-                value={opacity}
-                onChange={(e) => onOpacityChange(layer.id, parseInt(e.target.value))}
-                className="flex-1 h-1 bg-space-700 rounded-full appearance-none cursor-pointer accent-mars-500"
-              />
-            </div>
-            {layer.legend && (
-              <div className="pl-6 pr-2 mt-2">
-                <div className="h-2 w-full rounded-full mb-1" style={{ background: layer.legend.gradient }} />
-                <div className="flex justify-between text-[10px] text-space-400 font-mono">
-                  <span>{layer.legend.min}</span>
-                  <span>{layer.legend.max}</span>
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="px-3 pb-3 pt-0.5">
+              <label className="flex items-center gap-3 text-xs text-zinc-400">
+                <span className="w-14 shrink-0">Opacity</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={opacity}
+                  onChange={(e) => onOpacityChange(layer.id, parseInt(e.target.value, 10))}
+                  className="flex-1 h-1 bg-white/15 rounded-full appearance-none cursor-pointer accent-[#F26A3D]"
+                />
+                <span className="w-9 text-right tabular-nums text-zinc-300">{Math.round(opacity)}%</span>
+              </label>
+              {layer.legend && (
+                <div className="mt-3">
+                  <div className="h-2 w-full rounded-full" style={{ background: layer.legend.gradient }} />
+                  <div className="mt-1 flex justify-between text-[11px] text-zinc-400">
+                    <span>{layer.legend.min}</span>
+                    <span>{layer.legend.max}</span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {showInfo && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="bg-space-800/50 p-3 rounded-lg mt-2 text-xs text-secondary border border-space-700/50">
-              <p className="mb-1 text-primary">{layer.description || 'No description available.'}</p>
-              <div className="grid grid-cols-2 gap-2 mt-2 font-mono text-[10px]">
-                <div><span className="text-space-500">Mission:</span><br/>{layer.mission || 'N/A'}</div>
-                <div><span className="text-space-500">Instrument:</span><br/>{layer.instrument || 'N/A'}</div>
-                <div className="col-span-2"><span className="text-space-500">Resolution:</span><br/>{layer.resolution || 'N/A'}</div>
-              </div>
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="mx-3 mb-3 rounded-lg bg-black/25 p-3 text-xs text-zinc-300 leading-relaxed">
+              <p>{layer.description || 'No description available.'}</p>
+              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                <div><dt className="text-zinc-500">Instrument</dt><dd className="text-zinc-200">{layer.instrument || 'n/a'}</dd></div>
+                <div><dt className="text-zinc-500">Resolution</dt><dd className="text-zinc-200">{layer.resolution || 'n/a'}</dd></div>
+                <div className="col-span-2"><dt className="text-zinc-500">Kind of data</dt><dd className="text-zinc-200">{derived ? 'Derived from NASA measurements' : 'Observed by a NASA instrument'}</dd></div>
+              </dl>
             </div>
           </motion.div>
         )}
@@ -92,87 +91,56 @@ const LayerItem = ({ layer, isActive, opacity, onToggle, onOpacityChange }) => {
   );
 };
 
-const LayerCategory = ({ categoryId, categoryName, layers }) => {
+const LayerCategory = ({ name, layers }) => {
   const [isOpen, setIsOpen] = useState(true);
-  const activeLayers = useMapStore(state => state.activeLayers) || [];
-  const layerOpacity = useMapStore(state => state.layerOpacity) || {};
-  const toggleLayer = useMapStore(state => state.toggleLayer);
-  const setLayerOpacity = useMapStore(state => state.setLayerOpacity);
-
-  const Icon = categoryIcons[String(categoryId).toLowerCase()] || Layers;
+  const activeLayers = useMapStore((s) => s.activeLayers) || [];
+  const layerOpacity = useMapStore((s) => s.layerOpacity) || {};
+  const toggleLayer = useMapStore((s) => s.toggleLayer);
+  const setLayerOpacity = useMapStore((s) => s.setLayerOpacity);
+  const on = layers.filter((l) => activeLayers.includes(l.id)).length;
 
   return (
-    <div className="mb-4 border-b border-white/[0.04] pb-3 last:border-0">
-      <button 
-        className="flex items-center justify-between w-full text-left mb-3 group hover:text-mars-400 transition-colors"
-        onClick={() => setIsOpen(!isOpen)}
+    <section>
+      <button
+        onClick={() => setIsOpen((v) => !v)}
+        aria-expanded={isOpen}
+        className="w-full flex items-center justify-between gap-2 py-1 text-left cursor-pointer group"
       >
-        <div className="flex items-center gap-2">
-          <Icon size={16} className="text-mars-500 group-hover:scale-110 transition-transform" />
-          <span className="font-display font-semibold tracking-[0.1em] text-xs uppercase text-stone-200 group-hover:text-white transition-colors">{categoryName}</span>
-        </div>
-        <div className="w-5 h-5 rounded-full bg-white/[0.02] border border-white/[0.05] group-hover:border-white/15 flex items-center justify-center transition-colors">
-          {isOpen ? <ChevronDown size={12} className="text-stone-400 group-hover:text-white" /> : <ChevronRight size={12} className="text-stone-400 group-hover:text-white" />}
-        </div>
+        <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors">{name}</span>
+        <span className="flex items-center gap-2 text-xs text-zinc-500">
+          {on > 0 && <span className="rounded-full bg-[#F26A3D]/20 text-[#ffb08f] px-1.5 py-px tabular-nums">{on} on</span>}
+          <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+        </span>
       </button>
-
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden pl-2 border-l border-white/[0.04] ml-2"
-          >
-            {layers.map(layer => (
-              <LayerItem 
-                key={layer.id}
-                layer={layer}
-                isActive={activeLayers.includes(layer.id)}
-                opacity={layerOpacity[layer.id] !== undefined ? layerOpacity[layer.id] : 100}
-                onToggle={toggleLayer}
-                onOpacityChange={setLayerOpacity}
-              />
-            ))}
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="flex flex-col gap-2 pt-2 pb-1">
+              {layers.map((layer) => (
+                <LayerItem
+                  key={layer.id}
+                  layer={layer}
+                  isActive={activeLayers.includes(layer.id)}
+                  opacity={Math.round((layerOpacity[layer.id] !== undefined ? layerOpacity[layer.id] : layer.defaultOpacity ?? 1) * 100)}
+                  onToggle={toggleLayer}
+                  onOpacityChange={(id, pct) => setLayerOpacity(id, pct / 100)}
+                />
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </section>
   );
 };
 
-const LayerPanel = () => {
-  const getLayersForCategory = (categoryId) => {
-    return marsLayers.filter(l => l.category === categoryId);
-  };
-
-  return (
-    <div className="p-4 h-full overflow-y-auto overflow-x-hidden custom-scrollbar-y bg-[#07090E]/80 backdrop-blur-2xl rounded-2xl border border-white/[0.06] shadow-hud-glass">
-      <div className="flex items-center gap-2.5 mb-6 pb-4 border-b border-white/[0.06]">
-        <div className="w-8 h-8 rounded-lg bg-[#F16938]/10 border border-[#F16938]/30 flex items-center justify-center shrink-0">
-          <Layers className="text-[#F16938] w-4 h-4" />
-        </div>
-        <div>
-          <h2 className="font-display font-bold text-sm text-stone-200 tracking-[0.15em] uppercase">Map Layers</h2>
-          <div className="text-[10px] font-mono text-stone-500 uppercase tracking-widest mt-0.5">NASA WMTS Integration</div>
-        </div>
-      </div>
-      
-      {CATEGORY_LIST.map(category => {
-        const catLayers = getLayersForCategory(category);
-        if (catLayers.length === 0) return null;
-        
-        return (
-          <LayerCategory 
-            key={category} 
-            categoryId={category} 
-            categoryName={category} 
-            layers={catLayers} 
-          />
-        );
-      })}
-    </div>
-  );
-};
+const LayerPanel = () => (
+  <div className="flex flex-col gap-4">
+    {CATEGORY_LIST.map((category) => {
+      const layers = marsLayers.filter((l) => l.category === category);
+      return layers.length ? <LayerCategory key={category} name={category} layers={layers} /> : null;
+    })}
+  </div>
+);
 
 export default LayerPanel;

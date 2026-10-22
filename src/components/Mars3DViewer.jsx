@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
-import { Pause, Play, MapPin, Route, Droplets, Tent, Grid3x3, X, Map as MapIcon, Satellite, Sun, Wind } from 'lucide-react';
+import { Pause, Play, MapPin, Route, Droplets, Tent, Grid3x3, X, Map as MapIcon, Satellite, Sun, Wind, Layers, ChevronDown } from 'lucide-react';
 import useMapStore, { routeSignature } from '../store/useMapStore';
 import { landingSites } from '../data/landingSites';
 import { loadGrid } from '../terrain/dem';
@@ -463,6 +463,12 @@ const LAYER_CHIPS = [
   { key: 'grid', label: 'Grid', icon: Grid3x3 },
 ];
 
+const MiniSwitch = ({ on }) => (
+  <span className={`relative inline-block w-7 h-4 rounded-full shrink-0 transition-colors ${on ? 'bg-[#F26A3D]' : 'bg-white/20'}`}>
+    <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-3' : ''}`} />
+  </span>
+);
+
 const hm = (s) => {
   const h = Math.floor(s / 3600);
   const m = Math.round((s % 3600) / 60);
@@ -484,9 +490,15 @@ export default function Mars3DViewer() {
   });
   const [layers, setLayers] = useState({ sites: true, route: true, water: false, caves: false, sun: false, orbiters: false, storms: false, grid: false });
   const [autoRotate, setAutoRotate] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const rootRef = useRef(null);
   const [target, setTarget] = useState(null);
   const [active, setActive] = useState('global');
   const controls = useRef();
+  // A narrow pane (phone, or the split view) starts with the layers folded away
+  useEffect(() => {
+    if (rootRef.current && rootRef.current.clientWidth < 640) setPanelOpen(false);
+  }, []);
   const lightDir = useMemo(() => new THREE.Vector3(1, 0, 0), []);
 
   // The real Sun position, refreshed every minute while that layer is on
@@ -568,7 +580,7 @@ export default function Mars3DViewer() {
   const selectedSite = selectedPOI?.poiType === 'landingSite' ? selectedPOI : null;
 
   return (
-    <div className="w-full h-full bg-[#020306] relative overflow-hidden select-none">
+    <div ref={rootRef} className="w-full h-full bg-[#020306] relative overflow-hidden select-none">
       <Canvas camera={{ position: initial, fov: 40, near: 0.05, far: 400 }} dpr={[1, 2]} gl={{ antialias: true }}>
         <color attach="background" args={['#020306']} />
         <ambientLight intensity={layers.sun ? 0.04 : 0.35} />
@@ -603,33 +615,54 @@ export default function Mars3DViewer() {
         />
       </Canvas>
 
-      {/* Layers, top right (the map toolbar and sidebar own the top left) */}
-      <div className="absolute top-[140px] right-4 z-10 flex flex-col items-end gap-2">
-        <div className="ui-panel rounded-xl p-1.5 flex flex-wrap justify-end gap-1 max-w-[calc(100vw-2rem)]" role="group" aria-label="Globe layers">
-          {LAYER_CHIPS.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => toggleLayer(key)}
-              aria-pressed={layers[key]}
-              disabled={key === 'route' && !route}
-              className={`h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${layers[key] ? 'bg-white/15 text-white' : 'text-zinc-400 hover:text-white'}`}
-            >
-              <Icon className="w-3.5 h-3.5" />{label}
-            </button>
-          ))}
+      {/* Layers, top right. One column that scrolls inside itself, so it never runs under the fly-to bar
+          at the bottom, and a header that folds it away (folded by default in a narrow pane). */}
+      <div className="absolute top-[140px] right-4 z-10 w-[min(272px,calc(100%-2rem))] max-h-[calc(100%-300px)] min-h-[150px] overflow-y-auto overflow-x-hidden custom-scrollbar-y flex flex-col gap-2">
+        <div className="ui-panel rounded-2xl shrink-0">
           <button
-            onClick={() => setAutoRotate((v) => !v)}
-            className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-300 hover:text-white cursor-pointer"
-            aria-label={autoRotate ? 'Stop rotating' : 'Rotate the planet'}
-            title={autoRotate ? 'Stop rotating' : 'Rotate the planet'}
+            onClick={() => setPanelOpen((v) => !v)}
+            aria-expanded={panelOpen}
+            className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left cursor-pointer"
           >
-            {autoRotate ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            <span className="flex items-center gap-2 text-sm font-semibold text-white"><Layers className="w-4 h-4 text-[#ff8a5f]" />Layers</span>
+            <span className="flex items-center gap-2 text-xs text-zinc-400">
+              {Object.values(layers).filter(Boolean).length} on
+              <ChevronDown className={`w-4 h-4 transition-transform ${panelOpen ? '' : '-rotate-90'}`} />
+            </span>
           </button>
+          {panelOpen && (
+            <div className="px-2 pb-2 flex flex-col gap-0.5" role="group" aria-label="Globe layers">
+              {LAYER_CHIPS.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => toggleLayer(key)}
+                  aria-pressed={layers[key]}
+                  disabled={key === 'route' && !route}
+                  className={`h-9 px-2.5 rounded-lg flex items-center gap-2.5 text-sm transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${layers[key] ? 'bg-white/[0.1] text-white' : 'text-zinc-300 hover:text-white hover:bg-white/[0.06]'}`}
+                >
+                  <Icon className={`w-4 h-4 shrink-0 ${layers[key] ? 'text-[#ff8a5f]' : 'text-zinc-400'}`} />
+                  <span className="flex-1 text-left">{label}</span>
+                  <MiniSwitch on={layers[key] && !(key === 'route' && !route)} />
+                </button>
+              ))}
+              <div className="mt-1 pt-1.5 border-t border-white/10">
+                <button
+                  onClick={() => setAutoRotate((v) => !v)}
+                  aria-pressed={autoRotate}
+                  className="w-full h-9 px-2.5 rounded-lg flex items-center gap-2.5 text-sm text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+                >
+                  {autoRotate ? <Pause className="w-4 h-4 shrink-0 text-zinc-400" /> : <Play className="w-4 h-4 shrink-0 text-zinc-400" />}
+                  <span className="flex-1 text-left">Spin the planet</span>
+                  <MiniSwitch on={autoRotate} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* What the live layers show, and where the numbers come from */}
         {(layers.sun || layers.orbiters || layers.storms) && (
-          <div className="ui-panel rounded-xl p-3.5 w-72 text-xs text-zinc-300 space-y-3">
+          <div className="ui-panel rounded-2xl p-3.5 w-full shrink-0 text-xs text-zinc-300 space-y-3">
             {layers.sun && (
               <div>
                 <div className="flex items-center gap-1.5 font-semibold text-white"><Sun className="w-3.5 h-3.5 text-amber-300" />Sunlight now</div>
@@ -641,17 +674,17 @@ export default function Mars3DViewer() {
             {layers.orbiters && (
               <div>
                 <div className="flex items-center gap-1.5 font-semibold text-white"><Satellite className="w-3.5 h-3.5 text-sky-300" />Orbiters, {ORBIT_SPEEDUP}× faster</div>
-                <table className="mt-1.5 w-full tabular-nums">
-                  <tbody>
-                    {ORBITERS.map((o) => (
-                      <tr key={o.id}>
-                        <td className="py-0.5 pr-2 text-white"><i className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle" style={{ background: o.color }} />{o.name}</td>
-                        <td className="py-0.5 pr-2 text-zinc-400">{o.periKm === o.apoKm ? `${o.periKm} km` : `${o.periKm.toLocaleString()}–${o.apoKm.toLocaleString()} km`}</td>
-                        <td className="py-0.5 text-right text-zinc-400">{hm(orbitShape(o).periodS)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <ul className="mt-2 space-y-1.5">
+                  {ORBITERS.map((o) => (
+                    <li key={o.id} className="flex items-baseline justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="text-white"><i className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle" style={{ background: o.color }} />{o.name}</span>
+                        <span className="block pl-3 text-[11px] text-zinc-500">{o.periKm === o.apoKm ? `${o.periKm} km` : `${o.periKm.toLocaleString()} to ${o.apoKm.toLocaleString()} km`} up</span>
+                      </span>
+                      <span className="shrink-0 tabular-nums text-zinc-300 whitespace-nowrap">{hm(orbitShape(o).periodS)}</span>
+                    </li>
+                  ))}
+                </ul>
                 <p className="mt-1.5 text-[11px] text-zinc-500 leading-relaxed">Altitudes, tilts and periods are the real orbits (Kepler’s laws); where each craft is along its orbit right now is not tracked.</p>
               </div>
             )}
@@ -669,7 +702,7 @@ export default function Mars3DViewer() {
 
         {/* Selected landing site */}
         {selectedSite && (
-          <div className="ui-panel rounded-xl p-3.5 w-72 text-sm text-zinc-200">
+          <div className="ui-panel rounded-2xl p-3.5 w-full shrink-0 text-sm text-zinc-200">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <div className="font-semibold text-white">{selectedSite.name}</div>

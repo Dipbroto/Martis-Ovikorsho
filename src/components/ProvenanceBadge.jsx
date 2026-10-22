@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Database, Satellite, Cpu, Calculator, ShieldAlert } from 'lucide-react';
 
 export const PROVENANCE_DEFINITIONS = {
@@ -54,47 +55,58 @@ export const PROVENANCE_DEFINITIONS = {
   },
 };
 
+const SHORT = { OBSERVED: 'Observed', HISTORICAL: 'Historical', DERIVED: 'Derived', SIMULATED: 'Simulated', NASA_SPEC: 'NASA spec' };
+
+/**
+ * A quiet pill saying where a number comes from. The detail and the long explanation live in a
+ * tooltip drawn on the page (not inside the panel), so a narrow, scrolling sidebar never clips it.
+ */
 export default function ProvenanceBadge({ type = 'OBSERVED', size = 'sm', detail = '', className = '' }) {
-  const [showTooltip, setShowTooltip] = useState(false);
+  const [tip, setTip] = useState(null);
   const config = PROVENANCE_DEFINITIONS[type] || PROVENANCE_DEFINITIONS.OBSERVED;
   const Icon = config.icon;
 
-  const sizeClasses = size === 'xs'
-    ? 'text-[9px] px-1.5 py-0.5 gap-1'
-    : size === 'md'
-    ? 'text-xs px-2.5 py-1 gap-1.5'
-    : 'text-[10px] px-2 py-0.5 gap-1.2';
+  const sizeClasses = size === 'md' ? 'text-xs px-2.5 py-1 gap-1.5' : 'text-[11px] px-2 py-0.5 gap-1.5';
+
+  const show = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const width = 240;
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - width - 8);
+    const below = r.top < 150;
+    setTip({ left, top: below ? r.bottom + 8 : r.top - 8, below, width });
+  };
 
   return (
-    <div className={`relative inline-flex items-center min-w-0 max-w-full ${className}`}>
+    <span className={`relative inline-flex items-center ${className}`}>
       <span
-        onMouseEnter={() => setShowTooltip(true)}
-        onMouseLeave={() => setShowTooltip(false)}
-        onClick={() => setShowTooltip(!showTooltip)}
-        className={`inline-flex items-center whitespace-nowrap max-w-full font-mono font-bold tracking-wider rounded border cursor-help select-none transition-all ${config.bgColor} ${config.textColor} ${config.borderColor} ${sizeClasses} shadow-sm hover:brightness-125`}
-        title={config.fullName}
+        onMouseEnter={show}
+        onMouseLeave={() => setTip(null)}
+        onClick={(e) => (tip ? setTip(null) : show(e))}
+        tabIndex={0}
+        onFocus={show}
+        onBlur={() => setTip(null)}
+        className={`inline-flex items-center whitespace-nowrap font-medium rounded-full border cursor-help select-none transition-colors ${config.bgColor} ${config.textColor} ${config.borderColor} ${sizeClasses} hover:brightness-125`}
+        aria-label={`${SHORT[type] || config.label}: ${config.fullName}${detail ? `, ${detail}` : ''}`}
       >
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${config.dotColor} animate-pulse`} />
-        <Icon className="w-2.5 h-2.5 opacity-80 shrink-0" />
-        <span>{config.label}</span>
-        {detail && <span className="opacity-75 font-normal truncate min-w-0">· {detail}</span>}
+        <Icon className="w-3 h-3 shrink-0" />
+        <span>{SHORT[type] || config.label}</span>
       </span>
 
-      {showTooltip && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-space-950/95 border border-space-700 rounded-lg shadow-xl text-[11px] text-space-200 z-[9999] pointer-events-none backdrop-blur-md">
-          <div className={`font-bold flex items-center gap-1.5 mb-1 ${config.textColor}`}>
-            <Icon className="w-3 h-3" />
+      {tip && createPortal(
+        <div
+          className="fixed z-[9999] p-3 bg-[#0B0D12] border border-white/15 rounded-xl shadow-2xl text-xs text-zinc-200 pointer-events-none"
+          style={{ left: tip.left, top: tip.top, width: tip.width, transform: tip.below ? 'none' : 'translateY(-100%)' }}
+          role="tooltip"
+        >
+          <div className={`font-semibold flex items-center gap-1.5 mb-1 ${config.textColor}`}>
+            <Icon className="w-3.5 h-3.5" />
             <span>{config.fullName}</span>
           </div>
-          <p className="text-[10px] leading-tight text-space-300">
-            {detail ? `${detail}: ` : ''}{config.description}
-          </p>
-          <div className="mt-1.5 pt-1 border-t border-space-800 text-[9px] text-space-500 font-mono flex justify-between">
-            <span>NASA Space Apps 2026</span>
-            <span>Provenance Metric</span>
-          </div>
-        </div>
+          {detail && <div className="text-white font-medium mb-0.5">{detail}</div>}
+          <p className="leading-relaxed text-zinc-400">{config.description}</p>
+        </div>,
+        document.body,
       )}
-    </div>
+    </span>
   );
 }

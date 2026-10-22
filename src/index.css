@@ -915,3 +915,14 @@ button:disabled {
   border: 2px solid #fb7185; animation: drill-pulse 1.4s ease-out infinite; pointer-events: none;
 }
 @keyframes drill-pulse { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+
+/* Sidebar content: one readable type scale. Older panels used tiny monospace capitals; inside the map
+   sidebar they now use the page font at a legible size, without changing the panels themselves. */
+.mw-side .font-mono { font-family: inherit; }
+.mw-side .uppercase { text-transform: none; letter-spacing: 0.01em; }
+.mw-side .tracking-widest,
+.mw-side .tracking-wider,
+.mw-side [class*='tracking-['] { letter-spacing: 0.01em; }
+.mw-side .text-\[9px\],
+.mw-side .text-\[10px\] { font-size: 11px; line-height: 1.35; }
+.mw-side .text-\[11px\] { font-size: 12px; line-height: 1.4; }
