@@ -910,10 +910,3 @@ button:disabled {
   border: 2px solid #fb7185; animation: drill-pulse 1.4s ease-out infinite; pointer-events: none;
 }
 @keyframes drill-pulse { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
-
-/* Contingency drills background: a slow push-in on the storm photo (the fog itself is FogLayer). */
-.drills-bg-drift { animation: drills-bg 60s ease-in-out infinite alternate; will-change: transform; }
-@keyframes drills-bg { from { transform: scale(1.04) translate3d(0, 0, 0); } to { transform: scale(1.1) translate3d(-1.5%, -1%, 0); } }
-@media (prefers-reduced-motion: reduce) {
-  .drills-bg-drift { animation: none !important; }
-}
