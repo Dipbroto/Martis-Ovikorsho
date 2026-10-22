@@ -982,26 +982,24 @@ button:disabled {
 @keyframes walk-shine { from { background-position: 150% 0; } to { background-position: -50% 0; } }
 
 /* ---------- Marsquakes ---------- */
-.quake-pin { position: relative; width: calc(var(--s) * 3); height: calc(var(--s) * 3); display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.quake-core { position: relative; z-index: 3; width: var(--s); height: var(--s); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff 0%, var(--q) 45%, var(--q) 100%); border: 2px solid rgba(255, 255, 255, 0.85); box-shadow: 0 0 14px var(--q), 0 0 0 3px color-mix(in srgb, var(--q) 35%, transparent); transition: transform 0.2s; }
-.quake-pin:hover .quake-core { transform: scale(1.25); }
-.quake-ring { position: absolute; z-index: 1; width: var(--s); height: var(--s); border-radius: 50%; border: 2px solid var(--q); opacity: 0; animation: quake-ripple 3.2s ease-out infinite; }
-.quake-ring:nth-child(2) { animation-delay: 1.05s; }
-.quake-ring:nth-child(3) { animation-delay: 2.1s; }
-@keyframes quake-ripple { 0% { transform: scale(0.8); opacity: 0.85; } 100% { transform: scale(3); opacity: 0; } }
-.quake-pin-fresh .quake-ring { animation-duration: 1.6s; }
-.quake-pin-fresh .quake-core { animation: quake-pop 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.5); }
-@keyframes quake-pop { 0% { transform: scale(0.2); } 55% { transform: scale(1.7); } 100% { transform: scale(1); } }
-.quake-pin-selected .quake-core { box-shadow: 0 0 0 4px #fff, 0 0 26px var(--q); transform: scale(1.2); }
-.quake-pin-impact .quake-core { border-radius: 30%; transform: rotate(45deg); }
-.quake-pin-impact:hover .quake-core { transform: rotate(45deg) scale(1.25); }
-.quake-pin-impact .quake-ring { border-style: dashed; }
 .quake-lander { position: relative; width: 0; height: 0; }
-.quake-lander-dot { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 4px solid #0B0D12; box-shadow: 0 0 0 2px #fff, 0 0 18px rgba(255, 255, 255, 0.8); }
+.quake-lander-dot { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 4px solid #0B0D12; box-shadow: 0 0 0 2px #fff, 0 0 18px rgba(255, 255, 255, 0.8); }
 .quake-lander-tag { position: absolute; left: 14px; top: -10px; white-space: nowrap; background: rgba(8, 10, 16, 0.92); color: #fff; font: 600 11px/1.6 system-ui, sans-serif; padding: 0 8px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.3); }
-.quake-ringlabel { transform: translate(6px, -16px); white-space: nowrap; color: rgba(255, 255, 255, 0.7); font: 500 10px/1.2 system-ui, sans-serif; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95); }
+.quake-region { transform: translate(-50%, -150%); white-space: nowrap; background: rgba(255, 45, 117, 0.92); color: #fff; font: 700 11px/1.7 system-ui, sans-serif; padding: 0 9px; border-radius: 999px; box-shadow: 0 0 18px rgba(255, 45, 117, 0.7); pointer-events: none; }
+/* Cerberus Fossae: a glow that breathes, because these faults are still active */
+.fault-active-glow { animation: fault-breathe 2.2s ease-in-out infinite; filter: blur(2px); }
+@keyframes fault-breathe { 0%, 100% { stroke-opacity: 0.15; } 50% { stroke-opacity: 0.7; } }
+.fault-active-swatch { box-shadow: 0 0 8px #ff2d75; }
+.quake-risk-img { image-rendering: auto; }
+/* Interior cross-section: seismic rays march, the quake pulses, the molten layer glows */
+.mi-ray { animation: mi-march 0.9s linear infinite; }
+@keyframes mi-march { to { stroke-dashoffset: -20; } }
+.mi-quake { animation: mi-pulse 1.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes mi-pulse { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(2.2); opacity: 0.2; } }
+.mi-glow { animation: mi-glow 1.8s ease-in-out infinite; }
+@keyframes mi-glow { 0%, 100% { stroke-opacity: 0.3; } 50% { stroke-opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .walker-walking, .quake-ring, .walk-cta-shine, .arrive-burst i { animation: none !important; }
+  .walker-walking, .fault-active-glow, .mi-ray, .mi-quake, .mi-glow, .walk-cta-shine, .arrive-burst i { animation: none !important; }
   .route-draw { animation: none; stroke-dashoffset: 0; opacity: 0; }
 }

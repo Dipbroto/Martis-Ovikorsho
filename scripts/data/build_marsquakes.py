@@ -1,4 +1,4 @@
-"""Builds public/data/marsquakes.json from the InSight Marsquake Service catalogue, V14.
+"""Builds scripts/data/marsquakes_v14.json from the InSight Marsquake Service catalogue, V14.
 
 Source: InSight Marsquake Service (2023), Mars Seismic Catalogue, InSight Mission; V14 2023-04-01,
 ETHZ, IPGP, JPL, ICL, Univ. Bristol, https://doi.org/10.12686/a21, as listed on the IRIS page
@@ -20,7 +20,7 @@ import sys
 import urllib.request
 
 URL = 'https://ds.iris.edu/ds/nodes/dmc/tools/mars-events/v14/'
-OUT = 'public/data/marsquakes.json'
+OUT = 'scripts/data/marsquakes_v14.json'
 INSIGHT = (4.5024, 135.6234)  # InSight lander, Elysium Planitia (lat N, lon E)
 
 

@@ -182,17 +182,13 @@ const useMapStore = create((set, get) => ({
   toolbarCollapsed: false,
   setToolbarCollapsed: (toolbarCollapsed) => set({ toolbarCollapsed }),
 
-  // Marsquakes (InSight Marsquake Service catalogue)
+  // Marsquakes: fault lines, risk zones and the interior of Mars
   quakeMode: false,
-  setQuakeMode: (quakeMode) => set({ quakeMode, ...(quakeMode ? { pickTarget: null, sidebarOpen: false } : { quakeSelected: null }) }),
-  quakeSelected: null, // event name, e.g. 'S1222a'
-  setQuakeSelected: (quakeSelected) => set({ quakeSelected }),
-  quakeFilter: { minMag: 0, impacts: true, located: true },
-  setQuakeFilter: (patch) => set((state) => ({ quakeFilter: { ...state.quakeFilter, ...patch } })),
-  quakeTime: null, // ms since epoch of the replay cursor, or null to show every event
-  setQuakeTime: (quakeTime) => set({ quakeTime }),
-  quakePlaying: false,
-  setQuakePlaying: (quakePlaying) => set({ quakePlaying }),
+  setQuakeMode: (quakeMode) => set({ quakeMode, ...(quakeMode ? { pickTarget: null, sidebarOpen: false } : { faultSelected: null }) }),
+  quakeShow: { zones: true, graben: true, ridge: true, pits: true },
+  setQuakeShow: (patch) => set((state) => ({ quakeShow: { ...state.quakeShow, ...patch } })),
+  faultSelected: null, // { t, p, km, a, lat, lon } of the fault line clicked on the map
+  setFaultSelected: (faultSelected) => set({ faultSelected }),
 
   // ========================
   // MAP TOOLS (WALKBACK & RULER & GRATICULE)

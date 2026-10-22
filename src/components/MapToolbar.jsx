@@ -210,7 +210,7 @@ export default function MapToolbar() {
                 <button
                   onClick={toggleQuakes}
                   aria-pressed={s.quakeMode}
-                  title="Marsquakes: what NASA's InSight seismometer felt, with a replay"
+                  title="Marsquakes: fault lines, risk zones and the layers inside Mars"
                   className={`${toolBtn} relative ${s.quakeMode ? 'bg-sky-500/20 border-sky-400/60 text-sky-100' : 'bg-white/[0.04] border-white/10 text-zinc-200 hover:bg-white/[0.09]'}`}
                 >
                   <Activity className="w-4 h-4" />

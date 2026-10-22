@@ -18,7 +18,7 @@ const STEPS = [
   [(s) => s.isEVASimulating, (s) => s.setEVASimulating(false)],
   // Map, only while it is showing: visible panels first, invisible state (selection, view) last
   [(s) => s.activeTab === 'map' && s.pickTarget, (s) => s.setPickTarget(null)],
-  [(s) => s.activeTab === 'map' && s.quakeMode && s.quakeSelected, (s) => s.setQuakeSelected(null)],
+  [(s) => s.activeTab === 'map' && s.quakeMode && s.faultSelected, (s) => s.setFaultSelected(null)],
   [(s) => s.activeTab === 'map' && s.isRulerActive, (s) => { s.setRulerActive(false); s.clearRuler(); }],
   [(s) => s.activeTab === 'map' && s.isPlacingWaypoint, (s) => s.setPlacingWaypoint(false)],
   [(s) => s.activeTab === 'map' && s.routeScanOpen, (s) => s.setRouteScanOpen(false)],
