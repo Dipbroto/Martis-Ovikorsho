@@ -262,3 +262,133 @@ export function verdict(r) {
   if (r.marginShare < 0.12) return { level: 'warn', text: 'You make it, barely', sub: `${(r.leftH * 60).toFixed(0)} min of life support to spare.` };
   return { level: 'ok', text: 'You make it home', sub: `${r.leftH.toFixed(1)} h of life support to spare.` };
 }
+
+// ---------- decision drill ----------
+//
+// After the emergency the crew has to choose. Each choice is played out with the same terrain planner
+// and energy model; waiting uses the suit's resting load. Assumptions are named in DECISION_ASSUMPTIONS.
+
+export const DECISION_ASSUMPTIONS = {
+  roverKmh: 10,          // NASA's Lunar Electric Rover / SEV concept top speed
+  roverPrepMin: 20,      // time to crew up and drive out
+  caveShielding: 0.95,   // share of storm dose blocked inside a cave (several metres of rock overhead)
+  taskMin: 15,           // "finish the task first"
+  roverRangeKm: 60,      // farthest a cave can be and still be worth walking to
+};
+
+const H = 3600;
+
+/** Where along a planned path (planner output) the life support runs out, in km from its start. */
+function runsOutKm(path, remainingJ) {
+  for (let i = 1; i < path.length; i++) {
+    if (path[i].energyJ > remainingJ) return path[i - 1].distanceM / 1000;
+  }
+  return null;
+}
+
+/**
+ * Plays out one choice from a drill state.
+ * state: { lat, lon, remainingJ, clockS, doseMSv, sample }
+ * ctx: { base, scenarioId, value, assumptions, blocked, caves, planTraverse }
+ * Returns { kind, terminal, survived, durationS, energyJ, doseMSv, path, cave, endRemainingJ, story }.
+ */
+export async function playChoice(choice, state, ctx) {
+  const { scenarioId, value, assumptions, blocked, base, planTraverse } = ctx;
+  const doseRate = scenarioId === 'spe' ? value : 0; // mSv per hour outside
+  const restW = EVA_ASSUMPTIONS.restingPowerW;
+  const stormPace = scenarioId === 'dust_storm' ? stormPaceShare(value) : 1;
+  const here = { lat: state.lat, lon: state.lon };
+
+  if (choice === 'task') {
+    const durationS = DECISION_ASSUMPTIONS.taskMin * 60;
+    const energyJ = (legCost(1000, 0).energyJ / legCost(1000, 0).timeS) * durationS; // working at walking effort
+    return {
+      kind: choice, terminal: false, durationS, energyJ, doseMSv: doseRate * (durationS / H),
+      endRemainingJ: state.remainingJ - energyJ, survived: state.remainingJ - energyJ > 0,
+      story: `You spend ${DECISION_ASSUMPTIONS.taskMin} minutes finishing the sample. It is in the bag.`,
+    };
+  }
+
+  if (choice === 'home') {
+    const plan = await planTraverse(here, base, { mode: 'fastest', assumptions, blocked });
+    const energyJ = plan.metrics.energyJ, durationS = plan.metrics.timeS;
+    const survived = energyJ <= state.remainingJ;
+    const out = survived ? null : runsOutKm(plan.path, state.remainingJ);
+    return {
+      kind: choice, terminal: true, survived, durationS, energyJ, doseMSv: doseRate * (durationS / H),
+      path: plan.path.map((p) => [p.lat, p.lon]), endRemainingJ: state.remainingJ - energyJ,
+      story: survived
+        ? `You walk ${(plan.metrics.distanceM / 1000).toFixed(1)} km home in ${fmtH(durationS / H)}.`
+        : `Life support runs out ${out != null ? `${((plan.metrics.distanceM / 1000) - out).toFixed(1)} km from base` : 'on the way'}.`,
+    };
+  }
+
+  // The rover drives the walking route in reverse, at its own speed
+  const roverTrip = async (to) => {
+    const plan = await planTraverse(base, to, { mode: 'fastest', blocked });
+    const km = plan.metrics.distanceM / 1000;
+    return { km, s: (DECISION_ASSUMPTIONS.roverPrepMin * 60) + (km / (DECISION_ASSUMPTIONS.roverKmh * stormPace)) * H };
+  };
+
+  if (choice === 'rover') {
+    const trip = await roverTrip(here);
+    const energyJ = restW * trip.s;
+    const survived = energyJ <= state.remainingJ;
+    return {
+      kind: choice, terminal: true, survived, durationS: trip.s, energyJ, doseMSv: doseRate * (trip.s / H),
+      path: null, endRemainingJ: state.remainingJ - energyJ,
+      story: survived
+        ? `You sit still to save oxygen. The rover covers ${trip.km.toFixed(1)} km and reaches you after ${fmtH(trip.s / H)}.`
+        : `Resting slows the drain, but the rover needs ${fmtH(trip.s / H)} and the suit runs out first.`,
+    };
+  }
+
+  if (choice === 'cave') {
+    const cave = nearestCave(here, ctx.caves);
+    if (!cave || cave.km > DECISION_ASSUMPTIONS.roverRangeKm) {
+      return { kind: choice, terminal: true, survived: false, durationS: 0, energyJ: 0, doseMSv: 0, endRemainingJ: state.remainingJ, story: 'There is no cave within reach.' };
+    }
+    let walk;
+    try {
+      walk = await planTraverse(here, { lat: cave.c.lat, lon: cave.c.lon }, { mode: 'fastest', assumptions, blocked });
+    } catch {
+      return { kind: choice, terminal: true, survived: false, durationS: 0, energyJ: 0, doseMSv: 0, endRemainingJ: state.remainingJ, story: 'The cave is out of reach on foot: the terrain in between is too steep.' };
+    }
+    const trip = await roverTrip({ lat: cave.c.lat, lon: cave.c.lon }).catch(() => null);
+    const walkS = walk.metrics.timeS, walkJ = walk.metrics.energyJ;
+    const waitS = trip ? Math.max(0, trip.s - walkS) : Infinity;
+    const energyJ = walkJ + restW * waitS;
+    const survived = Number.isFinite(energyJ) && energyJ <= state.remainingJ;
+    const dose = doseRate * (walkS / H) + doseRate * (1 - DECISION_ASSUMPTIONS.caveShielding) * (Number.isFinite(waitS) ? waitS / H : 0);
+    return {
+      kind: choice, terminal: true, survived, durationS: walkS + (Number.isFinite(waitS) ? waitS : 0), energyJ, doseMSv: dose,
+      path: walk.path.map((p) => [p.lat, p.lon]), cave, endRemainingJ: state.remainingJ - energyJ,
+      story: survived
+        ? `You reach the ${cave.c.type === 'sky' ? 'skylight' : 'pit'} ${cave.km.toFixed(1)} km away in ${fmtH(walkS / H)} and wait under rock for the rover.`
+        : `You reach the cave, but the rover takes too long and the suit runs out while you wait.`,
+    };
+  }
+  throw new Error(`Unknown choice ${choice}`);
+}
+
+export function nearestCave(here, caves = []) {
+  let best = null;
+  for (const c of caves) {
+    const km = marsDistance(here.lat, here.lon, c.lat, c.lon);
+    if (!best || km < best.km) best = { km, c };
+  }
+  return best;
+}
+
+/** Score out of 100: getting home first, then margin, dose and the bonus sample. */
+export function scoreOutcome({ survived, endRemainingJ, doseMSv, sample }) {
+  if (!survived) return 0;
+  const margin = Math.max(0, Math.min(1, endRemainingJ / lifeSupportBudgetJ()));
+  const dosePenalty = Math.min(25, doseMSv / 10);
+  return Math.max(0, Math.round(60 + 30 * margin - dosePenalty + (sample ? 10 : 0)));
+}
+
+function fmtH(h) {
+  const m = Math.max(0, Math.round(h * 60));
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`;
+}

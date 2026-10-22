@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, animate } from 'framer-motion';
 import {
-  ShieldAlert, Wind, Radiation, Mountain, Loader2, Map as MapIcon, Play, RotateCcw, Timer, CheckCircle2, XCircle,
-  Home, Footprints, Info, Tent, Sun,
+  ShieldAlert, Wind, Radiation, Mountain, Loader2, Map as MapIcon, RotateCcw, Timer, CheckCircle2, XCircle,
+  Home, Footprints, Info, Tent, Sun, Truck, FlaskConical,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore, { routeSignature } from '../store/useMapStore';
@@ -15,7 +15,9 @@ import { MapContainer, TileLayer, Polyline, CircleMarker, Circle, Tooltip, ZoomC
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { marsLayers } from '../data/marsLayers';
-import { SCENARIOS, runDrill, verdict, alongPath, scenarioSetup, survivalProfile, severityLabel, recommendation } from '../utils/drills';
+import { SCENARIOS, runDrill, verdict, alongPath, scenarioSetup, survivalProfile, severityLabel, recommendation, playChoice, nearestCave, scoreOutcome, DECISION_ASSUMPTIONS } from '../utils/drills';
+import { EVA_ASSUMPTIONS } from '../terrain/evaModel';
+import { marsDistance } from '../utils/marsUtils';
 import { energyToHours, lifeSupportBudgetJ } from '../terrain/evaModel';
 import { playUiClick } from '../utils/audioSynthesizer';
 
@@ -71,23 +73,23 @@ function FitTo({ bounds }) {
 }
 
 /** The route on real NASA imagery: outbound walk, where the emergency hits, and the way home. */
-function DrillMap({ points, result }) {
+function DrillMap({ points, result, backPath, level: levelOverride, cave, aspect = 'aspect-[4/3]', compact = false }) {
   const out = useMemo(() => points.map(([la, lo]) => [la, lo]), [points]);
-  const back = useMemo(() => result?.back?.path?.map((p) => [p.lat, p.lon]) || [], [result]);
+  const back = useMemo(() => backPath || result?.back?.path?.map((p) => [p.lat, p.lon]) || [], [result, backPath]);
   // Fit the camera to the route only (not every re-plan), so the view stays put while you drag sliders
   const bounds = useMemo(() => {
     let s = 90, n = -90, w = 180, e = -180;
-    for (const [la, lo] of out) { s = Math.min(s, la); n = Math.max(n, la); w = Math.min(w, lo); e = Math.max(e, lo); }
+    for (const [la, lo] of cave ? [...out, [cave.lat, cave.lon]] : out) { s = Math.min(s, la); n = Math.max(n, la); w = Math.min(w, lo); e = Math.max(e, lo); }
     return [[s, w], [n, e]];
-  }, [out]);
+  }, [out, cave]);
   const idx = result?.here?.index ?? out.length - 1;
   const here = result?.here ? [result.here.lat, result.here.lon] : null;
-  const level = result ? verdict(result).level : 'ok';
+  const level = levelOverride || (result ? verdict(result).level : 'ok');
   const homeColor = level === 'bad' ? '#fb7185' : level === 'warn' ? '#fbbf24' : '#34d399';
   const marsR = (m) => m * (L.CRS.Earth.R / 3389500); // Leaflet circles use Earth's radius
 
   return (
-    <div className="relative rounded-xl overflow-hidden border border-white/10 bg-black aspect-[4/3]">
+    <div className={`relative rounded-xl overflow-hidden border border-white/10 bg-black ${aspect}`}>
       <MapContainer
         crs={L.CRS.EPSG4326}
         center={out[0]}
@@ -130,100 +132,258 @@ function DrillMap({ points, result }) {
             </CircleMarker>
           </>
         )}
+        {cave && (
+          <CircleMarker center={[cave.lat, cave.lon]} radius={7} pathOptions={{ color: '#fff', weight: 2, fillColor: '#fbbf24', fillOpacity: 1 }}>
+            <Tooltip permanent direction="top" offset={[0, -8]} className="route-end-label">Cave</Tooltip>
+          </CircleMarker>
+        )}
         <ZoomControl position="topright" />
       </MapContainer>
-      <div className="pointer-events-none absolute left-2 bottom-2 z-[500] hidden sm:flex flex-wrap gap-x-3 gap-y-1 rounded-lg bg-black/70 px-2.5 py-1.5 text-[11px] text-zinc-200">
+      <div className={`pointer-events-none absolute left-2 bottom-2 z-[500] ${compact ? 'hidden' : 'hidden sm:flex'} flex-wrap gap-x-3 gap-y-1 rounded-lg bg-black/70 px-2.5 py-1.5 text-[11px] text-zinc-200`}>
         <span className="flex items-center gap-1.5"><i className="w-3 h-0.5 bg-[#F26A3D]" />Planned walk</span>
         <span className="flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-rose-400" />Emergency</span>
         <span className="flex items-center gap-1.5"><i className="w-3 h-0.5" style={{ background: homeColor }} />Way home</span>
         <span className="flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-emerald-400" />Base</span>
       </div>
-      <span className="pointer-events-none absolute right-2 bottom-2 z-[500] hidden sm:block rounded-md bg-black/60 px-2 py-0.5 text-[10px] text-zinc-400">NASA THEMIS · CTX · Viking</span>
+      <span className={`pointer-events-none absolute right-2 bottom-2 z-[500] ${compact ? 'hidden' : 'hidden sm:block'} rounded-md bg-black/60 px-2 py-0.5 text-[10px] text-zinc-400`}>NASA THEMIS · CTX · Viking</span>
     </div>
   );
 }
 
-/** Timed practice: tap the crew's actions in the right order. */
-function CrewDrill({ scenario }) {
-  const order = scenario.steps;
-  const shuffled = useMemo(() => {
-    const a = order.map((s, i) => ({ s, i }));
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }, [order]);
-  const [running, setRunning] = useState(false);
-  const [done, setDone] = useState([]);
-  const [mistakes, setMistakes] = useState(0);
-  const [wrong, setWrong] = useState(null);
-  const [t0, setT0] = useState(0);
-  const [now, setNow] = useState(0);
-  const finished = done.length === order.length;
+const CHOICES = {
+  home: { label: 'Walk home now', icon: Home, hint: 'Fastest route back to base on foot' },
+  rover: { label: 'Stay put, call the rover', icon: Truck, hint: 'Rest to save oxygen while it drives out' },
+  cave: { label: 'Shelter in the nearest cave', icon: Tent, hint: 'Walk to rock cover, rover picks you up there' },
+  task: { label: 'Finish the task first', icon: FlaskConical, hint: `Collect the sample: ${DECISION_ASSUMPTIONS.taskMin} more minutes outside` },
+};
+const choicesFor = (id) => (id === 'spe' || id === 'dust_storm' ? ['home', 'rover', 'cave', 'task'] : ['home', 'rover', 'task']);
+const clock = (s) => `T+${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}`;
 
-  useEffect(() => { setRunning(false); setDone([]); setMistakes(0); setWrong(null); }, [scenario]);
+/** A number that counts smoothly to its new value. */
+function Rolling({ value, format }) {
+  const [shown, setShown] = useState(value);
   useEffect(() => {
-    if (!running || finished) return undefined;
-    const t = setInterval(() => setNow(performance.now()), 100);
-    return () => clearInterval(t);
-  }, [running, finished]);
+    const from = shown;
+    const controls = animate(from, value, { duration: 1.6, ease: [0.3, 0.7, 0.2, 1], onUpdate: setShown });
+    return () => controls.stop();
+    // only re-run when the target changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return <>{format(shown)}</>;
+}
 
-  const start = () => { playUiClick?.(); setDone([]); setMistakes(0); setWrong(null); setT0(performance.now()); setNow(performance.now()); setRunning(true); };
-  const pick = (i) => {
-    if (!running || finished || done.includes(i)) return;
-    if (i === done.length) {
-      setDone((d) => [...d, i]);
-      if (i === order.length - 1) setNow(performance.now());
-    } else {
-      setMistakes((m) => m + 1);
-      setWrong(i);
-      setTimeout(() => setWrong(null), 450);
+/**
+ * Decision drill: the emergency has hit, the crew must choose. Every choice is played out on the
+ * real terrain with the energy model, then compared with the best call Mission Control would make.
+ */
+function DecisionDrill({ points, result, scenarioId, value, caves }) {
+  const total = lifeSupportBudgetJ();
+  const ctx = useMemo(() => {
+    if (!result || result.error) return null;
+    const along = result.along;
+    const { assumptions, blocked } = scenarioSetup(scenarioId, value, points, along, result.here.km / along.totalKm);
+    return { base: { lat: points[0][0], lon: points[0][1] }, scenarioId, value, assumptions, blocked, caves, planTraverse };
+  }, [result, scenarioId, value, points, caves]);
+
+  const start = useMemo(() => (result && !result.error ? {
+    lat: result.here.lat, lon: result.here.lon,
+    remainingJ: (result.remainingH / energyToHours(total)) * total, clockS: 0, doseMSv: 0, sample: false,
+  } : null), [result, total]);
+
+  const [state, setState] = useState(start);
+  const [log, setLog] = useState([]);
+  const [ending, setEnding] = useState(null); // terminal outcome
+  const [busy, setBusy] = useState(null);
+  const [best, setBest] = useState(null);
+  const [options, setOptions] = useState([]);
+  useEffect(() => { setState(start); setLog([]); setEnding(null); setBest(null); setOptions([]); }, [start]);
+
+  const choose = async (choice) => {
+    if (!state || !ctx || busy || ending) return;
+    playUiClick?.();
+    setBusy(choice);
+    try {
+      const r = await playChoice(choice, state, ctx);
+      const next = {
+        ...state,
+        remainingJ: r.endRemainingJ,
+        clockS: state.clockS + r.durationS,
+        doseMSv: state.doseMSv + r.doseMSv,
+        sample: state.sample || choice === 'task',
+      };
+      setState(next);
+      setLog((l) => [...l, { choice, ...r }]);
+      if (r.terminal || !r.survived) {
+        const outcome = { ...r, survived: r.survived, endRemainingJ: next.remainingJ, doseMSv: next.doseMSv, sample: next.sample, clockS: next.clockS };
+        outcome.score = scoreOutcome(outcome);
+        setEnding(outcome);
+        // Mission Control's call: the best terminal choice from the moment the emergency hit
+        const options = await Promise.all(choicesFor(scenarioId).filter((c) => c !== 'task').map(async (c) => {
+          const o = await playChoice(c, start, ctx).catch(() => null);
+          return o && { c, ...o, score: scoreOutcome({ ...o, sample: false }) };
+        }));
+        const ranked = options.filter(Boolean).sort((a, b) => b.score - a.score);
+        setBest(ranked[0] || null);
+        setOptions(ranked);
+      }
+    } finally {
+      setBusy(null);
     }
   };
-  const secs = running ? (now - t0) / 1000 : 0;
-  const grade = mistakes === 0 && secs < 20 ? 'Mission ready' : mistakes <= 1 ? 'Good, practise once more' : 'Needs more practice';
+
+  // `state` catches up with a new `start` one render later
+  if (!start || !ctx || !state) {
+    return <p className="text-sm text-zinc-400">{result?.error ? 'There is no way home on foot from this point.' : 'Setting up the drill…'}</p>;
+  }
+
+  const lifeShare = Math.max(0, state.remainingJ / total);
+  const last = log[log.length - 1];
+  const caveNear = scenarioId === 'spe' || scenarioId === 'dust_storm' ? nearestCave(start, caves) : null;
+  const mapPath = last?.path || null;
+  const S = SCENARIOS[scenarioId];
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <p className="text-sm text-zinc-300">Tap the crew’s actions in the order they should happen.</p>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="flex items-center gap-1.5 text-sm tabular-nums text-zinc-200"><Timer className="w-4 h-4 text-[#ffa07f]" />{secs.toFixed(1)} s</span>
-          <button onClick={start} className="flex items-center gap-1.5 rounded-lg bg-white text-black font-semibold px-3 py-1.5 text-sm hover:bg-zinc-200 cursor-pointer">
-            {running ? <RotateCcw className="w-4 h-4" /> : <Play className="w-4 h-4" />}{running ? 'Restart' : 'Start drill'}
-          </button>
+    <div className="grid lg:grid-cols-12 gap-6 items-start">
+      {/* Status */}
+      <div className="lg:col-span-4 flex flex-col gap-3">
+        <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+          <div className="text-[11px] uppercase tracking-wider text-zinc-400">Mission clock since the alarm</div>
+          <div className="mt-0.5 text-4xl font-mono font-semibold tabular-nums"><Rolling value={state.clockS} format={clock} /></div>
+          <div className="mt-4 flex items-baseline justify-between text-xs text-zinc-400"><span>Life support left</span><span className="tabular-nums text-white text-sm font-semibold"><Rolling value={energyToHours(Math.max(0, state.remainingJ))} format={(h) => hm(h)} /></span></div>
+          <div className="mt-1.5 h-3 rounded-full bg-white/10 overflow-hidden">
+            <motion.div className={`h-full rounded-full ${lifeShare > 0.3 ? 'bg-emerald-400' : lifeShare > 0.1 ? 'bg-amber-400' : 'bg-rose-500'}`} animate={{ width: `${lifeShare * 100}%` }} transition={{ duration: 1.6, ease: [0.3, 0.7, 0.2, 1] }} />
+          </div>
+          {scenarioId === 'spe' && (
+            <>
+              <div className="mt-4 flex items-baseline justify-between text-xs text-zinc-400"><span>Radiation dose</span><span className="tabular-nums text-white text-sm font-semibold"><Rolling value={state.doseMSv} format={(d) => `${Math.round(d)} mSv`} /></span></div>
+              <div className="mt-1.5 h-3 rounded-full bg-white/10 overflow-hidden">
+                <motion.div className="h-full rounded-full bg-violet-400" animate={{ width: `${Math.min(100, (state.doseMSv / 250) * 100)}%` }} transition={{ duration: 1.6 }} />
+              </div>
+              <div className="mt-1 text-[11px] text-zinc-500">of NASA’s 30-day limit (250 mSv)</div>
+            </>
+          )}
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-lg bg-white/[0.04] p-2"><div className="text-zinc-400">From base</div><div className="font-semibold tabular-nums text-sm">{marsDistance(start.lat, start.lon, ctx.base.lat, ctx.base.lon).toFixed(1)} km</div></div>
+            <div className="rounded-lg bg-white/[0.04] p-2"><div className="text-zinc-400">Sample</div><div className={`font-semibold text-sm ${state.sample ? 'text-emerald-300' : 'text-zinc-300'}`}>{state.sample ? 'Collected' : 'Not yet'}</div></div>
+          </div>
         </div>
       </div>
-      <div className="grid gap-2">
-        {shuffled.map(({ s, i }) => {
-          const isDone = done.includes(i);
-          return (
-            <motion.button
-              key={s}
-              onClick={() => pick(i)}
-              animate={wrong === i ? { x: [0, -8, 8, -5, 5, 0] } : { x: 0 }}
-              transition={{ duration: 0.35 }}
-              disabled={!running}
-              className={`flex items-center gap-3 text-left rounded-xl border px-3 py-2.5 text-sm transition-colors ${isDone ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-100' : wrong === i ? 'border-rose-400/60 bg-rose-500/15' : running ? 'border-white/10 bg-white/[0.03] hover:bg-white/[0.08] cursor-pointer' : 'border-white/[0.06] bg-white/[0.02] text-zinc-400'}`}
-            >
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${isDone ? 'bg-emerald-500 text-black' : 'bg-white/10 text-zinc-300'}`}>{isDone ? done.indexOf(i) + 1 : '·'}</span>
-              {s}
-            </motion.button>
-          );
-        })}
+
+      {/* Map and assumptions (second row on desktop, after the choices on phones) */}
+      <div className="lg:col-span-4 lg:col-start-1 flex flex-col gap-3 order-3 lg:order-none">
+        <DrillMap
+          points={points}
+          result={result}
+          backPath={mapPath}
+          level={ending ? (ending.survived ? 'ok' : 'bad') : 'ok'}
+          cave={last?.cave ? { lat: last.cave.c.lat, lon: last.cave.c.lon } : caveNear && caveNear.km < 15 ? { lat: caveNear.c.lat, lon: caveNear.c.lon } : null}
+          aspect="aspect-[4/3]"
+          compact
+        />
+        <p className="text-[11px] text-zinc-500 leading-relaxed">
+          Walking uses the planner’s energy model; waiting uses the suit’s resting load ({EVA_ASSUMPTIONS.restingPowerW} W). Rover: {DECISION_ASSUMPTIONS.roverKmh} km/h (NASA’s pressurised rover concept) plus {DECISION_ASSUMPTIONS.roverPrepMin} min to set off. Caves block an assumed {Math.round(DECISION_ASSUMPTIONS.caveShielding * 100)}% of storm dose.
+        </p>
       </div>
-      <AnimatePresence>
-        {finished && running && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-3 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm">
-            <span className="font-semibold text-emerald-200">{grade}.</span> <span className="text-zinc-300">Done in {secs.toFixed(1)} s with {mistakes} mistake{mistakes === 1 ? '' : 's'}.</span>
+
+      {/* Decisions and outcome */}
+      <div className="lg:col-span-8 lg:col-start-5 lg:row-start-1 lg:row-span-2 flex flex-col gap-4 order-2 lg:order-none">
+        {!ending ? (
+          <>
+            <div className={`rounded-2xl border p-4 ${TONES[S.tone].ring}`}>
+              <div className="text-[11px] uppercase tracking-wider text-zinc-400">{log.length ? 'Still outside. What next?' : 'The alarm sounds'}</div>
+              <p className="mt-1 text-white font-medium">
+                {log.length ? last.story : `${S.title} ${result.here.km.toFixed(1)} km from base. You have ${hm(result.remainingH)} of life support left. What do you do?`}
+              </p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {choicesFor(scenarioId).map((c) => {
+                const C = CHOICES[c];
+                const disabled = !!busy || (c === 'task' && state.sample) || (c === 'cave' && (!caveNear || caveNear.km > DECISION_ASSUMPTIONS.roverRangeKm));
+                return (
+                  <motion.button
+                    key={c}
+                    whileHover={!disabled ? { y: -2 } : undefined}
+                    onClick={() => choose(c)}
+                    disabled={disabled}
+                    className={`group text-left rounded-2xl border p-4 transition-colors ${disabled ? 'border-white/[0.05] bg-white/[0.01] opacity-50 cursor-not-allowed' : 'border-white/10 bg-white/[0.03] hover:border-[#ff7b4d]/60 hover:bg-[#ff7b4d]/[0.06] cursor-pointer'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-10 h-10 rounded-xl bg-white/10 group-hover:bg-[#F26A3D] flex items-center justify-center transition-colors">{busy === c ? <Loader2 className="w-5 h-5 animate-spin" /> : <C.icon className="w-5 h-5" />}</span>
+                      <span className="font-semibold">{C.label}</span>
+                    </div>
+                    <p className="mt-2 text-xs text-zinc-400">
+                      {c === 'cave' ? (caveNear ? `${C.hint}. Nearest: ${caveNear.km < 10 ? caveNear.km.toFixed(1) : Math.round(caveNear.km)} km away (USGS catalog).` : 'No cave candidates nearby.') : c === 'task' && state.sample ? 'Already collected.' : C.hint}
+                    </p>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4">
+            <div className={`rounded-2xl border p-5 ${ending.survived ? LEVEL.ok.box : LEVEL.bad.box}`}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className={`flex items-center gap-2 text-2xl font-bold ${ending.survived ? 'text-emerald-300' : 'text-rose-300'}`}>
+                    {ending.survived ? <CheckCircle2 className="w-7 h-7" /> : <XCircle className="w-7 h-7" />}
+                    {ending.survived ? 'Crew safe' : 'Crew lost'}
+                  </div>
+                  <p className="mt-1 text-sm text-zinc-200 max-w-xl">{ending.story}</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-[11px] uppercase tracking-wider text-zinc-400">Score</div>
+                  <div className="text-4xl font-bold tabular-nums"><Rolling value={ending.score} format={(v) => Math.round(v)} /><span className="text-lg text-zinc-400">/100</span></div>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                {log.map((l, i) => (
+                  <span key={i} className="rounded-full border border-white/15 bg-black/30 px-2.5 py-1">{i + 1}. {CHOICES[l.choice].label} · {hm(l.durationS / 3600)}</span>
+                ))}
+              </div>
+            </div>
+            {best && (
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm">
+                <div className="text-[11px] uppercase tracking-wider text-zinc-400">Mission Control’s call</div>
+                {best.c === log[0].choice && log.length === 1
+                  ? <p className="mt-1 text-emerald-200">You made the same call Mission Control would: <strong>{CHOICES[best.c].label.toLowerCase()}</strong>.</p>
+                  : <p className="mt-1 text-zinc-200">Best from the moment of the alarm: <strong className="text-white">{CHOICES[best.c].label.toLowerCase()}</strong> ({best.survived ? `safe, ${hm(energyToHours(best.endRemainingJ))} to spare${scenarioId === 'spe' ? `, ${Math.round(best.doseMSv)} mSv` : ''}` : 'no option gets the crew home'}). {best.score > ending.score ? 'That would have scored higher.' : ''}</p>}
+              </div>
+            )}
+            {options.length > 1 && (
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                <div className="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Every option from the moment of the alarm</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="text-left text-xs text-zinc-500"><th className="font-normal py-1.5">Choice</th><th className="font-normal">Takes</th><th className="font-normal">Spare</th>{scenarioId === 'spe' && <th className="font-normal">Dose</th>}<th className="font-normal text-right">Score</th></tr></thead>
+                    <tbody>
+                      {options.map((o, i) => {
+                        const Icon = CHOICES[o.c].icon;
+                        return (
+                          <tr key={o.c} className="border-t border-white/[0.06]">
+                            <td className="py-2 pr-3"><span className="flex items-center gap-2"><Icon className="w-4 h-4 text-zinc-400" />{CHOICES[o.c].label}{i === 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">best</span>}</span></td>
+                            <td className="tabular-nums pr-3">{o.durationS ? hm(o.durationS / 3600) : '—'}</td>
+                            <td className={`tabular-nums pr-3 ${o.survived ? 'text-emerald-300' : 'text-rose-300'}`}>{o.survived ? hm(energyToHours(o.endRemainingJ)) : o.durationS ? 'runs out' : 'out of reach'}</td>
+                            {scenarioId === 'spe' && <td className="tabular-nums pr-3">{o.durationS ? `${Math.round(o.doseMSv)} mSv` : '—'}</td>}
+                            <td className="tabular-nums text-right font-semibold">{o.score}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            <button onClick={() => { setState(start); setLog([]); setEnding(null); setBest(null); setOptions([]); }} className="self-start flex items-center gap-2 rounded-xl bg-white text-black font-semibold px-4 py-2.5 text-sm hover:bg-zinc-200 cursor-pointer">
+              <RotateCcw className="w-4 h-4" />Try a different call
+            </button>
           </motion.div>
         )}
-      </AnimatePresence>
+
+
+      </div>
     </div>
   );
 }
-
 
 function Step({ n, title, children, className = '' }) {
   return (
@@ -572,9 +732,9 @@ export default function ContingencySimulatorPage() {
           </div>
         </div>
 
-        {/* Crew drill */}
-        <Panel title={`Crew drill: ${scenario.title.toLowerCase()}`} icon={Timer} className="mt-6">
-          <CrewDrill scenario={scenario} />
+        {/* Decision drill */}
+        <Panel title="Decision drill: what would you do?" icon={Timer} className="mt-6" right={<span className="text-xs text-zinc-400">Every choice is played out on the real terrain</span>}>
+          <DecisionDrill points={points || []} result={result} scenarioId={scenarioId} value={value} caves={caves} />
         </Panel>
 
         <p className="mt-6 text-xs text-zinc-500 flex items-start gap-2 max-w-4xl">

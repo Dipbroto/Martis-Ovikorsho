@@ -62,3 +62,28 @@ describe('survival profile', () => {
     expect(big.points[0].spare).toBeGreaterThan(big.points[big.points.length - 1].spare);
   });
 });
+
+describe('decision drill', () => {
+  it('plays out choices with the energy model and scores them', async () => {
+    const { playChoice, scoreOutcome } = await import('./drills');
+    const { EVA_ASSUMPTIONS: A } = await import('../terrain/evaModel');
+    const fake = async (start, goal, { assumptions } = {}) => {
+      const r = await planTraverse(start, goal, { assumptions });
+      const n = 10;
+      r.path = Array.from({ length: n + 1 }, (_, i) => ({ lat: start.lat + (goal.lat - start.lat) * i / n, lon: start.lon + (goal.lon - start.lon) * i / n, energyJ: r.metrics.energyJ * i / n, distanceM: r.metrics.distanceM * i / n }));
+      return r;
+    };
+    const ctx = { base: { lat: 0, lon: 0 }, scenarioId: 'o2_leak', value: 50, assumptions: { ...A }, blocked: [], caves: [], planTraverse: fake };
+    const state = { lat: 0, lon: 0.05, remainingJ: 2e6, clockS: 0, doseMSv: 0 };
+    const home = await playChoice('home', state, ctx);
+    const rover = await playChoice('rover', state, ctx);
+    const task = await playChoice('task', state, ctx);
+    expect(home.terminal).toBe(true);
+    expect(task.terminal).toBe(false);
+    expect(task.endRemainingJ).toBeLessThan(state.remainingJ);
+    // Waiting burns life support at the resting rate only
+    expect(rover.energyJ).toBeCloseTo(A.restingPowerW * rover.durationS, 3);
+    expect(scoreOutcome({ survived: false })).toBe(0);
+    expect(scoreOutcome({ survived: true, endRemainingJ: 1e6, doseMSv: 0, sample: true })).toBeGreaterThan(60);
+  });
+});
