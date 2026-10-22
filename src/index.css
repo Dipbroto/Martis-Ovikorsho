@@ -903,3 +903,10 @@ button:disabled {
   position: absolute; right: 1px; top: 1px; width: 8px; height: 8px; border-radius: 50%;
   border: 1.5px solid #0b0d12;
 }
+
+/* Contingency drills: pulsing ring where the emergency hits */
+.drill-pulse-ring {
+  position: absolute; left: -18px; top: -18px; width: 36px; height: 36px; border-radius: 50%;
+  border: 2px solid #fb7185; animation: drill-pulse 1.4s ease-out infinite; pointer-events: none;
+}
+@keyframes drill-pulse { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }

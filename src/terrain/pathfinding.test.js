@@ -114,3 +114,18 @@ describe('real terrain (Jezero 200 m DEM)', () => {
     expect(res.path[0].elevation).toBeLessThan(-2450);
   });
 });
+
+describe('planRoute with blocked zones', () => {
+  it('walks around a closed-off area and gets longer', () => {
+    const g = makeGrid(() => 0);
+    const a = at(g, 20, 2), b = at(g, 20, 38);
+    const open = planRoute(g, a, b, { mode: 'fastest' });
+    const mid = at(g, 20, 20);
+    const around = planRoute(g, a, b, { mode: 'fastest', blocked: [{ lat: mid.lat, lon: mid.lon, radiusM: 3000 }] });
+    expect(around.metrics.distanceM).toBeGreaterThan(open.metrics.distanceM * 1.05);
+    for (const p of around.path) {
+      const d = Math.hypot((p.lat - mid.lat), (p.lon - mid.lon)) * (Math.PI / 180) * 3389500;
+      expect(d).toBeGreaterThan(2500);
+    }
+  });
+});

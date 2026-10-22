@@ -165,7 +165,7 @@ function simplifyIndices(points, tolerance) {
  * Returns { path: [{lat, lon, elevation, distanceM, energyJ, timeS}], keyIndices, metrics } or
  * throws when the goal can't be reached within the slope limit.
  */
-export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EVA_ASSUMPTIONS } = {}) {
+export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EVA_ASSUMPTIONS, blocked = [] } = {}) {
   const { width: W, height: H, data, nodata } = grid;
   const N = W * H;
   const { dx, dy } = rowGeometry(grid);
@@ -176,6 +176,21 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
   const s = toCell(grid, start.lat, start.lon);
   const t = toCell(grid, goal.lat, goal.lon);
   if (data[s] === nodata || data[t] === nodata) throw new Error('Start or destination has no terrain data');
+
+  // Cells closed off (e.g. by a rockfall): discs of radiusM around a point; start and goal stay open
+  const closedOff = blocked.length ? new Uint8Array(N) : null;
+  for (const zone of blocked) {
+    const centre = toCell(grid, zone.lat, zone.lon);
+    const zr = Math.floor(centre / W), zc = centre % W;
+    const nr = Math.ceil(zone.radiusM / dy) + 1;
+    for (let r = Math.max(0, zr - nr); r <= Math.min(H - 1, zr + nr); r++) {
+      const nc = Math.ceil(zone.radiusM / dx[r]) + 1;
+      for (let c = Math.max(0, zc - nc); c <= Math.min(W - 1, zc + nc); c++) {
+        if (Math.hypot((c - zc) * dx[r], (r - zr) * dy) <= zone.radiusM) closedOff[r * W + c] = 1;
+      }
+    }
+  }
+  if (closedOff) { closedOff[s] = 0; closedOff[t] = 0; }
 
   const tRow = Math.floor(t / W), tCol = t % W;
   const heuristic = (n) => {
@@ -200,7 +215,7 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
       const nr = r + dr, nc = c + dc;
       if (nr < 0 || nr >= H || nc < 0 || nc >= W) continue;
       const v = nr * W + nc;
-      if (closed[v] || data[v] === nodata) continue;
+      if (closed[v] || data[v] === nodata || (closedOff && closedOff[v])) continue;
       const stepDx = dc * (dx[r] + dx[nr]) / 2;
       const dist = Math.hypot(stepDx, dr * dy);
       if (knightMoveBlocked(data, nodata, W, r, c, dr, dc, dist, assumptions)) continue;
