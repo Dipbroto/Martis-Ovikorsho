@@ -338,37 +338,8 @@ export default function MartianSkyEphemeris() {
           </div>
         </Panel>
 
-        {/* Phobos transit: the showpiece, full width */}
-        <Panel title="Phobos crosses the Sun" icon={Eclipse} className="mt-6" right={site.lat <= 70 && (
-          <button onClick={findTransit} disabled={search === 'busy'} className="flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-500/10 text-amber-100 px-3 py-1.5 text-xs font-medium hover:bg-amber-500/20 transition disabled:opacity-60 cursor-pointer">
-            {search === 'busy' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-            {search === 'busy' ? 'Searching the coming sols…' : 'Find the next transit from here'}
-          </button>
-        )}>
-          {site.lat > 70 ? (
-            <p className="text-sm text-zinc-300">Phobos never rises above 70° latitude, so there are no transits here. Pick a site nearer the equator.</p>
-          ) : (
-            <div className="grid lg:grid-cols-12 gap-6 items-start">
-              <div className="lg:col-span-8">
-                <TransitViewer transit={t} fluxWm2={sky.sun.fluxWm2} siteName={site.name} />
-              </div>
-              <div className="lg:col-span-4 space-y-3 text-sm text-zinc-300 leading-relaxed">
-                <p className={`rounded-xl border p-3 ${t?.happens ? 'border-amber-400/40 bg-amber-500/10 text-amber-50' : 'border-white/10 bg-white/[0.03]'}`}>
-                  {t?.happens
-                    ? <>This sol, Phobos passes in front of the Sun at <strong className="text-white">{fmt(t.lst)}</strong> local time, for about <strong className="text-white">{Math.round(t.durationS)} s</strong>, covering up to <strong className="text-white">{Math.round(t.maxCover * 100)}%</strong> of it.</>
-                    : <>No transit from here this sol{t ? `: Phobos's closest pass is ${t.sepDeg.toFixed(1)}° from the Sun at ${fmt(t.lst)}` : ''}. The viewer shows what one looks like at this site; press <em>Find the next transit</em> to jump to a real one.</>}
-                </p>
-                {search?.none && <p className="text-xs text-zinc-400">No transit from this site in the next 400 sols.</p>}
-                <p><strong className="text-white">How to use it:</strong> drag Phobos across the Sun, press play, or scrub the light curve. Turn on <em>Aim the path yourself</em> and drag up or down to see how a near miss or a central crossing changes the dip.</p>
-                <p><strong className="text-white">Why it matters:</strong> a transit dims sunlight for half a minute. Rovers use them to pin down Phobos's orbit; a crew running on solar power sees the same short dip on every panel.</p>
-                <p className="text-xs text-zinc-500">Perseverance filmed one on 2 April 2022 (sol 397). It lasted just over 40 seconds.</p>
-              </div>
-            </div>
-          )}
-        </Panel>
-
         {/* Survival-relevant cards */}
-        <div className="mt-6 grid lg:grid-cols-2 gap-6 items-start">
+        <div className="mt-6 grid lg:grid-cols-3 gap-6 items-start">
           <Panel title="Daylight for an EVA" icon={Sun}>
             {sunUp.rises.length && sunUp.sets.length ? (
               <>
@@ -394,6 +365,25 @@ export default function MartianSkyEphemeris() {
             <p className="mt-3 text-xs text-zinc-500">Direct radio to Earth needs Earth above the horizon (here: more than 10°); orbiters relay the rest of the time.</p>
           </Panel>
 
+          <Panel title="Phobos crosses the Sun" icon={Eclipse}>
+            {site.lat > 70 ? (
+              <p className="text-sm text-zinc-300">Phobos never rises above 70° latitude, so there are no transits here.</p>
+            ) : (
+              <>
+                <p className="text-sm text-zinc-300 mb-3">
+                  {t?.happens
+                    ? <>This sol Phobos passes in front of the Sun at <strong className="text-white">{fmt(t.lst)}</strong>, for about <strong className="text-white">{Math.round(t.durationS)} s</strong>, covering up to <strong className="text-white">{Math.round(t.maxCover * 100)}%</strong> of it.</>
+                    : <>No transit from here this sol{t ? `: the closest pass is ${t.sepDeg.toFixed(1)}° from the Sun` : ''}. Drag Phobos below to see one.</>}
+                </p>
+                <TransitViewer transit={t} fluxWm2={sky.sun.fluxWm2} siteName={site.name} />
+                <button onClick={findTransit} disabled={search === 'busy'} className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 text-amber-100 py-2.5 text-sm font-medium hover:bg-amber-500/20 transition disabled:opacity-60 cursor-pointer">
+                  {search === 'busy' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  {search === 'busy' ? 'Searching the coming sols…' : 'Find the next transit from here'}
+                </button>
+                {search?.none && <p className="mt-2 text-xs text-zinc-400">No transit from this site in the next 400 sols.</p>}
+              </>
+            )}
+          </Panel>
         </div>
 
         {/* Facts */}

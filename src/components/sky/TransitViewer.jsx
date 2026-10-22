@@ -78,7 +78,7 @@ export default function TransitViewer({ transit, fluxWm2, siteName }) {
   const phase = cover <= 0 ? (x < 0 ? 'Approaching' : 'Passed') : cover >= maxCover - 0.002 && Math.abs(x) < 0.05 ? 'Mid-transit' : 'Crossing the Sun';
 
   // ---- view geometry ----
-  const W = 640, H = 300, SR = 92, cx = W / 2, cy = H / 2;
+  const W = 640, H = 360, SR = 130, cx = W / 2, cy = H / 2;
   const toPx = (u) => u * SR;
   const svgRef = useRef(null);
   const drag = useRef(false);
@@ -103,7 +103,7 @@ export default function TransitViewer({ transit, fluxWm2, siteName }) {
     }
     return pts;
   }, [b, ratio, xMax]);
-  const CW = 640, CH = 120, PAD = 30;
+  const CW = 400, CH = 130, PAD = 34;
   const minLight = Math.min(0.5, 1 - maxCover - 0.05);
   const cxOf = (xx) => PAD + ((xx + xMax) / (2 * xMax)) * (CW - PAD - 8);
   const cyOf = (l) => 10 + ((1 - l) / (1 - minLight)) * (CH - 30);
@@ -135,53 +135,51 @@ export default function TransitViewer({ transit, fluxWm2, siteName }) {
           onPointerUp={() => { drag.current = false; }}
         >
           <defs>
-            {/* Mars daytime sky: a bluish aureole around the Sun fading to butterscotch */}
-            <radialGradient id="tvSky" cx="50%" cy="50%" r="75%">
-              <stop offset="0%" stopColor="#dbeafe" />
-              <stop offset="18%" stopColor="#7aa7c7" />
-              <stop offset="45%" stopColor="#8a6a4f" />
-              <stop offset="100%" stopColor="#2b1a10" />
-            </radialGradient>
+            {/* Seen through a solar filter, like Perseverance's Mastcam-Z video: black sky, amber disk,
+                darker towards the edge (limb darkening), no blue aureole */}
             <radialGradient id="tvSun" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#fffdf5" />
-              <stop offset="55%" stopColor="#fff1c9" />
-              <stop offset="82%" stopColor="#fcd38a" />
-              <stop offset="96%" stopColor="#f59e0b" />
-              <stop offset="100%" stopColor="#c2410c" />
+              <stop offset="0%" stopColor="#ffb347" />
+              <stop offset="45%" stopColor="#f59a2e" />
+              <stop offset="75%" stopColor="#d9731a" />
+              <stop offset="92%" stopColor="#a84a10" />
+              <stop offset="100%" stopColor="#6b2a08" />
             </radialGradient>
-            <radialGradient id="tvCorona" cx="50%" cy="50%" r="50%">
-              <stop offset="60%" stopColor="#fff7e6" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="#fff7e6" stopOpacity="0" />
+            <radialGradient id="tvHalo" cx="50%" cy="50%" r="50%">
+              <stop offset="66%" stopColor="#ff8a1f" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#ff8a1f" stopOpacity="0" />
             </radialGradient>
             <filter id="tvGranules" x="0" y="0" width="100%" height="100%">
-              <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="4" />
-              <feColorMatrix values="0 0 0 0 0.55  0 0 0 0 0.32  0 0 0 0 0.05  0 0 0 0.55 0" />
+              <feTurbulence type="fractalNoise" baseFrequency="0.14" numOctaves="2" seed="4" />
+              <feColorMatrix values="0 0 0 0 0.35  0 0 0 0 0.15  0 0 0 0 0.02  0 0 0 0.6 0" />
             </filter>
+            <filter id="tvSoft"><feGaussianBlur stdDeviation="0.6" /></filter>
             <clipPath id="tvSunClip"><circle cx={cx} cy={cy} r={SR} /></clipPath>
           </defs>
-          <rect width={W} height={H} fill="url(#tvSky)" />
-          <circle cx={cx} cy={cy} r={SR * 1.45} fill="url(#tvCorona)" />
+          <rect width={W} height={H} fill="#030201" />
+          <circle cx={cx} cy={cy} r={SR * 1.5} fill="url(#tvHalo)" />
           <circle cx={cx} cy={cy} r={SR} fill="url(#tvSun)" />
-          <g clipPath="url(#tvSunClip)" opacity="0.35">
+          <g clipPath="url(#tvSunClip)" opacity="0.45">
             <rect x={cx - SR} y={cy - SR} width={SR * 2} height={SR * 2} filter="url(#tvGranules)" />
           </g>
           {/* sunspots */}
-          <g fill="#5b2a0a" opacity="0.75">
-            <ellipse cx={cx - SR * 0.42} cy={cy - SR * 0.28} rx="5" ry="4" />
-            <ellipse cx={cx - SR * 0.36} cy={cy - SR * 0.24} rx="2.5" ry="2" />
-            <ellipse cx={cx + SR * 0.5} cy={cy + SR * 0.38} rx="4" ry="3.2" />
+          <g fill="#3a1505" opacity="0.8">
+            <ellipse cx={cx - SR * 0.42} cy={cy - SR * 0.28} rx="4.5" ry="3.6" />
+            <ellipse cx={cx - SR * 0.36} cy={cy - SR * 0.24} rx="2.2" ry="1.8" />
+            <ellipse cx={cx + SR * 0.5} cy={cy + SR * 0.38} rx="3.5" ry="2.8" />
           </g>
+          {/* faint sensor noise over the frame */}
+          <rect width={W} height={H} filter="url(#tvGranules)" opacity="0.06" />
 
           {/* Path and contact points */}
-          <line x1={cx - toPx(xMax)} y1={cy + toPx(b)} x2={cx + toPx(xMax)} y2={cy + toPx(b)} stroke="#fff" strokeOpacity="0.35" strokeDasharray="4 6" />
+          <line x1={cx - toPx(xMax)} y1={cy + toPx(b)} x2={cx + toPx(xMax)} y2={cy + toPx(b)} stroke="#fff" strokeOpacity={aimMode ? 0.4 : 0.12} strokeDasharray="4 6" />
           {contacts.map((c) => (
             <g key={c.k} transform={`translate(${cx + toPx(c.x)} ${cy + toPx(b) - toPx(ratio) - 10})`}>
-              <text textAnchor="middle" fill="#fff" fillOpacity="0.8" fontSize="11" fontWeight="600" style={{ paintOrder: 'stroke' }} stroke="rgba(0,0,0,0.6)" strokeWidth="3">{c.k}</text>
+              <text textAnchor="middle" fill="#fbbf24" fillOpacity="0.55" fontSize="11" fontWeight="600" style={{ paintOrder: 'stroke' }} stroke="rgba(0,0,0,0.6)" strokeWidth="3">{c.k}</text>
             </g>
           ))}
 
           {/* Phobos */}
-          <polygon points={phobosPts} fill="#0b0705" stroke="#fb923c" strokeOpacity={cover > 0 ? 0.5 : 0.15} strokeWidth="1.2" />
+          <polygon points={phobosPts} fill="#000" filter="url(#tvSoft)" />
           {!drag.current && !playing && x <= -xMax + 0.01 && (
             <g transform={`translate(${cx + toPx(x)} ${cy + toPx(b) + toPx(ratio) + 18})`}>
               <text textAnchor="middle" fill="#fff" fontSize="12" fontWeight="600" style={{ paintOrder: 'stroke' }} stroke="rgba(0,0,0,0.7)" strokeWidth="3">Drag me</text>
