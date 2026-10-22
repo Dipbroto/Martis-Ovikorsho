@@ -155,14 +155,14 @@ export default function Sidebar() {
             >
               <PanelLeftOpen className="w-[18px] h-[18px]" />
             </button>
-            <div className="w-6 h-px bg-white/10 my-0.5" />
+            <div className="hidden sm:block w-6 h-px bg-white/10 my-0.5" />
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setSidebarTab(tab.id)}
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  className="hidden sm:flex w-10 h-10 rounded-xl items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                   title={tab.title}
                   aria-label={tab.title}
                 >

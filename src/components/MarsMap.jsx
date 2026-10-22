@@ -5,17 +5,21 @@ import 'leaflet/dist/leaflet.css';
 import useMapStore from '../store/useMapStore';
 import { marsLayers, RELIEF_SHADE_URL } from '../data/marsLayers';
 import { getElevation } from '../utils/elevationService';
-import { marsDistance, calculateSlope, MARS } from '../utils/marsUtils';
+import { marsDistance, MARS } from '../utils/marsUtils';
 import CoordinateDisplay from './CoordinateDisplay';
 import POIMarkers from './POIMarkers';
 import RoverTraverses from './RoverTraverses';
-import { ResourceLayer, ResourcePanel } from './ResourceOverlays';
-import { TerrainOverlayLayer, TerrainOverlayPanel } from './TerrainOverlay';
+import { ResourceLayer } from './ResourceOverlays';
+import { TerrainOverlayLayer } from './TerrainOverlay';
 import { routeSignature } from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
-import { Play, Pause, Ruler, RotateCcw, Footprints, X } from 'lucide-react';
 import ReliefLayers from './ReliefLayers';
-import { RouteScanMarkers, RouteScanPanel } from './RouteScan';
+import { RouteScanMarkers } from './RouteScan';
+import MapDock from './dock/MapDock';
+import MapHint from './dock/MapHint';
+import RouteDraftLayer from './dock/RouteDraftLayer';
+import QuakeLayer from './quakes/QuakeLayer';
+import { nearestPlace } from '../data/places';
 import { legCost, usableBudgetJ } from '../terrain/evaModel';
 
 // Leaflet's geodesic <Circle> converts metres to degrees with Earth's radius when using EPSG:4326,
@@ -28,15 +32,15 @@ const PERSON_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" 
 const createWalkerIcon = (walking, label) => L.divIcon({
   className: 'custom-rover-icon',
   html: `
-    <div style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
+    <div style="position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center;">
       ${walking ? '<div class="rover-radar-ring-1"></div><div class="rover-radar-ring-2"></div>' : ''}
-      <div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,#ff8a5c,#d9481f);border:2.5px solid #fff;box-shadow:0 0 0 4px rgba(242,106,61,0.25),0 6px 18px rgba(0,0,0,0.6);z-index:10;">${PERSON_SVG}</div>
-      ${label ? `<div style="position:absolute;top:-24px;left:50%;transform:translateX(-50%);white-space:nowrap;background:rgba(8,10,16,0.92);border:1px solid rgba(255,255,255,0.18);color:#fff;font:600 11px/1.6 ui-monospace,monospace;padding:0 7px;border-radius:999px;box-shadow:0 4px 12px rgba(0,0,0,0.6);pointer-events:none;">${label}</div>` : ''}
+      <div class="walker-heading" style="transform:rotate(var(--hd,0deg));"><span></span></div>
+      <div class="walker-disc${walking ? ' walker-walking' : ''}">${PERSON_SVG}</div>
+      ${label ? `<div class="walker-label">${label}</div>` : ''}
     </div>
   `,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -20],
+  iconSize: [44, 44],
+  iconAnchor: [22, 22],
 });
 
 const fmtClock = (hours) => {
@@ -52,6 +56,8 @@ const MapEvents = () => {
   const addRulerPoint = useMapStore((s) => s.addRulerPoint);
   const clearSelection = useMapStore((s) => s.clearSelection);
   const setViewCenter = useMapStore((s) => s.setViewCenter);
+  const pickTarget = useMapStore((s) => s.pickTarget);
+  const pickPoint = useMapStore((s) => s.pickPoint);
 
   useMapEvents({
     moveend(e) {
@@ -75,7 +81,16 @@ const MapEvents = () => {
       lon = lon - 180;
       const elevation = getElevation(lat, lon);
 
-      if (isPlacingWaypoint) {
+      if (pickTarget) {
+        const near = nearestPlace(lat, lon, 1.5);
+        pickPoint({
+          name: near ? near.name : `${Math.abs(lat).toFixed(3)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(3)}°${lon >= 0 ? 'E' : 'W'}`,
+          lat: near ? near.lat : lat,
+          lon: near ? near.lon : lon,
+          elevation: near ? near.elevation : elevation,
+        });
+        marsAudio.playQuindarTone(true);
+      } else if (isPlacingWaypoint) {
         addWaypoint({ lat, lon, elevation });
         marsAudio.playQuindarTone(true);
       } else if (isRulerActive) {
@@ -117,8 +132,8 @@ const MapViewController = () => {
     const { x, y } = map.getSize();
     if (!x || !y) return;
     const narrow = x < 768;
-    const topLeft = narrow ? [24, 150] : [Math.min(440, x * 0.32), 150];
-    const bottomRight = narrow ? [24, Math.min(260, y * 0.3)] : [Math.min(340, x * 0.2), 150];
+    const topLeft = mapFitBounds.pad?.topLeft || (narrow ? [24, 150] : [Math.min(440, x * 0.32), 150]);
+    const bottomRight = mapFitBounds.pad?.bottomRight || (narrow ? [24, Math.min(260, y * 0.3)] : [Math.min(420, x * 0.3), 150]);
     // CTX imagery stays sharp to zoom 12; closer than that the 200 m survival overlays get coarse
     map.flyToBounds(mapFitBounds.bounds, { paddingTopLeft: topLeft, paddingBottomRight: bottomRight, maxZoom: 12, duration: 1.2 });
   }, [mapFitBounds, map]);
@@ -158,12 +173,28 @@ const MapViewController = () => {
   return null;
 };
 
-// How often (ms) rover telemetry is pushed into React state / the global store while driving
-const TELEMETRY_SYNC_MS = 120;
+// How often (ms) the walk's readings are pushed into the store (the dock reads them from there)
+const TELEMETRY_SYNC_MS = 100;
 
-// Rover Driver Component running inside MapContainer.
-// Per-frame motion is applied straight to the Leaflet layers; React state and the store
-// are only updated at TELEMETRY_SYNC_MS so the rest of the app doesn't re-render every frame.
+const MILESTONES = [0.25, 0.5, 0.75];
+const flagIcons = new Map();
+const flagIcon = (pct, hit) => {
+  const key = `${pct}|${hit}`;
+  if (!flagIcons.has(key)) {
+    flagIcons.set(key, L.divIcon({
+      className: 'milestone-icon',
+      html: `<div class="milestone-flag${hit ? ' milestone-hit' : ''}"><span>${Math.round(pct * 100)}%</span></div>`,
+      iconSize: [0, 0],
+    }));
+  }
+  return flagIcons.get(key);
+};
+const arriveIcon = L.divIcon({ className: 'milestone-icon', html: '<div class="arrive-burst"><i></i><i></i><i></i></div>', iconSize: [0, 0] });
+
+// The walk: a marker that moves along the route, a trail laid down behind it, a camera that follows it
+// smoothly, and readings published for the dock's walk panel. Per-frame motion is applied straight to the
+// Leaflet layers; the store is updated only every TELEMETRY_SYNC_MS so the rest of the app does not
+// re-render every frame.
 const RoverSimulator = ({ waypoints }) => {
   const map = useMap();
   const isRoverDriving = useMapStore((s) => s.isRoverDriving);
@@ -173,28 +204,30 @@ const RoverSimulator = ({ waypoints }) => {
   const setRoverBatterySoC = useMapStore((s) => s.setRoverBatterySoC);
   const setRoverCurrentPosition = useMapStore((s) => s.setRoverCurrentPosition);
   const setEVACurrentWaypointIndex = useMapStore((s) => s.setEVACurrentWaypointIndex);
+  const setWalkTelemetry = useMapStore((s) => s.setWalkTelemetry);
   const driveTargetWaypointId = useMapStore((s) => s.driveTargetWaypointId);
   const camFollow = useMapStore((s) => s.camFollow);
+  const walkSpeed = useMapStore((s) => s.walkSpeed);
+  const hoursOnFoot = useMapStore((s) => s.walkTelemetry.hours);
 
-  // Low-frequency React state: where the marker is mounted, which segment we are on, and readouts
   const [anchorCoord, setAnchorCoord] = useState(null);
   const [currentSegIdx, setCurrentSegIdx] = useState(0);
-  const [telemetry, setTelemetry] = useState({ slope: 0, paceKmh: 0, hours: 0, lifeLeft: 100 });
 
-  // High-frequency values live in refs
   const markerRef = useRef(null);
   const trailGlowRef = useRef(null);
   const trailCoreRef = useRef(null);
   const coordRef = useRef(null);
   const segIdxRef = useRef(0);
   const progRef = useRef(useMapStore.getState().roverProgress || 0);
-  const lastPanTime = useRef(0);
   const lastTelemetrySync = useRef(0);
+  const lastFreePan = useRef(0);
   const camFollowRef = useRef(camFollow);
   camFollowRef.current = camFollow;
+  const speedRef = useRef(walkSpeed);
+  speedRef.current = walkSpeed;
 
-  // The rover drives the full planned path when the planner produced one for these waypoints;
-  // otherwise straight legs between waypoints. `stations` maps each waypoint to its track index.
+  // The crew walks the full planned path when the planner produced one for these waypoints; otherwise
+  // straight legs between waypoints. `stations` maps each waypoint to its track index.
   const routeGeometry = useMapStore((s) => s.routeGeometry);
   const track = useMemo(() => {
     const wps = waypoints || [];
@@ -213,22 +246,20 @@ const RoverSimulator = ({ waypoints }) => {
 
   const trackLatLngs = useMemo(() => track.pts.map((p) => [p.lat, p.lon]), [track]);
 
-  // Index of the last waypoint (station) reached at a given track segment
   const stationAt = (segIdx) => {
     let station = 0;
     track.stations.forEach((t, i) => { if (t <= segIdx) station = i; });
     return station;
   };
 
-  // Precompute cumulative physical distances along route for constant medium speed
+  // Cumulative physical distance along the track
   const routeDistances = useMemo(() => {
     const pts = track.pts;
     if (pts.length < 2) return { cumDists: [0], totalDistKm: 0 };
     const cumDists = [0];
     let sum = 0;
     for (let i = 0; i < pts.length - 1; i++) {
-      const d = Math.max(0.001, marsDistance(pts[i].lat, pts[i].lon, pts[i + 1].lat, pts[i + 1].lon));
-      sum += d;
+      sum += Math.max(0.001, marsDistance(pts[i].lat, pts[i].lon, pts[i + 1].lat, pts[i + 1].lon));
       cumDists.push(sum);
     }
     return { cumDists, totalDistKm: sum };
@@ -247,193 +278,155 @@ const RoverSimulator = ({ waypoints }) => {
     return { cumT, cumE, budgetJ: usableBudgetJ() };
   }, [track, routeDistances]);
 
-  // Target spot calculation: if driveTargetWaypointId is set, drive to that specific station!
-  const targetIndex = (driveTargetWaypointId && waypoints)
-    ? waypoints.findIndex((w) => w.id === driveTargetWaypointId)
-    : -1;
-
+  const targetIndex = (driveTargetWaypointId && waypoints) ? waypoints.findIndex((w) => w.id === driveTargetWaypointId) : -1;
   const targetTrackIndex = targetIndex >= 0 ? track.stations[targetIndex] : -1;
-  const targetDistKm = (targetTrackIndex > 0 && routeDistances.cumDists[targetTrackIndex])
-    ? routeDistances.cumDists[targetTrackIndex]
-    : routeDistances.totalDistKm;
+  const targetDistKm = (targetTrackIndex > 0 && routeDistances.cumDists[targetTrackIndex]) ? routeDistances.cumDists[targetTrackIndex] : routeDistances.totalDistKm;
 
-  // Active target waypoint for popup & telemetry
-  const targetWaypoint = targetIndex >= 0 ? waypoints[targetIndex] : (waypoints ? waypoints[waypoints.length - 1] : null);
-
-  // Traveled path behind the rover wheels. Its last vertex is advanced imperatively every frame.
   const traveledPositions = useMemo(() => {
     const done = trackLatLngs.slice(0, currentSegIdx + 1);
     return [...done, coordRef.current || anchorCoord || done[done.length - 1]].filter(Boolean);
   }, [trackLatLngs, currentSegIdx, anchorCoord]);
 
-  // Sync initial coordinate when waypoints load or change, or progress reset
-  useEffect(() => {
-    if (!waypoints || waypoints.length < 2) return;
-    if (!coordRef.current || roverProgress === 0) {
-      const start = [waypoints[0].lat, waypoints[0].lon];
-      coordRef.current = start;
-      segIdxRef.current = 0;
-      progRef.current = roverProgress || 0;
-      setAnchorCoord(start);
-      setCurrentSegIdx(0);
-      markerRef.current?.setLatLng(start);
-    }
-  }, [waypoints, roverProgress]);
+  // Where the track is at a distance, and what the crew reads there
+  const sample = (distKm) => {
+    const cum = routeDistances.cumDists;
+    let seg = 0;
+    while (seg < cum.length - 2 && distKm > cum[seg + 1]) seg++;
+    const a = track.pts[seg];
+    const b = track.pts[seg + 1];
+    const len = Math.max(1e-4, cum[seg + 1] - cum[seg]);
+    const f = Math.max(0, Math.min(1, (distKm - cum[seg]) / len));
+    return { seg, f, a, b, segM: len * 1000, lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f };
+  };
 
-  // Keep progRef in sync when store progress changes externally
-  useEffect(() => {
-    if (!isRoverDriving || roverProgress === 0) {
-      progRef.current = roverProgress || 0;
-    }
-  }, [roverProgress, isRoverDriving]);
+  const publish = (sm, distKm) => {
+    const leg = legCost(sm.segM, (sm.b.elevation || 0) - (sm.a.elevation || 0));
+    const hours = (trackCost.cumT[sm.seg] + leg.timeS * sm.f) / 3600;
+    const lifeLeft = Math.max(0, 100 * (1 - (trackCost.cumE[sm.seg] + leg.energyJ * sm.f) / trackCost.budgetJ));
+    const heading = ((Math.atan2(sm.b.lon - sm.a.lon, sm.b.lat - sm.a.lat) * 180) / Math.PI + 360) % 360;
+    markerRef.current?.getElement()?.style.setProperty('--hd', `${heading}deg`);
+    setWalkTelemetry({ slope: leg.slopeDeg, paceKmh: leg.timeS > 0 ? (sm.segM / leg.timeS) * 3.6 : 0, hours, distKm, totalKm: routeDistances.totalDistKm });
+    setRoverBatterySoC(Math.round(lifeLeft));
+    setRoverCurrentPosition({ lat: sm.lat, lon: sm.lon, bearing: Math.round(heading), elevation: Math.round((sm.a.elevation || 0) + ((sm.b.elevation || 0) - (sm.a.elevation || 0)) * sm.f) });
+  };
 
+  const applyPosition = (sm) => {
+    const latlng = [sm.lat, sm.lon];
+    coordRef.current = latlng;
+    markerRef.current?.setLatLng(latlng);
+    const trail = [...trackLatLngs.slice(0, sm.seg + 1), latlng];
+    trailGlowRef.current?.setLatLngs(trail);
+    trailCoreRef.current?.setLatLngs(trail);
+  };
+
+  // Not walking (start, pause, finished, or the progress bar was dragged): put the crew where progress says
+  useEffect(() => {
+    if (isRoverDriving || track.pts.length < 2 || routeDistances.totalDistKm <= 0) return;
+    progRef.current = roverProgress || 0;
+    const dist = Math.min(roverProgress || 0, 1) * routeDistances.totalDistKm;
+    const sm = sample(dist);
+    segIdxRef.current = sm.seg;
+    setCurrentSegIdx(sm.seg);
+    setAnchorCoord([sm.lat, sm.lon]);
+    applyPosition(sm);
+    publish(sm, dist);
+    if (camFollowRef.current && roverProgress > 0.003 && !map.getBounds().pad(-0.25).contains([sm.lat, sm.lon])) map.panTo([sm.lat, sm.lon], { animate: true, duration: 0.4 });
+    // sample/publish/applyPosition only read the values listed here
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roverProgress, isRoverDriving, track, routeDistances, trackCost]);
+
+  // Walking
   useEffect(() => {
     let animId;
-    if (!isRoverDriving || !waypoints || waypoints.length < 2) return;
-
+    if (!isRoverDriving || track.pts.length < 2) return undefined;
     const totalDistKm = routeDistances.totalDistKm;
-    if (totalDistKm <= 0) return;
+    if (totalDistKm <= 0) return undefined;
 
-    // Track traveled distance directly in km for constant medium traversal speed
-    let currentDistKm = progRef.current * totalDistKm;
-
-    // If rover was already at or beyond target, restart from beginning
-    if (progRef.current >= 0.99 || (targetDistKm > 0.1 && currentDistKm >= targetDistKm - 0.05)) {
-      currentDistKm = 0;
+    let dist = progRef.current * totalDistKm;
+    if (progRef.current >= 0.99 || (targetDistKm > 0.1 && dist >= targetDistKm - 0.05)) {
+      dist = 0;
       progRef.current = 0;
       setRoverProgress(0);
       segIdxRef.current = 0;
       setCurrentSegIdx(0);
     }
 
-    let lastTime = performance.now();
+    // A walk takes 8 to 26 seconds at 1x, longer routes taking longer, so movement is easy to follow
+    const tripKm = (targetTrackIndex > 0 && targetDistKm > 0) ? targetDistKm : totalDistKm;
+    const kmPerSec = tripKm / Math.max(8, Math.min(26, 6.5 + Math.sqrt(tripKm) * 1.5));
 
-    // Trip distance: if targeted to a waypoint, the segment distance to target; otherwise total route
-    const tripDistKm = (targetTrackIndex > 0 && targetDistKm > 0) ? targetDistKm : totalDistKm;
+    // A fresh start flies the camera down to the crew first, then the walk begins
+    let last = performance.now();
+    let waitUntil = last;
+    if (camFollowRef.current && dist < 0.01) {
+      const st = sample(0);
+      map.flyTo([st.lat, st.lon], Math.max(map.getZoom(), 10), { duration: 1.1 });
+      waitUntil = last + 1250;
+    }
 
-    // Balanced, highly perceptible pacing:
-    // - Very short manual points (< 5 km): ~6 to 8 seconds total traverse (clearly visible movement!)
-    // - Medium routes (5-30 km): ~10 to 14 seconds
-    // - Long routes (30-200 km): ~16 to 22 seconds
-    const traverseDurationSec = Math.max(6, Math.min(22, 5.5 + Math.sqrt(tripDistKm) * 1.3));
-    const kmPerSec = tripDistKm / traverseDurationSec;
-
-    const applyPosition = (latlng) => {
-      coordRef.current = latlng;
-      markerRef.current?.setLatLng(latlng);
-      const trail = [...trackLatLngs.slice(0, segIdxRef.current + 1), latlng];
-      trailGlowRef.current?.setLatLngs(trail);
-      trailCoreRef.current?.setLatLngs(trail);
+    const followPad = () => {
+      const wide = window.innerWidth >= 640;
+      const sidebar = useMapStore.getState().sidebarOpen ? 410 : 80;
+      return { left: wide ? sidebar : 16, right: wide ? 392 : 16, top: wide ? 150 : 150, bottom: wide ? 110 : (window.innerHeight * 0.46 + 100) };
     };
 
     const drive = (now) => {
-      const dt = Math.min((now - lastTime) / 1000, 0.08); // delta time clamped
-      lastTime = now;
+      const dt = Math.min((now - last) / 1000, 0.08);
+      last = now;
+      if (now < waitUntil) { animId = requestAnimationFrame(drive); return; }
 
-      // Traversal step proportional to physical distance
-      currentDistKm += kmPerSec * dt;
+      dist += kmPerSec * speedRef.current * dt;
 
-      // Arrival check for target (either specific station or full destination)
-      if (currentDistKm >= targetDistKm) {
-        currentDistKm = targetDistKm;
-        const finalProg = totalDistKm > 0 ? (targetDistKm / totalDistKm) : 1.0;
-        progRef.current = finalProg;
-        setRoverProgress(finalProg);
+      if (dist >= targetDistKm) {
+        dist = targetDistKm;
+        const arrivalIdx = targetTrackIndex >= 0 ? targetTrackIndex : track.pts.length - 1;
+        progRef.current = totalDistKm > 0 ? targetDistKm / totalDistKm : 1;
+        setRoverProgress(progRef.current);
         setRoverDriving(false);
         marsAudio.playQuindarTone(false);
-
-        // Snap to exact target coordinates
-        const arrivalWp = targetTrackIndex >= 0 ? track.pts[targetTrackIndex] : track.pts[track.pts.length - 1];
-        const arrivalIdx = targetTrackIndex >= 0 ? targetTrackIndex : track.pts.length - 1;
-        const finalLeft = Math.max(0, 100 * (1 - trackCost.cumE[arrivalIdx] / trackCost.budgetJ));
-        setTelemetry((t) => ({ ...t, hours: trackCost.cumT[arrivalIdx] / 3600, lifeLeft: finalLeft }));
-        setRoverBatterySoC(Math.round(finalLeft));
-        if (arrivalWp) {
-          const arrival = [arrivalWp.lat, arrivalWp.lon];
-          applyPosition(arrival);
-          setRoverCurrentPosition({ lat: arrival[0], lon: arrival[1], elevation: arrivalWp.elevation });
-          setAnchorCoord(arrival);
-        }
+        const sm = sample(dist);
+        applyPosition(sm);
+        setAnchorCoord([sm.lat, sm.lon]);
+        setRoverBatterySoC(Math.round(Math.max(0, 100 * (1 - trackCost.cumE[arrivalIdx] / trackCost.budgetJ))));
+        publish(sm, dist);
         return;
       }
 
-      // Find exact segment from current physical distance
-      let segIdx = 0;
-      while (
-        segIdx < routeDistances.cumDists.length - 2 &&
-        currentDistKm > routeDistances.cumDists[segIdx + 1]
-      ) {
-        segIdx++;
+      const sm = sample(dist);
+      if (sm.seg !== segIdxRef.current) {
+        segIdxRef.current = sm.seg;
+        setCurrentSegIdx(sm.seg);
+        const station = stationAt(sm.seg);
+        if (useMapStore.getState().evaCurrentWaypointIndex !== station) setEVACurrentWaypointIndex(station);
+      }
+      applyPosition(sm);
+      progRef.current = dist / totalDistKm;
+
+      if (now - lastTelemetrySync.current > TELEMETRY_SYNC_MS) {
+        lastTelemetrySync.current = now;
+        publish(sm, dist);
+        setRoverProgress(progRef.current);
       }
 
-      const segStartDist = routeDistances.cumDists[segIdx];
-      const segEndDist = routeDistances.cumDists[segIdx + 1];
-      const segLength = Math.max(0.0001, segEndDist - segStartDist);
-      const segFraction = Math.max(0, Math.min(1, (currentDistKm - segStartDist) / segLength));
-
-      const wpA = track.pts[segIdx];
-      const wpB = track.pts[segIdx + 1];
-
-      if (wpA && wpB) {
-        const lat = wpA.lat + (wpB.lat - wpA.lat) * segFraction;
-        const lon = wpA.lon + (wpB.lon - wpA.lon) * segFraction;
-
-        if (segIdx !== segIdxRef.current) {
-          segIdxRef.current = segIdx;
-          setCurrentSegIdx(segIdx);
-          // Keep the active waypoint synced as the rover passes stations
-          const station = stationAt(segIdx);
-          if (useMapStore.getState().evaCurrentWaypointIndex !== station) {
-            setEVACurrentWaypointIndex(station);
-          }
+      // Smooth camera: ease the crew toward the middle of the free part of the map (between the
+      // sidebar and the dock) a little every frame, instead of jumping every half second
+      try {
+        const size = map.getSize();
+        if (camFollowRef.current) {
+          const pad = followPad();
+          const cur = map.latLngToContainerPoint([sm.lat, sm.lon]);
+          const tx = pad.left + (size.x - pad.left - pad.right) / 2;
+          const ty = pad.top + (size.y - pad.top - pad.bottom) / 2;
+          const k = 1 - Math.exp(-dt * 3.5);
+          const dx = (cur.x - tx) * k;
+          const dy = (cur.y - ty) * k;
+          if (Math.abs(dx) + Math.abs(dy) > 0.2) map.panBy([dx, dy], { animate: false });
+        } else if (now - lastFreePan.current > 1200 && !map.getBounds().contains([sm.lat, sm.lon])) {
+          lastFreePan.current = now;
+          map.panTo([sm.lat, sm.lon], { animate: true, duration: 0.6 });
         }
-        applyPosition([lat, lon]);
-
-        const curProg = currentDistKm / totalDistKm;
-        progRef.current = curProg;
-
-        // Throttled sync of telemetry to React state and the Zustand store
-        if (now - lastTelemetrySync.current > TELEMETRY_SYNC_MS) {
-          lastTelemetrySync.current = now;
-
-          const segM = segLength * 1000;
-          const legNow = legCost(segM, (wpB.elevation || 0) - (wpA.elevation || 0));
-          const hours = (trackCost.cumT[segIdx] + legNow.timeS * segFraction) / 3600;
-          const usedJ = trackCost.cumE[segIdx] + legNow.energyJ * segFraction;
-          const lifeLeft = Math.max(0, 100 * (1 - usedJ / trackCost.budgetJ));
-          const heading = ((Math.atan2(wpB.lon - wpA.lon, wpB.lat - wpA.lat) * 180 / Math.PI) + 360) % 360;
-          setTelemetry({
-            slope: legNow.slopeDeg,
-            paceKmh: legNow.timeS > 0 ? (segM / legNow.timeS) * 3.6 : 0,
-            hours,
-            lifeLeft,
-          });
-
-          setRoverProgress(curProg);
-          setRoverBatterySoC(Math.round(lifeLeft));
-          setRoverCurrentPosition({
-            lat,
-            lon,
-            bearing: Math.round(heading),
-            elevation: Math.round((wpA.elevation || 0) + ((wpB.elevation || 0) - (wpA.elevation || 0)) * segFraction),
-          });
-        }
-
-        // Smooth camera follow (actively tracks rover when camFollow is on)
-        if (camFollowRef.current && now - lastPanTime.current > 650) {
-          lastPanTime.current = now;
-          map.panTo([lat, lon], { animate: true, duration: 0.55 });
-        } else if (!camFollowRef.current && now - lastPanTime.current > 1200) {
-          try {
-            const bounds = map.getBounds();
-            if (bounds && !bounds.contains([lat, lon])) {
-              lastPanTime.current = now;
-              map.panTo([lat, lon], { animate: true, duration: 0.6 });
-            }
-          } catch (e) {
-            // Guard against unmounted/uninitialized map bounds
-          }
-        }
+      } catch (e) {
+        // the map was removed mid-frame
       }
 
       animId = requestAnimationFrame(drive);
@@ -442,56 +435,39 @@ const RoverSimulator = ({ waypoints }) => {
     animId = requestAnimationFrame(drive);
     return () => {
       cancelAnimationFrame(animId);
-      // Sync progress when paused
-      if (progRef.current > 0) {
-        setRoverProgress(progRef.current);
-      }
+      if (progRef.current > 0) setRoverProgress(progRef.current);
     };
-    // stationAt only reads `track`, which is already a dependency
+    // sample/publish/stationAt only read `track` and the cost tables, which are dependencies
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRoverDriving, waypoints, track, trackLatLngs, targetDistKm, targetTrackIndex, routeDistances, trackCost, map, setEVACurrentWaypointIndex, setRoverProgress, setRoverDriving, setRoverBatterySoC, setRoverCurrentPosition]);
+  }, [isRoverDriving, waypoints, track, trackLatLngs, targetDistKm, targetTrackIndex, routeDistances, trackCost, map]);
 
-  const walkerLabel = isRoverDriving ? `T+${fmtClock(telemetry.hours)}` : null;
+  const walkerLabel = isRoverDriving ? `T+${fmtClock(hoursOnFoot)}` : null;
   const walkerIcon = useMemo(() => createWalkerIcon(isRoverDriving, walkerLabel), [isRoverDriving, walkerLabel]);
 
-  // Nothing to show until the walk starts; the start marker already marks the base
-  if (!anchorCoord || !waypoints || waypoints.length < 2) return null;
-  if (!isRoverDriving && roverProgress <= 0) return null;
+  const flags = useMemo(() => {
+    if (track.pts.length < 2 || routeDistances.totalDistKm < 1) return [];
+    return MILESTONES.map((m) => { const sm = sample(routeDistances.totalDistKm * m); return { m, at: [sm.lat, sm.lon] }; });
+    // sample only reads the track
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track, routeDistances]);
+
+  if (!waypoints || waypoints.length < 2) return null;
+  const arrived = roverProgress >= 0.99 && !isRoverDriving;
+  const last = track.pts[track.pts.length - 1];
 
   return (
     <>
-      {/* Walked part of the route, laid down behind the crew */}
-      <Polyline
-        ref={trailGlowRef}
-        positions={traveledPositions}
-        pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.25, lineCap: 'round', lineJoin: 'round', interactive: false }}
-      />
-      <Polyline
-        ref={trailCoreRef}
-        positions={traveledPositions}
-        pathOptions={{ color: '#ffffff', weight: 4, opacity: 0.95, lineCap: 'round', lineJoin: 'round', interactive: false }}
-      />
+      {roverProgress > 0.003 && flags.map(({ m, at }) => <Marker key={m} position={at} icon={flagIcon(m, roverProgress >= m)} interactive={false} />)}
+      {arrived && last && <Marker key="arrive" position={[last.lat, last.lon]} icon={arriveIcon} interactive={false} />}
 
-      <Marker ref={markerRef} position={anchorCoord} icon={walkerIcon} zIndexOffset={1000}>
-        <Popup autoPanPadding={[50, 50]}>
-          <div className="font-mono text-xs p-1 min-w-[210px] text-white">
-            <div className="font-bold text-[#ffa07f] border-b border-white/10 pb-1.5 mb-1.5 flex items-center justify-between">
-              <span>EVA crew on foot</span>
-              <span className="text-[10px] text-cyan-300 bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-800 font-sans">
-                {isRoverDriving ? 'WALKING' : 'STOPPED'}
-              </span>
-            </div>
-            <div className="space-y-1 text-[11px]">
-              <div className="flex justify-between"><span className="text-zinc-400">Heading to</span> <strong className="text-white truncate max-w-[120px]">{targetWaypoint?.name || 'Objective'}</strong></div>
-              <div className="flex justify-between"><span className="text-zinc-400">Time on foot</span> <strong className="text-white">{fmtClock(telemetry.hours)} h</strong></div>
-              <div className="flex justify-between"><span className="text-zinc-400">Pace here</span> <strong className="text-cyan-300">{telemetry.paceKmh.toFixed(1)} km/h</strong></div>
-              <div className="flex justify-between"><span className="text-zinc-400">Ground slope</span> <strong className="text-white">{telemetry.slope.toFixed(1)}°</strong></div>
-              <div className="flex justify-between"><span className="text-zinc-400">Life support left</span> <strong className="text-emerald-400">{Math.round(telemetry.lifeLeft)}%</strong></div>
-              <div className="flex justify-between"><span className="text-zinc-400">Route done</span> <strong className="text-amber-400">{(progRef.current * 100).toFixed(0)}%</strong></div>
-            </div>
-          </div>
-        </Popup>
-      </Marker>
+      {anchorCoord && (isRoverDriving || roverProgress > 0.003) && (
+        <>
+          {/* Walked part of the route, laid down behind the crew with a warm glow */}
+          <Polyline ref={trailGlowRef} positions={traveledPositions} pathOptions={{ color: '#ffb08f', weight: 12, opacity: 0.3, lineCap: 'round', lineJoin: 'round', interactive: false, className: 'walk-trail-glow' }} />
+          <Polyline ref={trailCoreRef} positions={traveledPositions} pathOptions={{ color: '#ffffff', weight: 4, opacity: 0.97, lineCap: 'round', lineJoin: 'round', interactive: false }} />
+          <Marker ref={markerRef} position={anchorCoord} icon={walkerIcon} zIndexOffset={1000} interactive={false} />
+        </>
+      )}
     </>
   );
 };
@@ -593,35 +569,33 @@ const Graticule = React.memo(function Graticule() {
   );
 });
 
+/** Draws the new route onto the map once, as a bright line that races from the start to the destination. */
+const RouteDrawIn = ({ positions }) => {
+  const ref = useRef(null);
+  useEffect(() => { ref.current?.getElement?.()?.setAttribute('pathLength', '1'); }, []);
+  return <Polyline ref={ref} positions={positions} pathOptions={{ color: '#ffffff', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round', className: 'route-draw', interactive: false }} />;
+};
+
 const MarsMap = () => {
   const activeLayers = useMapStore((s) => s.activeLayers);
   const layerOpacity = useMapStore((s) => s.layerOpacity);
   const waypoints = useMapStore((s) => s.waypoints);
   const isPlacingWaypoint = useMapStore((s) => s.isPlacingWaypoint);
+  const pickTarget = useMapStore((s) => s.pickTarget);
+  const walkStarted = useMapStore((s) => s.roverProgress > 0.003);
   const selectedWaypointId = useMapStore((s) => s.selectedWaypointId);
   const setSelectedWaypoint = useMapStore((s) => s.setSelectedWaypoint);
 
   // New interactive states
   const showWalkbackLimits = useMapStore((s) => s.showWalkbackLimits);
   const showGraticule = useMapStore((s) => s.showGraticule);
-  const isRoverDriving = useMapStore((s) => s.isRoverDriving);
-  const setRoverDriving = useMapStore((s) => s.setRoverDriving);
-  const roverProgress = useMapStore((s) => s.roverProgress);
-  const setRoverProgress = useMapStore((s) => s.setRoverProgress);
-  const roverBatterySoC = useMapStore((s) => s.roverBatterySoC);
-  const driveTargetWaypointId = useMapStore((s) => s.driveTargetWaypointId);
-  const setDriveTargetWaypointId = useMapStore((s) => s.setDriveTargetWaypointId);
   const isRulerActive = useMapStore((s) => s.isRulerActive);
-  const setRulerActive = useMapStore((s) => s.setRulerActive);
   const rulerPoints = useMapStore((s) => s.rulerPoints);
-  const clearRuler = useMapStore((s) => s.clearRuler);
   const activeContingency = useMapStore((s) => s.activeContingency);
   const undoLastPoint = useMapStore((s) => s.undoLastPoint);
   const removeWaypoint = useMapStore((s) => s.removeWaypoint);
-  const setPlacingWaypoint = useMapStore((s) => s.setPlacingWaypoint);
   const showRoverTraverses = useMapStore((s) => s.showRoverTraverses);
   const routeGeometry = useMapStore((s) => s.routeGeometry);
-  const viewMode = useMapStore((s) => s.viewMode);
 
   // Keyboard shortcuts: Ctrl+Z undo, Backspace/Delete removes the selected waypoint (Esc is in useEscapeBack)
   useEffect(() => {
@@ -666,18 +640,8 @@ const MarsMap = () => {
   // Mars 1 degree latitude ~ 59.16 km -> 2 km is approx 0.0338 degrees
   const baseWP = waypoints && waypoints.length > 0 ? waypoints[0] : null;
 
-  // Ruler calculations
-  let rulerDistKm = 0;
-  let rulerElevDelta = 0;
-  let rulerSlopeDeg = 0;
-  if (rulerPoints && rulerPoints.length === 2) {
-    rulerDistKm = marsDistance(rulerPoints[0].lat, rulerPoints[0].lon, rulerPoints[1].lat, rulerPoints[1].lon);
-    rulerElevDelta = (rulerPoints[1].elevation || 0) - (rulerPoints[0].elevation || 0);
-    rulerSlopeDeg = calculateSlope(rulerPoints[0].elevation || 0, rulerPoints[1].elevation || 0, rulerDistKm * 1000);
-  }
-
   return (
-    <div className={`w-full h-full relative ${isPlacingWaypoint || isRulerActive ? 'crosshair-cursor' : ''}`}>
+    <div className={`w-full h-full relative ${isPlacingWaypoint || isRulerActive || pickTarget ? 'crosshair-cursor' : ''}`}>
       <MapContainer
         center={[0, 0]}
         zoom={1}
@@ -797,6 +761,12 @@ const MarsMap = () => {
         {/* POI Markers */}
         <POIMarkers />
 
+        {/* Marsquakes (only while that layer is on) */}
+        <QuakeLayer />
+
+        {/* Start and destination while planning, and the areas a walk can be planned in */}
+        <RouteDraftLayer />
+
         {/* The route: a dark casing, a glow and a bright core, with a slow flow animation that shows the
             walking direction. A planned route is drawn along its full terrain path; a hand-drawn one
             along straight dashed legs. */}
@@ -808,7 +778,8 @@ const MarsMap = () => {
             {plannedPath && (
               <Polyline positions={routeLine} pathOptions={{ color: '#fff7f2', weight: 2, opacity: 0.9, dashArray: '2, 14', lineCap: 'round', className: 'route-flow', interactive: false }} />
             )}
-            {kmTicks.map((t) => (
+            {plannedPath && <RouteDrawIn key={routeGeometry.signature} positions={routeLine} />}
+            {!walkStarted && kmTicks.map((t) => (
               <Marker key={t.km} position={t.at} icon={t.icon} interactive={false} />
             ))}
           </>
@@ -864,71 +835,6 @@ const MarsMap = () => {
                 {i === 0 ? 'Base' : (wp.name || 'Objective').slice(0, 32)}
               </Tooltip>
             )}
-            <Popup autoPanPadding={[50, 50]}>
-              <div className="min-w-[190px] font-mono text-xs text-white">
-                <div className="flex items-center justify-between border-b border-white/10 pb-1.5 mb-1.5">
-                  <h4 className="font-bold text-sm text-mars-300 font-sans">{wp.name}</h4>
-                  <span className="text-[10px] text-cyan-400 bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-800">
-                    Station #{i + 1}
-                  </span>
-                </div>
-                <div className="space-y-1 text-space-300 text-[11px]">
-                  <div className="flex justify-between">
-                    <span className="text-space-400">Coords:</span>
-                    <span className="text-white font-mono">{wp.lat.toFixed(4)}°N, {wp.lon.toFixed(4)}°E</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-space-400">Elevation:</span>
-                    <span className="text-amber-400 font-bold">{wp.elevation?.toLocaleString()} m</span>
-                  </div>
-                  {wp.reason && (
-                    <p className="text-[10px] text-amber-200/90 italic mt-1 bg-amber-950/30 p-1.5 rounded border border-amber-500/20 font-sans">
-                      "{wp.reason}"
-                    </p>
-                  )}
-                </div>
-                {i > 0 && (
-                  <div className="mt-2.5 pt-2 border-t border-white/10">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedWaypoint(wp.id);
-                        if (isRoverDriving && driveTargetWaypointId === wp.id) {
-                          setRoverDriving(false);
-                        } else {
-                          let targetDist = 0;
-                          let totalDist = 0;
-                          for (let j = 1; j < waypoints.length; j++) {
-                            const d = marsDistance(waypoints[j-1].lat, waypoints[j-1].lon, waypoints[j].lat, waypoints[j].lon);
-                            totalDist += d;
-                            if (j === i) targetDist = totalDist;
-                          }
-                          const curDist = (roverProgress || 0) * (totalDist || 1);
-                          if (curDist >= targetDist - 0.05) {
-                            setRoverProgress(0);
-                          }
-                          setDriveTargetWaypointId(wp.id);
-                          setRoverDriving(true);
-                        }
-                      }}
-                      className="w-full py-1.5 px-2 rounded-lg bg-gradient-to-r from-amber-600 to-mars-600 hover:from-amber-500 hover:to-mars-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer border border-white/20"
-                    >
-                      {isRoverDriving && driveTargetWaypointId === wp.id ? (
-                        <>
-                          <Pause className="w-3 h-3" />
-                          <span>Pause walk</span>
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-3 h-3 fill-white" />
-                          <span>Walk to station #{i + 1}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </Popup>
           </CircleMarker>
         ))}
 
@@ -952,110 +858,9 @@ const MarsMap = () => {
         <RoverSimulator waypoints={waypoints} />
       </MapContainer>
 
-      {/* PLACING WAYPOINT FLOATING HELPER BANNER */}
-      {isPlacingWaypoint && (
-        <div className="absolute top-[168px] left-1/2 -translate-x-1/2 z-[400] flex items-center gap-3 bg-space-950/95 backdrop-blur-md px-4 py-2 rounded-full border border-mars-500/70 shadow-2xl font-mono text-xs text-white">
-          <span className="flex items-center gap-2 text-mars-400 font-bold">
-            <span className="w-2.5 h-2.5 rounded-full bg-mars-500 animate-ping" />
-            Click on Martian terrain to place Waypoint #{waypoints.length + 1}
-          </span>
-          <div className="flex items-center gap-1.5 border-l border-space-700 pl-2">
-            {waypoints.length > 0 && (
-              <button
-                onClick={() => {
-                  undoLastPoint();
-                  marsAudio.playQuindarTone(false);
-                }}
-                className="px-2.5 py-1 rounded bg-space-800 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 flex items-center gap-1 text-[11px] font-bold transition-colors"
-                title="Undo last placed point (Ctrl+Z)"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Undo (Ctrl+Z)</span>
-              </button>
-            )}
-            <button
-              onClick={() => setPlacingWaypoint(false)}
-              className="px-2.5 py-1 rounded bg-space-800 hover:bg-space-700 text-space-300 hover:text-white border border-space-600 text-[11px] transition-colors"
-            >
-              Done (Esc)
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Walk HUD: progress, time on foot and life support, centred under the toolbar */}
-      {/* Phones and the narrow split view rely on the time label on the walker instead */}
-      {(isRoverDriving || roverProgress > 0.01) && waypoints.length > 1 && viewMode === '2d' && (
-        <div className="hidden sm:block absolute top-[140px] left-1/2 -translate-x-1/2 z-[400] w-[min(360px,calc(100%-1.5rem))] ui-panel rounded-xl px-3.5 py-2.5 text-xs text-white">
-          <div className="flex items-center justify-between gap-3">
-            <span className="flex items-center gap-2 font-semibold min-w-0">
-              <Footprints className="w-4 h-4 text-[#ffa07f] shrink-0" />
-              <span className="truncate">{isRoverDriving ? 'Walking to' : roverProgress >= 0.99 ? 'Arrived at' : 'Paused on the way to'} {(waypoints.find((w) => w.id === driveTargetWaypointId) || waypoints[waypoints.length - 1])?.name}</span>
-            </span>
-            <button
-              onClick={() => { setRoverDriving(false); setRoverProgress(0); setDriveTargetWaypointId(null); }}
-              className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10"
-              aria-label="Stop and reset the walk"
-              title="Stop and reset the walk"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
-            <div className="h-full rounded-full bg-gradient-to-r from-[#ffb08f] to-[#F26A3D]" style={{ width: `${Math.round(roverProgress * 100)}%` }} />
-          </div>
-          <div className="mt-1.5 flex justify-between text-zinc-300 tabular-nums">
-            <span>{Math.round(roverProgress * 100)}% of the route</span>
-            <span>Life support left <strong className={roverBatterySoC < 40 ? 'text-amber-300' : 'text-emerald-300'}>{Math.round(roverBatterySoC)}%</strong></span>
-          </div>
-        </div>
-      )}
-
-      <TerrainOverlayPanel />
-      <ResourcePanel />
-      <RouteScanPanel />
-
-      {/* RULER MEASUREMENT READOUT */}
-      {isRulerActive && rulerPoints.length > 0 && (
-        <div className="absolute top-[140px] left-1/2 -translate-x-1/2 z-[400] bg-space-950/95 backdrop-blur-md p-3.5 rounded-xl border border-yellow-500/50 shadow-2xl font-mono text-xs w-72 max-w-[calc(100%-1.5rem)] flex flex-col gap-1.5">
-          <div className="flex items-center justify-between text-yellow-400 font-bold border-b border-space-800 pb-1">
-            <span className="flex items-center gap-1.5">
-              <Ruler className="w-3.5 h-3.5" />
-              <span>TERRAIN RULER</span>
-            </span>
-            <button 
-              onClick={() => {
-                setRulerActive(false);
-                clearRuler();
-              }} 
-              className="text-space-400 hover:text-white p-1 rounded hover:bg-space-800 transition-colors"
-              title="Close Ruler"
-            >
-              ✕
-            </button>
-          </div>
-          {rulerPoints.length === 1 ? (
-            <p className="text-[11px] text-space-300">Click a second point on the map to measure.</p>
-          ) : (
-            <div className="space-y-1 text-[11px]">
-              <div className="flex justify-between">
-                <span className="text-space-400">Distance:</span>
-                <span className="text-white font-bold">{rulerDistKm.toFixed(2)} km ({(rulerDistKm * 1000).toFixed(0)} m)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-space-400">Elevation Δ:</span>
-                <span className="text-cyan-400 font-bold">{rulerElevDelta > 0 ? `+${rulerElevDelta}` : rulerElevDelta} m</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-space-400">Slope Grade:</span>
-                <span className={`font-bold ${Math.abs(rulerSlopeDeg) > 15 ? 'text-red-400' : 'text-green-400'}`}>
-                  {Math.abs(rulerSlopeDeg).toFixed(1)}°
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Everything beside the map: places, route and walk, measuring, overlays, marsquakes */}
+      <MapDock />
+      <MapHint />
 
       {/* Coordinate Overlay */}
       <CoordinateDisplay />

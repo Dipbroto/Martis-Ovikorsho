@@ -926,3 +926,82 @@ button:disabled {
 .mw-side .text-\[9px\],
 .mw-side .text-\[10px\] { font-size: 11px; line-height: 1.35; }
 .mw-side .text-\[11px\] { font-size: 12px; line-height: 1.4; }
+
+/* ---------- Map dock, route builder, walk ---------- */
+
+/* The crew marker: a glowing disc with an arrow that turns to the walking direction */
+.walker-disc {
+  position: relative; z-index: 10; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 35% 30%, #ff8a5c, #d9481f); border: 2.5px solid #fff;
+  box-shadow: 0 0 0 4px rgba(242, 106, 61, 0.28), 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+.walker-walking { animation: walker-bob 0.7s ease-in-out infinite alternate; }
+@keyframes walker-bob { from { transform: translateY(0) scale(1); } to { transform: translateY(-2px) scale(1.06); } }
+.walker-heading { position: absolute; inset: 0; z-index: 5; display: flex; justify-content: center; transition: transform 0.25s ease-out; pointer-events: none; }
+.walker-heading span {
+  display: block; width: 0; height: 0; margin-top: -9px;
+  border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 11px solid #fff;
+  filter: drop-shadow(0 0 4px rgba(242, 106, 61, 0.9));
+}
+.walker-label {
+  position: absolute; top: -26px; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none;
+  background: rgba(8, 10, 16, 0.92); border: 1px solid rgba(255, 255, 255, 0.18); color: #fff;
+  font: 600 11px/1.6 ui-monospace, monospace; padding: 0 7px; border-radius: 999px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+.walk-trail-glow { filter: drop-shadow(0 0 6px rgba(255, 140, 90, 0.85)); }
+
+/* New route: a bright line races from the start to the destination, then fades into the real one */
+.route-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: route-draw 1.7s cubic-bezier(0.45, 0, 0.2, 1) forwards, route-draw-out 0.7s ease 1.65s forwards; filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.9)); }
+@keyframes route-draw { to { stroke-dashoffset: 0; } }
+@keyframes route-draw-out { to { opacity: 0; } }
+
+/* Flags at 25, 50 and 75 percent of the route: dim until the crew passes, then they pop */
+.milestone-icon, .draft-icon, .quake-icon { background: none; border: none; }
+.milestone-flag { transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: rgba(8, 10, 16, 0.75); border: 1.5px solid rgba(255, 255, 255, 0.35); color: rgba(255, 255, 255, 0.6); font: 600 9px/1 ui-monospace, monospace; transition: all 0.3s; }
+.milestone-hit { background: #F26A3D; border-color: #fff; color: #fff; animation: milestone-pop 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.4); box-shadow: 0 0 0 6px rgba(242, 106, 61, 0.25); }
+@keyframes milestone-pop { 0% { transform: translate(-50%, -50%) scale(0.4); } 60% { transform: translate(-50%, -50%) scale(1.35); } 100% { transform: translate(-50%, -50%) scale(1); } }
+.arrive-burst { position: relative; width: 0; height: 0; }
+.arrive-burst i { position: absolute; left: -40px; top: -40px; width: 80px; height: 80px; border-radius: 50%; border: 2px solid #34d399; opacity: 0; animation: arrive-ring 2.4s ease-out infinite; }
+.arrive-burst i:nth-child(2) { animation-delay: 0.8s; }
+.arrive-burst i:nth-child(3) { animation-delay: 1.6s; }
+@keyframes arrive-ring { 0% { transform: scale(0.2); opacity: 0.95; } 100% { transform: scale(1.6); opacity: 0; } }
+
+/* Start and destination while planning */
+.draft-pin { position: relative; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.draft-pin-bubble { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2.5px solid #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), 0 0 0 5px rgba(255, 255, 255, 0.12); animation: draft-drop 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
+.draft-pin-start .draft-pin-bubble { background: #22c55e; }
+.draft-pin-end .draft-pin-bubble { background: #F26A3D; }
+.draft-pin-tag { margin-top: 5px; white-space: nowrap; background: rgba(8, 10, 16, 0.92); color: #fff; font: 600 11px/1.6 system-ui, sans-serif; padding: 0 8px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.2); }
+@keyframes draft-drop { 0% { transform: translateY(-28px) scale(0.5); opacity: 0; } 70% { transform: translateY(3px) scale(1.08); opacity: 1; } 100% { transform: translateY(0) scale(1); } }
+.area-label { background: rgba(8, 10, 16, 0.8) !important; color: #bae6fd !important; border: 1px solid rgba(125, 211, 252, 0.5) !important; font: 600 11px/1.5 system-ui, sans-serif !important; box-shadow: none !important; }
+.area-label::before { display: none !important; }
+
+/* Start button: a soft light sweeps across it until the walk begins */
+.walk-cta-shine { background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%); background-size: 220% 100%; animation: walk-shine 2.6s ease-in-out infinite; }
+@keyframes walk-shine { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+
+/* ---------- Marsquakes ---------- */
+.quake-pin { position: relative; width: calc(var(--s) * 3); height: calc(var(--s) * 3); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.quake-core { position: relative; z-index: 3; width: var(--s); height: var(--s); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff 0%, var(--q) 45%, var(--q) 100%); border: 2px solid rgba(255, 255, 255, 0.85); box-shadow: 0 0 14px var(--q), 0 0 0 3px color-mix(in srgb, var(--q) 35%, transparent); transition: transform 0.2s; }
+.quake-pin:hover .quake-core { transform: scale(1.25); }
+.quake-ring { position: absolute; z-index: 1; width: var(--s); height: var(--s); border-radius: 50%; border: 2px solid var(--q); opacity: 0; animation: quake-ripple 3.2s ease-out infinite; }
+.quake-ring:nth-child(2) { animation-delay: 1.05s; }
+.quake-ring:nth-child(3) { animation-delay: 2.1s; }
+@keyframes quake-ripple { 0% { transform: scale(0.8); opacity: 0.85; } 100% { transform: scale(3); opacity: 0; } }
+.quake-pin-fresh .quake-ring { animation-duration: 1.6s; }
+.quake-pin-fresh .quake-core { animation: quake-pop 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.5); }
+@keyframes quake-pop { 0% { transform: scale(0.2); } 55% { transform: scale(1.7); } 100% { transform: scale(1); } }
+.quake-pin-selected .quake-core { box-shadow: 0 0 0 4px #fff, 0 0 26px var(--q); transform: scale(1.2); }
+.quake-pin-impact .quake-core { border-radius: 30%; transform: rotate(45deg); }
+.quake-pin-impact:hover .quake-core { transform: rotate(45deg) scale(1.25); }
+.quake-pin-impact .quake-ring { border-style: dashed; }
+.quake-lander { position: relative; width: 0; height: 0; }
+.quake-lander-dot { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 4px solid #0B0D12; box-shadow: 0 0 0 2px #fff, 0 0 18px rgba(255, 255, 255, 0.8); }
+.quake-lander-tag { position: absolute; left: 14px; top: -10px; white-space: nowrap; background: rgba(8, 10, 16, 0.92); color: #fff; font: 600 11px/1.6 system-ui, sans-serif; padding: 0 8px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.3); }
+.quake-ringlabel { transform: translate(6px, -16px); white-space: nowrap; color: rgba(255, 255, 255, 0.7); font: 500 10px/1.2 system-ui, sans-serif; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95); }
+
+@media (prefers-reduced-motion: reduce) {
+  .walker-walking, .quake-ring, .walk-cta-shine, .arrive-burst i { animation: none !important; }
+  .route-draw { animation: none; stroke-dashoffset: 0; opacity: 0; }
+}

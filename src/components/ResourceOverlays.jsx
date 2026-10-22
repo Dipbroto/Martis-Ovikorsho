@@ -152,7 +152,7 @@ export function ResourcePanel() {
   }
 
   return (
-    <div className="absolute z-[400] bottom-[104px] left-2 right-2 max-h-[30vh] overflow-y-auto sm:max-h-none sm:overflow-visible sm:bottom-auto sm:top-[168px] sm:left-auto sm:right-6 sm:w-72 bg-[#0B0C10]/95 backdrop-blur-2xl p-3 rounded-2xl border border-white/[0.08] shadow-hud-glass font-mono text-[10px] text-space-200 space-y-2">
+    <div className="shrink-0 bg-[#0B0D12]/95 backdrop-blur-xl p-3.5 rounded-2xl border border-white/10 shadow-[0_16px_44px_rgba(0,0,0,0.5)] text-xs text-space-200 space-y-2">
       <div className="flex items-center gap-1.5 text-white font-bold text-xs"><Icon className="w-3.5 h-3.5 text-cyber-cyan" />{meta.title}</div>
       {body}
       {source && (

@@ -56,6 +56,7 @@ export function applyPlannedRoute(result, { fit = true } = {}) {
   setRoverDriving(false);
   setRoverProgress(0);
   setWaypoints(result.waypoints);
+  useMapStore.getState().clearSelection(); // planning selects the first stop; nothing needs to stay open
   setRouteGeometry({
     signature: routeSignature(result.waypoints),
     points: result.path,

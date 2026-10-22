@@ -42,28 +42,18 @@ const SCENARIO_BUTTONS = [
   },
 ];
 
-export default function ContingencySimulator() {
-  const {
-    activeContingency,
-    contingencyDetails,
-    isContingencyModalOpen,
-    setContingencyModalOpen,
-    triggerContingency,
-    clearContingency,
-    executeEmergencyReturn,
-  } = useMapStore(useShallow((s) => ({ activeContingency: s.activeContingency, contingencyDetails: s.contingencyDetails, isContingencyModalOpen: s.isContingencyModalOpen, setContingencyModalOpen: s.setContingencyModalOpen, triggerContingency: s.triggerContingency, clearContingency: s.clearContingency, executeEmergencyReturn: s.executeEmergencyReturn })));
-
+/** The "contingency active" alert. Inside the map's dock it flows with the other cards; elsewhere it floats top-right. */
+export function ContingencyAlert({ className = '' }) {
+  const { activeContingency, contingencyDetails, setContingencyModalOpen, clearContingency, executeEmergencyReturn } = useMapStore(useShallow((s) => ({ activeContingency: s.activeContingency, contingencyDetails: s.contingencyDetails, setContingencyModalOpen: s.setContingencyModalOpen, clearContingency: s.clearContingency, executeEmergencyReturn: s.executeEmergencyReturn })));
   return (
-    <>
-      {/* Compact alert card pinned to the top-right. framer-motion only moves it vertically, and the dismiss X sits in the card's corner so it is always visible. */}
-      <AnimatePresence>
-        {activeContingency && contingencyDetails && (
-          <motion.div
+    <AnimatePresence>
+      {activeContingency && contingencyDetails && (
+        <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -20, opacity: 0 }}
             role="alert"
-            className="fixed right-3 top-[76px] z-[1050] w-[min(320px,calc(100vw-1.5rem))] rounded-xl border border-rose-500/50 shadow-2xl backdrop-blur-xl bg-[#090507]/95 p-3 font-mono"
+            className={`relative rounded-xl border border-rose-500/50 shadow-2xl backdrop-blur-xl bg-[#090507]/95 p-3 font-mono ${className}`}
           >
             <div className="flex items-center gap-2 pr-9">
               <span className="relative flex w-2 h-2 shrink-0">
@@ -103,8 +93,28 @@ export default function ContingencySimulator() {
               </button>
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+      )}
+    </AnimatePresence>
+  );
+}
+
+export default function ContingencySimulator() {
+  const {
+    activeContingency,
+    contingencyDetails,
+    isContingencyModalOpen,
+    setContingencyModalOpen,
+    triggerContingency,
+    clearContingency,
+    executeEmergencyReturn,
+  } = useMapStore(useShallow((s) => ({ activeContingency: s.activeContingency, contingencyDetails: s.contingencyDetails, isContingencyModalOpen: s.isContingencyModalOpen, setContingencyModalOpen: s.setContingencyModalOpen, triggerContingency: s.triggerContingency, clearContingency: s.clearContingency, executeEmergencyReturn: s.executeEmergencyReturn })));
+
+  const inDock = useMapStore((s) => s.activeTab === 'map' && s.viewMode === '2d');
+
+  return (
+    <>
+      {/* On the 2D map the alert lives in the dock; everywhere else it floats at the top right */}
+      {!inDock && <ContingencyAlert className="fixed right-3 top-[76px] z-[1050] w-[min(320px,calc(100vw-1.5rem))]" />}
 
       {/* Contingency Modal & Control Panel (Orbita Style) */}
       <AnimatePresence>

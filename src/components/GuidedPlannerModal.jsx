@@ -21,7 +21,6 @@ export default function GuidedPlannerModal() {
   const setActiveTab = useMapStore((s) => s.setActiveTab);
   const setTerrainOverlay = useMapStore((s) => s.setTerrainOverlay);
   const terrainOverlay = useMapStore((s) => s.terrainOverlay);
-  const setSidebarTab = useMapStore((s) => s.setSidebarTab);
   const triggerContingency = useMapStore((s) => s.triggerContingency);
   const setContingencyModalOpen = useMapStore((s) => s.setContingencyModalOpen);
 
@@ -200,7 +199,7 @@ export default function GuidedPlannerModal() {
                   </section>
 
                   <div className="flex gap-2">
-                    <button onClick={() => { setSidebarTab('route'); setOpen(false); }} className="flex-1 py-3 rounded-lg bg-white hover:bg-zinc-200 text-black text-base font-semibold cursor-pointer">See it on the map</button>
+                    <button onClick={() => setOpen(false)} className="flex-1 py-3 rounded-lg bg-white hover:bg-zinc-200 text-black text-base font-semibold cursor-pointer">See it on the map</button>
                     <button onClick={reset} className="px-4 py-3 rounded-lg border border-white/15 text-sm text-zinc-300 hover:text-white flex items-center gap-1 cursor-pointer"><ChevronLeft className="w-3.5 h-3.5" />Plan another</button>
                   </div>
                 </>

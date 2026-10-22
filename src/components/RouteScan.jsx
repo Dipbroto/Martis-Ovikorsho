@@ -153,7 +153,7 @@ export function RouteScanPanel() {
   };
 
   return (
-    <div className="absolute z-[400] bottom-[104px] left-2 right-2 max-h-[45vh] overflow-y-auto sm:max-h-[calc(100%-260px)] sm:bottom-auto sm:top-[168px] sm:left-auto sm:right-6 sm:w-80 ui-panel rounded-2xl p-3.5 text-xs text-zinc-200">
+    <div className="shrink-0 bg-[#0B0D12]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-[0_16px_44px_rgba(0,0,0,0.5)] p-3.5 text-xs text-zinc-200">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-sm font-semibold text-white"><Radar className="w-4 h-4 text-[#ffa07f]" />Route safety scan</span>
         <button onClick={() => setOpen(false)} className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 cursor-pointer" aria-label="Close the safety scan"><X className="w-4 h-4" /></button>

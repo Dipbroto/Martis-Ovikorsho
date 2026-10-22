@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Compass, Globe, Crosshair, Grid, Shield, Ruler, RotateCcw, Play, Pause, Video, VideoOff, ChevronDown, Check,
-  Layers, SlidersHorizontal, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses,
+  Globe, Crosshair, Grid, Shield, Ruler, Play, Pause, ChevronDown, ChevronUp, Check,
+  Layers, SlidersHorizontal, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../store/useMapStore';
@@ -78,6 +78,9 @@ function Item({ icon: Icon, label, hint, active, onSelect, kind = 'checkbox' }) 
 
 const Divider = () => <span className="hidden sm:block w-px h-6 bg-white/10 mx-0.5" aria-hidden />;
 
+const QUAKE_SEEN = 'marswalk-quake-seen';
+const readSeen = () => { try { return localStorage.getItem(QUAKE_SEEN) === '1'; } catch { return false; } };
+
 export default function MapToolbar() {
   const s = useMapStore(useShallow((st) => ({
     viewMode: st.viewMode, setViewMode: st.setViewMode,
@@ -85,38 +88,48 @@ export default function MapToolbar() {
     showRoverTraverses: st.showRoverTraverses, toggleRoverTraverses: st.toggleRoverTraverses,
     showGraticule: st.showGraticule, toggleGraticule: st.toggleGraticule,
     showWalkbackLimits: st.showWalkbackLimits, toggleWalkbackLimits: st.toggleWalkbackLimits,
-    isRulerActive: st.isRulerActive, setRulerActive: st.setRulerActive, clearRuler: st.clearRuler, rulerPoints: st.rulerPoints,
+    isRulerActive: st.isRulerActive, setRulerActive: st.setRulerActive, clearRuler: st.clearRuler,
     setMapCenter: st.setMapCenter, setMapZoom: st.setMapZoom,
-    waypoints: st.waypoints, undoLastPoint: st.undoLastPoint,
+    waypoints: st.waypoints,
     isRoverDriving: st.isRoverDriving, setRoverDriving: st.setRoverDriving,
     roverProgress: st.roverProgress, setRoverProgress: st.setRoverProgress,
-    driveTargetWaypointId: st.driveTargetWaypointId, setDriveTargetWaypointId: st.setDriveTargetWaypointId,
-    camFollow: st.camFollow, setCamFollow: st.setCamFollow,
     isEVASimulating: st.isEVASimulating, setEVASimulating: st.setEVASimulating,
     setFlightPlanOpen: st.setFlightPlanOpen, setContingencyModalOpen: st.setContingencyModalOpen,
-    activeContingency: st.activeContingency, setGuidedPlannerOpen: st.setGuidedPlannerOpen,
+    activeContingency: st.activeContingency,
     routeScanOpen: st.routeScanOpen, setRouteScanOpen: st.setRouteScanOpen,
+    quakeMode: st.quakeMode, setQuakeMode: st.setQuakeMode,
+    collapsed: st.toolbarCollapsed, setCollapsed: st.setToolbarCollapsed,
+    setDockMin: st.setDockMin, setRouteEditing: st.setRouteEditing, setPickTarget: st.setPickTarget,
   })));
+  const [quakeSeen, setQuakeSeen] = useState(readSeen);
 
   const is2d = s.viewMode !== '3d';
   const hasRoute = s.waypoints.length > 1;
   const activeCheck = CHECKS.find((c) => c.key === s.terrainOverlay);
   const layerActive = s.terrainOverlay === 'ice' || s.terrainOverlay === 'caves' || s.showRoverTraverses;
 
-  // Drive button wording
-  const targetIdx = s.driveTargetWaypointId ? s.waypoints.findIndex((w) => w.id === s.driveTargetWaypointId) : -1;
   const atEnd = s.roverProgress >= 0.99;
   const pausedMid = !s.isRoverDriving && s.roverProgress > 0.01 && !atEnd;
-  const driveLabel = s.isRoverDriving ? 'Pause' : pausedMid ? `Resume ${Math.round(s.roverProgress * 100)}%` : atEnd ? 'Replay' : 'Walk route';
+  const walkLabel = s.isRoverDriving ? 'Pause' : pausedMid ? `Resume ${Math.round(s.roverProgress * 100)}%` : atEnd ? 'Walk again' : 'Walk route';
 
-  const toggleDrive = () => {
-    if (s.isRoverDriving) {
-      s.setRoverDriving(false);
-    } else {
-      if (atEnd) s.setRoverProgress(0);
-      s.setRoverDriving(true);
-    }
+  // The one big button: plan a walk, or walk the planned one
+  const primary = () => {
+    s.setViewMode('2d');
+    if (!hasRoute) { s.setRouteEditing(false); s.setDockMin('route-plan', false); return; }
+    s.setDockMin('route', false);
+    if (s.isRoverDriving) { s.setRoverDriving(false); return; }
+    if (atEnd) s.setRoverProgress(0);
+    s.setRoverDriving(true);
   };
+
+  const toggleQuakes = () => {
+    if (!s.quakeMode) s.setViewMode('2d');
+    s.setQuakeMode(!s.quakeMode);
+    if (!quakeSeen) { setQuakeSeen(true); try { localStorage.setItem(QUAKE_SEEN, '1'); } catch { /* ignore */ } }
+    click();
+  };
+
+  const withRoute = (fn) => () => { if (hasRoute) fn(); else { s.setViewMode('2d'); s.setDockMin('route-plan', false); } };
 
   const viewBtn = (id, label) => (
     <button
@@ -128,122 +141,106 @@ export default function MapToolbar() {
       {label}
     </button>
   );
-
-  const toolBtn = 'h-9 px-3 rounded-lg flex items-center gap-2 text-sm font-medium border transition-colors cursor-pointer';
+  const viewGroup = (
+    <div className="flex items-center gap-0.5 bg-white/[0.05] rounded-lg p-0.5 shrink-0" role="group" aria-label="Map view">
+      {viewBtn('2d', '2D')}
+      {viewBtn('3d', '3D')}
+      {viewBtn('split', 'Split')}
+    </div>
+  );
+  const toolBtn = 'h-9 px-3 rounded-lg flex items-center gap-2 text-sm font-medium border transition-colors cursor-pointer shrink-0';
+  const collapseBtn = (
+    <button
+      onClick={() => s.setCollapsed(!s.collapsed)}
+      aria-expanded={!s.collapsed}
+      title={s.collapsed ? 'Show the map options' : 'Hide the map options'}
+      aria-label={s.collapsed ? 'Show the map options' : 'Hide the map options'}
+      className="h-9 w-9 rounded-lg flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 cursor-pointer shrink-0 transition-colors"
+    >
+      {s.collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+    </button>
+  );
 
   return (
     <div className="fixed top-[76px] left-3 right-3 sm:left-4 sm:right-4 z-[420] pointer-events-none">
-      <div className="pointer-events-auto ui-panel rounded-2xl p-1.5 flex flex-nowrap sm:flex-wrap items-center gap-1.5 w-fit max-w-full overflow-x-auto sm:overflow-visible custom-scrollbar-x">
-        {/* View mode */}
-        <div className="flex items-center gap-0.5 bg-white/[0.05] rounded-lg p-0.5 shrink-0" role="group" aria-label="Map view">
-          {viewBtn('2d', '2D')}
-          {viewBtn('3d', '3D')}
-          {viewBtn('split', 'Split')}
-        </div>
+      <div className="pointer-events-auto ui-panel rounded-2xl p-1.5 flex flex-nowrap items-center gap-1.5 w-fit max-w-full overflow-x-auto custom-scrollbar-x">
+        {viewGroup}
 
-        <button
-          onClick={() => s.setGuidedPlannerOpen(true)}
-          className={`sm:hidden ${toolBtn} bg-gradient-to-r from-mars-600 to-amber-600 border-white/20 text-white`}
-          title="Plan a Marswalk"
-        >
-          <Compass className="w-4 h-4" />Plan
-        </button>
-
-        {is2d && (
+        {!s.collapsed && (
           <>
             <Divider />
-            {/* Survival checks: the heart of the app, so always one click away */}
-            <div className="flex items-center gap-0.5 bg-white/[0.05] rounded-lg p-0.5 shrink-0" role="group" aria-label="Survival checks">
-              {CHECKS.map(({ key, short, icon: Icon, hint }) => {
-                const on = s.terrainOverlay === key;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => { s.setTerrainOverlay(key); click(); }}
-                    aria-pressed={on}
-                    title={hint}
-                    className={`h-8 px-2.5 rounded-md flex items-center gap-1.5 text-sm font-medium transition-colors cursor-pointer ${on ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/50' : 'text-zinc-300 hover:text-white'}`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span className="hidden sm:inline">{short}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {/* The one big button: plan a walk, or walk the planned one */}
+            <button
+              onClick={primary}
+              className={`${toolBtn} border-transparent text-white ${s.isRoverDriving ? 'bg-amber-500 !text-black' : 'bg-gradient-to-r from-[#F26A3D] to-[#ff9a4d] shadow-[0_6px_18px_rgba(242,106,61,0.35)] hover:brightness-110'}`}
+              title={hasRoute ? 'Watch the crew walk the route, with time, weather and life support along the way' : 'Choose a start and a destination, and plan the walk'}
+            >
+              {hasRoute ? (s.isRoverDriving ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />) : <Footprints className="w-4 h-4" />}
+              <span>{hasRoute ? walkLabel : 'Plan a walk'}</span>
+            </button>
 
-            <Menu label="Resources" icon={Layers} badge={layerActive}>
-              <Item kind="radio" icon={Droplets} label="Water in the soil" hint="Odyssey GRS water map, low and mid latitudes" active={s.terrainOverlay === 'ice'} onSelect={() => { s.setTerrainOverlay('ice'); click(); }} />
-              <Item kind="radio" icon={Tent} label="Cave & pit shelters" hint="1,062 candidates from the USGS catalog" active={s.terrainOverlay === 'caves'} onSelect={() => { s.setTerrainOverlay('caves'); click(); }} />
-              <Item icon={Route} label="Real rover tracks" hint="Where Perseverance and Curiosity actually drove" active={s.showRoverTraverses} onSelect={() => { s.toggleRoverTraverses(); click(); }} />
-            </Menu>
+            {is2d && (
+              <>
+                <Divider />
+                {/* Survival checks: the heart of the app, so always one click away */}
+                <div className="flex items-center gap-0.5 bg-white/[0.05] rounded-lg p-0.5 shrink-0" role="group" aria-label="Survival checks">
+                  {CHECKS.map(({ key, short, icon: Icon, hint }) => {
+                    const on = s.terrainOverlay === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => { s.setTerrainOverlay(key); click(); }}
+                        aria-pressed={on}
+                        title={hint}
+                        className={`h-8 px-2.5 rounded-md flex items-center gap-1.5 text-sm font-medium transition-colors cursor-pointer ${on ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/50' : 'text-zinc-300 hover:text-white'}`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="hidden sm:inline">{short}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <Menu label="Layers" icon={Layers} badge={layerActive}>
+                  <Item kind="radio" icon={Droplets} label="Water in the soil" hint="Odyssey GRS water map, low and mid latitudes" active={s.terrainOverlay === 'ice'} onSelect={() => { s.setTerrainOverlay('ice'); click(); }} />
+                  <Item kind="radio" icon={Tent} label="Cave and pit shelters" hint="1,062 candidates from the USGS catalog" active={s.terrainOverlay === 'caves'} onSelect={() => { s.setTerrainOverlay('caves'); click(); }} />
+                  <Item icon={Route} label="Real rover tracks" hint="Where Perseverance and Curiosity actually drove" active={s.showRoverTraverses} onSelect={() => { s.toggleRoverTraverses(); click(); }} />
+                </Menu>
+
+                <button
+                  onClick={toggleQuakes}
+                  aria-pressed={s.quakeMode}
+                  title="Marsquakes: what NASA's InSight seismometer felt, with a replay"
+                  className={`${toolBtn} relative ${s.quakeMode ? 'bg-sky-500/20 border-sky-400/60 text-sky-100' : 'bg-white/[0.04] border-white/10 text-zinc-200 hover:bg-white/[0.09]'}`}
+                >
+                  <Activity className="w-4 h-4" />
+                  <span className="hidden md:inline">Marsquakes</span>
+                  {!quakeSeen && <span className="absolute -top-1 -right-1 text-[9px] font-bold px-1 rounded-full bg-sky-400 text-black leading-4">NEW</span>}
+                </button>
+              </>
+            )}
 
             <Menu label="Tools" icon={SlidersHorizontal}>
-              <Item kind="radio" icon={Globe} label="Whole planet" hint="Fit all of Mars in view" onSelect={() => { s.setMapCenter([0, 0]); s.setMapZoom(1); }} />
-              <Item kind="radio" icon={Crosshair} label="Jump to Jezero Crater" hint="Perseverance landing site" onSelect={() => { s.setMapCenter([18.4447, 77.4508]); s.setMapZoom(7); }} />
-              <Item icon={Ruler} label="Measure distance" hint="Click two points for distance, height change and slope" active={s.isRulerActive} onSelect={() => { if (s.isRulerActive) { s.setRulerActive(false); s.clearRuler(); } else s.setRulerActive(true); }} />
-              <Item icon={Grid} label="Latitude / longitude grid" active={s.showGraticule} onSelect={s.toggleGraticule} />
-              <Item icon={Shield} label="2 km / 5 km walkback rings" hint="Planning rings around the base (team assumption)" active={s.showWalkbackLimits} onSelect={s.toggleWalkbackLimits} />
+              <Item icon={Ruler} label="Measure distance" hint="Click two points for distance, height change and slope" active={s.isRulerActive} onSelect={() => { s.setViewMode('2d'); if (s.isRulerActive) { s.setRulerActive(false); s.clearRuler(); } else { s.setPickTarget(null); s.setRulerActive(true); } }} />
+              <Item icon={Grid} label="Latitude and longitude grid" active={s.showGraticule} onSelect={s.toggleGraticule} />
+              <Item icon={Shield} label="2 km and 5 km walkback rings" hint="Planning rings around the base (team assumption)" active={s.showWalkbackLimits} onSelect={s.toggleWalkbackLimits} />
+              <Item icon={Globe} label="Whole planet" hint="Fit all of Mars in view" onSelect={() => { s.setViewMode('2d'); s.setMapCenter([0, 0]); s.setMapZoom(1); }} />
+              <Item icon={Crosshair} label="Jump to Jezero Crater" hint="Perseverance landing site" onSelect={() => { s.setViewMode('2d'); s.setMapCenter([18.4447, 77.4508]); s.setMapZoom(7); }} />
+              <div className="my-1 mx-2 h-px bg-white/10" role="separator" />
+              <div className="px-3 pt-1 pb-1 text-[11px] uppercase tracking-wider text-zinc-500">For your route{hasRoute ? '' : ' (plan one first)'}</div>
+              <Item icon={Radar} label="Safety scan" hint="Steep ground, radio loss, point of no return, shelter and water in one sweep" active={s.routeScanOpen} onSelect={withRoute(() => { s.setViewMode('2d'); s.setRouteScanOpen(!s.routeScanOpen); })} />
+              <Item icon={Glasses} label="Helmet view" hint="Walk the route in a first-person view" active={s.isEVASimulating} onSelect={withRoute(() => s.setEVASimulating(!s.isEVASimulating))} />
+              <Item icon={FileText} label="Flight plan and briefing" hint="A printable EVA briefing" onSelect={withRoute(() => s.setFlightPlanOpen(true))} />
+              <Item icon={ShieldAlert} label="What if something goes wrong?" hint="Dust storm, radiation event, oxygen fault" active={!!s.activeContingency} onSelect={() => s.setContingencyModalOpen(true)} />
             </Menu>
           </>
         )}
 
-        {(s.waypoints.length > 0 || s.rulerPoints.length > 0) && is2d && (
-          <button onClick={() => { s.undoLastPoint(); click(); }} className={`${toolBtn} bg-white/[0.04] border-white/10 text-amber-200 hover:bg-white/[0.09]`} title="Undo the last point (Ctrl+Z)" aria-label="Undo">
-            <RotateCcw className="w-4 h-4" /><span className="hidden 2xl:inline">Undo</span>
-          </button>
-        )}
-
-        {/* Route actions are always here; without a route each one opens the planner first */}
         <Divider />
-        <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 shrink-0" role="group" aria-label="Route actions">
-          <button
-            onClick={() => (hasRoute ? (is2d ? toggleDrive() : (s.setViewMode('2d'), s.setRoverDriving(true))) : s.setGuidedPlannerOpen(true))}
-            className={`${toolBtn} ${s.isRoverDriving ? 'bg-amber-500 border-amber-300 text-black' : 'bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]'}`}
-            title={!hasRoute ? 'Plan a route first, then watch the crew walk it' : targetIdx > 0 ? `Walking to station ${targetIdx + 1}` : 'Watch the crew walk the route (time-lapse, with time on foot and life support used)'}
-          >
-            {s.isRoverDriving ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
-            <span>{hasRoute ? driveLabel : 'Walk route'}</span>
-          </button>
-          {hasRoute && is2d && targetIdx > 0 && !s.isRoverDriving && (
-            <button onClick={() => { s.setDriveTargetWaypointId(null); }} className={`${toolBtn} bg-white/[0.04] border-white/10 text-cyan-200`} title="Walk the whole route instead of one station">Whole route</button>
-          )}
-          {hasRoute && is2d && s.roverProgress > 0.01 && !s.isRoverDriving && (
-            <button onClick={() => { s.setRoverDriving(false); s.setRoverProgress(0); s.setDriveTargetWaypointId(null); click(); }} className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/[0.04] border border-white/10 text-zinc-300 hover:text-white" title="Reset the walk to the start" aria-label="Reset the walk to the start">
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          )}
-          {hasRoute && is2d && (
-            <button
-              onClick={() => s.setCamFollow(!s.camFollow)}
-              aria-pressed={s.camFollow}
-              className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/[0.04] border border-white/10 text-zinc-300 hover:text-white"
-              title={s.camFollow ? 'Camera follows the crew (click to free the camera)' : 'Free camera (click to follow the crew)'}
-              aria-label={s.camFollow ? 'Camera follows the crew' : 'Free camera'}
-            >
-              {s.camFollow ? <Video className="w-4 h-4 text-cyan-300" /> : <VideoOff className="w-4 h-4" />}
-            </button>
-          )}
-          <button
-            onClick={() => (hasRoute ? (s.setViewMode('2d'), s.setRouteScanOpen(!s.routeScanOpen), click()) : s.setGuidedPlannerOpen(true))}
-            aria-pressed={s.routeScanOpen}
-            className={`${toolBtn} ${s.routeScanOpen ? 'bg-[#F26A3D]/20 border-[#F26A3D]/60 text-[#ffd2bf]' : 'bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]'}`}
-            title="Safety scan: check the route for steep ground, radio loss, the point of no return, shelter and water in one sweep"
-          >
-            <Radar className="w-4 h-4" /><span className="hidden lg:inline">Safety scan</span>
-          </button>
-          <button onClick={() => (hasRoute ? s.setEVASimulating(!s.isEVASimulating) : s.setGuidedPlannerOpen(true))} className={`${toolBtn} ${s.isEVASimulating ? 'bg-rose-500/90 border-rose-300 text-white' : 'bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]'}`} title="Walk the route in a first-person helmet view" aria-label="Helmet view">
-            <Glasses className="w-4 h-4" /><span className="hidden 2xl:inline">Helmet view</span>
-          </button>
-          <button onClick={() => (hasRoute ? s.setFlightPlanOpen(true) : s.setGuidedPlannerOpen(true))} className={`${toolBtn} bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]`} title="Printable EVA flight plan and briefing" aria-label="Briefing">
-            <FileText className="w-4 h-4" /><span className="hidden 2xl:inline">Briefing</span>
-          </button>
-          <button onClick={() => s.setContingencyModalOpen(true)} className={`${toolBtn} ${s.activeContingency ? 'bg-rose-500/90 border-rose-300 text-white' : 'bg-white/[0.04] border-white/10 text-white hover:bg-white/[0.09]'}`} title="What if something goes wrong? Dust storm, radiation event, O₂ fault" aria-label="What if">
-            <ShieldAlert className="w-4 h-4" /><span className="hidden 2xl:inline">What if...</span>
-          </button>
-        </div>
+        {collapseBtn}
       </div>
 
-      {activeCheck && is2d && (
+      {!s.collapsed && activeCheck && is2d && (
         <p className="hidden sm:block pointer-events-none mt-1.5 ml-1 text-xs text-zinc-300/90 drop-shadow">{activeCheck.hint}</p>
       )}
     </div>

@@ -43,7 +43,8 @@ const useMapStore = create((set, get) => ({
   setMapZoom: (zoom) => set({ mapZoom: zoom }),
   // One-off request to frame an area (e.g. a freshly planned route): { bounds: [[s, w], [n, e]], at }
   mapFitBounds: null,
-  fitMapTo: (bounds) => set({ mapFitBounds: { bounds, at: Date.now() } }),
+  // `pad` ({ topLeft, bottomRight }, in pixels) overrides the default room left for the sidebar and the dock
+  fitMapTo: (bounds, pad) => set({ mapFitBounds: { bounds, pad, at: Date.now() } }),
   setCursorPosition: (pos) => set({ cursorPosition: pos }),
   setViewMode: (mode) => set({ viewMode: mode, isEVASimulating: false }),
 
@@ -127,7 +128,7 @@ const useMapStore = create((set, get) => ({
   // waypoint ids it was planned for (see routeSignature), so manual edits hide stale geometry.
   routeGeometry: null, // { signature, points: [[lat, lon, elevation]], stations: [track index per waypoint], source }
   setRouteGeometry: (routeGeometry) => set({ routeGeometry }),
-  setSelectedWaypoint: (id) => set({ selectedWaypointId: id }),
+  setSelectedWaypoint: (id) => set({ selectedWaypointId: id, ...(id ? { selectedPOI: null } : {}) }),
   reorderWaypoints: (newOrder) => set({ waypoints: newOrder }),
 
   // ========================
@@ -152,6 +153,46 @@ const useMapStore = create((set, get) => ({
   setRoverBatterySoC: (soc) => set({ roverBatterySoC: Math.max(0, Math.min(100, soc)) }),
   setCamFollow: (val) => set({ camFollow: val }),
   toggleCamFollow: () => set((state) => ({ camFollow: !state.camFollow })),
+
+  // ========================
+  // ROUTE BUILDER AND WALK (the right-hand dock)
+  // ========================
+  routeDraft: { start: null, end: null, mode: 'safety' }, // start/end: { name, lat, lon, elevation }
+  setRouteDraft: (patch) => set((state) => ({ routeDraft: { ...state.routeDraft, ...patch } })),
+  routeEditing: false, // true while the builder is shown even though a route exists
+  setRouteEditing: (routeEditing) => set({ routeEditing }),
+  pickTarget: null, // 'start' | 'end' | null: the next click on the map fills that end of the draft route
+  // A click on the map (or on a place) while a point is being picked fills that end of the draft; picking the
+  // start moves straight on to the destination.
+  pickPoint: (point) => set((state) => {
+    const key = state.pickTarget;
+    if (!key) return {};
+    const routeDraft = { ...state.routeDraft, [key]: point };
+    return { routeDraft, pickTarget: key === 'start' && !routeDraft.end ? 'end' : null };
+  }),
+  setPickTarget: (pickTarget) => set({ pickTarget, isPlacingWaypoint: false, isRulerActive: false }),
+  walkStartLtst: 9, // local solar time (hours) the walk starts at; null means "right now"
+  setWalkStartLtst: (walkStartLtst) => set({ walkStartLtst }),
+  walkSpeed: 1, // playback speed of the walk: 1, 2 or 4
+  setWalkSpeed: (walkSpeed) => set({ walkSpeed }),
+  walkTelemetry: { slope: 0, paceKmh: 0, hours: 0, distKm: 0, totalKm: 0 },
+  setWalkTelemetry: (walkTelemetry) => set({ walkTelemetry }),
+  dockMin: {}, // { cardId: true } cards the user folded away
+  setDockMin: (id, value) => set((state) => ({ dockMin: { ...state.dockMin, [id]: value } })),
+  toolbarCollapsed: false,
+  setToolbarCollapsed: (toolbarCollapsed) => set({ toolbarCollapsed }),
+
+  // Marsquakes (InSight Marsquake Service catalogue)
+  quakeMode: false,
+  setQuakeMode: (quakeMode) => set({ quakeMode, ...(quakeMode ? { pickTarget: null, sidebarOpen: false } : { quakeSelected: null }) }),
+  quakeSelected: null, // event name, e.g. 'S1222a'
+  setQuakeSelected: (quakeSelected) => set({ quakeSelected }),
+  quakeFilter: { minMag: 0, impacts: true, located: true },
+  setQuakeFilter: (patch) => set((state) => ({ quakeFilter: { ...state.quakeFilter, ...patch } })),
+  quakeTime: null, // ms since epoch of the replay cursor, or null to show every event
+  setQuakeTime: (quakeTime) => set({ quakeTime }),
+  quakePlaying: false,
+  setQuakePlaying: (quakePlaying) => set({ quakePlaying }),
 
   // ========================
   // MAP TOOLS (WALKBACK & RULER & GRATICULE)
@@ -230,7 +271,7 @@ const useMapStore = create((set, get) => ({
     featureTypes: [],
   },
   
-  setSelectedPOI: (poi) => set({ selectedPOI: poi }),
+  setSelectedPOI: (poi) => set((state) => ({ selectedPOI: poi, selectedWaypointId: poi ? null : state.selectedWaypointId })),
   togglePOIFilter: (key) => set((state) => ({
     poiFilters: { ...state.poiFilters, [key]: !state.poiFilters[key] }
   })),

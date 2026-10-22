@@ -17,7 +17,6 @@ import { fetchProfile } from './services/profileService';
 const Sidebar = lazyWithRetry(() => import('./components/Sidebar'));
 const BottomPanel = lazyWithRetry(() => import('./components/BottomPanel'));
 const MapToolbar = lazyWithRetry(() => import('./components/MapToolbar'));
-const MapWelcome = lazyWithRetry(() => import('./components/MapWelcome'));
 const MarsMap = lazyWithRetry(() => import('./components/MarsMap'));
 const Mars3DViewer = lazyWithRetry(() => import('./components/Mars3DViewer'));
 const MartianSkyEphemeris = lazyWithRetry(() => import('./components/MartianSkyEphemeris'));
@@ -52,6 +51,7 @@ const ScrollPage = ({ children }) => (
 );
 
 function App() {
+  const toolbarCollapsed = useMapStore(s => s.toolbarCollapsed);
   const viewMode = useMapStore(s => s.viewMode);
   const showLoadingScreen = useMapStore(s => s.showLoadingScreen);
   const activeTab = useMapStore(s => s.activeTab);
@@ -156,12 +156,11 @@ function App() {
             <ErrorBoundary>
               <Suspense fallback={null}>
                 <MapToolbar />
-                <MapWelcome />
               </Suspense>
             </ErrorBoundary>
 
             {/* FIXED LEFT SIDEBAR */}
-            <div className="fixed left-3 top-[172px] sm:top-[150px] bottom-24 z-[400] pointer-events-none flex">
+            <div className={`fixed left-3 bottom-24 z-[400] pointer-events-none flex transition-[top] duration-300 ${toolbarCollapsed ? 'top-[132px]' : 'top-[172px] sm:top-[150px]'}`}>
               <div className="pointer-events-auto flex flex-col min-h-0 max-h-full">
                 <ErrorBoundary>
                   <Suspense fallback={null}>

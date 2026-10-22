@@ -1,0 +1,257 @@
+import { useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Play, Pause, RotateCcw, LocateFixed, Radar, Glasses, FileText, ShieldAlert, Pencil, Trash2, Footprints, Sun, Moon, Thermometer, Gauge, Wind, CloudFog, Radiation, Sparkles } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
+import useMapStore, { routeSignature } from '../../store/useMapStore';
+import { planAndApplyRoute } from '../../services/routePlanningService';
+import { routeDistance } from '../../utils/marsUtils';
+import DockCard from './DockCard';
+import ElevationScrubber from './ElevationScrubber';
+import ProvenanceBadge from '../ProvenanceBadge';
+import useWalkFeed from './useWalkFeed';
+import { environmentAt, fmtClock, fmtDuration, fmtLtst, startDateFor } from './walkEnvironment';
+
+const SPEEDS = [1, 2, 4];
+const START_TIMES = [{ v: 9, label: 'Morning', sub: '09:00' }, { v: 12, label: 'Noon', sub: '12:00' }, { v: 16.5, label: 'Late day', sub: '16:30' }, { v: null, label: 'Now', sub: 'real time' }];
+
+const Tile = ({ icon: Icon, label, value, sub, tone = 'text-white' }) => (
+  <div className="rounded-xl bg-white/[0.04] px-2.5 py-2 min-w-0">
+    <div className="flex items-center gap-1.5 text-[11px] text-zinc-400"><Icon className="w-3 h-3 shrink-0" />{label}</div>
+    <div className={`mt-0.5 text-sm font-semibold tabular-nums truncate ${tone}`}>{value}</div>
+    {sub && <div className="text-[11px] text-zinc-400 leading-tight line-clamp-2">{sub}</div>}
+  </div>
+);
+
+const TONE = { info: 'bg-sky-500/15 text-sky-300', good: 'bg-emerald-500/15 text-emerald-300', warn: 'bg-amber-500/15 text-amber-300', bad: 'bg-rose-500/15 text-rose-300' };
+
+/** The planned route: its numbers, the play controls, and (once walking) the live readout and story. */
+export default function WalkPanel() {
+  const s = useMapStore(useShallow((st) => ({
+    waypoints: st.waypoints, routeGeometry: st.routeGeometry, progress: st.roverProgress, driving: st.isRoverDriving,
+    setDriving: st.setRoverDriving, setProgress: st.setRoverProgress, speed: st.walkSpeed, setSpeed: st.setWalkSpeed,
+    tel: st.walkTelemetry, pos: st.roverCurrentPosition, life: st.roverBatterySoC, follow: st.camFollow, setFollow: st.setCamFollow,
+    driveTarget: st.driveTargetWaypointId, setDriveTarget: st.setDriveTargetWaypointId,
+    clearWaypoints: st.clearWaypoints, setRouteGeometry: st.setRouteGeometry, setDraft: st.setRouteDraft, setEditing: st.setRouteEditing,
+    setScan: st.setRouteScanOpen, scanOpen: st.routeScanOpen, setEVA: st.setEVASimulating, eva: st.isEVASimulating, setPlan: st.setFlightPlanOpen,
+    setWhatIf: st.setContingencyModalOpen, draftMode: st.routeDraft.mode, startLtst: st.walkStartLtst, setStartLtst: st.setWalkStartLtst,
+  })));
+  const { waypoints, routeGeometry, progress, driving } = s;
+  const planned = !!routeGeometry && routeGeometry.signature === routeSignature(waypoints);
+  const metrics = planned ? routeGeometry.metrics : null;
+  const first = waypoints[0];
+  const last = waypoints[waypoints.length - 1];
+  const names = useMemo(() => ({ start: first?.name || 'the start', end: last?.name || 'the destination' }), [first, last]);
+
+  const points = useMemo(() => (planned ? routeGeometry.points : waypoints.map((w) => [w.lat, w.lon, w.elevation || 0])), [planned, routeGeometry, waypoints]);
+  const km = metrics ? metrics.traverseDistanceKm : routeDistance(waypoints) || 0;
+  const maxSlope = metrics?.maxSlopeDeg ?? 0;
+
+  // The clock the walk is set against: a chosen local time at the start, or the real time right now
+  const nowRef = useRef(new Date());
+  useEffect(() => { if (progress < 0.003 && !driving) nowRef.current = new Date(); }, [progress, driving]);
+  const startDate = useMemo(() => startDateFor(first?.lon ?? 0, s.startLtst, nowRef.current), [first?.lon, s.startLtst, progress < 0.003]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const at = s.pos || (first ? { lat: first.lat, lon: first.lon, elevation: first.elevation } : null);
+  const env = useMemo(
+    () => (at ? environmentAt({ lat: at.lat, lon: at.lon, elevation: at.elevation ?? 0, start: startDate, hours: s.tel.hours }) : null),
+    // the position changes many times a second; the readout only needs to follow the tenth of a degree
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [at && Math.round(at.lat * 100), at && Math.round(at.lon * 100), Math.round(s.tel.hours * 20), at?.elevation, startDate],
+  );
+  const feed = useWalkFeed({ active: progress > 0.003, progress, telemetry: s.tel, position: s.pos, env, lifeLeft: s.life, maxSlope, names });
+
+  const started = progress > 0.003;
+  const arrived = progress >= 0.99 && !driving;
+  const spare = s.life * 2 - 100; // walking back costs about what the walk out has cost
+  const spareTone = spare < 0 ? 'text-rose-300' : spare < 25 ? 'text-amber-300' : 'text-emerald-300';
+
+  const playPause = () => {
+    if (driving) { s.setDriving(false); return; }
+    if (arrived) s.setProgress(0);
+    s.setDriving(true);
+  };
+
+  const newRoute = () => {
+    s.setDriving(false); s.setProgress(0); s.setDriveTarget(null);
+    s.clearWaypoints(); s.setRouteGeometry(null); s.setDraft({ start: null, end: null }); s.setEditing(false); s.setScan(false);
+  };
+  const editRoute = () => {
+    s.setDriving(false);
+    s.setDraft({ start: first && { name: first.name, lat: first.lat, lon: first.lon, elevation: first.elevation }, end: last && { name: last.name, lat: last.lat, lon: last.lon, elevation: last.elevation } });
+    s.setEditing(true);
+  };
+  const snap = () => planAndApplyRoute({ origin: first, destination: last, mode: s.draftMode }).catch(() => {});
+
+  const subtitle = metrics ? `${km.toFixed(1)} km · ${fmtDuration(metrics.walkingHours)} on foot` : `${km.toFixed(1)} km, drawn by hand`;
+  const title = arrived ? 'You made it' : started ? `${driving ? 'Walking to' : 'Paused on the way to'} ${names.end}` : 'Your route';
+
+  return (
+    <DockCard id="route" title={title} subtitle={subtitle} icon={Footprints} accent="#F26A3D">
+      {!started && (
+      <div className="relative pl-6 space-y-1.5 text-sm">
+        <span className="absolute left-[7px] top-2 bottom-2 border-l-2 border-dotted border-white/25" aria-hidden="true" />
+        <p className="relative text-white leading-snug"><i className="absolute -left-6 top-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#0B0D12]" aria-hidden="true" /><span className="block text-[11px] text-zinc-400 leading-none mb-0.5">From</span>{names.start}</p>
+        <p className="relative text-white leading-snug"><i className="absolute -left-6 top-1 w-3.5 h-3.5 rounded-full bg-[#F26A3D] border-2 border-[#0B0D12]" aria-hidden="true" /><span className="block text-[11px] text-zinc-400 leading-none mb-0.5">To</span>{names.end}</p>
+      </div>
+      )}
+
+      {!planned && (
+        <div className="mt-2.5 rounded-xl border border-amber-400/30 bg-amber-500/10 p-2.5 text-xs text-amber-100 leading-relaxed">
+          This route is straight lines between your points. Plan it on real terrain to get a walkable path.
+          <button onClick={snap} className="mt-2 w-full h-9 rounded-lg bg-amber-400 text-black text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer hover:bg-amber-300"><Sparkles className="w-3.5 h-3.5" />Plan on real terrain</button>
+        </div>
+      )}
+
+      {metrics && !started && (
+        <div className="mt-3 grid grid-cols-4 gap-1.5 text-center">
+          {[
+            ['Distance', `${km.toFixed(1)} km`],
+            ['Steepest', `${maxSlope}°`],
+            ['Climb', `${metrics.totalAscentMeters} m`],
+            ['Life support', `${metrics.budgetSharePct}%`],
+          ].map(([k, v]) => (
+            <div key={k} className="rounded-xl bg-white/[0.04] px-1 py-1.5">
+              <div className="text-[10px] text-zinc-400">{k}</div>
+              <div className={`text-sm font-semibold tabular-nums ${k === 'Life support' && metrics.budgetSharePct > 50 ? 'text-rose-300' : 'text-white'}`}>{v}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {metrics?.budgetSharePct > 50 && !started && <p className="mt-2 text-xs text-rose-300 leading-snug">One way uses over half the usable life support, so walking back would not fit.</p>}
+
+      <div className="mt-3">
+        <ElevationScrubber
+          points={points}
+          progress={progress}
+          onScrubStart={() => { if (driving) s.setDriving(false); }}
+          onScrub={(p) => { s.setDriveTarget(null); s.setProgress(p); }}
+        />
+      </div>
+
+      {!started && (
+        <div className="mt-3">
+          <div className="text-xs font-medium text-zinc-300 mb-1.5">Start the walk at (local time on Mars)</div>
+          <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Start time">
+            {START_TIMES.map(({ v, label, sub }) => {
+              const on = s.startLtst === v;
+              return (
+                <button key={label} role="radio" aria-checked={on} onClick={() => s.setStartLtst(v)} className={`rounded-xl border px-1 py-1.5 text-center transition-colors cursor-pointer ${on ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.08]'}`}>
+                  <span className="block text-xs font-semibold text-white leading-tight">{label}</span>
+                  <span className="block text-[10px] text-zinc-400 leading-tight">{sub}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 flex items-stretch gap-2">
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={playPause}
+          className={`relative flex-1 h-12 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer text-white overflow-hidden ${driving ? 'bg-white/15 hover:bg-white/20' : 'bg-gradient-to-r from-[#F26A3D] to-[#ff9a4d] shadow-[0_8px_26px_rgba(242,106,61,0.4)] hover:brightness-110'}`}
+        >
+          {!driving && !started && <span className="absolute inset-0 walk-cta-shine pointer-events-none" aria-hidden="true" />}
+          {driving ? <><Pause className="w-4 h-4 fill-current" />Pause</> : arrived ? <><RotateCcw className="w-4 h-4" />Walk again</> : started ? <><Play className="w-4 h-4 fill-current" />Resume</> : <><Play className="w-4 h-4 fill-current" />Start walking</>}
+        </motion.button>
+        <div className="flex rounded-xl bg-white/[0.06] p-1 gap-0.5" role="radiogroup" aria-label="Walking speed">
+          {SPEEDS.map((v) => (
+            <button key={v} role="radio" aria-checked={s.speed === v} onClick={() => s.setSpeed(v)} className={`w-9 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${s.speed === v ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}>{v}×</button>
+          ))}
+        </div>
+        <button
+          onClick={() => s.setFollow(!s.follow)}
+          aria-pressed={s.follow}
+          title={s.follow ? 'The map follows the crew. Click to move the map freely.' : 'Free map. Click to make it follow the crew.'}
+          aria-label="Map follows the crew"
+          className={`w-12 rounded-xl border flex items-center justify-center cursor-pointer transition-colors ${s.follow ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-white/[0.04] text-zinc-400 hover:text-white'}`}
+        >
+          <LocateFixed className="w-[18px] h-[18px]" />
+        </button>
+      </div>
+      {s.driveTarget && (
+        <button onClick={() => s.setDriveTarget(null)} className="mt-2 text-xs text-cyan-200 hover:text-white cursor-pointer">Walking to one stop. Walk the whole route instead →</button>
+      )}
+
+      <AnimatePresence initial={false}>
+        {started && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="mt-3 grid grid-cols-3 gap-1.5">
+              <Tile icon={Footprints} label="On foot" value={`T+${fmtClock(s.tel.hours)}`} sub={`${s.tel.distKm.toFixed(1)} of ${km.toFixed(1)} km`} />
+              <Tile icon={Gauge} label="Pace" value={`${s.tel.paceKmh.toFixed(1)} km/h`} sub={`slope ${s.tel.slope.toFixed(0)}°`} />
+              <Tile icon={Thermometer} label="Height" value={`${Math.round(s.pos?.elevation ?? 0).toLocaleString()} m`} />
+            </div>
+            <div className="mt-2 rounded-xl bg-white/[0.04] px-3 py-2.5">
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="text-zinc-300">Life support left</span>
+                <span className="font-semibold text-white tabular-nums">{Math.round(s.life)}%</span>
+              </div>
+              <div className="relative mt-1.5 h-2 rounded-full bg-white/10 overflow-hidden">
+                <motion.div className={`h-full rounded-full ${s.life > 50 ? 'bg-emerald-400' : s.life > 25 ? 'bg-amber-400' : 'bg-rose-500'}`} animate={{ width: `${Math.max(0, s.life)}%` }} transition={{ duration: 0.3 }} />
+              </div>
+              <div className={`mt-1.5 text-xs ${spareTone}`}>
+                {spare < 0 ? 'Past the point of no return: not enough left to walk back.' : `Spare to walk back from here: ${Math.round(spare)}%`}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {feed.length > 0 && (
+        <div className="mt-3">
+          <div className="text-xs font-medium text-zinc-300 mb-1.5">Along the way</div>
+          <ul className="space-y-1.5">
+            <AnimatePresence initial={false}>
+              {feed.map((f) => {
+                const Icon = f.icon;
+                return (
+                  <motion.li key={f.id} layout initial={{ opacity: 0, y: -12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 420, damping: 30 }} className="flex gap-2.5 rounded-xl bg-white/[0.04] p-2.5">
+                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${TONE[f.tone]}`}><Icon className="w-3.5 h-3.5" /></span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-semibold text-white leading-snug">{f.title}</span>
+                      <span className="block text-xs text-zinc-400 leading-snug mt-0.5">{f.text}</span>
+                    </span>
+                  </motion.li>
+                );
+              })}
+            </AnimatePresence>
+          </ul>
+        </div>
+      )}
+
+      {env && (
+        <div className="mt-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-medium text-zinc-300">{started ? 'Conditions right here' : 'Conditions at the start'}</span>
+            <ProvenanceBadge type="SIMULATED" size="xs" detail="Seasonal weather model with the real Sun position and Mars time" />
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            <Tile icon={env.sunEl > 0 ? Sun : Moon} label="Local time" value={fmtLtst(env.ltst)} sub={`${env.phase} · Sun ${Math.round(env.sunEl)}°`} />
+            <Tile icon={Thermometer} label="Air" value={`${Math.round(env.temp)} °C`} />
+            <Tile icon={Gauge} label="Pressure" value={`${env.pressure} Pa`} sub={`${(env.pressure / 1013.25).toFixed(1)}% of Earth`} />
+            <Tile icon={Wind} label="Wind" value={`${env.windSpeed} m/s`} sub={env.windDir} />
+            <Tile icon={CloudFog} label="Dust" value={`τ ${env.tau}`} sub={env.dustRisk} tone={env.tau >= 0.8 ? 'text-amber-300' : 'text-white'} />
+            <Tile icon={Radiation} label="Radiation" value={`${Math.round(env.doseRate * 1000)} µSv/h`} sub="on the surface" />
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 grid grid-cols-2 gap-1.5">
+        {[
+          { label: 'Safety scan', icon: Radar, on: s.scanOpen, act: () => s.setScan(!s.scanOpen) },
+          { label: 'Helmet view', icon: Glasses, on: s.eva, act: () => s.setEVA(!s.eva) },
+          { label: 'Briefing', icon: FileText, act: () => s.setPlan(true) },
+          { label: 'What if…', icon: ShieldAlert, act: () => s.setWhatIf(true) },
+        ].map(({ label, icon: Icon, on, act }) => (
+          <button key={label} onClick={act} aria-pressed={!!on} className={`h-9 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${on ? 'border-[#F26A3D]/60 bg-[#F26A3D]/15 text-[#ffd2bf]' : 'border-white/10 bg-white/[0.03] text-zinc-200 hover:bg-white/[0.08]'}`}>
+            <Icon className="w-3.5 h-3.5" />{label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        <button onClick={editRoute} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white cursor-pointer"><Pencil className="w-3.5 h-3.5" />Change start or destination</button>
+        <button onClick={newRoute} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-rose-300 cursor-pointer"><Trash2 className="w-3.5 h-3.5" />Clear route</button>
+      </div>
+    </DockCard>
+  );
+}
