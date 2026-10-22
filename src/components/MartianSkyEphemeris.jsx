@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, Sun, Moon, Globe2, Clock, Radio, Eclipse, Info, RotateCcw, Telescope, Search, Loader2 } from 'lucide-react';
+import { Play, Pause, Sun, Moon, Globe2, Clock, Radio, Eclipse, Info, Telescope, Search, Loader2 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ReferenceArea, CartesianGrid } from 'recharts';
 import { playUiClick } from '../utils/audioSynthesizer';
-import { skyAt, solTimeline, overlapFraction, nextTransitSol } from '../utils/marsSky';
+import TransitViewer from './sky/TransitViewer';
+import { skyAt, solTimeline, nextTransitSol } from '../utils/marsSky';
 import { lsFromMsd, seasonFromLs, MARS_SOL_HOURS } from '../utils/marsSolar';
 
 const SITES = [
@@ -91,16 +92,23 @@ function SkyDome({ sky, timeline, selected, onSelect }) {
           <stop offset="0%" stopColor={night > 0.5 ? '#070b18' : '#7a4a26'} stopOpacity={1} />
           <stop offset="100%" stopColor={night > 0.5 ? '#02030a' : '#2a160b'} stopOpacity={1} />
         </radialGradient>
-        <radialGradient id="sunGlow" cx={sx / S} cy={sy / S} r="0.45" gradientUnits="objectBoundingBox">
-          <stop offset="0%" stopColor="#7dd3fc" stopOpacity={0.75 * twilight} />
-          <stop offset="60%" stopColor="#0ea5e9" stopOpacity={0.12 * twilight} />
+        {/* Mars's sky is blue-white close to the Sun all day (forward-scattering dust), strongest at twilight */}
+        <radialGradient id="sunGlow" cx={sx / S} cy={sy / S} r={0.18 + 0.27 * twilight} gradientUnits="objectBoundingBox">
+          <stop offset="0%" stopColor="#e0f2fe" stopOpacity={Math.max(0.55 * (1 - night), 0.8 * twilight)} />
+          <stop offset="45%" stopColor="#7dd3fc" stopOpacity={Math.max(0.18 * (1 - night), 0.3 * twilight)} />
           <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0} />
+        </radialGradient>
+        {/* Dusty haze thickens towards the horizon */}
+        <radialGradient id="horizonHaze" cx="50%" cy="50%" r="50%">
+          <stop offset="70%" stopColor="#d6a679" stopOpacity={0} />
+          <stop offset="100%" stopColor="#d6a679" stopOpacity={0.45 * (1 - night)} />
         </radialGradient>
         <clipPath id="domeClip"><circle cx={C} cy={C} r={R} /></clipPath>
       </defs>
       <circle cx={C} cy={C} r={R} fill="url(#domeSky)" />
       <g clipPath="url(#domeClip)">
         <circle cx={C} cy={C} r={R} fill={dayTop} opacity={0.6} />
+        <circle cx={C} cy={C} r={R} fill="url(#horizonHaze)" />
         <rect width={S} height={S} fill="url(#sunGlow)" />
         {STARS.map((st, i) => (
           <circle key={i} cx={C + Math.cos(st.a) * st.d * R} cy={C + Math.sin(st.a) * st.d * R} r={st.size} fill="#fff" opacity={st.o * night} />
@@ -147,86 +155,6 @@ function SkyDome({ sky, timeline, selected, onSelect }) {
         );
       })}
     </svg>
-  );
-}
-
-function TransitViewer({ transit, fluxWm2 }) {
-  const example = !transit?.happens;
-  // Without a real transit today, play a centred example with this site's real Phobos-to-Sun size ratio
-  const b = example ? 0.25 : transit.impact;
-  const ratio = transit?.radiusRatio || 0.6;
-  const durationS = example ? 32 : transit.durationS;
-  const [p, setP] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const raf = useRef();
-  useEffect(() => {
-    if (!playing) return undefined;
-    let last = performance.now();
-    const playLen = 8000; // show the whole crossing in 8 s
-    const tick = (now) => {
-      const dt = now - last; last = now;
-      setP((v) => {
-        const nv = v + dt / playLen;
-        if (nv >= 1) { setPlaying(false); return 1; }
-        return nv;
-      });
-      raf.current = requestAnimationFrame(tick);
-    };
-    raf.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf.current);
-  }, [playing]);
-  useEffect(() => { setP(0); setPlaying(false); }, [transit]);
-
-  const span = 1 + ratio; // path from first to last contact, in Sun radii
-  const xOf = (q) => -span * 1.15 + q * span * 2.3;
-  const x = xOf(p);
-  const cover = overlapFraction(Math.hypot(x, b), ratio);
-  const curve = useMemo(() => Array.from({ length: 121 }, (_, i) => {
-    const q = i / 120;
-    const xx = xOf(q);
-    return { t: Math.round(((q - 0.5) * durationS * 1.15) * 10) / 10, light: Math.round((1 - overlapFraction(Math.hypot(xx, b), ratio)) * 1000) / 10 };
-  // xOf only depends on ratio
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [b, ratio, durationS]);
-
-  const W = 320, H = 150, SR = 56;
-  return (
-    <div>
-      <div className="relative rounded-xl overflow-hidden border border-white/10 bg-black">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full block" role="img" aria-label="Phobos crossing the Sun">
-          <defs>
-            <radialGradient id="sunDisk"><stop offset="0%" stopColor="#fff7ed" /><stop offset="70%" stopColor="#fdba74" /><stop offset="100%" stopColor="#c2410c" /></radialGradient>
-          </defs>
-          <circle cx={W / 2} cy={H / 2} r={SR * 1.25} fill="#f97316" opacity="0.12" />
-          <circle cx={W / 2} cy={H / 2} r={SR} fill="url(#sunDisk)" />
-          <ellipse cx={W / 2 + x * SR} cy={H / 2 + b * SR} rx={ratio * SR * 1.12} ry={ratio * SR * 0.88} transform={`rotate(-18 ${W / 2 + x * SR} ${H / 2 + b * SR})`} fill="#050505" />
-          <text x="10" y="18" fill="#a1a1aa" fontSize="10">{example ? 'Example crossing at this site' : `Sol transit at ${fmt(transit.lst)} LST`}</text>
-          <text x={W - 10} y={H - 10} fill="#fde68a" fontSize="10" textAnchor="end">{Math.round(cover * 100)}% of the Sun covered</text>
-        </svg>
-      </div>
-      <div className="mt-3 flex items-center gap-2">
-        <button onClick={() => { playUiClick?.(); if (p >= 1) setP(0); setPlaying((v) => !v); }} className="flex items-center gap-2 rounded-lg bg-white text-black font-semibold px-3.5 py-2 text-sm hover:bg-zinc-200 cursor-pointer">
-          {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}{playing ? 'Pause' : p >= 1 ? 'Replay' : 'Play transit'}
-        </button>
-        <button onClick={() => { setPlaying(false); setP(0); }} className="w-9 h-9 rounded-lg border border-white/15 flex items-center justify-center text-zinc-300 hover:text-white cursor-pointer" aria-label="Reset transit"><RotateCcw className="w-4 h-4" /></button>
-        <input type="range" min="0" max="1" step="0.001" value={p} onChange={(e) => { setPlaying(false); setP(Number(e.target.value)); }} aria-label="Transit progress" className="flex-1 accent-amber-400 cursor-pointer" />
-      </div>
-      <div className="mt-4 h-28 -ml-3">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={curve} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-            <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => `${Math.round(v)} s`} stroke="#71717a" fontSize={11} tickLine={false} />
-            <YAxis domain={[50, 100]} stroke="#71717a" fontSize={11} unit="%" width={44} tickLine={false} axisLine={false} />
-            <Tooltip contentStyle={tooltipStyle} labelFormatter={(v) => `${v} s`} formatter={(v) => [`${v}%`, 'Sunlight']} />
-            <ReferenceLine x={Math.round(((p - 0.5) * durationS * 1.15) * 10) / 10} stroke="#fde68a" />
-            <Line type="monotone" dataKey="light" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <p className="mt-2 text-sm text-zinc-300">
-        Sunlight dips to <strong className="text-white">{Math.round((1 - (example ? overlapFraction(b, ratio) : transit.maxCover)) * fluxWm2)} W/m²</strong> from {Math.round(fluxWm2)} W/m² for about {Math.round(durationS)} s. Solar panels lose the same share of power.
-      </p>
-    </div>
   );
 }
 
@@ -410,8 +338,37 @@ export default function MartianSkyEphemeris() {
           </div>
         </Panel>
 
+        {/* Phobos transit: the showpiece, full width */}
+        <Panel title="Phobos crosses the Sun" icon={Eclipse} className="mt-6" right={site.lat <= 70 && (
+          <button onClick={findTransit} disabled={search === 'busy'} className="flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-500/10 text-amber-100 px-3 py-1.5 text-xs font-medium hover:bg-amber-500/20 transition disabled:opacity-60 cursor-pointer">
+            {search === 'busy' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+            {search === 'busy' ? 'Searching the coming sols…' : 'Find the next transit from here'}
+          </button>
+        )}>
+          {site.lat > 70 ? (
+            <p className="text-sm text-zinc-300">Phobos never rises above 70° latitude, so there are no transits here. Pick a site nearer the equator.</p>
+          ) : (
+            <div className="grid lg:grid-cols-12 gap-6 items-start">
+              <div className="lg:col-span-8">
+                <TransitViewer transit={t} fluxWm2={sky.sun.fluxWm2} siteName={site.name} />
+              </div>
+              <div className="lg:col-span-4 space-y-3 text-sm text-zinc-300 leading-relaxed">
+                <p className={`rounded-xl border p-3 ${t?.happens ? 'border-amber-400/40 bg-amber-500/10 text-amber-50' : 'border-white/10 bg-white/[0.03]'}`}>
+                  {t?.happens
+                    ? <>This sol, Phobos passes in front of the Sun at <strong className="text-white">{fmt(t.lst)}</strong> local time, for about <strong className="text-white">{Math.round(t.durationS)} s</strong>, covering up to <strong className="text-white">{Math.round(t.maxCover * 100)}%</strong> of it.</>
+                    : <>No transit from here this sol{t ? `: Phobos's closest pass is ${t.sepDeg.toFixed(1)}° from the Sun at ${fmt(t.lst)}` : ''}. The viewer shows what one looks like at this site; press <em>Find the next transit</em> to jump to a real one.</>}
+                </p>
+                {search?.none && <p className="text-xs text-zinc-400">No transit from this site in the next 400 sols.</p>}
+                <p><strong className="text-white">How to use it:</strong> drag Phobos across the Sun, press play, or scrub the light curve. Turn on <em>Aim the path yourself</em> and drag up or down to see how a near miss or a central crossing changes the dip.</p>
+                <p><strong className="text-white">Why it matters:</strong> a transit dims sunlight for half a minute. Rovers use them to pin down Phobos's orbit; a crew running on solar power sees the same short dip on every panel.</p>
+                <p className="text-xs text-zinc-500">Perseverance filmed one on 2 April 2022 (sol 397). It lasted just over 40 seconds.</p>
+              </div>
+            </div>
+          )}
+        </Panel>
+
         {/* Survival-relevant cards */}
-        <div className="mt-6 grid lg:grid-cols-3 gap-6 items-start">
+        <div className="mt-6 grid lg:grid-cols-2 gap-6 items-start">
           <Panel title="Daylight for an EVA" icon={Sun}>
             {sunUp.rises.length && sunUp.sets.length ? (
               <>
@@ -437,25 +394,6 @@ export default function MartianSkyEphemeris() {
             <p className="mt-3 text-xs text-zinc-500">Direct radio to Earth needs Earth above the horizon (here: more than 10°); orbiters relay the rest of the time.</p>
           </Panel>
 
-          <Panel title="Phobos crosses the Sun" icon={Eclipse}>
-            {site.lat > 70 ? (
-              <p className="text-sm text-zinc-300">Phobos never rises above 70° latitude, so there are no transits here.</p>
-            ) : (
-              <>
-                <p className="text-sm text-zinc-300 mb-3">
-                  {t?.happens
-                    ? <>This sol Phobos passes in front of the Sun at <strong className="text-white">{fmt(t.lst)}</strong>, for about <strong className="text-white">{Math.round(t.durationS)} s</strong>, covering up to <strong className="text-white">{Math.round(t.maxCover * 100)}%</strong> of it.</>
-                    : <>No transit from here this sol{t ? `: the closest pass is ${t.sepDeg.toFixed(1)}° from the Sun at ${fmt(t.lst)}` : ''}. Below is what one looks like at this site.</>}
-                </p>
-                <TransitViewer transit={t} fluxWm2={sky.sun.fluxWm2} />
-                <button onClick={findTransit} disabled={search === 'busy'} className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 text-amber-100 py-2.5 text-sm font-medium hover:bg-amber-500/20 transition disabled:opacity-60 cursor-pointer">
-                  {search === 'busy' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                  {search === 'busy' ? 'Searching the coming sols…' : 'Find the next transit from here'}
-                </button>
-                {search?.none && <p className="mt-2 text-xs text-zinc-400">No transit from this site in the next 400 sols.</p>}
-              </>
-            )}
-          </Panel>
         </div>
 
         {/* Facts */}
