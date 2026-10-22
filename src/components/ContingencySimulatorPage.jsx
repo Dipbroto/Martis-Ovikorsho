@@ -24,10 +24,10 @@ import { playUiClick } from '../utils/audioSynthesizer';
 const NOUN = { o2_leak: 'oxygen fault', dust_storm: 'dust storm', spe: 'radiation storm', rockfall: 'rockfall' };
 const ICONS = { o2_leak: ShieldAlert, dust_storm: Wind, spe: Radiation, rockfall: Mountain };
 const TONES = {
-  rose: { ring: 'border-rose-400/60 bg-rose-500/10', icon: 'bg-rose-500 text-white', text: 'text-rose-300' },
-  amber: { ring: 'border-amber-400/60 bg-amber-500/10', icon: 'bg-amber-500 text-black', text: 'text-amber-300' },
-  violet: { ring: 'border-violet-400/60 bg-violet-500/10', icon: 'bg-violet-500 text-white', text: 'text-violet-300' },
-  orange: { ring: 'border-orange-400/60 bg-orange-500/10', icon: 'bg-orange-500 text-white', text: 'text-orange-300' },
+  rose: { ring: 'border-rose-400/60 bg-rose-500/10', icon: 'bg-rose-500 text-white', text: 'text-rose-300', dot: 'bg-rose-400' },
+  amber: { ring: 'border-amber-400/60 bg-amber-500/10', icon: 'bg-amber-500 text-black', text: 'text-amber-300', dot: 'bg-amber-400' },
+  violet: { ring: 'border-violet-400/60 bg-violet-500/10', icon: 'bg-violet-500 text-white', text: 'text-violet-300', dot: 'bg-violet-400' },
+  orange: { ring: 'border-orange-400/60 bg-orange-500/10', icon: 'bg-orange-500 text-white', text: 'text-orange-300', dot: 'bg-orange-400' },
 };
 const LEVEL = {
   ok: { box: 'border-emerald-400/50 bg-emerald-500/10', text: 'text-emerald-300', Icon: CheckCircle2 },
@@ -42,7 +42,7 @@ const hm = (h) => {
 
 function Panel({ title, icon: Icon, right, children, className = '' }) {
   return (
-    <section className={`rounded-2xl border border-white/10 bg-[#07090f]/75 backdrop-blur-xl p-5 sm:p-6 ${className}`}>
+    <section className={`rounded-2xl border border-white/[0.12] bg-[#07090f]/45 backdrop-blur-[6px] shadow-[0_8px_40px_rgba(0,0,0,0.35)] p-5 sm:p-6 ${className}`}>
       {(title || right) && (
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <h3 className="flex items-center gap-2 text-base font-semibold text-white">{Icon && <Icon className="w-4 h-4 text-[#ffa07f]" />}{title}</h3>
@@ -243,10 +243,10 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
   const S = SCENARIOS[scenarioId];
 
   return (
-    <div className="grid lg:grid-cols-12 gap-6 items-start">
+    <div className="grid lg:grid-cols-12 gap-6">
       {/* Status */}
       <div className="lg:col-span-4 flex flex-col gap-3">
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+        <div className="h-full flex flex-col rounded-2xl border border-white/10 bg-black/30 backdrop-blur-sm p-4">
           <div className="text-[11px] uppercase tracking-wider text-zinc-400">Mission clock since the alarm</div>
           <div className="mt-0.5 text-4xl font-mono font-semibold tabular-nums"><Rolling value={state.clockS} format={clock} /></div>
           <div className="mt-4 flex items-baseline justify-between text-xs text-zinc-400"><span>Life support left</span><span className="tabular-nums text-white text-sm font-semibold"><Rolling value={energyToHours(Math.max(0, state.remainingJ))} format={(h) => hm(h)} /></span></div>
@@ -266,27 +266,45 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
             <div className="rounded-lg bg-white/[0.04] p-2"><div className="text-zinc-400">From base</div><div className="font-semibold tabular-nums text-sm">{marsDistance(start.lat, start.lon, ctx.base.lat, ctx.base.lon).toFixed(1)} km</div></div>
             <div className="rounded-lg bg-white/[0.04] p-2"><div className="text-zinc-400">Sample</div><div className={`font-semibold text-sm ${state.sample ? 'text-emerald-300' : 'text-zinc-300'}`}>{state.sample ? 'Collected' : 'Not yet'}</div></div>
           </div>
+
+          {/* Timeline of the calls made so far */}
+          <div className="mt-5 pt-4 border-t border-white/10 flex-1 min-h-[7rem]">
+            <div className="text-[11px] uppercase tracking-wider text-zinc-400">Timeline</div>
+            <ol className="mt-3 relative space-y-3 before:absolute before:left-[5px] before:top-1.5 before:bottom-1.5 before:w-px before:bg-white/10">
+              <li className="relative pl-6 text-xs">
+                <span className={`absolute left-0 top-1 w-[11px] h-[11px] rounded-full ring-2 ring-[#07090f] ${TONES[S.tone].dot}`} />
+                <span className="font-mono text-zinc-500 mr-2">T+0:00</span><span className="text-zinc-200">{S.title}</span>
+              </li>
+              {log.map((step, i) => {
+                const at = log.slice(0, i).reduce((t, x) => t + x.durationS, 0);
+                const C = CHOICES[step.choice];
+                return (
+                  <motion.li key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} className="relative pl-6 text-xs">
+                    <span className="absolute left-0 top-1 w-[11px] h-[11px] rounded-full ring-2 ring-[#07090f] bg-[#ff7b4d]" />
+                    <span className="font-mono text-zinc-500 mr-2">{clock(at)}</span><span className="text-zinc-200">{C.label}</span>
+                    <span className="text-zinc-500"> · {hm(step.durationS / 3600)}</span>
+                  </motion.li>
+                );
+              })}
+              {ending ? (
+                <motion.li initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="relative pl-6 text-xs">
+                  <span className={`absolute left-0 top-1 w-[11px] h-[11px] rounded-full ring-2 ring-[#07090f] ${ending.survived ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+                  <span className="font-mono text-zinc-500 mr-2">{clock(ending.clockS)}</span>
+                  <span className={ending.survived ? 'text-emerald-300 font-semibold' : 'text-rose-300 font-semibold'}>{ending.survived ? 'Crew safe' : 'Life support ran out'}</span>
+                </motion.li>
+              ) : (
+                <li className="relative pl-6 text-xs text-zinc-500">
+                  <span className="absolute left-0 top-1 w-[11px] h-[11px] rounded-full border border-dashed border-zinc-500 bg-[#07090f]" />
+                  {log.length ? 'Your next call…' : 'Your first call…'}
+                </li>
+              )}
+            </ol>
+          </div>
         </div>
       </div>
 
-      {/* Map and assumptions (second row on desktop, after the choices on phones) */}
-      <div className="lg:col-span-4 lg:col-start-1 flex flex-col gap-3 order-3 lg:order-none">
-        <DrillMap
-          points={points}
-          result={result}
-          backPath={mapPath}
-          level={ending ? (ending.survived ? 'ok' : 'bad') : 'ok'}
-          cave={last?.cave ? { lat: last.cave.c.lat, lon: last.cave.c.lon } : caveNear && caveNear.km < 15 ? { lat: caveNear.c.lat, lon: caveNear.c.lon } : null}
-          aspect="aspect-[4/3]"
-          compact
-        />
-        <p className="text-[11px] text-zinc-500 leading-relaxed">
-          Walking uses the planner’s energy model; waiting uses the suit’s resting load ({EVA_ASSUMPTIONS.restingPowerW} W). Rover: {DECISION_ASSUMPTIONS.roverKmh} km/h (NASA’s pressurised rover concept) plus {DECISION_ASSUMPTIONS.roverPrepMin} min to set off. Caves block an assumed {Math.round(DECISION_ASSUMPTIONS.caveShielding * 100)}% of storm dose.
-        </p>
-      </div>
-
       {/* Decisions and outcome */}
-      <div className="lg:col-span-8 lg:col-start-5 lg:row-start-1 lg:row-span-2 flex flex-col gap-4 order-2 lg:order-none">
+      <div className="lg:col-span-8 flex flex-col gap-4">
         {!ending ? (
           <>
             <div className={`rounded-2xl border p-4 ${TONES[S.tone].ring}`}>
@@ -353,17 +371,17 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
               <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
                 <div className="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Every option from the moment of the alarm</div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-xs sm:text-sm">
                     <thead><tr className="text-left text-xs text-zinc-500"><th className="font-normal py-1.5">Choice</th><th className="font-normal">Takes</th><th className="font-normal">Spare</th>{scenarioId === 'spe' && <th className="font-normal">Dose</th>}<th className="font-normal text-right">Score</th></tr></thead>
                     <tbody>
                       {options.map((o, i) => {
                         const Icon = CHOICES[o.c].icon;
                         return (
                           <tr key={o.c} className="border-t border-white/[0.06]">
-                            <td className="py-2 pr-3"><span className="flex items-center gap-2"><Icon className="w-4 h-4 text-zinc-400" />{CHOICES[o.c].label}{i === 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">best</span>}</span></td>
-                            <td className="tabular-nums pr-3">{o.durationS ? hm(o.durationS / 3600) : '—'}</td>
-                            <td className={`tabular-nums pr-3 ${o.survived ? 'text-emerald-300' : 'text-rose-300'}`}>{o.survived ? hm(energyToHours(o.endRemainingJ)) : o.durationS ? 'runs out' : 'out of reach'}</td>
-                            {scenarioId === 'spe' && <td className="tabular-nums pr-3">{o.durationS ? `${Math.round(o.doseMSv)} mSv` : '—'}</td>}
+                            <td className="py-2 pr-3"><span className="flex items-center gap-2"><Icon className="w-4 h-4 shrink-0 text-zinc-400" /><span>{CHOICES[o.c].label}{i === 0 && <span className="ml-1.5 inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 align-middle">best</span>}</span></span></td>
+                            <td className="tabular-nums whitespace-nowrap pr-3">{o.durationS ? hm(o.durationS / 3600) : '—'}</td>
+                            <td className={`tabular-nums whitespace-nowrap pr-3 ${o.survived ? 'text-emerald-300' : 'text-rose-300'}`}>{o.survived ? hm(energyToHours(o.endRemainingJ)) : o.durationS ? 'runs out' : 'out of reach'}</td>
+                            {scenarioId === 'spe' && <td className="tabular-nums whitespace-nowrap pr-3">{o.durationS ? `${Math.round(o.doseMSv)} mSv` : '—'}</td>}
                             <td className="tabular-nums text-right font-semibold">{o.score}</td>
                           </tr>
                         );
@@ -380,6 +398,20 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
         )}
 
 
+      </div>
+      {/* Map of the chosen path and the assumptions, full width under the drill */}
+      <div className="lg:col-span-12 flex flex-col gap-3">
+        <DrillMap
+          points={points}
+          result={result}
+          backPath={mapPath}
+          level={ending ? (ending.survived ? 'ok' : 'bad') : 'ok'}
+          cave={last?.cave ? { lat: last.cave.c.lat, lon: last.cave.c.lon } : caveNear && caveNear.km < 15 ? { lat: caveNear.c.lat, lon: caveNear.c.lon } : null}
+          aspect="aspect-[4/3] sm:aspect-[21/9]"
+        />
+        <p className="text-[11px] text-zinc-500 leading-relaxed">
+          Walking uses the planner’s energy model; waiting uses the suit’s resting load ({EVA_ASSUMPTIONS.restingPowerW} W). Rover: {DECISION_ASSUMPTIONS.roverKmh} km/h (NASA’s pressurised rover concept) plus {DECISION_ASSUMPTIONS.roverPrepMin} min to set off. Caves block an assumed {Math.round(DECISION_ASSUMPTIONS.caveShielding * 100)}% of storm dose.
+        </p>
       </div>
     </div>
   );
@@ -550,9 +582,15 @@ export default function ContingencySimulatorPage() {
   return (
     <div className="relative min-h-screen text-white font-sans -mt-24 -mx-6 sm:-mx-10 lg:-mx-14">
       <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/textures/drills-storm-base.jpg')" }} />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-[#05060a]/70 to-[#05060a]" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#05060a]/85 via-[#05060a]/30 to-transparent" />
+        <div className="absolute inset-0 bg-cover bg-center drills-bg-drift" style={{ backgroundImage: "url('/textures/drills-storm-base.jpg')" }} />
+        {/* Drifting dust fog: soft noise layers sliding at different speeds, plus slow-breathing banks */}
+        <div className="drills-fog drills-fog-a" />
+        <div className="drills-fog drills-fog-b" />
+        <div className="drills-fog-bank drills-fog-bank-1" />
+        <div className="drills-fog-bank drills-fog-bank-2" />
+        <div className="drills-fog-bank drills-fog-bank-3" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-[#05060a]/45 to-[#05060a]/90" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#05060a]/70 via-[#05060a]/15 to-transparent" />
       </div>
 
       <div className="relative z-10 max-w-[1500px] mx-auto px-5 sm:px-10 lg:px-14 pt-28 pb-24">
@@ -566,7 +604,7 @@ export default function ContingencySimulatorPage() {
           </div>
           {/* Live status of the current drill */}
           {v && (
-            <div className={`rounded-2xl border px-4 py-3 backdrop-blur-xl ${lv.box}`}>
+            <div className={`rounded-2xl border px-4 py-3 backdrop-blur-[6px] ${lv.box}`}>
               <div className="text-[11px] uppercase tracking-wider text-zinc-400">Current drill</div>
               <div className={`flex items-center gap-2 font-semibold ${lv.text}`}><lv.Icon className="w-4 h-4" />{v.text}</div>
               <div className="text-xs text-zinc-400">{scenario.short} · {result.here.km.toFixed(1)} km out · {routeName}</div>
@@ -575,7 +613,7 @@ export default function ContingencySimulatorPage() {
         </header>
 
         {/* Setup */}
-        <section className="mt-8 rounded-2xl border border-white/10 bg-[#07090f]/80 backdrop-blur-xl p-5 sm:p-6 grid lg:grid-cols-12 gap-6">
+        <section className="mt-8 rounded-2xl border border-white/[0.12] bg-[#07090f]/45 backdrop-blur-[6px] shadow-[0_8px_40px_rgba(0,0,0,0.35)] p-5 sm:p-6 grid lg:grid-cols-12 gap-6">
           <Step n={1} title="Choose the walk" className="lg:col-span-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5 max-h-[300px] overflow-y-auto custom-scrollbar-y pr-1">
               {myRoute && (
@@ -656,9 +694,9 @@ export default function ContingencySimulatorPage() {
             </Panel>
           </div>
 
-          <div className="lg:col-span-5 flex flex-col gap-4 lg:sticky lg:top-24">
+          <div className="lg:col-span-5 flex flex-col gap-4">
             {v && (
-              <motion.div key={v.text + v.level} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border p-5 backdrop-blur-xl ${lv.box}`}>
+              <motion.div key={v.text + v.level} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border p-5 backdrop-blur-[6px] ${lv.box}`}>
                 <div className="flex items-center gap-2 text-xs text-zinc-400"><SIcon className="w-3.5 h-3.5" />{scenario.title} · {result.here.km.toFixed(1)} km out</div>
                 <div className={`mt-1 flex items-center gap-2 text-2xl font-bold ${lv.text}`}><lv.Icon className="w-7 h-7" />{v.text}</div>
                 <p className="mt-1 text-sm text-zinc-200">{v.sub}</p>
