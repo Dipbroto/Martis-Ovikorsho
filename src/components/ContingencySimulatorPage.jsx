@@ -20,6 +20,7 @@ import { EVA_ASSUMPTIONS } from '../terrain/evaModel';
 import { marsDistance } from '../utils/marsUtils';
 import { energyToHours, lifeSupportBudgetJ } from '../terrain/evaModel';
 import { playUiClick } from '../utils/audioSynthesizer';
+import FogLayer from './FogLayer';
 
 const NOUN = { o2_leak: 'oxygen fault', dust_storm: 'dust storm', spe: 'radiation storm', rockfall: 'rockfall' };
 const ICONS = { o2_leak: ShieldAlert, dust_storm: Wind, spe: Radiation, rockfall: Mountain };
@@ -569,14 +570,10 @@ export default function ContingencySimulatorPage() {
     <div className="relative min-h-screen text-white font-sans -mt-24 -mx-6 sm:-mx-10 lg:-mx-14">
       <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true">
         <div className="absolute inset-0 bg-cover bg-center drills-bg-drift" style={{ backgroundImage: "url('/textures/drills-storm-base.jpg')" }} />
-        {/* Drifting dust fog: soft noise layers sliding at different speeds, plus slow-breathing banks */}
-        <div className="drills-fog drills-fog-a" />
-        <div className="drills-fog drills-fog-b" />
-        <div className="drills-fog-bank drills-fog-bank-1" />
-        <div className="drills-fog-bank drills-fog-bank-2" />
-        <div className="drills-fog-bank drills-fog-bank-3" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-[#05060a]/45 to-[#05060a]/90" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#05060a]/70 via-[#05060a]/15 to-transparent" />
+        {/* Dust fog that billows and drifts like smoke */}
+        <FogLayer />
       </div>
 
       <div className="relative z-10 max-w-[1500px] mx-auto px-5 sm:px-10 lg:px-14 pt-28 pb-24">
