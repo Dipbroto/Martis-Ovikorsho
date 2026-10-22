@@ -73,23 +73,23 @@ function FitTo({ bounds }) {
 }
 
 /** The route on real NASA imagery: outbound walk, where the emergency hits, and the way home. */
-function DrillMap({ points, result, backPath, level: levelOverride, cave, aspect = 'aspect-[4/3]', compact = false }) {
+function DrillMap({ points, result }) {
   const out = useMemo(() => points.map(([la, lo]) => [la, lo]), [points]);
-  const back = useMemo(() => backPath || result?.back?.path?.map((p) => [p.lat, p.lon]) || [], [result, backPath]);
+  const back = useMemo(() => result?.back?.path?.map((p) => [p.lat, p.lon]) || [], [result]);
   // Fit the camera to the route only (not every re-plan), so the view stays put while you drag sliders
   const bounds = useMemo(() => {
     let s = 90, n = -90, w = 180, e = -180;
-    for (const [la, lo] of cave ? [...out, [cave.lat, cave.lon]] : out) { s = Math.min(s, la); n = Math.max(n, la); w = Math.min(w, lo); e = Math.max(e, lo); }
+    for (const [la, lo] of out) { s = Math.min(s, la); n = Math.max(n, la); w = Math.min(w, lo); e = Math.max(e, lo); }
     return [[s, w], [n, e]];
-  }, [out, cave]);
+  }, [out]);
   const idx = result?.here?.index ?? out.length - 1;
   const here = result?.here ? [result.here.lat, result.here.lon] : null;
-  const level = levelOverride || (result ? verdict(result).level : 'ok');
+  const level = result ? verdict(result).level : 'ok';
   const homeColor = level === 'bad' ? '#fb7185' : level === 'warn' ? '#fbbf24' : '#34d399';
   const marsR = (m) => m * (L.CRS.Earth.R / 3389500); // Leaflet circles use Earth's radius
 
   return (
-    <div className={`relative rounded-xl overflow-hidden border border-white/10 bg-black ${aspect}`}>
+    <div className="relative rounded-xl overflow-hidden border border-white/10 bg-black aspect-[4/3]">
       <MapContainer
         crs={L.CRS.EPSG4326}
         center={out[0]}
@@ -132,20 +132,15 @@ function DrillMap({ points, result, backPath, level: levelOverride, cave, aspect
             </CircleMarker>
           </>
         )}
-        {cave && (
-          <CircleMarker center={[cave.lat, cave.lon]} radius={7} pathOptions={{ color: '#fff', weight: 2, fillColor: '#fbbf24', fillOpacity: 1 }}>
-            <Tooltip permanent direction="top" offset={[0, -8]} className="route-end-label">Cave</Tooltip>
-          </CircleMarker>
-        )}
         <ZoomControl position="topright" />
       </MapContainer>
-      <div className={`pointer-events-none absolute left-2 bottom-2 z-[500] ${compact ? 'hidden' : 'hidden sm:flex'} flex-wrap gap-x-3 gap-y-1 rounded-lg bg-black/70 px-2.5 py-1.5 text-[11px] text-zinc-200`}>
+      <div className="pointer-events-none absolute left-2 bottom-2 z-[500] hidden sm:flex flex-wrap gap-x-3 gap-y-1 rounded-lg bg-black/70 px-2.5 py-1.5 text-[11px] text-zinc-200">
         <span className="flex items-center gap-1.5"><i className="w-3 h-0.5 bg-[#F26A3D]" />Planned walk</span>
         <span className="flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-rose-400" />Emergency</span>
         <span className="flex items-center gap-1.5"><i className="w-3 h-0.5" style={{ background: homeColor }} />Way home</span>
         <span className="flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-emerald-400" />Base</span>
       </div>
-      <span className={`pointer-events-none absolute right-2 bottom-2 z-[500] ${compact ? 'hidden' : 'hidden sm:block'} rounded-md bg-black/60 px-2 py-0.5 text-[10px] text-zinc-400`}>NASA THEMIS · CTX · Viking</span>
+      <span className="pointer-events-none absolute right-2 bottom-2 z-[500] hidden sm:block rounded-md bg-black/60 px-2 py-0.5 text-[10px] text-zinc-400">NASA THEMIS · CTX · Viking</span>
     </div>
   );
 }
@@ -239,7 +234,6 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
   const lifeShare = Math.max(0, state.remainingJ / total);
   const last = log[log.length - 1];
   const caveNear = scenarioId === 'spe' || scenarioId === 'dust_storm' ? nearestCave(start, caves) : null;
-  const mapPath = last?.path || null;
   const S = SCENARIOS[scenarioId];
 
   return (
@@ -399,16 +393,8 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
 
 
       </div>
-      {/* Map of the chosen path and the assumptions, full width under the drill */}
-      <div className="lg:col-span-12 flex flex-col gap-3">
-        <DrillMap
-          points={points}
-          result={result}
-          backPath={mapPath}
-          level={ending ? (ending.survived ? 'ok' : 'bad') : 'ok'}
-          cave={last?.cave ? { lat: last.cave.c.lat, lon: last.cave.c.lon } : caveNear && caveNear.km < 15 ? { lat: caveNear.c.lat, lon: caveNear.c.lon } : null}
-          aspect="aspect-[4/3] sm:aspect-[21/9]"
-        />
+      {/* Assumptions behind every choice */}
+      <div className="lg:col-span-12">
         <p className="text-[11px] text-zinc-500 leading-relaxed">
           Walking uses the planner’s energy model; waiting uses the suit’s resting load ({EVA_ASSUMPTIONS.restingPowerW} W). Rover: {DECISION_ASSUMPTIONS.roverKmh} km/h (NASA’s pressurised rover concept) plus {DECISION_ASSUMPTIONS.roverPrepMin} min to set off. Caves block an assumed {Math.round(DECISION_ASSUMPTIONS.caveShielding * 100)}% of storm dose.
         </p>
