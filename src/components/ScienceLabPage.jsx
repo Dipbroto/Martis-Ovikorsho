@@ -31,12 +31,12 @@ const solRange = (c) => {
   return a === b ? `sol ${a}` : `sols ${a}–${b}`;
 };
 
-/** A round rover photo that is never cropped: the whole circle fits its frame. */
+/** The rover close-up as a normal rounded photo. The lens is a circle on black, so it is zoomed to fill the frame. */
 function RockPhoto({ campaign, className = '' }) {
   const src = imageUrl(campaign.images?.rmi);
   return (
-    <span className={`relative block shrink-0 overflow-hidden rounded-full bg-[#120b08] border border-white/15 ${className}`}>
-      {src ? <img src={src} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-contain" /> : <span className="absolute inset-0 flex items-center justify-center text-zinc-600"><FlaskConical className="w-1/3 h-1/3" /></span>}
+    <span className={`relative block shrink-0 overflow-hidden rounded-2xl bg-[#120b08] border border-white/15 ${className}`}>
+      {src ? <img src={src} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scale(1.32)' }} /> : <span className="absolute inset-0 flex items-center justify-center text-zinc-600"><FlaskConical className="w-1/3 h-1/3" /></span>}
     </span>
   );
 }
@@ -67,8 +67,8 @@ export default function ScienceLabPage() {
       {/* Background: the rover-at-sunset scene from the map, fading into the page */}
       <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/background.webp')" }} />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-[#05070b]/80 to-[#05070b]" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#05070b]/90 via-[#05070b]/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-[#05070b]/35 to-[#05070b]/75" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#05070b]/60 via-[#05070b]/15 to-transparent" />
       </div>
 
       <div className="relative z-10 max-w-[1500px] mx-auto px-5 sm:px-10 lg:px-14 pt-28 pb-24">
@@ -98,7 +98,7 @@ export default function ScienceLabPage() {
                 role="tab"
                 aria-selected={on}
                 onClick={() => { playUiClick?.(); setActiveInstrument(id); }}
-                className={`group relative overflow-hidden text-left rounded-2xl border p-4 transition-all cursor-pointer backdrop-blur-xl ${on ? 'border-[#ff7b4d]/60 bg-[#0a0c12]/85 shadow-[0_10px_40px_-15px_rgba(242,106,61,0.6)]' : 'border-white/10 bg-[#0a0c12]/60 hover:border-white/25'}`}
+                className={`group relative overflow-hidden text-left rounded-2xl border p-4 transition-all cursor-pointer backdrop-blur-xl ${on ? 'border-[#ff7b4d]/60 bg-[#0a0c12]/55 shadow-[0_10px_40px_-15px_rgba(242,106,61,0.6)]' : 'border-white/10 bg-[#0a0c12]/30 hover:border-white/25'}`}
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${tone} to-transparent ${on ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 transition-opacity`} />
                 <div className="relative flex items-center gap-3">
@@ -119,7 +119,7 @@ export default function ScienceLabPage() {
             <button onClick={retry} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white text-black font-semibold px-4 py-2 text-sm hover:bg-zinc-200 cursor-pointer"><RotateCcw className="w-4 h-4" />Try again</button>
           </div>
         ) : isLoadingTargets || !target ? (
-          <div className="mt-8 rounded-2xl border border-white/10 bg-black/50 min-h-[360px] flex flex-col items-center justify-center text-zinc-400">
+          <div className="mt-8 rounded-2xl border border-white/10 bg-black/30 backdrop-blur-md min-h-[360px] flex flex-col items-center justify-center text-zinc-400">
             <Loader2 className="w-7 h-7 animate-spin text-[#ffa07f] mb-3" />Loading rocks…
           </div>
         ) : (
@@ -127,7 +127,7 @@ export default function ScienceLabPage() {
             {/* Rocks */}
             <aside className="lg:col-span-4 lg:sticky lg:top-24">
               <Panel title="Rocks" icon={MapPin} right={<span className="text-xs text-zinc-500">{campaigns.length} studied</span>}>
-                <div className="space-y-2.5 max-h-none lg:max-h-[calc(100vh-220px)] overflow-y-auto custom-scrollbar-y pr-1 -mr-1">
+                <div className="space-y-2.5 max-h-none lg:max-h-[calc(100vh-220px)] overflow-y-auto overscroll-contain custom-scrollbar-y pr-1 -mr-1">
                   {campaigns.map((c) => {
                     const on = target.id === c.id;
                     return (
@@ -152,7 +152,7 @@ export default function ScienceLabPage() {
 
             <div className="lg:col-span-8 flex flex-col gap-6 min-w-0">
               {/* Selected rock */}
-              <section className="rounded-2xl border border-white/10 overflow-hidden bg-[#0a0c12]/80 backdrop-blur-xl">
+              <section className="rounded-2xl border border-white/10 overflow-hidden bg-[#0a0c12]/40 backdrop-blur-md">
                 <div className="p-5 sm:p-6 grid sm:grid-cols-[auto_1fr] gap-5 sm:gap-6">
                   <div className="mx-auto sm:mx-0">
                     <RockPhoto campaign={target} className="w-44 h-44 sm:w-52 sm:h-52" />
@@ -235,7 +235,7 @@ export default function ScienceLabPage() {
               </section>
 
               {isLoadingData && !data && (
-                <div className="rounded-2xl border border-white/10 bg-black/50 min-h-[260px] flex flex-col items-center justify-center text-zinc-400">
+                <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-md min-h-[260px] flex flex-col items-center justify-center text-zinc-400">
                   <Loader2 className="w-7 h-7 animate-spin text-[#ffa07f] mb-3" />Loading measurements for {target.name}…
                 </div>
               )}
@@ -268,7 +268,7 @@ export default function ScienceLabPage() {
                         <span key={i} title={safeSamples[i]?.name || `Empty tube ${i + 1}`} className={`h-9 rounded-full border ${i < tubesUsed ? 'bg-gradient-to-b from-[#ffb08f] to-[#c2410c] border-[#ffb08f]/60' : 'bg-white/[0.04] border-white/10'}`} />
                       ))}
                     </div>
-                    <div className="mt-4 space-y-2 max-h-64 overflow-y-auto custom-scrollbar-y pr-1">
+                    <div className="mt-4 space-y-2 max-h-64 overflow-y-auto overscroll-contain custom-scrollbar-y pr-1">
                       {safeSamples.length === 0 ? (
                         <p className="text-sm text-zinc-500">No samples sealed yet.</p>
                       ) : safeSamples.slice().reverse().map((s, idx) => (
