@@ -29,6 +29,9 @@ export default function useScienceLab() {
   const [pointIdx, setPointIdx] = useState(0);
   const [shot, setShot] = useState(null); // null = average of shots 6-30, otherwise the single shot number 1-30
   const [isFiringLaser, setIsFiringLaser] = useState(false);
+  const [laserPos, setLaserPos] = useState({ x: 50, y: 50 });
+  const [beamActive, setBeamActive] = useState(false);
+  const [pits, setPits] = useState([]);
   const [highlightedPeak, setHighlightedPeak] = useState(null);
   const [oxide, setOxide] = useState('SiO2');
   const [pixlPick, setPixlPick] = useState(null);
@@ -76,7 +79,7 @@ export default function useScienceLab() {
     stopFiring();
     setData(null);
     setIsLoadingData(true);
-    setPointIdx(0); setShot(null); setHighlightedPeak(null); setPixlPick(null); setSherlocSpot(null); setAiReport(null);
+    setPointIdx(0); setShot(null); setPits([]); setBeamActive(false); setHighlightedPeak(null); setPixlPick(null); setSherlocSpot(null); setAiReport(null);
     loadCampaign(target).then((d) => {
       if (cancelled) return;
       setData(d);
@@ -103,14 +106,14 @@ export default function useScienceLab() {
 
   const selectPoint = (i) => { stopFiring(); setPointIdx(i); setShot(null); };
 
-  // Fire the laser: step through the 30 real laser shots of the first point, one per pulse
-  const fireLaser = () => {
+  // Step through the 30 real laser shots of the first point, one per pulse
+  const stepShots = () => {
     const pt = data?.libs?.points?.[0];
-    if (!pt?.shots || isFiringLaser) return;
+    if (!pt?.shots) return;
     const total = pt.shots.length;
+    stopFiring();
     setPointIdx(0);
     setIsFiringLaser(true);
-    playLaserZap?.();
     let k = 0;
     setShot(1);
     timer.current = setInterval(() => {
@@ -118,6 +121,30 @@ export default function useScienceLab() {
       if (k >= total) { stopFiring(); setShot(total); return; }
       setShot(k + 1);
     }, SHOT_MS);
+  };
+
+  const fireLaser = () => {
+    if (isFiringLaser || beamActive) return;
+    playLaserZap?.();
+    stepShots();
+  };
+
+  // Click on the rock photo to aim and fire. NASA's public files do not give where each laser point sat on the
+  // photo, so the aim only places the animation: each click plays the next real measured point of this rock.
+  const fireAt = (x, y) => {
+    const points = data?.libs?.points;
+    if (!points?.length || isFiringLaser || beamActive) return;
+    const next = pits.length % points.length;
+    setLaserPos({ x, y });
+    setBeamActive(true);
+    setPits((prev) => [...prev.slice(-4), { id: Date.now(), x, y, point: next }]);
+    playLaserZap?.();
+    stopFiring();
+    setTimeout(() => {
+      setBeamActive(false);
+      if (next === 0) stepShots();
+      else { setPointIdx(next); setShot(null); }
+    }, 500);
   };
   const showAverage = () => { stopFiring(); setShot(null); };
   const pickShot = (n) => { stopFiring(); setPointIdx(0); setShot(n); };
@@ -189,7 +216,7 @@ export default function useScienceLab() {
   return {
     campaigns, target, data, analysis, isLoadingTargets, isLoadingData, loadError, retry, selectTarget,
     activeInstrument, setActiveInstrument,
-    pointIdx, selectPoint, shot, isFiringLaser, fireLaser, showAverage, pickShot, highlightedPeak, setHighlightedPeak,
+    pointIdx, selectPoint, shot, isFiringLaser, fireLaser, fireAt, laserPos, beamActive, pits, setPits, showAverage, pickShot, highlightedPeak, setHighlightedPeak,
     oxide, setOxide, pixlPick, setPixlPick, sherlocMetric, setSherlocMetric, sherlocSpot, setSherlocSpot,
     isAiAnalyzing, aiReport, setAiReport, runAiAnalysis,
     cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample,

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Activity, Target, Zap, Info, Loader2 } from 'lucide-react';
+import { Activity, Target, Zap, Info, Loader2, Trash2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { playUiHover } from '../../utils/audioSynthesizer';
 import { libsElements, imageUrl, ELEMENT_COLORS } from '../../data/scienceLab';
 import { coverageGaps, elementMarkers, runningMean, segmentsFromGaps, splitSegments, topMarkers } from '../../utils/libsSpectrum';
@@ -10,7 +11,7 @@ const DUST_SHOTS = 5;
 
 export default function LibsPanel({ target, data, lab }) {
   const { libs } = data;
-  const { pointIdx, selectPoint, shot, isFiringLaser, fireLaser, showAverage, pickShot, highlightedPeak, setHighlightedPeak } = lab;
+  const { pointIdx, selectPoint, shot, isFiringLaser, fireLaser, fireAt, laserPos, beamActive, pits, setPits, showAverage, pickShot, highlightedPeak, setHighlightedPeak } = lab;
   const point = libs.points[pointIdx] || libs.points[0];
   const first = libs.points[0];
   const hasShots = !!first.shots;
@@ -42,15 +43,45 @@ export default function LibsPanel({ target, data, lab }) {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
       <Panel title="The laser target" icon={Target} className="xl:col-span-2" right={<span className="text-xs text-zinc-500">sol {libs.sol}</span>}>
-        <div className="relative aspect-square w-full rounded-xl overflow-hidden border border-white/15 bg-black">
+        <div
+          className="relative aspect-square w-full rounded-xl overflow-hidden border border-white/15 bg-black cursor-crosshair"
+          role="button" tabIndex={0} aria-label="Click the rock to aim and fire the laser"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            fireAt(Math.max(5, Math.min(95, ((e.clientX - r.left) / r.width) * 100)), Math.max(5, Math.min(95, ((e.clientY - r.top) / r.height) * 100)));
+          }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fireAt(50, 50); } }}
+        >
           {rmi ? (
-            <img src={imageUrl(rmi)} alt={`SuperCam close-up of ${target.name} on sol ${rmi.sol}`} className="absolute inset-0 w-full h-full object-contain" draggable={false} />
+            <img src={imageUrl(rmi)} alt={`SuperCam close-up of ${target.name} on sol ${rmi.sol}`} className="absolute inset-0 w-full h-full object-contain select-none" draggable={false} />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-sm text-zinc-500">No close-up photo for this sol</div>
           )}
-          <span className="absolute bottom-2 left-2 text-[11px] px-2 py-0.5 rounded-md bg-black/70 text-zinc-200">SuperCam camera, sol {rmi?.sol ?? libs.sol}</span>
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/10" />
+            <div className="absolute top-1/2 left-0 right-0 h-px bg-white/10" />
+          </div>
+          <AnimatePresence>
+            {beamActive && (
+              <motion.div initial={{ opacity: 0, scale: 0.2 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 2 }} transition={{ duration: 0.3 }}
+                className="absolute w-16 h-16 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
+                style={{ left: `${laserPos.x}%`, top: `${laserPos.y}%`, background: 'radial-gradient(circle, #fff 0%, #fde68a 20%, rgba(249,115,22,0.7) 45%, transparent 70%)' }} />
+            )}
+          </AnimatePresence>
+          {pits.map((pit, i) => (
+            <span key={pit.id} className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ left: `${pit.x}%`, top: `${pit.y}%` }} title={`Point ${libs.points[pit.point]?.n}`}>
+              <span className={`block w-3 h-3 rounded-full border-2 ${i === pits.length - 1 ? 'border-[#ffb08f] bg-black/70' : 'border-white/60 bg-black/50'}`} />
+            </span>
+          ))}
+          <span className="absolute w-8 h-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white pointer-events-none transition-all duration-150" style={{ left: `${laserPos.x}%`, top: `${laserPos.y}%` }}>
+            <span className="absolute inset-[11px] rounded-full bg-white" />
+          </span>
+          <span className="absolute bottom-2 left-2 text-[11px] px-2 py-0.5 rounded-md bg-black/70 text-zinc-200 pointer-events-none">Click the rock to fire · SuperCam camera, sol {rmi?.sol ?? libs.sol}</span>
         </div>
-        <p className="mt-2 text-[11px] text-zinc-500">A close-up of the rock the laser studied. The exact laser spots are too small to see at this scale.</p>
+        <div className="mt-2 flex items-start justify-between gap-3 text-[11px] text-zinc-500">
+          <span>Each click fires at that spot and shows the next real laser point measured on this rock. NASA’s public files do not say where each point sat on the photo, so the aim is for show; the spectrum is the real measurement.</span>
+          {pits.length > 0 && <button onClick={() => setPits([])} className="flex items-center gap-1 text-zinc-300 hover:text-white cursor-pointer shrink-0"><Trash2 className="w-3.5 h-3.5" />Clear</button>}
+        </div>
 
         <div className="mt-4">
           <p className="text-xs text-zinc-400 mb-1.5">Laser points on this rock ({libs.points.length} shown)</p>
