@@ -65,7 +65,7 @@ export default function ScienceLabPage() {
   return (
     <div className="relative min-h-screen text-white font-sans -mt-24 -mx-6 sm:-mx-10 lg:-mx-14">
       {/* Background: the rover-at-sunset scene from the map, fading into the page */}
-      <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true">
+      <div className="fixed inset-0 z-0 pointer-events-none transform-gpu" aria-hidden="true">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/background.webp')" }} />
         <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-[#05070b]/35 to-[#05070b]/75" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#05070b]/60 via-[#05070b]/15 to-transparent" />
@@ -98,7 +98,7 @@ export default function ScienceLabPage() {
                 role="tab"
                 aria-selected={on}
                 onClick={() => { playUiClick?.(); setActiveInstrument(id); }}
-                className={`group relative overflow-hidden text-left rounded-2xl border p-4 transition-all cursor-pointer backdrop-blur-xl ${on ? 'border-[#ff7b4d]/60 bg-[#0a0c12]/55 shadow-[0_10px_40px_-15px_rgba(242,106,61,0.6)]' : 'border-white/10 bg-[#0a0c12]/30 hover:border-white/25'}`}
+                className={`group relative overflow-hidden text-left rounded-2xl border p-4 transition-all cursor-pointer ${on ? 'border-[#ff7b4d]/60 bg-[#0a0c12]/70 shadow-[0_10px_40px_-15px_rgba(242,106,61,0.6)]' : 'border-white/10 bg-[#0a0c12]/45 hover:border-white/25'}`}
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${tone} to-transparent ${on ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 transition-opacity`} />
                 <div className="relative flex items-center gap-3">
@@ -119,15 +119,16 @@ export default function ScienceLabPage() {
             <button onClick={retry} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white text-black font-semibold px-4 py-2 text-sm hover:bg-zinc-200 cursor-pointer"><RotateCcw className="w-4 h-4" />Try again</button>
           </div>
         ) : isLoadingTargets || !target ? (
-          <div className="mt-8 rounded-2xl border border-white/10 bg-black/30 backdrop-blur-md min-h-[360px] flex flex-col items-center justify-center text-zinc-400">
+          <div className="mt-8 rounded-2xl border border-white/10 bg-black/40 min-h-[360px] flex flex-col items-center justify-center text-zinc-400">
             <Loader2 className="w-7 h-7 animate-spin text-[#ffa07f] mb-3" />Loading rocks…
           </div>
         ) : (
           <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Rocks */}
-            <aside className="lg:col-span-4 lg:sticky lg:top-24">
+            {/* sticks only when the whole list fits the window, so it never needs a scroll box of its own */}
+            <aside className="lg:col-span-4 lg:self-start lg:top-24 lg:[@media(min-height:740px)]:sticky">
               <Panel title="Rocks" icon={MapPin} right={<span className="text-xs text-zinc-500">{campaigns.length} studied</span>}>
-                <div className="space-y-2.5 max-h-none lg:max-h-[calc(100vh-220px)] overflow-y-auto overscroll-contain custom-scrollbar-y pr-1 -mr-1">
+                <div className="space-y-2">
                   {campaigns.map((c) => {
                     const on = target.id === c.id;
                     return (
@@ -135,9 +136,9 @@ export default function ScienceLabPage() {
                         key={c.id}
                         onClick={() => { playUiClick?.(); selectTarget(c.id); }}
                         aria-pressed={on}
-                        className={`w-full flex items-center gap-3 p-2.5 rounded-xl border text-left transition-colors cursor-pointer ${on ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.06]'}`}
+                        className={`w-full flex items-center gap-3 p-2 rounded-xl border text-left transition-colors cursor-pointer ${on ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.06]'}`}
                       >
-                        <RockPhoto campaign={c} className="w-16 h-16" />
+                        <RockPhoto campaign={c} className="w-14 h-14" />
                         <span className="min-w-0 flex-1">
                           <span className="block font-semibold text-sm leading-snug">{c.name}</span>
                           <span className="block text-xs text-zinc-400">{c.rockType}</span>
@@ -152,7 +153,7 @@ export default function ScienceLabPage() {
 
             <div className="lg:col-span-8 flex flex-col gap-6 min-w-0">
               {/* Selected rock */}
-              <section className="rounded-2xl border border-white/10 overflow-hidden bg-[#0a0c12]/40 backdrop-blur-md">
+              <section className="rounded-2xl border border-white/10 overflow-hidden bg-[#0a0c12]/55">
                 <div className="p-5 sm:p-6 grid sm:grid-cols-[auto_1fr] gap-5 sm:gap-6">
                   <div className="mx-auto sm:mx-0">
                     <RockPhoto campaign={target} className="w-44 h-44 sm:w-52 sm:h-52" />
@@ -235,7 +236,7 @@ export default function ScienceLabPage() {
               </section>
 
               {isLoadingData && !data && (
-                <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-md min-h-[260px] flex flex-col items-center justify-center text-zinc-400">
+                <div className="rounded-2xl border border-white/10 bg-black/40 min-h-[260px] flex flex-col items-center justify-center text-zinc-400">
                   <Loader2 className="w-7 h-7 animate-spin text-[#ffa07f] mb-3" />Loading measurements for {target.name}…
                 </div>
               )}
