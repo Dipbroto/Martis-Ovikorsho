@@ -101,13 +101,17 @@ export const getDemIndex = () => index;
 // a walk can be planned anywhere on Mars and not only in the areas shipped with the app.
 
 const REMOTE_TILES = 'https://astro.arcgis.com/arcgis/rest/services/OnMars/MDEM200M/ImageServer/tile';
-const REMOTE_LEVEL = 7;
-const REMOTE_RES = 0.3515625 / 2 ** REMOTE_LEVEL; // degrees per pixel
+// Level 7 is the full 200 m data (about 163 m per pixel); each level up from there halves the detail so that a long
+// route still fits one window. The finest level that fits is used.
+const REMOTE_LEVELS = [7, 6, 5, 4, 3];
+const resAt = (level) => 0.3515625 / 2 ** level; // degrees per pixel
 const REMOTE_TILE = 512;
 const MAX_WINDOW_CELLS = 1_300_000;
 const NODATA = -32768;
-/** The longest walk the app plans. On 8 hours of life support a crew covers about 25 km, so this is generous. */
+/** Walks longer than this are planned on coarser terrain; a crew on foot covers about 25 km on 8 hours of life support. */
 export const MAX_WALK_KM = 60;
+/** The longest route the app plans at all (a rover traverse). */
+export const MAX_ROUTE_KM = 800;
 
 let lercPromise = null;
 const loadLerc = () => {
@@ -136,8 +140,8 @@ export function remoteWindowFor(points) {
   };
 }
 
-async function fetchTile(row, col) {
-  const res = await fetch(`${REMOTE_TILES}/${REMOTE_LEVEL}/${row}/${col}`);
+async function fetchTile(level, row, col) {
+  const res = await fetch(`${REMOTE_TILES}/${level}/${row}/${col}`);
   if (!res.ok) throw new Error(`NASA terrain tile unavailable (${res.status})`);
   const Lerc = await loadLerc();
   return Lerc.decode(await res.arrayBuffer());
@@ -146,7 +150,10 @@ async function fetchTile(row, col) {
 /** Loads (and caches) a 200 m grid covering all the given points, from NASA's tile service. */
 export function ensureRemoteGrid(points) {
   const win = remoteWindowFor(points);
-  const id = `nasa200-${win.west}_${win.south}_${win.east}_${win.north}`;
+  const cellsAt = (lv) => Math.ceil((win.east - win.west) / resAt(lv)) * Math.ceil((win.north - win.south) / resAt(lv));
+  const level = REMOTE_LEVELS.find((lv) => cellsAt(lv) <= MAX_WINDOW_CELLS) ?? REMOTE_LEVELS[REMOTE_LEVELS.length - 1];
+  const REMOTE_RES = resAt(level);
+  const id = `nasa200-L${level}-${win.west}_${win.south}_${win.east}_${win.north}`;
   if (grids.has(id)) return Promise.resolve(grids.get(id));
   if (inflight.has(id)) return inflight.get(id);
 
@@ -163,7 +170,7 @@ export function ensureRemoteGrid(points) {
     const jobs = [];
     for (let tr = Math.floor(gy0 / REMOTE_TILE); tr <= Math.floor(gy1 / REMOTE_TILE); tr++) {
       for (let tc = Math.floor(gx0 / REMOTE_TILE); tc <= Math.floor(gx1 / REMOTE_TILE); tc++) {
-        jobs.push(fetchTile(tr, tc).then((t) => tiles.set(`${tr}/${tc}`, t)));
+        jobs.push(fetchTile(level, tr, tc).then((t) => tiles.set(`${tr}/${tc}`, t)));
       }
     }
     try {
@@ -193,7 +200,7 @@ export function ensureRemoteGrid(points) {
     }
     const grid = {
       id,
-      name: 'NASA 200 m terrain (fetched for this walk)',
+      name: level === 7 ? 'NASA 200 m terrain (fetched for this walk)' : `NASA terrain, ${Math.round(resAt(level) * DEG_TO_M)} m per pixel (fetched for this long route)`,
       west: -180 + gx0 * REMOTE_RES,
       east: -180 + (gx1 + 1) * REMOTE_RES,
       north: 90 - gy0 * REMOTE_RES,

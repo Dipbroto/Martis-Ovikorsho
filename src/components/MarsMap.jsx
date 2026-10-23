@@ -86,7 +86,6 @@ const MapEvents = () => {
   const setViewCenter = useMapStore((s) => s.setViewCenter);
   const pickTarget = useMapStore((s) => s.pickTarget);
   const pickPoint = useMapStore((s) => s.pickPoint);
-  const flyToCoordinate = useMapStore((s) => s.flyToCoordinate);
 
   useMapEvents({
     moveend(e) {
@@ -111,8 +110,6 @@ const MapEvents = () => {
       const elevation = getElevation(lat, lon);
 
       if (pickTarget) {
-        // a start clicked on a zoomed-out map: zoom in on it, so the destination (within the walk range) can be clicked
-        if (pickTarget === 'start' && e.target.getZoom() < 6.5) flyToCoordinate(lat, lon, 7);
         const near = nearestPlace(lat, lon, 1.5);
         pickPoint({
           name: near ? near.name : `${Math.abs(lat).toFixed(3)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(3)}°${lon >= 0 ? 'E' : 'W'}`,

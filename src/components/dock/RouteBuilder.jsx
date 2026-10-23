@@ -6,7 +6,7 @@ import useMapStore from '../../store/useMapStore';
 import { AUTONOMOUS_TARGET_PAIRS, ROUTING_MODES } from '../../utils/autonomousRouter';
 import { planAndApplyRoute } from '../../services/routePlanningService';
 import { marsDistance } from '../../utils/marsUtils';
-import { MAX_WALK_KM } from '../../terrain/dem';
+import { MAX_WALK_KM, MAX_ROUTE_KM } from '../../terrain/dem';
 import { toPoint } from '../../data/places';
 import { marsAudio } from '../../utils/audioSynthesizer';
 import PlacePicker from './PlacePicker';
@@ -58,7 +58,6 @@ export default function RouteBuilder() {
     draft: s.routeDraft, setDraft: s.setRouteDraft, pickTarget: s.pickTarget, setPickTarget: s.setPickTarget,
     setRouteEditing: s.setRouteEditing, setPlacingWaypoint: s.setPlacingWaypoint, hasRoute: s.waypoints.length > 1,
   })));
-  const flyTo = useMapStore((s) => s.flyToCoordinate);
   const [open, setOpen] = useState(null); // 'start' | 'end'
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -70,14 +69,11 @@ export default function RouteBuilder() {
   let problem = null;
   if (start && end) {
     if (km < 0.1) problem = 'The two points are almost the same place. Choose a destination a little further away.';
-    else if (km > MAX_WALK_KM) problem = `These points are ${Math.round(km)} km apart. On 8 hours of life support a crew walks about 25 km, so choose points within ${MAX_WALK_KM} km of each other.`;
   }
   const ready = !!start && !!end && !problem;
 
   const set = (key, point) => {
     setDraft({ [key]: point });
-    // a start from the list: bring the map to it so the destination can be clicked nearby
-    if (key === 'start' && !end) flyTo(point.lat, point.lon, 7);
     setRecent(key);
     setError(null);
     setOpen(null);
@@ -152,7 +148,7 @@ export default function RouteBuilder() {
 
       {start && end && !problem && (
         <p className="text-xs text-zinc-300">
-          <span className="text-white font-medium">{km.toFixed(1)} km</span> as the crow flies. The route is planned on real NASA 200 m terrain.
+          <span className="text-white font-medium">{km.toFixed(1)} km</span> as the crow flies. {km > MAX_ROUTE_KM ? 'A very long drive: it is planned on coarse global terrain (about 15 km per pixel), good for the general line but not for local hazards.' : km > MAX_WALK_KM ? 'Too far to walk, so plan it as a rover drive; the terrain is coarser over long routes.' : 'The route is planned on real NASA 200 m terrain.'}
         </p>
       )}
       {problem && (
