@@ -123,35 +123,32 @@ export default function ScienceLabPage() {
             <Loader2 className="w-7 h-7 animate-spin text-[#ffa07f] mb-3" />Loading rocks…
           </div>
         ) : (
-          <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Rocks */}
-            {/* scrolls with the page like everything else: no sticky, no scroll box of its own */}
-            <aside className="lg:col-span-4 lg:self-start">
-              <Panel title="Rocks" icon={MapPin} right={<span className="text-xs text-zinc-500">{campaigns.length} studied</span>}>
-                <div className="space-y-2">
-                  {campaigns.map((c) => {
-                    const on = target.id === c.id;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => { playUiClick?.(); selectTarget(c.id); }}
-                        aria-pressed={on}
-                        className={`w-full flex items-center gap-3 p-2 rounded-xl border text-left transition-colors cursor-pointer ${on ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.06]'}`}
-                      >
-                        <RockPhoto campaign={c} className="w-14 h-14" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-semibold text-sm leading-snug">{c.name}</span>
-                          <span className="block text-xs text-zinc-400">{c.rockType}</span>
-                          <span className="mt-1 block text-[11px] text-zinc-500">{solRange(c)} · {c.elements.slice(0, 4).join(' ')}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Panel>
-            </aside>
+          <div className="mt-8 flex flex-col gap-6">
+            {/* Rocks: a row of cards above the lab, so the lab below can use the full width */}
+            <Panel title="Choose a rock" icon={MapPin} right={<span className="text-xs text-zinc-500">{campaigns.length} studied by Perseverance</span>}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+                {campaigns.map((c) => {
+                  const on = target.id === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => { playUiClick?.(); selectTarget(c.id); }}
+                      aria-pressed={on}
+                      className={`group flex flex-col gap-2 p-2 rounded-xl border text-left transition-colors cursor-pointer ${on ? 'border-[#ff7b4d]/70 bg-[#ff7b4d]/12' : 'border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-white/20'}`}
+                    >
+                      <RockPhoto campaign={c} className="w-full aspect-[4/3]" />
+                      <span className="px-0.5 min-w-0">
+                        <span className="block font-semibold text-sm leading-snug truncate">{c.name}</span>
+                        <span className="block text-xs text-zinc-400 truncate">{c.rockType}</span>
+                        <span className="mt-0.5 block text-[11px] text-zinc-500 truncate">{solRange(c)}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Panel>
 
-            <div className="lg:col-span-8 flex flex-col gap-6 min-w-0">
+            <div className="flex flex-col gap-6 min-w-0">
               {/* Selected rock */}
               <section className="rounded-2xl border border-white/10 overflow-hidden bg-[#0a0c12]/55">
                 <div className="p-5 sm:p-6 grid sm:grid-cols-[auto_1fr] gap-5 sm:gap-6">
