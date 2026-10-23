@@ -4,6 +4,7 @@ import { Play, Pause, Sun, Moon, Globe2, Clock, Radio, Eclipse, Info, Telescope,
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ReferenceArea, CartesianGrid } from 'recharts';
 import { playUiClick } from '../utils/audioSynthesizer';
 import TransitViewer from './sky/TransitViewer';
+import RoverAstrophotography from './sky/RoverAstrophotography';
 import { skyAt, solTimeline, nextTransitSol, starsAndPlanets } from '../utils/marsSky';
 import { lsFromMsd, seasonFromLs, MARS_SOL_HOURS } from '../utils/marsSolar';
 
@@ -316,6 +317,16 @@ export default function MartianSkyEphemeris() {
     setLst(((((m % 1) * 24 + s.lon / 15) % 24) + 24) % 24);
   };
 
+  const syncToMoment = (solNum, lstHour, siteId) => {
+    playUiClick?.();
+    setSearch(null);
+    setPlaying(false);
+    const s = SITES.find((x) => x.id === siteId);
+    if (s) setSite(s);
+    setSol(solNum);
+    setLst(lstHour);
+  };
+
   useEffect(() => {
     if (!playing) return undefined;
     const t = setInterval(() => setLst((v) => {
@@ -415,7 +426,7 @@ export default function MartianSkyEphemeris() {
         </div>
 
         {/* Dome + bodies */}
-        <div className="mt-6 grid lg:grid-cols-12 gap-6 items-start">
+        <div id="sky-overhead-section" className="mt-6 grid lg:grid-cols-12 gap-6 items-start">
           <Panel title="The sky overhead" icon={Telescope} className="lg:col-span-7" right={<span className="text-xs text-zinc-400">Looking straight up · lines show the whole sol</span>}>
             <SkyDome
               sky={sky}
@@ -474,66 +485,80 @@ export default function MartianSkyEphemeris() {
           </div>
         </Panel>
 
-        {/* Survival-relevant cards */}
+        {/* Survival-relevant cards + NASA Rover Astrophotography Archive */}
         <div className="mt-6 grid lg:grid-cols-3 gap-6 items-start">
-          <Panel title="Daylight for an EVA" icon={Sun}>
-            {sunUp.rises.length && sunUp.sets.length ? (
-              <>
+          <div className="lg:col-span-2 flex flex-col gap-6">
+            <div className="grid sm:grid-cols-2 gap-6 items-start">
+              <Panel title="Daylight for an EVA" icon={Sun}>
+                {sunUp.rises.length && sunUp.sets.length ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Sunrise</div><div className="text-xl font-semibold tabular-nums">{fmt(sunUp.rises[0])}</div></div>
+                      <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Sunset</div><div className="text-xl font-semibold tabular-nums">{fmt(sunUp.sets[sunUp.sets.length - 1])}</div></div>
+                    </div>
+                    <p className="mt-3 text-sm text-zinc-300">Highest sun today: <strong className="text-white">{Math.round(Math.max(...timeline.samples.map((p) => p.sun)))}°</strong>. Plan to be back before sunset: the cold and dark arrive within minutes.</p>
+                  </>
+                ) : (
+                  <p className="text-sm text-zinc-300">{timeline.samples.some((p) => p.sun > 0) ? 'Polar day: the Sun never sets here this season.' : 'Polar night: the Sun stays below the horizon all sol. No solar power, no daylight EVA.'}</p>
+                )}
+                <p className="mt-3 text-xs text-zinc-500">Martian sunsets are blue: fine dust scatters blue light forward, around the Sun.</p>
+              </Panel>
+
+              <Panel title="Calling Earth" icon={Radio}>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Sunrise</div><div className="text-xl font-semibold tabular-nums">{fmt(sunUp.rises[0])}</div></div>
-                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Sunset</div><div className="text-xl font-semibold tabular-nums">{fmt(sunUp.sets[sunUp.sets.length - 1])}</div></div>
+                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Signal delay, one way</div><div className="text-xl font-semibold tabular-nums">{sky.earth.lightMinutes.toFixed(1)} min</div></div>
+                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Earth well above horizon</div><div className="text-xl font-semibold tabular-nums">{earthWindow.toFixed(1)} h</div></div>
                 </div>
-                <p className="mt-3 text-sm text-zinc-300">Highest sun today: <strong className="text-white">{Math.round(Math.max(...timeline.samples.map((p) => p.sun)))}°</strong>. Plan to be back before sunset: the cold and dark arrive within minutes.</p>
-              </>
-            ) : (
-              <p className="text-sm text-zinc-300">{timeline.samples.some((p) => p.sun > 0) ? 'Polar day: the Sun never sets here this season.' : 'Polar night: the Sun stays below the horizon all sol. No solar power, no daylight EVA.'}</p>
-            )}
-            <p className="mt-3 text-xs text-zinc-500">Martian sunsets are blue: fine dust scatters blue light forward, around the Sun.</p>
-          </Panel>
-
-          <Panel title="Calling Earth" icon={Radio}>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Signal delay, one way</div><div className="text-xl font-semibold tabular-nums">{sky.earth.lightMinutes.toFixed(1)} min</div></div>
-              <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Earth well above horizon</div><div className="text-xl font-semibold tabular-nums">{earthWindow.toFixed(1)} h</div></div>
+                <p className="mt-3 text-sm text-zinc-300">{earthNote}</p>
+                <p className="mt-2 text-sm text-zinc-300">A question to Mission Control and its answer take <strong className="text-white">{(sky.earth.lightMinutes * 2).toFixed(0)} min</strong> at best. In an emergency on an EVA, the crew decides alone.</p>
+                <p className="mt-3 text-xs text-zinc-500">Direct radio to Earth needs Earth above the horizon (here: more than 10°); orbiters relay the rest of the time.</p>
+              </Panel>
             </div>
-            <p className="mt-3 text-sm text-zinc-300">{earthNote}</p>
-            <p className="mt-2 text-sm text-zinc-300">A question to Mission Control and its answer take <strong className="text-white">{(sky.earth.lightMinutes * 2).toFixed(0)} min</strong> at best. In an emergency on an EVA, the crew decides alone.</p>
-            <p className="mt-3 text-xs text-zinc-500">Direct radio to Earth needs Earth above the horizon (here: more than 10°); orbiters relay the rest of the time.</p>
-          </Panel>
 
-          <Panel title="Phobos crosses the Sun" icon={Eclipse}>
-            {site.lat > 70 ? (
-              <p className="text-sm text-zinc-300">Phobos never rises above 70° latitude, so there are no transits here.</p>
-            ) : (
-              <>
-                <p className="text-sm text-zinc-300 mb-3">
-                  {t?.happens
-                    ? <>This sol Phobos passes in front of the Sun at <strong className="text-white">{fmt(t.lst)}</strong>, for about <strong className="text-white">{Math.round(t.durationS)} s</strong>, covering up to <strong className="text-white">{Math.round(t.maxCover * 100)}%</strong> of it.</>
-                    : <>No transit from here this sol{t ? `: the closest pass is ${t.sepDeg.toFixed(1)}° from the Sun` : ''}. Drag Phobos below to see one.</>}
-                </p>
-                <TransitViewer transit={t} fluxWm2={sky.sun.fluxWm2} siteName={site.name} />
-                <button onClick={findTransit} disabled={search === 'busy'} className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 text-amber-100 py-2.5 text-sm font-medium hover:bg-amber-500/20 transition disabled:opacity-60 cursor-pointer">
-                  {search === 'busy' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                  {search === 'busy' ? 'Searching the coming sols…' : 'Find the next transit from here'}
-                </button>
-                {search?.none && <p className="mt-2 text-xs text-zinc-400">No transit from this site in the next 400 sols.</p>}
-              </>
-            )}
-          </Panel>
-        </div>
+            {/* NASA Rover Astrophotography Archive */}
+            <RoverAstrophotography onSyncMoment={syncToMoment} />
+          </div>
 
-        {/* Facts */}
-        <div className="mt-6 grid md:grid-cols-3 gap-4">
-          {[
-            ['Phobos is falling', 'It orbits just 6,000 km up and spirals in by about 1.8 m every century. In 30 to 50 million years it will break apart into a ring.'],
-            ['Two very different moons', 'Phobos rises in the west and crosses the sky in about 4 hours. Deimos is so slow it can stay up for more than two sols.'],
-            ['Earth, the evening star', 'From Mars, Earth never strays more than about 47° from the Sun, so you only see it near dusk or dawn, with the Moon beside it.'],
-          ].map(([h, p]) => (
-            <motion.div key={h} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.35 }} className="rounded-2xl border border-white/10 bg-[#070a12]/60 backdrop-blur p-5">
-              <div className="font-semibold">{h}</div>
-              <p className="mt-1.5 text-sm text-zinc-300 leading-relaxed">{p}</p>
-            </motion.div>
-          ))}
+          <div className="lg:col-span-1 flex flex-col gap-4">
+            <Panel title="Phobos crosses the Sun" icon={Eclipse}>
+              {site.lat > 70 ? (
+                <p className="text-sm text-zinc-300">Phobos never rises above 70° latitude, so there are no transits here.</p>
+              ) : (
+                <>
+                  <p className="text-sm text-zinc-300 mb-3">
+                    {t?.happens
+                      ? <>This sol Phobos passes in front of the Sun at <strong className="text-white">{fmt(t.lst)}</strong>, for about <strong className="text-white">{Math.round(t.durationS)} s</strong>, covering up to <strong className="text-white">{Math.round(t.maxCover * 100)}%</strong> of it.</>
+                      : <>No transit from here this sol{t ? `: the closest pass is ${t.sepDeg.toFixed(1)}° from the Sun` : ''}. Drag Phobos below to see one.</>}
+                  </p>
+                  <TransitViewer transit={t} fluxWm2={sky.sun.fluxWm2} siteName={site.name} />
+                  <button onClick={findTransit} disabled={search === 'busy'} className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 text-amber-100 py-2.5 text-sm font-medium hover:bg-amber-500/20 transition disabled:opacity-60 cursor-pointer">
+                    {search === 'busy' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                    {search === 'busy' ? 'Searching the coming sols…' : 'Find the next transit from here'}
+                  </button>
+                  {search?.none && <p className="mt-2 text-xs text-zinc-400">No transit from this site in the next 400 sols.</p>}
+                </>
+              )}
+            </Panel>
+
+            {/* Astronomical Insights & Facts filling the right side */}
+            {[
+              ['Phobos is falling', 'It orbits just 6,000 km up and spirals in by about 1.8 m every century. In 30 to 50 million years it will break apart into a ring.'],
+              ['Two very different moons', 'Phobos rises in the west and crosses the sky in about 4 hours. Deimos is so slow it can stay up for more than two sols.'],
+              ['Earth, the evening star', 'From Mars, Earth never strays more than about 47° from the Sun, so you only see it near dusk or dawn, with the Moon beside it.'],
+            ].map(([h, p]) => (
+              <motion.div
+                key={h}
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.35 }}
+                className="rounded-2xl border border-white/10 bg-[#070a12]/75 backdrop-blur-xl p-4 shadow-lg"
+              >
+                <div className="font-semibold text-sm text-white">{h}</div>
+                <p className="mt-1 text-xs text-zinc-300 leading-relaxed">{p}</p>
+              </motion.div>
+            ))}
+          </div>
         </div>
 
         <p className="mt-6 text-xs text-zinc-500 flex items-start gap-2 max-w-4xl">
