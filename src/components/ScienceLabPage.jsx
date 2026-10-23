@@ -125,8 +125,8 @@ export default function ScienceLabPage() {
         ) : (
           <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Rocks */}
-            {/* sticks only when the whole list fits the window, so it never needs a scroll box of its own */}
-            <aside className="lg:col-span-4 lg:self-start lg:top-24 lg:[@media(min-height:740px)]:sticky">
+            {/* scrolls with the page like everything else: no sticky, no scroll box of its own */}
+            <aside className="lg:col-span-4 lg:self-start">
               <Panel title="Rocks" icon={MapPin} right={<span className="text-xs text-zinc-500">{campaigns.length} studied</span>}>
                 <div className="space-y-2">
                   {campaigns.map((c) => {
