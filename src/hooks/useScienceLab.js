@@ -1,135 +1,146 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import useMapStore from '../store/useMapStore';
 import { playLaserZap, playSampleSeal } from '../utils/audioSynthesizer';
-import { fetchScienceTargets } from '../services/nasaApiService';
+import { loadCampaignIndex, loadCampaign, analyse, aiBrief } from '../data/scienceLab';
 import { generateScienceReport } from '../services/aiService';
 import { supabase } from '../lib/supabase';
 import { fetchProfile } from '../services/profileService';
 
+const SHOT_MS = 110;
+
 /**
  * Shared state and handlers for the In-Situ Science Lab page (ScienceLabPage).
- * Kept as a hook so the lab logic stays separate from its layout.
- * Pass `enabled: false` to postpone fetching the rock targets (e.g. while a modal is closed).
+ * The lab shows measured Perseverance data (SuperCam, PIXL, SHERLOC); this hook loads it and holds what the
+ * visitor has picked: the rock, the instrument, the laser point and shot, the PIXL oxide and the SHERLOC spot.
  */
-export default function useScienceLab({ enabled = true } = {}) {
-  const collectedSamples = useMapStore(s => s.collectedSamples);
-  const addSample = useMapStore(s => s.addSample);
-  const [rockTargets, setRockTargets] = useState([]);
-  const [selectedTarget, setSelectedTarget] = useState(null);
+export default function useScienceLab() {
+  const collectedSamples = useMapStore((s) => s.collectedSamples);
+  const addSample = useMapStore((s) => s.addSample);
+
+  const [campaigns, setCampaigns] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [data, setData] = useState(null);
   const [isLoadingTargets, setIsLoadingTargets] = useState(true);
-  
-  // AI State
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const [activeInstrument, setActiveInstrument] = useState('supercam');
+  const [pointIdx, setPointIdx] = useState(0);
+  const [shot, setShot] = useState(null); // null = average of shots 6-30, otherwise the single shot number 1-30
+  const [isFiringLaser, setIsFiringLaser] = useState(false);
+  const [highlightedPeak, setHighlightedPeak] = useState(null);
+  const [oxide, setOxide] = useState('SiO2');
+  const [pixlPick, setPixlPick] = useState(null);
+  const [sherlocMetric, setSherlocMetric] = useState('fluor-2');
+  const [sherlocSpot, setSherlocSpot] = useState(null);
+
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
   const [aiReport, setAiReport] = useState(null);
-
-  // Fetch targets from API (the modal variant waits until it is opened)
-  useEffect(() => {
-    if (!enabled || rockTargets.length > 0) return;
-    let cancelled = false;
-    setIsLoadingTargets(true);
-    fetchScienceTargets().then(targets => {
-      if (cancelled) return;
-      setRockTargets(targets);
-      setSelectedTarget(targets[0]);
-      setIsLoadingTargets(false);
-    }).catch(err => {
-      console.error(err);
-      if (!cancelled) setIsLoadingTargets(false);
-    });
-    return () => { cancelled = true; };
-  }, [enabled, rockTargets.length]);
-
-  // Active instrument tab: 'supercam' | 'pixl' | 'sherloc' | 'msr'
-  const [activeInstrument, setActiveInstrument] = useState('supercam');
-
-  // Laser Targeting Canvas states
-  const [laserTargetPos, setLaserTargetPos] = useState({ x: 50, y: 50 });
-  const [ablationPits, setAblationPits] = useState([
-    { id: 1, x: 45, y: 40, label: '#01 Core Matrix' },
-    { id: 2, x: 62, y: 55, label: '#02 Mineral Vein' }
-  ]);
-  const [isFiringLaser, setIsFiringLaser] = useState(false);
-  const [laserBeamActive, setLaserBeamActive] = useState(false);
-
-  // SHERLOC UV Raman states
-  const [uvIntensity, setUvIntensity] = useState(85);
-
-  // Paleo-Groundwater pH Simulator
-  const [paleoPh, setPaleoPh] = useState(7.2);
-
-  // MSR Tube Sealing State
   const [cachedSuccess, setCachedSuccess] = useState(false);
   const [customTubeNotes, setCustomTubeNotes] = useState('');
   const [isSealingTube, setIsSealingTube] = useState(false);
+  const [cacheError, setCacheError] = useState(null);
+  const [paleoPh, setPaleoPh] = useState(7.2);
 
-  // Selected Spectral Peak highlight
-  const [highlightedPeak, setHighlightedPeak] = useState(null);
+  const timer = useRef(null);
+  const stopFiring = useCallback(() => {
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+    setIsFiringLaser(false);
+  }, []);
+  useEffect(() => stopFiring, [stopFiring]);
 
-  const target = selectedTarget || rockTargets[0];
-  const safeSamples = Array.isArray(collectedSamples) ? collectedSamples : [];
-
-  // Reset ablation pits when target changes
-  const selectedTargetId = selectedTarget?.id;
+  // the list of rocks
   useEffect(() => {
-    if (selectedTargetId) {
-      setAblationPits([
-        { id: 1, x: 40 + Math.random() * 20, y: 35 + Math.random() * 20, label: '#01 Primary Spot' }
-      ]);
-      setHighlightedPeak(null);
-      setAiReport(null);
-    }
-  }, [selectedTargetId]);
+    let cancelled = false;
+    setIsLoadingTargets(true);
+    loadCampaignIndex().then((idx) => {
+      if (cancelled) return;
+      setCampaigns(idx.campaigns);
+      setSelectedId((cur) => cur || idx.campaigns[0]?.id || null);
+      setLoadError(null);
+    }).catch((e) => {
+      console.error(e);
+      if (!cancelled) setLoadError('The rock data could not be loaded. Check your connection and try again.');
+    }).finally(() => { if (!cancelled) setIsLoadingTargets(false); });
+    return () => { cancelled = true; };
+  }, [reloadKey]);
 
-  // Click on Rock Surface to Aim and Fire SuperCam Laser
-  const handleCanvasClick = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
-    const y = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
-    
-    setLaserTargetPos({ x, y });
-    triggerLaserAblation(x, y);
-  };
+  const target = useMemo(() => campaigns.find((c) => c.id === selectedId) || null, [campaigns, selectedId]);
 
-  const triggerLaserAblation = (x, y) => {
-    if (isFiringLaser) return;
+  // the measurements of the picked rock
+  useEffect(() => {
+    if (!target) return undefined;
+    let cancelled = false;
+    stopFiring();
+    setData(null);
+    setIsLoadingData(true);
+    setPointIdx(0); setShot(null); setHighlightedPeak(null); setPixlPick(null); setSherlocSpot(null); setAiReport(null);
+    loadCampaign(target).then((d) => {
+      if (cancelled) return;
+      setData(d);
+      setLoadError(null);
+      // start the map on the oxide that varies most across the scan: it shows the most structure
+      let best = 'SiO2'; let bestCv = -1;
+      for (const k of ['SiO2', 'FeO-T', 'MgO', 'Al2O3', 'CaO', 'SO3', 'Na2O', 'TiO2']) {
+        const s = d.pixl.stats[k];
+        const cv = s.med > 0.5 ? (s.hi - s.lo) / s.med : 0;
+        if (cv > bestCv) { bestCv = cv; best = k; }
+      }
+      setOxide(best);
+    }).catch((e) => {
+      console.error(e);
+      if (!cancelled) setLoadError(`The measurements for ${target.name} could not be loaded.`);
+    }).finally(() => { if (!cancelled) setIsLoadingData(false); });
+    return () => { cancelled = true; };
+  }, [target, reloadKey, stopFiring]);
+
+  const analysis = useMemo(() => analyse(target, data), [target, data]);
+
+  const selectTarget = (id) => setSelectedId(id);
+  const retry = () => setReloadKey((k) => k + 1);
+
+  const selectPoint = (i) => { stopFiring(); setPointIdx(i); setShot(null); };
+
+  // Fire the laser: step through the 30 real laser shots of the first point, one per pulse
+  const fireLaser = () => {
+    const pt = data?.libs?.points?.[0];
+    if (!pt?.shots || isFiringLaser) return;
+    const total = pt.shots.length;
+    setPointIdx(0);
     setIsFiringLaser(true);
-    setLaserBeamActive(true);
     playLaserZap?.();
-
-    setTimeout(() => {
-      setLaserBeamActive(false);
-      setIsFiringLaser(false);
-      
-      setAblationPits(prev => [
-        ...prev.slice(-4),
-        { id: Date.now(), x, y, label: `#0${prev.length + 1} LIBS Spot` }
-      ]);
-    }, 600);
+    let k = 0;
+    setShot(1);
+    timer.current = setInterval(() => {
+      k += 1;
+      if (k >= total) { stopFiring(); setShot(total); return; }
+      setShot(k + 1);
+    }, SHOT_MS);
   };
+  const showAverage = () => { stopFiring(); setShot(null); };
+  const pickShot = (n) => { stopFiring(); setPointIdx(0); setShot(n); };
 
-  // Run Real AI Spectrometry Analysis
   const runAiAnalysis = async () => {
-    if (!target) return;
+    if (!target || !data || !analysis) return;
     setIsAiAnalyzing(true);
-    const fallbackReport = {
-      mineralogy: target.mineralogy || 'Smectite clays, Fe-Mg Carbonates',
-      phLevel: '7.4 (Neutral to Mildly Alkaline)',
-      biosignatureProbability: target.bpi || 88,
-      analysisNotes: 'Spectrometric profile indicates fine-grained alluvial deposition with high preservation capacity.'
+    const computed = {
+      source: 'computed',
+      mineralogy: analysis.minerals.join(', ') || 'No dominant mineral from the chemistry alone',
+      interpretation: analysis.summary,
+      points: analysis.evidence.slice(0, 4).map((e) => `${e.label} (${e.instrument}, ${e.level}): ${e.detail}`),
     };
     try {
-      const report = await generateScienceReport(target);
-      setAiReport(report || fallbackReport);
+      const report = await generateScienceReport(aiBrief(target, data, analysis));
+      setAiReport(report ? { ...report, source: 'ai' } : computed);
     } catch (e) {
       console.error(e);
-      setAiReport(fallbackReport);
+      setAiReport(computed);
     } finally {
       setIsAiAnalyzing(false);
     }
   };
-
-  // Seal sample in MSR tube
-  const [cacheError, setCacheError] = useState(null);
 
   const handleCacheSample = () => {
     if (!target) return;
@@ -137,26 +148,25 @@ export default function useScienceLab({ enabled = true } = {}) {
     setCacheError(null);
     playSampleSeal?.();
 
-    const notes = customTubeNotes || `Harvested from ${target.location}`;
+    const notes = customTubeNotes || `${target.name}, Jezero crater (${target.lat.toFixed(3)}°N, ${target.lon.toFixed(3)}°E)`;
     setTimeout(async () => {
       addSample({
         id: Date.now().toString(),
         name: target.name,
-        rockType: target.formation,
+        rockType: target.rockType,
         status: 'SEALED IN CACHE',
-        notes
+        notes,
       });
 
       // Signed-in crews also log the sample to their profile (the database counts it)
       const user = useMapStore.getState().user;
       if (user) {
-        const ph = parseFloat(aiReport?.phLevel);
         const { error } = await supabase.from('science_logs').insert({
           user_id: user.id,
           target_id: target.id,
           target_name: target.name,
-          mineralogy: aiReport?.mineralogy || target.mineralogy || null,
-          ph_level: Number.isFinite(ph) ? ph : null,
+          mineralogy: analysis?.minerals.join(', ') || null,
+          ph_level: null,
           notes: notes.slice(0, 2000),
         });
         if (error) {
@@ -174,83 +184,15 @@ export default function useScienceLab({ enabled = true } = {}) {
     }, 1200);
   };
 
-  // Compute paleo-environmental diagnosis based on pH slider
-  const getPaleoEnvironment = (ph) => {
-    if (ph < 4.5) {
-      return {
-        epoch: 'Early Hesperian (Acidic Groundwater)',
-        regime: 'Hyper-Acidic Brine (pH ' + ph.toFixed(1) + ')',
-        precipitates: 'Jarosite, Ferric Sulfates, Gypsum',
-        habitability: 'Extreme Acidophile Chemolithotrophy Only',
-        color: 'text-amber-400',
-        badge: 'border-amber-500/30 bg-amber-950/40 text-amber-300'
-      };
-    } else if (ph <= 8.2) {
-      return {
-        epoch: 'Noachian (Fluvio-Lacustrine Epoch)',
-        regime: 'Neutral to Mildly Alkaline Lake (pH ' + ph.toFixed(1) + ')',
-        precipitates: 'Smectite Clays, Fe-Mg Carbonates, Silica Gel',
-        habitability: 'Optimal for Microorganic Macromolecule Preservation',
-        color: 'text-emerald-400',
-        badge: 'border-emerald-500/30 bg-emerald-950/40 text-emerald-300'
-      };
-    } else {
-      return {
-        epoch: 'Deep Crustal Serpentinization Epoch',
-        regime: 'Alkaline Hydrothermal Fluids (pH ' + ph.toFixed(1) + ')',
-        precipitates: 'Serpentine, Brucite, Hydrotalcite, Calcite',
-        habitability: 'Abiotic Hydrogen & Methane Generation (CH4/H2 Fuel)',
-        color: 'text-cyan-400',
-        badge: 'border-cyan-500/30 bg-cyan-950/40 text-cyan-300'
-      };
-    }
-  };
-
-  const paleoDiagnosis = getPaleoEnvironment(paleoPh);
-
+  const safeSamples = Array.isArray(collectedSamples) ? collectedSamples : [];
 
   return {
-    collectedSamples,
-    addSample,
-    rockTargets,
-    setRockTargets,
-    selectedTarget,
-    setSelectedTarget,
-    isLoadingTargets,
-    setIsLoadingTargets,
-    isAiAnalyzing,
-    setIsAiAnalyzing,
-    aiReport,
-    setAiReport,
-    activeInstrument,
-    setActiveInstrument,
-    laserTargetPos,
-    setLaserTargetPos,
-    ablationPits,
-    setAblationPits,
-    isFiringLaser,
-    setIsFiringLaser,
-    laserBeamActive,
-    setLaserBeamActive,
-    uvIntensity,
-    setUvIntensity,
-    paleoPh,
-    setPaleoPh,
-    cachedSuccess,
-    setCachedSuccess,
-    customTubeNotes,
-    setCustomTubeNotes,
-    isSealingTube,
-    setIsSealingTube,
-    highlightedPeak,
-    setHighlightedPeak,
-    target,
-    safeSamples,
-    handleCanvasClick,
-    triggerLaserAblation,
-    runAiAnalysis,
-    handleCacheSample,
-    cacheError,
-    paleoDiagnosis,
+    campaigns, target, data, analysis, isLoadingTargets, isLoadingData, loadError, retry, selectTarget,
+    activeInstrument, setActiveInstrument,
+    pointIdx, selectPoint, shot, isFiringLaser, fireLaser, showAverage, pickShot, highlightedPeak, setHighlightedPeak,
+    oxide, setOxide, pixlPick, setPixlPick, sherlocMetric, setSherlocMetric, sherlocSpot, setSherlocSpot,
+    isAiAnalyzing, aiReport, setAiReport, runAiAnalysis,
+    cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample,
+    collectedSamples, safeSamples, paleoPh, setPaleoPh,
   };
 }

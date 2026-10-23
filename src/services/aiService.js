@@ -192,26 +192,24 @@ ${MARS_LANDMARKS.map(
 // ==============================================================================
 // 2. FEATURE 1: SUPERCAM SPECTROMETRY
 // ==============================================================================
-export async function generateScienceReport(target) {
-  if (!isAiConfigured || !target) return null;
+export async function generateScienceReport(brief) {
+  if (!isAiConfigured || !brief) return null;
 
   const prompt = `
-  You are an expert NASA Astrobiologist and Geologist analyzing SuperCam laser ablation data from the surface of Mars.
-  
-  Context:
-  - Target Name: ${target.name}
-  - Target Type: ${target.formation || 'Unknown formation'}
-  - Location: ${target.location || 'Unspecified'}
-  
-  Write a highly scientific, realistic, and concise JSON report (strictly valid JSON) describing the telemetry results. 
-  It must include:
+  You are a NASA planetary scientist helping students read real Perseverance rover data.
+  Below are numbers measured by PIXL (X-ray chemistry, weight percent), SuperCam (laser spectroscopy) and
+  SHERLOC (deep-UV Raman and fluorescence) at one rock. Interpret ONLY these numbers. Do not invent values,
+  and do not claim that life or organic molecules were found: say what the data is consistent with and what it cannot show.
+
+  ${JSON.stringify(brief, null, 2)}
+
+  Reply with strictly valid JSON:
   {
-    "mineralogy": "A realistic comma-separated list of minerals found (e.g. 'Olivine, Pyroxene, Smectite clays')",
-    "phLevel": 7.4,
-    "biosignatureProbability": 12,
-    "analysisNotes": "A 2-3 sentence engaging scientific summary of what this means for ancient habitability."
+    "mineralogy": "comma-separated minerals the chemistry points to",
+    "interpretation": "2-3 plain sentences on what the rock tells us about water and habitability",
+    "points": ["up to 3 short bullet findings that cite a number from the data"],
+    "caveat": "one sentence on what these data cannot show"
   }
-  
   Respond ONLY with the JSON string, no markdown blocks.`;
 
   try {
