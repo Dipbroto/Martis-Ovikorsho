@@ -58,6 +58,7 @@ export default function RouteBuilder() {
     draft: s.routeDraft, setDraft: s.setRouteDraft, pickTarget: s.pickTarget, setPickTarget: s.setPickTarget,
     setRouteEditing: s.setRouteEditing, setPlacingWaypoint: s.setPlacingWaypoint, hasRoute: s.waypoints.length > 1,
   })));
+  const flyTo = useMapStore((s) => s.flyToCoordinate);
   const [open, setOpen] = useState(null); // 'start' | 'end'
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -75,6 +76,8 @@ export default function RouteBuilder() {
 
   const set = (key, point) => {
     setDraft({ [key]: point });
+    // a start from the list: bring the map to it so the destination can be clicked nearby
+    if (key === 'start' && !end) flyTo(point.lat, point.lon, 7);
     setRecent(key);
     setError(null);
     setOpen(null);
@@ -89,6 +92,11 @@ export default function RouteBuilder() {
     try {
       await planAndApplyRoute({ origin, destination, mode: m });
       setRouteEditing(false);
+      // the trip starts by itself once the map has framed the new route (about 1.2 s)
+      setTimeout(() => {
+        const st = useMapStore.getState();
+        if (st.waypoints.length > 1 && !st.isRoverDriving) { st.setRoverProgress(0); st.setRoverDriving(true); }
+      }, 1500);
     } catch (err) {
       setError(err.message || 'That route could not be planned.');
     } finally {
@@ -102,7 +110,10 @@ export default function RouteBuilder() {
   };
 
   const swap = () => setDraft({ start: end, end: start });
-  const togglePick = (key) => { setOpen(null); setPickTarget(pickTarget === key ? null : key); };
+  // Pressing the crosshair always arms picking for that end. (After the start is chosen the destination is
+  // armed automatically; a toggle here used to switch it off again, so the next map click did nothing.)
+  // Cancel with Esc or the Cancel button on the map hint.
+  const togglePick = (key) => { setOpen(null); setPickTarget(key); };
 
   return (
     <div className="space-y-3">
