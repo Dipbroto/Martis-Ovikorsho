@@ -174,7 +174,8 @@ function Rolling({ value, format }) {
 function DecisionDrill({ points, result, scenarioId, value, caves }) {
   const total = lifeSupportBudgetJ();
   const ctx = useMemo(() => {
-    if (!result || result.error) return null;
+    // switching walks clears the points one render before the old result goes away
+    if (!result || result.error || !points?.length) return null;
     const along = result.along;
     const { assumptions, blocked } = scenarioSetup(scenarioId, value, points, along, result.here.km / along.totalKm);
     return { base: { lat: points[0][0], lon: points[0][1] }, scenarioId, value, assumptions, blocked, caves, planTraverse };
@@ -500,6 +501,9 @@ export default function ContingencySimulatorPage() {
   useEffect(() => {
     fetch('/data/caves.json').then((r) => (r.ok ? r.json() : null)).then((d) => setCaves(d?.caves || [])).catch(() => {});
   }, []);
+
+  // A different walk: drop the old walk's result so it is never shown against the new route
+  useEffect(() => { setResult(null); }, [points]);
 
   // The emergency at the chosen point (debounced)
   const runId = useRef(0);

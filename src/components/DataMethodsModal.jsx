@@ -12,13 +12,13 @@ const GROUPS = [
     items: [
       {
         name: 'HRSC-MOLA Blended DEM, 200 m/px',
-        use: 'Terrain for slope, route planning, the point of no return and radio coverage. Seven areas ship with the app; for any other walk, the tiles around your two points are fetched from NASA/USGS on demand (about 163 m per pixel) and cropped to the walk.',
+        use: 'Terrain for slope, route planning, the point of no return and radio coverage. Seven areas ship with the app; for any other walk, the tiles around your two points are fetched from NASA/USGS on demand (about 163 m per pixel) and cropped to the walk. Longer routes use the same data at lower detail (326 m to 2.6 km per pixel) so the whole area fits; routes over 800 km use the global MOLA grid below.',
         cite: 'Fergason et al. 2018, USGS Astrogeology (tiles: astro.arcgis.com Mars200mDEM)',
         href: 'https://astrogeology.usgs.gov/search/map/mars_mgs_mola_mex_hrsc_blended_dem_global_200m',
       },
       {
         name: 'MGS MOLA MEGDR topography, 4 px/deg',
-        use: 'Global elevation (coarse), the elevation readout anywhere, and the relief shading on the 3D globe',
+        use: 'Global elevation (coarse), the elevation readout anywhere, the relief shading on the 3D globe, and routes longer than 800 km',
         cite: 'Smith et al., PDS Geosciences Node',
         href: 'https://pds-geosciences.wustl.edu/missions/mgs/megdr.html',
       },
@@ -163,6 +163,12 @@ const GROUPS = [
         href: 'https://doi.org/10.1126/science.1244797',
       },
       {
+        name: 'Where regional dust storms start',
+        use: 'Dust storms layer on the 3D globe: the three northern storm tracks and the southern basins where regional storms most often begin. Circles are rough extents',
+        cite: 'MGS MOC and MRO MARCI daily global maps; Wang & Richardson 2015, Icarus',
+        href: 'https://www.msss.com/msss_images/subject/weather_reports.html',
+      },
+      {
         name: 'Opportunity dust storm power record, 2018',
         use: 'How solar power and pace fall in the dust storm drill',
         cite: 'NASA/JPL Opportunity mission updates',
@@ -193,7 +199,7 @@ const MODELS = [
   ['Walking energy', 'Minetti et al. 2002 gradient cost of walking, scaled by Mars gravity (0.38 g), plus a resting load'],
   ['Walking speed', "Tobler's hiking function rescaled to the suited pace below"],
   ['Rover speed', 'About 10 km/h on flat ground, slowing on slopes to a 2 km/h crawl and stopping at 20°, like the six-wheeled pressurised rovers NASA has tested'],
-  ['Route planner', 'A* search on the elevation grid (16 directions) minimising the chosen cost; steps steeper than the slope limit are impassable'],
+  ['Route planner', 'A* search on the elevation grid (16 directions) minimising the chosen cost; steps steeper than the slope limit are impassable. Points can be any distance apart: the further apart, the coarser the terrain grid, so long routes show the general line, not every rock'],
   ['Point of no return', 'Cheapest-path energy from the base and from your position, compared with the remaining life-support budget'],
   ['Radio coverage', 'Line of sight from a 10 m antenna to a receiver 2 m above ground, including terrain and Mars curvature'],
   ['Marsquake positions', 'InSight had one seismometer, so a quake has a distance and, for the best events only, a direction. Its place is found by moving that distance along that direction on a sphere the size of Mars'],
@@ -210,10 +216,11 @@ const SIMULATED = [
   'The walk and drive animation: speeds come from the models above, sped up to watch',
   'Marsquake places are approximate (one seismometer), and risk zones are a derived index, not a hazard forecast',
   'Orbiters move on real orbits, but their current positions are not tracked',
-  'Rover and EVA telemetry during the drive simulation',
+  'Rover and EVA telemetry during the drive simulation, and the heart-rate and oxygen traces in the survival guide',
+  'Background scenes on the Home, Science Lab, Sky Watch and Drills pages are artwork, not photos of Mars',
   'Science Lab: spectra, maps and numbers are measured; the plain-language reading of them, the pH chart and the AI explanation are interpretation, not NASA results',
   '2 km / 5 km walkback rings: team planning assumptions, not NASA requirements',
-  'AI copilot: chooses where to go; it never supplies elevations, slopes or distances',
+  'AI copilot and the Science Lab explanation (Google Gemini 2.5 Flash): the copilot chooses where to go and never supplies elevations, slopes or distances; the explanation only reads the measured numbers shown',
 ];
 
 export default function DataMethodsModal() {

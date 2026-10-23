@@ -47,6 +47,8 @@ export default function useScienceLab() {
   const [paleoPh, setPaleoPh] = useState(7.2);
 
   const timer = useRef(null);
+  // which rock the latest AI request belongs to: an answer for a rock no longer shown is dropped
+  const aiRequest = useRef(0);
   const stopFiring = useCallback(() => {
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
@@ -80,6 +82,7 @@ export default function useScienceLab() {
     setData(null);
     setIsLoadingData(true);
     setPointIdx(0); setShot(null); setPits([]); setBeamActive(false); setHighlightedPeak(null); setPixlPick(null); setSherlocSpot(null); setAiReport(null);
+    aiRequest.current += 1; setIsAiAnalyzing(false);
     loadCampaign(target).then((d) => {
       if (cancelled) return;
       setData(d);
@@ -151,6 +154,7 @@ export default function useScienceLab() {
 
   const runAiAnalysis = async () => {
     if (!target || !data || !analysis) return;
+    const id = ++aiRequest.current;
     setIsAiAnalyzing(true);
     const computed = {
       source: 'computed',
@@ -158,15 +162,15 @@ export default function useScienceLab() {
       interpretation: analysis.summary,
       points: analysis.evidence.slice(0, 4).map((e) => `${e.label} (${e.instrument}, ${e.level}): ${e.detail}`),
     };
+    let report = null;
     try {
-      const report = await generateScienceReport(aiBrief(target, data, analysis));
-      setAiReport(report ? { ...report, source: 'ai' } : computed);
+      report = await generateScienceReport(aiBrief(target, data, analysis));
     } catch (e) {
       console.error(e);
-      setAiReport(computed);
-    } finally {
-      setIsAiAnalyzing(false);
     }
+    if (id !== aiRequest.current) return; // another rock was picked meanwhile
+    setAiReport(report ? { ...report, source: 'ai' } : computed);
+    setIsAiAnalyzing(false);
   };
 
   const handleCacheSample = () => {
