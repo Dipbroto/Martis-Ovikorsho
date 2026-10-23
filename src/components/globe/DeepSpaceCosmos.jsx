@@ -46,14 +46,16 @@ function createRealisticSaturnRingTexture() {
 
 /**
  * Deep Space Cosmos Component:
- * Renders the real Sun, Earth & Moon, Jupiter with Galilean moons, Saturn with 3D rings,
- * Venus, Mercury, and Mars's moons (Phobos & Deimos) using genuine NASA & USGS planetary texture maps.
+ * Renders the real all-sky Milky Way galaxy skysphere, deep space galaxies (Andromeda,
+ * Triangulum, Magellanic Clouds), nebulae, star clusters, real NASA/USGS planets,
+ * and J2000 navigational stars from Mars's true orbital vantage point.
  */
 export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
   const { camera } = useThree();
 
-  // Load genuine NASA and USGS planetary texture maps
+  // Load genuine all-sky Milky Way panorama and NASA/USGS planetary texture maps
   const textures = useTexture({
+    milkyway: '/textures/milkyway-allsky-2k.jpg',
     sun: '/textures/planets/sun.jpg',
     earth: '/textures/planets/earth.jpg',
     moon: '/textures/planets/moon.jpg',
@@ -95,8 +97,8 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
     return geo;
   }, []);
 
-  // Real NASA/JPL planetary & stellar positions
-  const { planets, stars } = useMemo(() => {
+  // Real NASA/JPL planetary, stellar, and deep-sky positions
+  const { planets, stars, deepSky = [] } = useMemo(() => {
     return getCelestialBodiesForGlobe(now, subsolar);
   }, [now, subsolar]);
 
@@ -140,10 +142,10 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
         Math.sin(moonAngle) * 0.45,
         Math.sin(moonAngle) * 2.3
       );
-      moonMesh.current.rotation.y = moonAngle; // Synchronous rotation
+      moonMesh.current.rotation.y = moonAngle;
     }
 
-    // Jupiter's fast rotation (9.9 hours in reality)
+    // Jupiter's fast rotation
     if (jupiterMesh.current) {
       jupiterMesh.current.rotation.y = t * 0.12;
     }
@@ -174,6 +176,26 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
 
   return (
     <group name="deep-space-cosmos">
+      {/* ============================================================== */}
+      {/* 0. ALL-SKY 360° MILKY WAY GALAXY SKYSPHERE                     */}
+      {/* ============================================================== */}
+      <mesh
+        rotation={[
+          THREE.MathUtils.degToRad(62.87),
+          THREE.MathUtils.degToRad(282.86),
+          0,
+        ]}
+      >
+        <sphereGeometry args={[270, 64, 48]} />
+        <meshBasicMaterial
+          map={textures.milkyway}
+          side={THREE.BackSide}
+          depthWrite={false}
+          transparent
+          opacity={0.92}
+        />
+      </mesh>
+
       {/* ============================================================== */}
       {/* 1. THE SUN (NASA SDO Photosphere with Active Convective Corona) */}
       {/* ============================================================== */}
@@ -704,7 +726,70 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
       </group>
 
       {/* ============================================================== */}
-      {/* 8. NASA J2000 NAVIGATIONAL CONSTELLATION STARS                 */}
+      {/* 8. REAL DEEP-SKY GALAXIES & NEBULAE (Messier & NGC Catalogs)    */}
+      {/* ============================================================== */}
+      {deepSky.map((obj) => {
+        const objPos = dirFor(obj.lat, obj.lon).multiplyScalar(140);
+        const isHovered = hoveredId === `deepsky-${obj.id}`;
+
+        return (
+          <group key={obj.id} position={objPos}>
+            {/* Luminous Astronomical Deep-Sky Object */}
+            <mesh
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectBody?.(obj);
+              }}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                setHoveredId(`deepsky-${obj.id}`);
+                document.body.style.cursor = 'pointer';
+              }}
+              onPointerOut={() => {
+                setHoveredId(null);
+                document.body.style.cursor = '';
+              }}
+            >
+              <sphereGeometry args={[0.35, 16, 16]} />
+              <meshBasicMaterial color={obj.color} />
+            </mesh>
+
+            {/* Diffuse Luminous Cloud / Disc Halo */}
+            <mesh scale={2.4}>
+              <sphereGeometry args={[0.35, 12, 12]} />
+              <meshBasicMaterial
+                color={obj.color}
+                transparent
+                opacity={0.3}
+                blending={THREE.AdditiveBlending}
+              />
+            </mesh>
+
+            {/* Tactical Deep-Sky Label */}
+            <Html center zIndexRange={[32, 0]} style={{ pointerEvents: 'none' }}>
+              <div
+                style={{ opacity: isHovered || camera.position.length() > 8 ? 1 : 0.6 }}
+                className="translate-y-5 flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/20 bg-black/85 px-2 py-0.5 text-[10px] font-mono shadow-xl backdrop-blur transition-all"
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ backgroundColor: obj.color }}
+                />
+                <span className="font-bold text-white">{obj.shortName}</span>
+                <span className="text-zinc-400">·</span>
+                <span className="text-sky-300">
+                  {obj.distLy >= 1000000
+                    ? `${(obj.distLy / 1000000).toFixed(2)}M ly`
+                    : `${(obj.distLy / 1000).toFixed(1)}k ly`}
+                </span>
+              </div>
+            </Html>
+          </group>
+        );
+      })}
+
+      {/* ============================================================== */}
+      {/* 9. NASA J2000 NAVIGATIONAL CONSTELLATION STARS                 */}
       {/* ============================================================== */}
       {stars.map((star) => {
         const starPos = dirFor(star.lat, star.lon).multiplyScalar(135);

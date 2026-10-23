@@ -272,8 +272,108 @@ export function getCelestialBodiesForGlobe(date, subsolar) {
     return { name, mag, lat: c.lat, lon: c.lon, color, constellation };
   });
 
-  return { planets, stars };
+  // Real Deep-Sky Objects (Galaxies, Nebulae, and Clusters)
+  const deepSky = DEEP_SKY_OBJECTS.map((obj) => {
+    const r = obj.raDeg * D2R, d = obj.decDeg * D2R;
+    const eq = norm(toMarsEq([Math.cos(d) * Math.cos(r), Math.cos(d) * Math.sin(r), Math.sin(d)]));
+    const c = dirFromEq(eq);
+    return {
+      ...obj,
+      lat: c.lat,
+      lon: c.lon,
+    };
+  });
+
+  return { planets, stars, deepSky };
 }
+
+// Real Deep-Sky Astronomical Objects (NASA / ESA Messier & NGC Catalogs)
+export const DEEP_SKY_OBJECTS = [
+  {
+    id: 'andromeda',
+    name: 'Andromeda Galaxy (M31)',
+    shortName: 'M31 Andromeda',
+    raDeg: 10.684,
+    decDeg: 41.269,
+    distLy: 2537000,
+    type: 'galaxy',
+    color: '#cbd5e1',
+    description: 'Major barred spiral galaxy in the Local Group. The most distant celestial object visible to the naked human eye, spanning 2.54 million light-years.',
+    subtext: 'Approaching the Milky Way at 110 km/s. Contains over 1 trillion stars.',
+  },
+  {
+    id: 'triangulum',
+    name: 'Triangulum Galaxy (M33)',
+    shortName: 'M33 Triangulum',
+    raDeg: 23.462,
+    decDeg: 30.66,
+    distLy: 2730000,
+    type: 'galaxy',
+    color: '#94a3b8',
+    description: 'Third-largest spiral galaxy in our Local Group, located 2.73 million light-years away.',
+    subtext: 'Diameter: ~60,000 light-years. Active stellar nursery with prominent H II emission regions.',
+  },
+  {
+    id: 'lmc',
+    name: 'Large Magellanic Cloud (LMC)',
+    shortName: 'LMC Galaxy',
+    raDeg: 80.894,
+    decDeg: -69.756,
+    distLy: 158200,
+    type: 'galaxy',
+    color: '#bae6fd',
+    description: 'Massive satellite dwarf galaxy orbiting the Milky Way, prominent in the southern Martian sky.',
+    subtext: 'Home to the Tarantula Nebula (30 Doradus), the most luminous starburst region in the Local Group.',
+  },
+  {
+    id: 'smc',
+    name: 'Small Magellanic Cloud (SMC)',
+    shortName: 'SMC Galaxy',
+    raDeg: 13.187,
+    decDeg: -72.828,
+    distLy: 204000,
+    type: 'galaxy',
+    color: '#93c5fd',
+    description: 'Dwarf irregular satellite galaxy companion to the LMC at 204,000 light-years.',
+    subtext: 'Contains several hundred million stars; connected to the LMC by the gaseous Magellanic Bridge.',
+  },
+  {
+    id: 'pleiades',
+    name: 'Pleiades Star Cluster (M45)',
+    shortName: 'M45 Pleiades',
+    raDeg: 56.85,
+    decDeg: 24.116,
+    distLy: 444,
+    type: 'cluster',
+    color: '#67e8f9',
+    description: 'The Seven Sisters: open star cluster dominated by luminous young B-type blue giant stars illuminating delicate reflection nebulae.',
+    subtext: 'Distance: 444 light-years. Formed within the last 100 million years.',
+  },
+  {
+    id: 'orion-nebula',
+    name: 'Orion Nebula (M42)',
+    shortName: 'M42 Orion Nebula',
+    raDeg: 83.822,
+    decDeg: -5.391,
+    distLy: 1344,
+    type: 'nebula',
+    color: '#f472b6',
+    description: 'Vast diffuse stellar nursery visible in the Sword of Orion, forming hundreds of new stars and planetary systems.',
+    subtext: 'Distance: 1,344 light-years. Illuminated by the central Trapezium star cluster.',
+  },
+  {
+    id: 'galactic-center',
+    name: 'Galactic Center (Sagittarius A*)',
+    shortName: 'Milky Way Core',
+    raDeg: 266.417,
+    decDeg: -29.008,
+    distLy: 26673,
+    type: 'core',
+    color: '#f59e0b',
+    description: 'The supermassive black hole (4.3 million solar masses) at the gravitational heart of our Milky Way galaxy.',
+    subtext: 'Distance: 26,673 light-years. Surrounded by the dense Sagittarius star clouds.',
+  },
+];
 
 // ---------- stars and planets ----------
 

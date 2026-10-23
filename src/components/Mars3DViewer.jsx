@@ -803,6 +803,13 @@ export default function Mars3DViewer() {
                   <span className="block text-[10px] text-zinc-400">({(selectedCelestial.distKm / 1e6).toFixed(1)}M km)</span>
                 </div>
               )}
+              {selectedCelestial.distLy !== undefined && (
+                <div>
+                  <span className="text-zinc-500 block text-[10px] uppercase">Cosmic Distance</span>
+                  <span className="text-sky-300 font-semibold">{selectedCelestial.distLy.toLocaleString()} ly</span>
+                  <span className="block text-[10px] text-zinc-400">light-years</span>
+                </div>
+              )}
               {selectedCelestial.distKm !== undefined && selectedCelestial.distAu === undefined && (
                 <div>
                   <span className="text-zinc-500 block text-[10px] uppercase">Orbital Radius</span>
