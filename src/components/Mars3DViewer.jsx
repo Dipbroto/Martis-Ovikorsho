@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
-import { Pause, Play, MapPin, Route, Droplets, Tent, Grid3x3, X, Map as MapIcon, Satellite, Sun, Wind, Layers, ChevronDown } from 'lucide-react';
+import { Pause, Play, MapPin, Route, Droplets, Tent, Grid3x3, X, Map as MapIcon, Satellite, Sun, Wind, Layers, ChevronDown, Sparkles, Eye } from 'lucide-react';
 import useMapStore, { routeSignature } from '../store/useMapStore';
 import { landingSites } from '../data/landingSites';
 import { loadGrid } from '../terrain/dem';
@@ -13,6 +13,7 @@ import { subsolarPoint, lsFromDate } from '../utils/marsSolar';
 import { ORBITERS, orbitShape, orbitPosition, MARS_RADIUS_KM, MARS_SIDEREAL_DAY_S } from '../data/orbiters';
 import { DUST_STORM_REGIONS, DUST_SEASON_LS } from '../data/dustStormRegions';
 import DetailTiles from './globe/DetailTiles';
+import DeepSpaceCosmos from './globe/DeepSpaceCosmos';
 
 // A realistic Mars globe built only from real data:
 // - colour: the Viking MDIM 2.1 mosaic (USGS / NASA Trek), stitched by scripts/data/build_globe_texture.py
@@ -465,6 +466,7 @@ function CameraRig({ target, controls, onArrive }) {
 // ---------- UI ----------
 
 const LAYER_CHIPS = [
+  { key: 'cosmos', label: 'Solar system & stars', icon: Sparkles },
   { key: 'sites', label: 'Landing sites', icon: MapPin },
   { key: 'route', label: 'My route', icon: Route },
   { key: 'water', label: 'Water ice', icon: Droplets },
@@ -500,7 +502,8 @@ export default function Mars3DViewer() {
       return false;
     }
   });
-  const [layers, setLayers] = useState({ sites: true, route: true, water: false, caves: false, sun: false, orbiters: false, storms: false, grid: false });
+  const [layers, setLayers] = useState({ sites: true, route: true, water: false, caves: false, sun: false, cosmos: true, orbiters: false, storms: false, grid: false });
+  const [selectedCelestial, setSelectedCelestial] = useState(null);
   const [autoRotate, setAutoRotate] = useState(true);
   const [detail, setDetail] = useState({ z: 0, loading: 0 });
   const [ready, setReady] = useState(false);
@@ -535,11 +538,11 @@ export default function Mars3DViewer() {
   // The real Sun position, refreshed every minute while that layer is on
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    if (!layers.sun && !layers.storms) return undefined;
+    if (!layers.sun && !layers.storms && !layers.cosmos) return undefined;
     setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(id);
-  }, [layers.sun, layers.storms]);
+  }, [layers.sun, layers.storms, layers.cosmos]);
   const sub = useMemo(() => subsolarPoint(now), [now]);
   const ls = useMemo(() => lsFromDate(now), [now]);
   const dustSeason = ls >= DUST_SEASON_LS[0] && ls < DUST_SEASON_LS[1];
@@ -580,6 +583,13 @@ export default function Mars3DViewer() {
     if (key === 'sun') {
       const s = subsolarPoint(new Date());
       flyTo(s.lat * 0.5, s.lon + 70, 7.2, 'sun');
+    } else if (key === 'cosmos') {
+      const cam = controls.current?.object;
+      if (cam && cam.position.length() < 9) {
+        setAutoRotate(false);
+        setActive(null);
+        setTarget(cam.position.clone().setLength(12));
+      }
     } else if (key === 'orbiters') {
       const cam = controls.current?.object;
       if (cam && cam.position.length() < 12) {
@@ -599,6 +609,7 @@ export default function Mars3DViewer() {
   }, [home]);
 
   const selectSite = (site) => {
+    setSelectedCelestial(null);
     setSelectedPOI({ ...site, poiType: 'landingSite' });
     flyTo(site.lat, site.lon, 4.4, site.id);
   };
@@ -637,6 +648,16 @@ export default function Mars3DViewer() {
           <DetailTiles onStatus={setDetail} />
           <Atmosphere />
         </Suspense>
+        {layers.cosmos && (
+          <DeepSpaceCosmos
+            now={now}
+            subsolar={sub}
+            onSelectBody={(body) => {
+              setSelectedPOI(null);
+              setSelectedCelestial(body);
+            }}
+          />
+        )}
         {layers.storms && <DustStorms lightDir={lightDir} />}
         {layers.orbiters && <Orbiters />}
         {layers.grid && <Graticule />}
@@ -651,7 +672,7 @@ export default function Mars3DViewer() {
           ref={controls}
           enablePan={false}
           minDistance={2.12}
-          maxDistance={18}
+          maxDistance={38}
           rotateSpeed={0.45}
           zoomSpeed={0.7}
           enableDamping
@@ -744,6 +765,99 @@ export default function Mars3DViewer() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Selected Celestial Body Telemetry Card */}
+        {selectedCelestial && (
+          <div className="ui-panel rounded-2xl p-3.5 w-full shrink-0 text-sm text-zinc-200 border border-amber-500/30 bg-black/90 shadow-2xl backdrop-blur">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0 animate-pulse" style={{ background: selectedCelestial.color || '#f59e0b' }} />
+                <div>
+                  <div className="font-semibold text-white tracking-wide">{selectedCelestial.name}</div>
+                  <div className="text-[11px] text-zinc-400 capitalize">{selectedCelestial.type || 'Celestial Body'} · NASA Ephemeris</div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedCelestial(null)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="mt-2 text-xs text-zinc-300 leading-relaxed">{selectedCelestial.description}</p>
+            {selectedCelestial.subtext && (
+              <p className="mt-1 text-[11px] text-amber-200/80 font-mono">{selectedCelestial.subtext}</p>
+            )}
+
+            <div className="mt-2.5 grid grid-cols-2 gap-2 text-xs font-mono bg-white/5 rounded-lg p-2 border border-white/5">
+              {selectedCelestial.distAu !== undefined && (
+                <div>
+                  <span className="text-zinc-500 block text-[10px] uppercase">Distance</span>
+                  <span className="text-amber-200 font-semibold">{selectedCelestial.distAu.toFixed(3)} AU</span>
+                  <span className="block text-[10px] text-zinc-400">({(selectedCelestial.distKm / 1e6).toFixed(1)}M km)</span>
+                </div>
+              )}
+              {selectedCelestial.distKm !== undefined && selectedCelestial.distAu === undefined && (
+                <div>
+                  <span className="text-zinc-500 block text-[10px] uppercase">Orbital Radius</span>
+                  <span className="text-amber-200 font-semibold">{selectedCelestial.distKm.toLocaleString()} km</span>
+                </div>
+              )}
+              {selectedCelestial.lightMinutes !== undefined && (
+                <div>
+                  <span className="text-zinc-500 block text-[10px] uppercase">Light Delay</span>
+                  <span className="text-sky-300 font-semibold">
+                    {selectedCelestial.lightMinutes >= 1
+                      ? `${selectedCelestial.lightMinutes.toFixed(1)} min`
+                      : `${(selectedCelestial.lightMinutes * 60).toFixed(0)} sec`}
+                  </span>
+                  <span className="block text-[10px] text-zinc-400">one-way light time</span>
+                </div>
+              )}
+              {selectedCelestial.mag !== undefined && (
+                <div>
+                  <span className="text-zinc-500 block text-[10px] uppercase">Apparent Mag</span>
+                  <span className="text-white font-semibold">{selectedCelestial.mag}</span>
+                </div>
+              )}
+              {selectedCelestial.lat !== undefined && selectedCelestial.lon !== undefined && (
+                <div className="col-span-2 pt-1 border-t border-white/5">
+                  <span className="text-zinc-500 text-[10px] uppercase mr-2">Celestial Dir:</span>
+                  <span className="text-zinc-300">
+                    {Math.abs(selectedCelestial.lat).toFixed(1)}°{selectedCelestial.lat >= 0 ? 'N' : 'S'}, {Math.abs(selectedCelestial.lon).toFixed(1)}°{selectedCelestial.lon >= 0 ? 'E' : 'W'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                if (selectedCelestial.lat !== undefined && selectedCelestial.lon !== undefined) {
+                  flyTo(selectedCelestial.lat * 0.4, selectedCelestial.lon, 14, selectedCelestial.id);
+                } else if (selectedCelestial.id === 'phobos') {
+                  const cam = controls.current?.object;
+                  if (cam) {
+                    setAutoRotate(false);
+                    setActive('phobos');
+                    setTarget(cam.position.clone().setLength(9.5));
+                  }
+                } else if (selectedCelestial.id === 'deimos') {
+                  const cam = controls.current?.object;
+                  if (cam) {
+                    setAutoRotate(false);
+                    setActive('deimos');
+                    setTarget(cam.position.clone().setLength(20));
+                  }
+                }
+              }}
+              className="mt-2.5 w-full flex items-center justify-center gap-1.5 rounded-lg bg-amber-500/20 text-amber-200 border border-amber-500/30 font-semibold py-1.5 text-xs hover:bg-amber-500/30 transition-colors"
+            >
+              <Eye className="w-3.5 h-3.5" />Align View with {selectedCelestial.name.split(' ')[0]}
+            </button>
           </div>
         )}
 

@@ -127,6 +127,154 @@ export function earthFromMars(jd) {
   };
 }
 
+/**
+ * Real NASA/JPL positions for planets, Sun and bright stars in the 3D globe frame.
+ * Rotated to align with Mars's subsolar longitude and IAU North pole.
+ */
+export function getCelestialBodiesForGlobe(date, subsolar) {
+  const jd = date.getTime() / 86400000 + 2440587.5;
+  const mars = heliocentric('mars', jd);
+  const toSun = scale(mars, -1);
+  const sunEq = norm(toMarsEq(toEquatorial(toSun)));
+  const raSun = Math.atan2(sunEq[1], sunEq[0]);
+
+  const dirFromEq = (eqVec) => {
+    const ra = Math.atan2(eqVec[1], eqVec[0]);
+    const dec = Math.asin(Math.max(-1, Math.min(1, eqVec[2])));
+    const lon = ((subsolar.lon + (ra - raSun) * R2D) % 360 + 540) % 360 - 180;
+    const lat = dec * R2D;
+    return { lat, lon };
+  };
+
+  const sunDistAu = len(toSun);
+  const planets = [];
+
+  // Sun
+  planets.push({
+    id: 'sun',
+    name: 'Sun (Sol)',
+    type: 'star',
+    distAu: sunDistAu,
+    distKm: sunDistAu * AU_KM,
+    lightMinutes: (sunDistAu * LIGHT_SECONDS_PER_AU) / 60,
+    lat: subsolar.lat,
+    lon: subsolar.lon,
+    color: '#fffbe6',
+    radiusScale: 3.2,
+    description: 'The G2V yellow dwarf star powering the Solar System. 1.52 AU average distance from Mars.',
+    subtext: 'Solar radiation and thermal source for Mars surface missions.',
+  });
+
+  // Earth & Moon
+  const earthRel = sub(heliocentric('earth', jd), mars);
+  const earthDistAu = len(earthRel);
+  const earthEq = norm(toMarsEq(toEquatorial(earthRel)));
+  const earthCoord = dirFromEq(earthEq);
+  planets.push({
+    id: 'earth',
+    name: 'Earth & Moon',
+    type: 'planet',
+    distAu: earthDistAu,
+    distKm: earthDistAu * AU_KM,
+    lightMinutes: (earthDistAu * LIGHT_SECONDS_PER_AU) / 60,
+    lat: earthCoord.lat,
+    lon: earthCoord.lon,
+    color: '#38bdf8',
+    radiusScale: 0.9,
+    description: 'Home world. All NASA telemetry, flight planning commands and EVA voice links travel from here.',
+    subtext: `One-way communication delay: ${((earthDistAu * LIGHT_SECONDS_PER_AU) / 60).toFixed(1)} minutes.`,
+  });
+
+  // Other Planets
+  const planetDefs = [
+    {
+      id: 'venus',
+      name: 'Venus',
+      color: '#fef08a',
+      radiusScale: 0.75,
+      description: 'The brightest planetary beacon in the Martian sky. Dense, reflective CO2 atmosphere.',
+      subtext: 'Second planet from the Sun; prominent morning or evening star from Mars.',
+    },
+    {
+      id: 'jupiter',
+      name: 'Jupiter',
+      color: '#fed7aa',
+      radiusScale: 1.45,
+      description: 'The solar system\'s largest gas giant. 4 major Galilean moons (Io, Europa, Ganymede, Callisto).',
+      subtext: 'Gravitational shield of the inner solar system.',
+    },
+    {
+      id: 'saturn',
+      name: 'Saturn',
+      color: '#fde68a',
+      radiusScale: 1.15,
+      hasRings: true,
+      description: 'The jewel of the solar system, surrounded by extensive icy rings spanning 282,000 km.',
+      subtext: 'Sixth planet from the Sun; orbital period 29.5 Earth years.',
+    },
+    {
+      id: 'mercury',
+      name: 'Mercury',
+      color: '#cbd5e1',
+      radiusScale: 0.45,
+      description: 'Small, heavily cratered terrestrial planet orbiting closest to the Sun.',
+      subtext: 'Orbital period 88 Earth days.',
+    },
+  ];
+
+  for (const p of planetDefs) {
+    const pRel = sub(heliocentric(p.id, jd), mars);
+    const pDist = len(pRel);
+    const pEq = norm(toMarsEq(toEquatorial(pRel)));
+    const c = dirFromEq(pEq);
+    planets.push({
+      id: p.id,
+      name: p.name,
+      type: 'planet',
+      distAu: pDist,
+      distKm: pDist * AU_KM,
+      lightMinutes: (pDist * LIGHT_SECONDS_PER_AU) / 60,
+      lat: c.lat,
+      lon: c.lon,
+      color: p.color,
+      radiusScale: p.radiusScale,
+      hasRings: p.hasRings,
+      description: p.description,
+      subtext: p.subtext,
+    });
+  }
+
+  // Constellation Stars from NASA catalog
+  const stars = BRIGHT_STARS.map(([name, raDeg, decDeg, mag]) => {
+    const r = raDeg * D2R, d = decDeg * D2R;
+    const eq = norm(toMarsEq([Math.cos(d) * Math.cos(r), Math.cos(d) * Math.sin(r), Math.sin(d)]));
+    const c = dirFromEq(eq);
+    let color = '#ffffff';
+    let constellation = 'Deep Space';
+    if (/Betelgeuse|Rigel|Bellatrix|Alnilam|Alnitak|Mintaka/.test(name)) constellation = 'Orion';
+    else if (/Sirius/.test(name)) constellation = 'Canis Major';
+    else if (/Vega/.test(name)) constellation = 'Lyra';
+    else if (/Arcturus/.test(name)) constellation = 'Boötes';
+    else if (/Aldebaran/.test(name)) constellation = 'Taurus';
+    else if (/Antares/.test(name)) constellation = 'Scorpius';
+    else if (/Polaris/.test(name)) constellation = 'Ursa Minor';
+    else if (/Deneb/.test(name)) constellation = 'Cygnus';
+    else if (/Capella/.test(name)) constellation = 'Auriga';
+    else if (/Spica/.test(name)) constellation = 'Virgo';
+    else if (/Canopus/.test(name)) constellation = 'Carina';
+    else if (/Altair/.test(name)) constellation = 'Aquila';
+    else if (/Pollux/.test(name)) constellation = 'Gemini';
+
+    if (/Betelgeuse|Antares|Aldebaran/.test(name)) color = '#ffaa66';
+    else if (/Sirius|Rigel|Vega|Achernar/.test(name)) color = '#c8d8ff';
+    else if (/Arcturus|Capella|Pollux/.test(name)) color = '#ffe299';
+
+    return { name, mag, lat: c.lat, lon: c.lon, color, constellation };
+  });
+
+  return { planets, stars };
+}
+
 // ---------- stars and planets ----------
 
 // The 20 brightest stars plus a few well-known ones: [name, RA deg, Dec deg (J2000), magnitude]
