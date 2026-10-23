@@ -1,6 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Html, Line } from '@react-three/drei';
+import { Html, Line, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { getCelestialBodiesForGlobe, MOONS } from '../../utils/marsSky';
 
@@ -13,145 +13,87 @@ const dirFor = (lat, lon) => {
   return new THREE.Vector3(Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo));
 };
 
-/** Generate a realistic procedural Earth texture with oceans, continents and cloud swirls */
-function createEarthTexture() {
+/** Generate Saturn's multi-ring texture with the Cassini Division and Encke Gap */
+function createRealisticSaturnRingTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-
-  // Deep oceanic blue gradient
-  const grad = ctx.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, '#0c2340');
-  grad.addColorStop(0.5, '#00427c');
-  grad.addColorStop(1, '#0c2340');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 512, 256);
-
-  // Continental landmasses
-  ctx.fillStyle = '#2d6a4f';
-  // Africa & Eurasia
-  ctx.beginPath();
-  ctx.ellipse(320, 110, 48, 55, 0.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(360, 85, 75, 42, -0.1, 0, Math.PI * 2);
-  ctx.fill();
-  // Americas
-  ctx.beginPath();
-  ctx.ellipse(150, 90, 36, 52, -0.3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(185, 175, 30, 48, 0.4, 0, Math.PI * 2);
-  ctx.fill();
-  // Australia
-  ctx.beginPath();
-  ctx.ellipse(420, 180, 26, 20, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Desert tints
-  ctx.fillStyle = '#d4a373';
-  ctx.beginPath();
-  ctx.ellipse(310, 105, 30, 20, 0.1, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Swirling white clouds
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-  for (let i = 0; i < 18; i++) {
-    const x = (i * 32 + 20) % 512;
-    const y = 50 + (i * 37) % 156;
-    ctx.beginPath();
-    ctx.ellipse(x, y, 32 + (i % 5) * 8, 8 + (i % 3) * 4, (i % 4) * 0.3 - 0.2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Polar ice caps
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillRect(0, 0, 512, 14);
-  ctx.fillRect(0, 242, 512, 14);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-/** Generate a procedural Jupiter banded texture with the Great Red Spot */
-function createJupiterTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-
-  // Alternating gas giant bands
-  const bands = [
-    '#9a6b43', '#e0cfb3', '#c98a58', '#f2e8cf', '#7f4f24',
-    '#f5ebe0', '#8b5a2b', '#eddcd2', '#a3704c', '#e6ccb2'
-  ];
-  const h = 256 / bands.length;
-  bands.forEach((color, i) => {
-    ctx.fillStyle = color;
-    ctx.fillRect(0, i * h, 512, h + 1);
-  });
-
-  // Turbulence lines
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-  for (let y = 10; y < 256; y += 18) {
-    ctx.fillRect(0, y, 512, 3);
-  }
-
-  // Great Red Spot
-  ctx.fillStyle = '#b91c1c';
-  ctx.beginPath();
-  ctx.ellipse(320, 155, 24, 15, -0.1, 0, Math.PI * 2);
-  ctx.fill();
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-/** Generate Saturn's multi-ring texture with the Cassini Division */
-function createSaturnRingTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
   canvas.height = 4;
   const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 512, 0);
 
-  const grad = ctx.createLinearGradient(0, 0, 256, 0);
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(0.12, 'rgba(212, 175, 120, 0.45)');
-  grad.addColorStop(0.48, 'rgba(240, 218, 175, 0.85)');
-  grad.addColorStop(0.53, 'rgba(10, 8, 6, 0.05)'); // Cassini Division!
-  grad.addColorStop(0.57, 'rgba(225, 195, 145, 0.8)');
-  grad.addColorStop(0.88, 'rgba(180, 150, 110, 0.4)');
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  // Physically calibrated Cassini / Ring A / B / C opacity & color gradient
+  grad.addColorStop(0.0, 'rgba(0,0,0,0)');
+  grad.addColorStop(0.08, 'rgba(125, 105, 80, 0.25)'); // Ring D / Crepe Ring C inner
+  grad.addColorStop(0.24, 'rgba(180, 155, 120, 0.55)'); // Ring C outer
+  grad.addColorStop(0.28, 'rgba(235, 215, 175, 0.88)'); // Ring B inner (bright & dense)
+  grad.addColorStop(0.57, 'rgba(245, 225, 185, 0.96)'); // Ring B outer
+  grad.addColorStop(0.59, 'rgba(12, 10, 8, 0.08)'); // Cassini Division (famous dark gap)
+  grad.addColorStop(0.63, 'rgba(12, 10, 8, 0.08)'); // Cassini Division
+  grad.addColorStop(0.65, 'rgba(220, 195, 155, 0.85)'); // Ring A inner
+  grad.addColorStop(0.87, 'rgba(195, 170, 135, 0.72)');
+  grad.addColorStop(0.89, 'rgba(15, 12, 8, 0.15)'); // Encke Gap
+  grad.addColorStop(0.91, 'rgba(200, 175, 140, 0.65)'); // Ring A outer
+  grad.addColorStop(0.96, 'rgba(160, 135, 100, 0.35)'); // Ring F fringe
+  grad.addColorStop(1.0, 'rgba(0,0,0,0)');
 
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 256, 4);
+  ctx.fillRect(0, 0, 512, 4);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
-
-/** Check if position is facing the camera */
-const _toCam = new THREE.Vector3();
-const _pos = new THREE.Vector3();
-const facingCamera = (pos, camera) => {
-  _toCam.copy(camera.position).sub(pos).normalize();
-  return _pos.copy(pos).normalize().dot(_toCam) > 0.1;
-};
 
 /**
  * Deep Space Cosmos Component:
- * Places the real Sun, Earth & Moon, Venus, Jupiter, Saturn with 3D rings,
- * Mars's natural moons (Phobos & Deimos), and NASA J2000 bright stars in the sky.
+ * Renders the real Sun, Earth & Moon, Jupiter with Galilean moons, Saturn with 3D rings,
+ * Venus, Mercury, and Mars's moons (Phobos & Deimos) using genuine NASA & USGS planetary texture maps.
  */
 export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
   const { camera } = useThree();
-  const earthTexture = useMemo(() => createEarthTexture(), []);
-  const jupiterTexture = useMemo(() => createJupiterTexture(), []);
-  const saturnRingTexture = useMemo(() => createSaturnRingTexture(), []);
+
+  // Load genuine NASA and USGS planetary texture maps
+  const textures = useTexture({
+    sun: '/textures/planets/sun.jpg',
+    earth: '/textures/planets/earth.jpg',
+    moon: '/textures/planets/moon.jpg',
+    jupiter: '/textures/planets/jupiter.jpg',
+    saturn: '/textures/planets/saturn.jpg',
+    venus: '/textures/planets/venus.jpg',
+    mercury: '/textures/planets/mercury.jpg',
+    phobos: '/textures/planets/phobos.png',
+  });
+
+  // Calibrate textures to sRGB color space
+  useEffect(() => {
+    Object.values(textures).forEach((tex) => {
+      if (tex) {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 4;
+        tex.needsUpdate = true;
+      }
+    });
+  }, [textures]);
+
+  const saturnRingTexture = useMemo(() => createRealisticSaturnRingTexture(), []);
+
+  // Custom Saturn Ring Geometry with Radial UV Mapping
+  const saturnRingGeometry = useMemo(() => {
+    const inner = 1.55;
+    const outer = 2.85;
+    const geo = new THREE.RingGeometry(inner, outer, 96, 12);
+    const pos = geo.attributes.position;
+    const uvs = geo.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const r = Math.sqrt(x * x + y * y);
+      const u = (r - inner) / (outer - inner);
+      uvs.setXY(i, u, 0.5);
+    }
+    uvs.needsUpdate = true;
+    return geo;
+  }, []);
 
   // Real NASA/JPL planetary & stellar positions
   const { planets, stars } = useMemo(() => {
@@ -160,32 +102,50 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
 
   const [hoveredId, setHoveredId] = useState(null);
 
-  // References for animation
-  const earthGroup = useRef();
-  const moonMesh = useRef();
-  const phobosGroup = useRef();
-  const deimosGroup = useRef();
-  const jupiterMoonsGroup = useRef();
+  // Animation references
+  const sunMesh = useRef();
   const coronaMesh = useRef();
+  const earthMesh = useRef();
+  const moonMesh = useRef();
+  const jupiterMesh = useRef();
+  const jupiterMoonsGroup = useRef();
+  const saturnMesh = useRef();
+  const phobosGroup = useRef();
+  const phobosMesh = useRef();
+  const deimosGroup = useRef();
 
-  // Animation ticks for moons and coronal pulse
+  // Astronomical rotations and orbital motion ticks
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
 
-    // Earth's Moon orbital revolution
+    // Sun slow axial rotation and gentle coronal breathing
+    if (sunMesh.current) {
+      sunMesh.current.rotation.y = t * 0.02;
+    }
+    if (coronaMesh.current) {
+      const s = 1 + Math.sin(t * 1.5) * 0.035;
+      coronaMesh.current.scale.set(s, s, s);
+    }
+
+    // Earth axial rotation (23.4° tilt)
+    if (earthMesh.current) {
+      earthMesh.current.rotation.y = t * 0.06;
+    }
+
+    // Moon's orbital revolution around Earth
     if (moonMesh.current) {
-      const moonAngle = t * 0.45;
-      moonMesh.current.position.set(Math.cos(moonAngle) * 2.2, Math.sin(moonAngle) * 0.6, Math.sin(moonAngle) * 2.2);
+      const moonAngle = t * 0.28;
+      moonMesh.current.position.set(
+        Math.cos(moonAngle) * 2.3,
+        Math.sin(moonAngle) * 0.45,
+        Math.sin(moonAngle) * 2.3
+      );
+      moonMesh.current.rotation.y = moonAngle; // Synchronous rotation
     }
 
-    // Mars's Moon: Phobos (Fast orbit: ~7.65 h)
-    if (phobosGroup.current) {
-      phobosGroup.current.rotation.y = t * 0.65;
-    }
-
-    // Mars's Moon: Deimos (Slower orbit: ~30.3 h)
-    if (deimosGroup.current) {
-      deimosGroup.current.rotation.y = t * 0.16;
+    // Jupiter's fast rotation (9.9 hours in reality)
+    if (jupiterMesh.current) {
+      jupiterMesh.current.rotation.y = t * 0.12;
     }
 
     // Jupiter's Galilean moons
@@ -193,17 +153,29 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
       jupiterMoonsGroup.current.rotation.y = t * 0.35;
     }
 
-    // Gentle solar coronal pulsation
-    if (coronaMesh.current) {
-      const s = 1 + Math.sin(t * 1.5) * 0.04;
-      coronaMesh.current.scale.set(s, s, s);
+    // Saturn axial rotation (26.7° tilt)
+    if (saturnMesh.current) {
+      saturnMesh.current.rotation.y = t * 0.08;
+    }
+
+    // Phobos (fast orbit ~7.65 h)
+    if (phobosGroup.current) {
+      phobosGroup.current.rotation.y = t * 0.65;
+    }
+    if (phobosMesh.current) {
+      phobosMesh.current.rotation.y = t * 0.65;
+    }
+
+    // Deimos (slower orbit ~30.3 h)
+    if (deimosGroup.current) {
+      deimosGroup.current.rotation.y = t * 0.16;
     }
   });
 
   return (
     <group name="deep-space-cosmos">
       {/* ============================================================== */}
-      {/* 1. THE SUN (Real direction from Mars now, casting radiant glow) */}
+      {/* 1. THE SUN (NASA SDO Photosphere with Active Convective Corona) */}
       {/* ============================================================== */}
       {(() => {
         const sun = planets.find((p) => p.id === 'sun');
@@ -213,26 +185,47 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
 
         return (
           <group position={sunPos}>
-            {/* Blazing core sphere */}
+            {/* Blazing core sphere with NASA SDO Photosphere Texture */}
             <mesh
-              onClick={(e) => { e.stopPropagation(); onSelectBody?.(sun); }}
-              onPointerOver={(e) => { e.stopPropagation(); setHoveredId('sun'); document.body.style.cursor = 'pointer'; }}
-              onPointerOut={() => { setHoveredId(null); document.body.style.cursor = ''; }}
+              ref={sunMesh}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectBody?.(sun);
+              }}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                setHoveredId('sun');
+                document.body.style.cursor = 'pointer';
+              }}
+              onPointerOut={() => {
+                setHoveredId(null);
+                document.body.style.cursor = '';
+              }}
             >
-              <sphereGeometry args={[3.2, 32, 32]} />
-              <meshBasicMaterial color="#ffffff" />
+              <sphereGeometry args={[3.4, 48, 48]} />
+              <meshBasicMaterial map={textures.sun} />
             </mesh>
 
             {/* Inner radiant corona */}
             <mesh ref={coronaMesh}>
-              <sphereGeometry args={[4.2, 32, 32]} />
-              <meshBasicMaterial color="#fef08a" transparent opacity={0.65} blending={THREE.AdditiveBlending} />
+              <sphereGeometry args={[4.4, 32, 32]} />
+              <meshBasicMaterial
+                color="#fef08a"
+                transparent
+                opacity={0.45}
+                blending={THREE.AdditiveBlending}
+              />
             </mesh>
 
-            {/* Outer solar flare disc */}
-            <mesh scale={2.4}>
+            {/* Outer solar flare atmosphere */}
+            <mesh scale={2.2}>
               <sphereGeometry args={[3.6, 24, 24]} />
-              <meshBasicMaterial color="#f97316" transparent opacity={0.25} blending={THREE.AdditiveBlending} />
+              <meshBasicMaterial
+                color="#f97316"
+                transparent
+                opacity={0.18}
+                blending={THREE.AdditiveBlending}
+              />
             </mesh>
 
             {/* Tactical Label */}
@@ -245,7 +238,9 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
                 <span className="font-bold">SUN</span>
                 <span className="text-zinc-400">·</span>
                 <span className="text-zinc-300">{sun.distAu.toFixed(2)} AU</span>
-                <span className="text-amber-400/90 font-semibold">({sun.lightMinutes.toFixed(1)}m light delay)</span>
+                <span className="text-amber-400/90 font-semibold">
+                  ({sun.lightMinutes.toFixed(1)}m light delay)
+                </span>
               </div>
             </Html>
           </group>
@@ -253,7 +248,7 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
       })()}
 
       {/* ============================================================== */}
-      {/* 2. EARTH & THE MOON (Home world with atmosphere & orbital Moon)*/}
+      {/* 2. EARTH & MOON (NASA Blue Marble Globe & Clementine Moon)     */}
       {/* ============================================================== */}
       {(() => {
         const earth = planets.find((p) => p.id === 'earth');
@@ -262,34 +257,60 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
         const isHovered = hoveredId === 'earth';
 
         return (
-          <group ref={earthGroup} position={earthPos}>
-            {/* Earth Blue Marble Sphere */}
-            <mesh
-              onClick={(e) => { e.stopPropagation(); onSelectBody?.(earth); }}
-              onPointerOver={(e) => { e.stopPropagation(); setHoveredId('earth'); document.body.style.cursor = 'pointer'; }}
-              onPointerOut={() => { setHoveredId(null); document.body.style.cursor = ''; }}
-            >
-              <sphereGeometry args={[1.05, 32, 32]} />
-              <meshStandardMaterial map={earthTexture} roughness={0.7} metalness={0.1} />
-            </mesh>
+          <group position={earthPos}>
+            {/* Earth Group with 23.4° Axial Tilt */}
+            <group rotation={[THREE.MathUtils.degToRad(23.4), 0, 0]}>
+              <mesh
+                ref={earthMesh}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectBody?.(earth);
+                }}
+                onPointerOver={(e) => {
+                  e.stopPropagation();
+                  setHoveredId('earth');
+                  document.body.style.cursor = 'pointer';
+                }}
+                onPointerOut={() => {
+                  setHoveredId(null);
+                  document.body.style.cursor = '';
+                }}
+              >
+                <sphereGeometry args={[1.1, 48, 48]} />
+                <meshStandardMaterial
+                  map={textures.earth}
+                  roughness={0.65}
+                  metalness={0.08}
+                />
+              </mesh>
 
-            {/* Cyan Atmospheric Glow Rim */}
-            <mesh scale={1.08}>
-              <sphereGeometry args={[1.05, 32, 32]} />
-              <meshBasicMaterial color="#38bdf8" transparent opacity={0.35} blending={THREE.AdditiveBlending} />
-            </mesh>
+              {/* Cyan Atmospheric Limb Glow (Rayleigh scattering rim) */}
+              <mesh scale={1.045}>
+                <sphereGeometry args={[1.1, 32, 32]} />
+                <meshBasicMaterial
+                  color="#38bdf8"
+                  transparent
+                  opacity={0.32}
+                  blending={THREE.AdditiveBlending}
+                />
+              </mesh>
+            </group>
 
-            {/* The Moon (Luna) */}
-            <mesh ref={moonMesh} position={[2.2, 0, 0]}>
-              <sphereGeometry args={[0.26, 16, 16]} />
-              <meshStandardMaterial color="#cbd5e1" roughness={0.9} />
+            {/* The Moon (Luna) with Genuine NASA Clementine/LRO Surface Map */}
+            <mesh ref={moonMesh} position={[2.3, 0, 0]}>
+              <sphereGeometry args={[0.3, 32, 32]} />
+              <meshStandardMaterial
+                map={textures.moon}
+                roughness={0.92}
+                metalness={0.02}
+              />
             </mesh>
 
             {/* Moon Orbit Ring */}
             <Line
-              points={Array.from({ length: 48 }, (_, i) => {
-                const a = (i / 48) * Math.PI * 2;
-                return [Math.cos(a) * 2.2, 0, Math.sin(a) * 2.2];
+              points={Array.from({ length: 64 }, (_, i) => {
+                const a = (i / 64) * Math.PI * 2;
+                return [Math.cos(a) * 2.3, Math.sin(a) * 0.45, Math.sin(a) * 2.3];
               })}
               color="#38bdf8"
               lineWidth={1}
@@ -304,10 +325,12 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
                 className="translate-y-6 flex items-center gap-1.5 whitespace-nowrap rounded-full border border-sky-400/40 bg-black/85 px-2.5 py-0.5 text-[11px] font-mono text-sky-200 shadow-xl backdrop-blur transition-all"
               >
                 <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
-                <span className="font-bold text-white">EARTH & MOON</span>
+                <span className="font-bold text-white">EARTH &amp; MOON</span>
                 <span className="text-zinc-400">·</span>
                 <span className="text-sky-300">{earth.distAu.toFixed(2)} AU</span>
-                <span className="text-zinc-400 font-sans text-[10px]">({Math.round(earth.distKm / 1e6)}M km)</span>
+                <span className="text-zinc-400 font-sans text-[10px]">
+                  ({Math.round(earth.distKm / 1e6)}M km)
+                </span>
               </div>
             </Html>
           </group>
@@ -315,7 +338,7 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
       })()}
 
       {/* ============================================================== */}
-      {/* 3. JUPITER & GALILEAN MOONS (Giant banded sphere + 4 moons)     */}
+      {/* 3. JUPITER (NASA Cassini/Juno Mosaic & Galilean Moons)         */}
       {/* ============================================================== */}
       {(() => {
         const jup = planets.find((p) => p.id === 'jupiter');
@@ -325,35 +348,47 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
 
         return (
           <group position={jupPos}>
+            {/* Giant Jovian Sphere with Real Belts & Great Red Spot */}
             <mesh
-              onClick={(e) => { e.stopPropagation(); onSelectBody?.(jup); }}
-              onPointerOver={(e) => { e.stopPropagation(); setHoveredId('jupiter'); document.body.style.cursor = 'pointer'; }}
-              onPointerOut={() => { setHoveredId(null); document.body.style.cursor = ''; }}
+              ref={jupiterMesh}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectBody?.(jup);
+              }}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                setHoveredId('jupiter');
+                document.body.style.cursor = 'pointer';
+              }}
+              onPointerOut={() => {
+                setHoveredId(null);
+                document.body.style.cursor = '';
+              }}
             >
-              <sphereGeometry args={[1.5, 32, 32]} />
-              <meshStandardMaterial map={jupiterTexture} roughness={0.8} />
+              <sphereGeometry args={[1.55, 48, 48]} />
+              <meshStandardMaterial map={textures.jupiter} roughness={0.75} />
             </mesh>
 
-            {/* Galilean Moons: Io, Europa, Ganymede, Callisto */}
+            {/* Galilean Moons in 3D Orbits: Io, Europa, Ganymede, Callisto */}
             <group ref={jupiterMoonsGroup}>
-              {/* Io */}
-              <mesh position={[2.1, 0, 0]}>
-                <sphereGeometry args={[0.07, 12, 12]} />
+              {/* Io (Sulfur volcanic moon) */}
+              <mesh position={[2.2, 0, 0]}>
+                <sphereGeometry args={[0.075, 16, 16]} />
                 <meshBasicMaterial color="#fef08a" />
               </mesh>
-              {/* Europa */}
-              <mesh position={[-2.7, 0.1, 0]}>
-                <sphereGeometry args={[0.06, 12, 12]} />
+              {/* Europa (Icy white crust with cracks) */}
+              <mesh position={[-2.8, 0.1, 0]}>
+                <sphereGeometry args={[0.065, 16, 16]} />
                 <meshBasicMaterial color="#f8fafc" />
               </mesh>
-              {/* Ganymede */}
-              <mesh position={[0, 0, 3.4]}>
-                <sphereGeometry args={[0.09, 12, 12]} />
-                <meshBasicMaterial color="#e2e8f0" />
+              {/* Ganymede (Largest solar system moon) */}
+              <mesh position={[0, 0, 3.5]}>
+                <sphereGeometry args={[0.095, 16, 16]} />
+                <meshBasicMaterial color="#cbd5e1" />
               </mesh>
-              {/* Callisto */}
-              <mesh position={[0, -0.2, -4.2]}>
-                <sphereGeometry args={[0.08, 12, 12]} />
+              {/* Callisto (Ancient heavily cratered dark ice) */}
+              <mesh position={[0, -0.2, -4.3]}>
+                <sphereGeometry args={[0.085, 16, 16]} />
                 <meshBasicMaterial color="#94a3b8" />
               </mesh>
             </group>
@@ -375,7 +410,7 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
       })()}
 
       {/* ============================================================== */}
-      {/* 4. SATURN WITH 3D RINGS (Tilted Ring System)                    */}
+      {/* 4. SATURN (NASA Cassini Atmosphere & 3D Tilted Radial Rings)   */}
       {/* ============================================================== */}
       {(() => {
         const sat = planets.find((p) => p.id === 'saturn');
@@ -385,21 +420,39 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
 
         return (
           <group position={satPos}>
-            {/* Saturn Body */}
-            <mesh
-              onClick={(e) => { e.stopPropagation(); onSelectBody?.(sat); }}
-              onPointerOver={(e) => { e.stopPropagation(); setHoveredId('saturn'); document.body.style.cursor = 'pointer'; }}
-              onPointerOut={() => { setHoveredId(null); document.body.style.cursor = ''; }}
-            >
-              <sphereGeometry args={[1.2, 32, 32]} />
-              <meshStandardMaterial color="#fef08a" roughness={0.8} />
-            </mesh>
+            {/* Saturn Body with 26.7° Axial Tilt */}
+            <group rotation={[THREE.MathUtils.degToRad(26.7), 0, THREE.MathUtils.degToRad(12)]}>
+              <mesh
+                ref={saturnMesh}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectBody?.(sat);
+                }}
+                onPointerOver={(e) => {
+                  e.stopPropagation();
+                  setHoveredId('saturn');
+                  document.body.style.cursor = 'pointer';
+                }}
+                onPointerOut={() => {
+                  setHoveredId(null);
+                  document.body.style.cursor = '';
+                }}
+              >
+                <sphereGeometry args={[1.25, 48, 48]} />
+                <meshStandardMaterial map={textures.saturn} roughness={0.78} />
+              </mesh>
 
-            {/* Saturn 3D Tilted Ring Mesh */}
-            <mesh rotation={[THREE.MathUtils.degToRad(27), 0, THREE.MathUtils.degToRad(15)]}>
-              <ringGeometry args={[1.55, 2.85, 64]} />
-              <meshStandardMaterial map={saturnRingTexture} side={THREE.DoubleSide} transparent opacity={0.92} />
-            </mesh>
+              {/* Saturn 3D Concentric Ring System with Cassini Division & Encke Gap */}
+              <mesh geometry={saturnRingGeometry} rotation={[Math.PI / 2, 0, 0]}>
+                <meshStandardMaterial
+                  map={saturnRingTexture}
+                  side={THREE.DoubleSide}
+                  transparent
+                  opacity={0.94}
+                  roughness={0.6}
+                />
+              </mesh>
+            </group>
 
             {/* Tactical Label */}
             <Html center zIndexRange={[40, 0]} style={{ pointerEvents: 'none' }}>
@@ -418,7 +471,7 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
       })()}
 
       {/* ============================================================== */}
-      {/* 5. VENUS (Brilliant morning/evening star beacon)                */}
+      {/* 5. VENUS (NASA Magellan Radar Terrain & Sulfuric Cloud Glow)   */}
       {/* ============================================================== */}
       {(() => {
         const ven = planets.find((p) => p.id === 'venus');
@@ -428,18 +481,35 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
 
         return (
           <group position={venPos}>
+            {/* Core Body with Magellan Radar Surface Map */}
             <mesh
-              onClick={(e) => { e.stopPropagation(); onSelectBody?.(ven); }}
-              onPointerOver={(e) => { e.stopPropagation(); setHoveredId('venus'); document.body.style.cursor = 'pointer'; }}
-              onPointerOut={() => { setHoveredId(null); document.body.style.cursor = ''; }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectBody?.(ven);
+              }}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                setHoveredId('venus');
+                document.body.style.cursor = 'pointer';
+              }}
+              onPointerOut={() => {
+                setHoveredId(null);
+                document.body.style.cursor = '';
+              }}
             >
-              <sphereGeometry args={[0.75, 24, 24]} />
-              <meshBasicMaterial color="#fef9c3" />
+              <sphereGeometry args={[0.82, 36, 36]} />
+              <meshStandardMaterial map={textures.venus} roughness={0.7} />
             </mesh>
-            {/* Bright diffraction diamond flare */}
-            <mesh scale={1.6}>
-              <sphereGeometry args={[0.75, 16, 16]} />
-              <meshBasicMaterial color="#ffffff" transparent opacity={0.4} blending={THREE.AdditiveBlending} />
+
+            {/* Shimmering Sulfuric Acid Atmosphere Haze */}
+            <mesh scale={1.03}>
+              <sphereGeometry args={[0.82, 24, 24]} />
+              <meshBasicMaterial
+                color="#fef3c7"
+                transparent
+                opacity={0.38}
+                blending={THREE.AdditiveBlending}
+              />
             </mesh>
 
             <Html center zIndexRange={[40, 0]} style={{ pointerEvents: 'none' }}>
@@ -458,7 +528,7 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
       })()}
 
       {/* ============================================================== */}
-      {/* 6. MERCURY                                                     */}
+      {/* 6. MERCURY (NASA MESSENGER Global Cratered Mosaic)             */}
       {/* ============================================================== */}
       {(() => {
         const mer = planets.find((p) => p.id === 'mercury');
@@ -468,13 +538,24 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
 
         return (
           <group position={merPos}>
+            {/* Highly Detailed Cratered Terrestrial Body */}
             <mesh
-              onClick={(e) => { e.stopPropagation(); onSelectBody?.(mer); }}
-              onPointerOver={(e) => { e.stopPropagation(); setHoveredId('mercury'); document.body.style.cursor = 'pointer'; }}
-              onPointerOut={() => { setHoveredId(null); document.body.style.cursor = ''; }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectBody?.(mer);
+              }}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                setHoveredId('mercury');
+                document.body.style.cursor = 'pointer';
+              }}
+              onPointerOut={() => {
+                setHoveredId(null);
+                document.body.style.cursor = '';
+              }}
             >
-              <sphereGeometry args={[0.42, 16, 16]} />
-              <meshStandardMaterial color="#94a3b8" roughness={0.9} />
+              <sphereGeometry args={[0.48, 32, 32]} />
+              <meshStandardMaterial map={textures.mercury} roughness={0.92} />
             </mesh>
 
             <Html center zIndexRange={[40, 0]} style={{ pointerEvents: 'none' }}>
@@ -482,7 +563,8 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
                 style={{ opacity: isHovered ? 1 : 0.55 }}
                 className="translate-y-4 flex items-center gap-1 whitespace-nowrap rounded-full border border-white/20 bg-black/80 px-1.5 py-0.5 text-[10px] font-mono text-zinc-300 shadow backdrop-blur transition-all"
               >
-                <span>Mercury</span>
+                <span className="font-semibold text-zinc-200">Mercury</span>
+                <span className="text-zinc-400">· {mer.distAu.toFixed(2)} AU</span>
               </div>
             </Html>
           </group>
@@ -490,9 +572,9 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
       })()}
 
       {/* ============================================================== */}
-      {/* 7. MARS'S NATURAL MOONS: PHOBOS & DEIMOS (Orbiting Mars in 3D)  */}
+      {/* 7. PHOBOS & DEIMOS (USGS Relief Mapped Moons of Mars)          */}
       {/* ============================================================== */}
-      {/* Phobos (a = 9,376 km -> ~5.53 Three.js radius, orbit = 7.65 h) */}
+      {/* Phobos: Triaxial Ellipsoid (27 × 22 × 18 km) with USGS Relief Map */}
       <group ref={phobosGroup}>
         {/* Phobos Orbit Line */}
         <Line
@@ -508,9 +590,11 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
           dashScale={12}
         />
 
-        {/* Phobos Rock Mesh */}
+        {/* Phobos Irregular Body */}
         <group position={[5.53, 0, 0]}>
           <mesh
+            ref={phobosMesh}
+            scale={[1.18, 0.95, 0.82]}
             onClick={(e) => {
               e.stopPropagation();
               onSelectBody?.({
@@ -518,20 +602,34 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
                 name: 'Phobos',
                 type: 'moon',
                 distKm: MOONS.phobos.aKm,
-                description: 'The larger, innermost moon of Mars. Orbits closer to its planet than any other moon in the Solar System, rising in the west and setting in the east twice every Martian sol.',
+                description:
+                  'The larger, innermost moon of Mars. Orbits closer to its planet than any other moon in the Solar System, rising in the west and setting in the east twice every Martian sol.',
                 subtext: `Orbital period: ${MOONS.phobos.periodH} hours · Diameter: ${MOONS.phobos.diameterKm} km. Target of JAXA/NASA MMX sample return mission.`,
               });
             }}
-            onPointerOver={(e) => { e.stopPropagation(); setHoveredId('phobos'); document.body.style.cursor = 'pointer'; }}
-            onPointerOut={() => { setHoveredId(null); document.body.style.cursor = ''; }}
+            onPointerOver={(e) => {
+              e.stopPropagation();
+              setHoveredId('phobos');
+              document.body.style.cursor = 'pointer';
+            }}
+            onPointerOut={() => {
+              setHoveredId(null);
+              document.body.style.cursor = '';
+            }}
           >
-            <dodecahedronGeometry args={[0.08, 1]} />
-            <meshStandardMaterial color="#a1a1aa" roughness={0.95} />
+            <sphereGeometry args={[0.09, 32, 32]} />
+            <meshStandardMaterial
+              map={textures.phobos}
+              roughness={0.95}
+              metalness={0.05}
+            />
           </mesh>
 
           <Html center zIndexRange={[35, 0]} style={{ pointerEvents: 'none' }}>
             <div
-              style={{ opacity: hoveredId === 'phobos' || camera.position.length() < 12 ? 1 : 0.6 }}
+              style={{
+                opacity: hoveredId === 'phobos' || camera.position.length() < 12 ? 1 : 0.6,
+              }}
               className="translate-y-4 flex items-center gap-1.5 whitespace-nowrap rounded-full border border-sky-400/30 bg-black/80 px-2 py-0.5 text-[10px] font-mono text-sky-200 shadow-md backdrop-blur transition-all"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
@@ -543,7 +641,7 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
         </group>
       </group>
 
-      {/* Deimos (a = 23,463 km -> ~13.84 Three.js radius, orbit = 30.3 h) */}
+      {/* Deimos: Outer Synchronous Moon (15 × 12 × 11 km) */}
       <group ref={deimosGroup}>
         {/* Deimos Orbit Line */}
         <Line
@@ -559,9 +657,10 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
           dashScale={18}
         />
 
-        {/* Deimos Rock Mesh */}
+        {/* Deimos Body */}
         <group position={[13.84, 0, 0]}>
           <mesh
+            scale={[1.15, 1.0, 0.88]}
             onClick={(e) => {
               e.stopPropagation();
               onSelectBody?.({
@@ -569,20 +668,30 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
                 name: 'Deimos',
                 type: 'moon',
                 distKm: MOONS.deimos.aKm,
-                description: 'The smaller, outer moon of Mars. Orbits synchronously at 23,463 km with a smooth blanket of regolith filling its craters.',
+                description:
+                  'The smaller, outer moon of Mars. Orbits synchronously at 23,463 km with a smooth blanket of regolith filling its craters.',
                 subtext: `Orbital period: ${MOONS.deimos.periodH} hours · Diameter: ${MOONS.deimos.diameterKm} km.`,
               });
             }}
-            onPointerOver={(e) => { e.stopPropagation(); setHoveredId('deimos'); document.body.style.cursor = 'pointer'; }}
-            onPointerOut={() => { setHoveredId(null); document.body.style.cursor = ''; }}
+            onPointerOver={(e) => {
+              e.stopPropagation();
+              setHoveredId('deimos');
+              document.body.style.cursor = 'pointer';
+            }}
+            onPointerOut={() => {
+              setHoveredId(null);
+              document.body.style.cursor = '';
+            }}
           >
-            <dodecahedronGeometry args={[0.055, 1]} />
-            <meshStandardMaterial color="#d4d4d8" roughness={0.9} />
+            <sphereGeometry args={[0.06, 24, 24]} />
+            <meshStandardMaterial color="#b4b4bc" roughness={0.92} />
           </mesh>
 
           <Html center zIndexRange={[35, 0]} style={{ pointerEvents: 'none' }}>
             <div
-              style={{ opacity: hoveredId === 'deimos' || camera.position.length() > 9 ? 1 : 0.6 }}
+              style={{
+                opacity: hoveredId === 'deimos' || camera.position.length() > 9 ? 1 : 0.6,
+              }}
               className="translate-y-4 flex items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-400/30 bg-black/80 px-2 py-0.5 text-[10px] font-mono text-amber-200 shadow-md backdrop-blur transition-all"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
@@ -595,7 +704,7 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
       </group>
 
       {/* ============================================================== */}
-      {/* 8. NASA J2000 CONSTELLATION STARS                              */}
+      {/* 8. NASA J2000 NAVIGATIONAL CONSTELLATION STARS                 */}
       {/* ============================================================== */}
       {stars.map((star) => {
         const starPos = dirFor(star.lat, star.lon).multiplyScalar(135);
@@ -617,8 +726,15 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
                   subtext: `Constellation: ${star.constellation}. Used by Mars rover star-trackers for autonomous celestial navigation.`,
                 });
               }}
-              onPointerOver={(e) => { e.stopPropagation(); setHoveredId(`star-${star.name}`); document.body.style.cursor = 'pointer'; }}
-              onPointerOut={() => { setHoveredId(null); document.body.style.cursor = ''; }}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                setHoveredId(`star-${star.name}`);
+                document.body.style.cursor = 'pointer';
+              }}
+              onPointerOut={() => {
+                setHoveredId(null);
+                document.body.style.cursor = '';
+              }}
             >
               <sphereGeometry args={[starSize, 12, 12]} />
               <meshBasicMaterial color={star.color} />
@@ -628,7 +744,12 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
             {star.mag < 0.5 && (
               <mesh scale={2.2}>
                 <sphereGeometry args={[starSize, 8, 8]} />
-                <meshBasicMaterial color={star.color} transparent opacity={0.35} blending={THREE.AdditiveBlending} />
+                <meshBasicMaterial
+                  color={star.color}
+                  transparent
+                  opacity={0.35}
+                  blending={THREE.AdditiveBlending}
+                />
               </mesh>
             )}
 

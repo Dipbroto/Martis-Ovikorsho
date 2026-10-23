@@ -649,14 +649,16 @@ export default function Mars3DViewer() {
           <Atmosphere />
         </Suspense>
         {layers.cosmos && (
-          <DeepSpaceCosmos
-            now={now}
-            subsolar={sub}
-            onSelectBody={(body) => {
-              setSelectedPOI(null);
-              setSelectedCelestial(body);
-            }}
-          />
+          <Suspense fallback={null}>
+            <DeepSpaceCosmos
+              now={now}
+              subsolar={sub}
+              onSelectBody={(body) => {
+                setSelectedPOI(null);
+                setSelectedCelestial(body);
+              }}
+            />
+          </Suspense>
         )}
         {layers.storms && <DustStorms lightDir={lightDir} />}
         {layers.orbiters && <Orbiters />}
