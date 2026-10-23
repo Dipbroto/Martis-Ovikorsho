@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect, useState, Suspense } from 'react';
+import { useRef, useMemo, useEffect, useState, useCallback, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -33,6 +33,10 @@ const dirFor = (lat, lon) => {
 const ROVER_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="9" width="12.5" height="4" rx="1"/><path d="M14.5 9V5.2"/><rect x="13.2" y="3" width="4.6" height="2.4" rx="0.6"/><path d="M6.5 13l-1.8 3.2M10.8 13v3.2M15 13l1.8 3.2"/><circle cx="4.6" cy="18.2" r="1.7"/><circle cx="10.8" cy="18.2" r="1.7"/><circle cx="17" cy="18.2" r="1.7"/></svg>';
 const LANDER_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12.5h10l-1.8-4H8.8z"/><path d="M8.5 12.5l-3.2 5.8M15.5 12.5l3.2 5.8M12 12.5v5.8"/><path d="M9.3 5.4a3.2 3.2 0 0 1 5.4 0"/><path d="M12 8.5V5.8"/></svg>';
 
+const LAYERS_PREF = 'marswalk-globe-layers'; // 'open' or 'folded': the layers panel stays as you left it
+const HOME_DIST = 7.6; // the default view: the whole planet with room around it
+const INTRO_DIST = 10.5; // the camera starts here and glides in to HOME_DIST once the planet is ready
+
 const FLY_TO = [
   { id: 'global', name: 'Whole planet', lat: 5, lon: -70, dist: 7.6 },
   { id: 'jezero', name: 'Jezero Crater', lat: 18.4, lon: 77.5, dist: 4.4 },
@@ -45,11 +49,12 @@ const FLY_TO = [
 // ---------- data hooks ----------
 
 /** Tangent-space normal map from the MOLA global grid: real topography lighting on the globe. */
-function useMolaNormalMap() {
+function useMolaNormalMap(enabled) {
   const [tex, setTex] = useState(null);
   useEffect(() => {
+    if (!enabled) return undefined;
     let cancelled = false;
-    loadGrid('global').then((g) => {
+    loadGrid('global').then(async (g) => {
       if (cancelled) return;
       const { width: W, height: H, data, nodata } = g;
       const canvas = document.createElement('canvas');
@@ -63,18 +68,23 @@ function useMolaNormalMap() {
         const v = data[Math.min(H - 1, Math.max(0, r)) * W + ((c + W) % W)];
         return v === nodata ? 0 : v;
       };
-      for (let r = 0; r < H; r++) {
-        const coslat = Math.max(0.05, Math.cos(((90 - (r + 0.5) * (180 / H)) * Math.PI) / 180));
-        for (let c = 0; c < W; c++) {
-          const dzdx = ((at(c + 1, r) - at(c - 1, r)) / (2 * cell * coslat)) * k;
-          const dzdn = ((at(c, r - 1) - at(c, r + 1)) / (2 * cell)) * k;
-          const len = Math.hypot(dzdx, dzdn, 1);
-          const i = (r * W + c) * 4;
-          img.data[i] = ((-dzdx / len) * 0.5 + 0.5) * 255;
-          img.data[i + 1] = ((-dzdn / len) * 0.5 + 0.5) * 255;
-          img.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
-          img.data[i + 3] = 255;
+      // Worked out a band of rows at a time, so the planet keeps turning smoothly while it is built
+      for (let r0 = 0; r0 < H; r0 += 48) {
+        for (let r = r0; r < Math.min(H, r0 + 48); r++) {
+          const coslat = Math.max(0.05, Math.cos(((90 - (r + 0.5) * (180 / H)) * Math.PI) / 180));
+          for (let c = 0; c < W; c++) {
+            const dzdx = ((at(c + 1, r) - at(c - 1, r)) / (2 * cell * coslat)) * k;
+            const dzdn = ((at(c, r - 1) - at(c, r + 1)) / (2 * cell)) * k;
+            const len = Math.hypot(dzdx, dzdn, 1);
+            const i = (r * W + c) * 4;
+            img.data[i] = ((-dzdx / len) * 0.5 + 0.5) * 255;
+            img.data[i + 1] = ((-dzdn / len) * 0.5 + 0.5) * 255;
+            img.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
+            img.data[i + 3] = 255;
+          }
         }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (cancelled) return;
       }
       ctx.putImageData(img, 0, 0);
       const t = new THREE.CanvasTexture(canvas);
@@ -83,7 +93,7 @@ function useMolaNormalMap() {
       setTex(t);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [enabled]);
   return tex;
 }
 
@@ -98,9 +108,10 @@ const useJson = (url, enabled) => {
 
 // ---------- scene pieces ----------
 
-function Globe() {
+function Globe({ onReady }) {
   const color = useTexture(TEXTURE);
-  const normal = useMolaNormalMap();
+  const normal = useMolaNormalMap(true);
+  useEffect(() => { onReady?.(); }, [onReady]);
   const { gl } = useThree();
   useEffect(() => {
     color.colorSpace = THREE.SRGBColorSpace;
@@ -477,8 +488,8 @@ const hm = (s) => {
 };
 
 export default function Mars3DViewer() {
-  const { waypoints, routeGeometry, selectedPOI, setSelectedPOI, setViewMode, flyToCoordinate } = useMapStore(useShallow((s) => ({
-    waypoints: s.waypoints, routeGeometry: s.routeGeometry, selectedPOI: s.selectedPOI, setSelectedPOI: s.setSelectedPOI,
+  const { waypoints, routeGeometry, selectedPOI, setSelectedPOI, setViewMode, flyToCoordinate, viewMode } = useMapStore(useShallow((s) => ({
+    viewMode: s.viewMode, waypoints: s.waypoints, routeGeometry: s.routeGeometry, selectedPOI: s.selectedPOI, setSelectedPOI: s.setSelectedPOI,
     setViewMode: s.setViewMode, flyToCoordinate: s.flyToCoordinate,
   })));
   const [hasWebGL] = useState(() => {
@@ -492,15 +503,33 @@ export default function Mars3DViewer() {
   const [layers, setLayers] = useState({ sites: true, route: true, water: false, caves: false, sun: false, orbiters: false, storms: false, grid: false });
   const [autoRotate, setAutoRotate] = useState(true);
   const [detail, setDetail] = useState({ z: 0, loading: 0 });
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [ready, setReady] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(() => {
+    try { const v = localStorage.getItem(LAYERS_PREF); if (v) return v === 'open'; } catch { /* storage blocked */ }
+    return true;
+  });
   const rootRef = useRef(null);
+  // The width of this pane (the globe is half the screen in split view), so the bars fit it
+  const [paneW, setPaneW] = useState(1200);
+  useEffect(() => {
+    if (!rootRef.current || !window.ResizeObserver) return undefined;
+    const ro = new ResizeObserver(([e]) => setPaneW(e.contentRect.width));
+    ro.observe(rootRef.current);
+    return () => ro.disconnect();
+  }, []);
   const [target, setTarget] = useState(null);
   const [active, setActive] = useState('global');
   const controls = useRef();
   // A narrow pane (phone, or the split view) starts with the layers folded away
   useEffect(() => {
-    if (rootRef.current && rootRef.current.clientWidth < 640) setPanelOpen(false);
+    let chosen = false;
+    try { chosen = !!localStorage.getItem(LAYERS_PREF); } catch { /* storage blocked */ }
+    if (!chosen && rootRef.current && rootRef.current.clientWidth < 640) setPanelOpen(false);
   }, []);
+  const togglePanel = () => setPanelOpen((v) => {
+    try { localStorage.setItem(LAYERS_PREF, v ? 'folded' : 'open'); } catch { /* storage blocked */ }
+    return !v;
+  });
   const lightDir = useMemo(() => new THREE.Vector3(1, 0, 0), []);
 
   // The real Sun position, refreshed every minute while that layer is on
@@ -536,9 +565,9 @@ export default function Mars3DViewer() {
   };
 
   // Start on the whole planet, turned towards the planned route if there is one
-  const initial = useMemo(() => {
+  const home = useMemo(() => {
     const [lat, lon] = route ? route.center : [5, -70];
-    return dirFor(lat, lon).multiplyScalar(7.6).toArray();
+    return dirFor(lat, lon);
     // only on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -563,6 +592,12 @@ export default function Mars3DViewer() {
     }
   };
 
+  // The planet is ready: fade in and glide to the home view
+  const onGlobeReady = useCallback(() => {
+    setReady(true);
+    setTarget(home.clone().multiplyScalar(HOME_DIST));
+  }, [home]);
+
   const selectSite = (site) => {
     setSelectedPOI({ ...site, poiType: 'landingSite' });
     flyTo(site.lat, site.lon, 4.4, site.id);
@@ -583,16 +618,25 @@ export default function Mars3DViewer() {
 
   return (
     <div ref={rootRef} className="w-full h-full bg-[#020306] relative overflow-hidden select-none">
-      <Canvas camera={{ position: initial, fov: 40, near: 0.05, far: 400 }} dpr={[1, 2]} gl={{ antialias: true }}>
+      {/* Held over the canvas until the planet is drawn, so nothing half-built is ever seen */}
+      <div className={`absolute inset-0 z-[5] bg-[#020306] flex items-center justify-center pointer-events-none transition-opacity duration-1000 ${ready ? 'opacity-0' : 'opacity-100'}`} aria-hidden={ready}>
+        <div className="flex flex-col items-center gap-3">
+          <span className="w-10 h-10 rounded-full border-2 border-white/10 border-t-[#F26A3D] animate-spin" />
+          <span className="text-xs text-zinc-400">Loading Mars…</span>
+        </div>
+      </div>
+      <Canvas camera={{ position: home.clone().multiplyScalar(INTRO_DIST).toArray(), fov: 40, near: 0.05, far: 400 }} dpr={[1, 1.75]} gl={{ antialias: true, powerPreference: 'high-performance' }}>
         <color attach="background" args={['#020306']} />
         <ambientLight intensity={layers.sun ? 0.04 : 0.35} />
         {layers.sun ? <SunLight sub={sub} dirOut={lightDir} /> : <CameraLight dirOut={lightDir} />}
         <Stars radius={160} depth={50} count={2600} factor={2.6} saturation={0} fade speed={0.2} />
-        <Suspense fallback={<Html center><div className="text-zinc-300 text-sm whitespace-nowrap">Loading NASA imagery…</div></Html>}>
-          <Globe />
+        {/* The planet, its haze and its detail tiles only exist once the colour texture is here, so the
+            glow can never be drawn on its own as a bright disc */}
+        <Suspense fallback={null}>
+          <Globe onReady={onGlobeReady} />
+          <DetailTiles onStatus={setDetail} />
+          <Atmosphere />
         </Suspense>
-        <DetailTiles onStatus={setDetail} />
-        <Atmosphere />
         {layers.storms && <DustStorms lightDir={lightDir} />}
         {layers.orbiters && <Orbiters />}
         {layers.grid && <Graticule />}
@@ -623,7 +667,7 @@ export default function Mars3DViewer() {
       <div className="absolute top-[140px] right-4 z-10 w-[min(272px,calc(100%-2rem))] max-h-[calc(100%-300px)] min-h-[150px] overflow-y-auto overflow-x-hidden custom-scrollbar-y flex flex-col gap-2">
         <div className="ui-panel rounded-2xl shrink-0">
           <button
-            onClick={() => setPanelOpen((v) => !v)}
+            onClick={togglePanel}
             aria-expanded={panelOpen}
             className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left cursor-pointer"
           >
@@ -719,7 +763,7 @@ export default function Mars3DViewer() {
               <div><span className="text-zinc-500">Status</span><div className="text-white">{selectedSite.status}</div></div>
             </div>
             <button
-              onClick={() => { setViewMode('2d'); flyToCoordinate(selectedSite.lat, selectedSite.lon, 8); }}
+              onClick={() => { if (viewMode === '3d') setViewMode('2d'); flyToCoordinate(selectedSite.lat, selectedSite.lon, 8); }}
               className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-white text-black font-semibold py-2 text-xs hover:bg-zinc-200"
             >
               <MapIcon className="w-3.5 h-3.5" />Open in the 2D map
@@ -729,7 +773,7 @@ export default function Mars3DViewer() {
       </div>
 
       {/* Fly-to bar */}
-      <div className="absolute bottom-[76px] left-4 right-4 lg:left-auto lg:right-[110px] z-10 lg:w-[min(720px,calc(100%-560px))]">
+      <div className={`absolute bottom-[76px] z-10 ${paneW >= 1100 ? 'left-auto right-[110px] w-[min(720px,calc(100%-560px))]' : 'left-4 right-4'}`}>
         <div className="ui-panel rounded-2xl p-1.5 flex items-center gap-1 overflow-x-auto custom-scrollbar-x">
           {route && (
             <button

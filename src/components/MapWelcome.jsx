@@ -12,7 +12,7 @@ const read = () => {
 const STEPS = [
   ['Choose where to start and where to go', 'Pick from the list, or press the crosshair and click the map'],
   ['See the route on real NASA terrain', 'Slope-aware, with the time and life support it needs'],
-  ['Walk it', 'Watch the crew go, with the weather, light and ground along the way'],
+  ['Drive or walk it', 'Watch the rover go, with the weather, light and ground along the way'],
 ];
 
 /** First-visit card at the top of the dock: the idea in three steps. It goes away for good once closed. */

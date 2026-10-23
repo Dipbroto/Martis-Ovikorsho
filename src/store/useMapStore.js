@@ -173,6 +173,8 @@ const useMapStore = create((set, get) => ({
   setPickTarget: (pickTarget) => set({ pickTarget, isPlacingWaypoint: false, isRulerActive: false }),
   walkStartLtst: 9, // local solar time (hours) the walk starts at; null means "right now"
   setWalkStartLtst: (walkStartLtst) => set({ walkStartLtst }),
+  travelMode: 'rover', // 'rover' (default: nobody walks 40 km) or 'foot'
+  setTravelMode: (travelMode) => set({ travelMode }),
   walkSpeed: 1, // playback speed of the walk: 1, 2 or 4
   setWalkSpeed: (walkSpeed) => set({ walkSpeed }),
   walkTelemetry: { slope: 0, paceKmh: 0, hours: 0, distKm: 0, totalKm: 0 },

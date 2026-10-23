@@ -28,7 +28,7 @@ const STEPS = [
   [(s) => s.activeTab === 'map' && s.quakeMode, (s) => s.setQuakeMode(false)],
   [(s) => s.activeTab === 'map' && s.sidebarOpen, (s) => s.setSidebarOpen(false)],
   [(s) => s.activeTab === 'map' && s.isRoverDriving, (s) => s.setRoverDriving(false)],
-  [(s) => s.activeTab === 'map' && s.viewMode !== '2d', (s) => s.setViewMode('2d')],
+  [(s) => s.activeTab === 'map' && s.viewMode === '3d', (s) => s.setViewMode('2d')],
   [(s) => s.activeTab === 'map' && s.selectedWaypointId, (s) => s.clearSelection()],
 ];
 

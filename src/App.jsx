@@ -5,6 +5,7 @@ import useMapStore from './store/useMapStore';
 import TopBar from './components/TopBar';
 import LoadingScreen from './components/LoadingScreen';
 import ContingencySimulator from './components/ContingencySimulator';
+import { prefetchImagery } from './services/nasaApiService';
 import ErrorBoundary from './components/ErrorBoundary';
 import SpaceAtmosphere from './components/SpaceAtmosphere';
 import HomeHero from './components/HomeHero';
@@ -34,6 +35,16 @@ const AuthModal = lazyWithRetry(() => import('./components/AuthModal'));
 const UserProfileDashboard = lazyWithRetry(() => import('./components/UserProfileDashboard'));
 const DataMethodsModal = lazyWithRetry(() => import('./components/DataMethodsModal'));
 const GuidedPlannerModal = lazyWithRetry(() => import('./components/GuidedPlannerModal'));
+
+// While the 3D code loads: the same dark space the globe sits in, so nothing flashes
+const GlobeFallback = () => (
+  <div className="w-full h-full bg-[#020306] flex items-center justify-center">
+    <div className="flex flex-col items-center gap-3">
+      <span className="w-10 h-10 rounded-full border-2 border-white/10 border-t-[#F26A3D] animate-spin" />
+      <span className="text-xs text-zinc-400">Loading Mars…</span>
+    </div>
+  </div>
+);
 
 const ViewFallback = () => (
   <div className="w-full h-full flex items-center justify-center text-[11px] font-mono tracking-widest text-space-400 animate-pulse">
@@ -93,6 +104,30 @@ function App() {
     }
   }, [setUser, setProfile]);
 
+  // Shortly after the app opens, quietly warm up the gallery: its code, and the first search it shows
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const idle = window.requestIdleCallback || ((fn) => fn());
+      idle(() => {
+        import('./components/MarsImageryPage').catch(() => {});
+        prefetchImagery('Jezero Crater Mars');
+      });
+    }, 4000);
+    return () => clearTimeout(id);
+  }, []);
+
+  // Once the map is open, quietly fetch what the 3D globe needs, so switching to 3D is instant
+  useEffect(() => {
+    if (activeTab !== 'map') return undefined;
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1500));
+    const cancel = window.cancelIdleCallback || clearTimeout;
+    const id = idle(() => {
+      import('./components/Mars3DViewer').catch(() => {});
+      new Image().src = '/textures/mars-viking-mdim21-4k.jpg';
+    });
+    return () => cancel(id);
+  }, [activeTab]);
+
   // Esc always goes back one step, whatever has focus
   useEscapeBack();
 
@@ -130,12 +165,12 @@ function App() {
         {activeTab === 'map' && (
           <div 
             className="h-screen w-full flex flex-col relative overflow-hidden"
-            style={{ backgroundImage: "url('/background.webp')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
+            style={viewMode === '2d' ? { backgroundImage: "url('/background.webp')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' } : { background: '#020306' }}
           >
             {/* Full-Bleed Edge-to-Edge Mars 3D Globe & Map Viewport */}
             <div className="absolute inset-0 z-0 overflow-hidden">
               <ErrorBoundary>
-                <Suspense fallback={<ViewFallback />}>
+                <Suspense fallback={viewMode === '2d' ? <ViewFallback /> : <GlobeFallback />}>
                   {viewMode === '2d' && <MarsMap />}
                   {viewMode === '3d' && <Mars3DViewer />}
                   {viewMode === 'split' && (

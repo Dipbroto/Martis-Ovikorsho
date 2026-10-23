@@ -7,7 +7,7 @@ import { nearestPlace } from '../../data/places';
  * Turns the walk into a short story: as the crew moves, notes appear about the weather, the ground,
  * the light and the life support. Each note fires once per walk.
  */
-export default function useWalkFeed({ active, progress, telemetry, position, env, lifeLeft, maxSlope, names }) {
+export default function useWalkFeed({ active, progress, telemetry, position, env, lifeLeft, maxSlope, names, rover }) {
   const [items, setItems] = useState([]);
   const fired = useRef(new Set());
   const lastPhase = useRef(null);
@@ -24,18 +24,18 @@ export default function useWalkFeed({ active, progress, telemetry, position, env
     const dist = `${telemetry.distKm.toFixed(1)} km`;
     const wx = `${Math.round(env.temp)} °C, ${env.pressure} Pa, wind ${env.windSpeed} m/s ${env.windDir}`;
 
-    once('start', { icon: Footprints, tone: 'info', title: `Setting off from ${names.start}`, text: `Local time ${fmtLtst(env.ltst)}, ${env.phase.toLowerCase()} (Sun ${Math.round(env.sunEl)}° up). ${wx}.` });
+    once('start', { icon: Footprints, tone: 'info', title: `${rover ? 'Driving off' : 'Setting off'} from ${names.start}`, text: `Local time ${fmtLtst(env.ltst)}, ${env.phase.toLowerCase()} (Sun ${Math.round(env.sunEl)}° up). ${wx}.` });
 
     [0.2, 0.4, 0.6, 0.8].forEach((m) => {
       if (progress >= m) {
         const found = position ? nearestPlace(position.lat, position.lon, 1.2) : null;
         const near = found && found.name !== names.start && found.name !== names.end ? found : null;
-        once(`m${m}`, { icon: Thermometer, tone: 'info', title: `${Math.round(m * 100)}% done, ${dist} walked`, text: `${near ? `Passing ${near.name}. ` : ''}${wx}. Dust haze ${env.dustRisk.toLowerCase()} (τ ${env.tau}).` });
+        once(`m${m}`, { icon: Thermometer, tone: 'info', title: `${Math.round(m * 100)}% done, ${dist} ${rover ? 'driven' : 'walked'}`, text: `${near ? `Passing ${near.name}. ` : ''}${wx}. Dust haze ${env.dustRisk.toLowerCase()} (τ ${env.tau}).` });
       }
     });
 
     if (maxSlope > 6 && telemetry.slope >= maxSlope * 0.85) {
-      once('steep', { icon: Mountain, tone: 'warn', title: `Steepest ground: ${telemetry.slope.toFixed(0)}°`, text: `Pace drops to ${telemetry.paceKmh.toFixed(1)} km/h and the suit works harder here.` });
+      once('steep', { icon: Mountain, tone: 'warn', title: `Steepest ground: ${telemetry.slope.toFixed(0)}°`, text: rover ? `The rover slows to ${telemetry.paceKmh.toFixed(1)} km/h on this grade.` : `Pace drops to ${telemetry.paceKmh.toFixed(1)} km/h and the suit works harder here.` });
     }
     if (env.tau >= 0.8) once('dust', { icon: CloudFog, tone: 'warn', title: 'Dust haze', text: `Dust opacity τ ${env.tau} (${env.dustRisk.toLowerCase()}): less sunlight on the suit panels and shorter sight lines.` });
 
@@ -49,13 +49,13 @@ export default function useWalkFeed({ active, progress, telemetry, position, env
     lastPhase.current = phase;
 
     const spare = lifeLeft * 2 - 100;
-    if (spare < 25 && spare >= 0 && progress < 0.99) once('spare-low', { icon: AlertTriangle, tone: 'warn', title: 'Spare life support is running low', text: `Walking back from here would use almost everything that is left (${Math.round(spare)}% spare).` });
-    if (spare < 0 && progress < 0.99) once('no-return', { icon: AlertTriangle, tone: 'bad', title: 'Past the point of no return', text: 'There is not enough life support left to walk all the way back on foot from here.' });
+    if (!rover && spare < 25 && spare >= 0 && progress < 0.99) once('spare-low', { icon: AlertTriangle, tone: 'warn', title: 'Spare life support is running low', text: `Walking back from here would use almost everything that is left (${Math.round(spare)}% spare).` });
+    if (!rover && spare < 0 && progress < 0.99) once('no-return', { icon: AlertTriangle, tone: 'bad', title: 'Past the point of no return', text: 'There is not enough life support left to walk all the way back on foot from here.' });
 
-    if (progress >= 0.99) once('arrive', { icon: Flag, tone: 'good', title: `Arrived at ${names.end}`, text: `${dist} in ${fmtDuration(telemetry.hours)} on foot, with ${Math.round(lifeLeft)}% of the life support left.` });
+    if (progress >= 0.99) once('arrive', { icon: Flag, tone: 'good', title: `Arrived at ${names.end}`, text: rover ? `${dist} in ${fmtDuration(telemetry.hours)} by rover.` : `${dist} in ${fmtDuration(telemetry.hours)} on foot, with ${Math.round(lifeLeft)}% of the life support left.` });
 
     if (out.length) setItems((prev) => [...out.reverse(), ...prev].slice(0, 9));
-  }, [active, progress, telemetry, position, env, lifeLeft, maxSlope, names]);
+  }, [active, progress, telemetry, position, env, lifeLeft, maxSlope, names, rover]);
 
   return items;
 }

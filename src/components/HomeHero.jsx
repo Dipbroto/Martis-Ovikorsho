@@ -17,6 +17,38 @@ const EXTRAS = [
   { key: 'imagery', title: 'Image Gallery', desc: 'NASA imagery of Mars', icon: ImageIcon, tint: 'from-emerald-500/20' },
 ];
 
+/**
+ * Scrolls the home page's own container to a section. It moves the container itself (never the browser
+ * window or its parents), re-measures the target on every frame so content that loads in and shifts the
+ * layout cannot throw it off, and finishes exactly on the section.
+ */
+function scrollToSection(container, id, { duration = 750, offset = 12 } = {}) {
+  if (!container) return;
+  const targetTop = () => {
+    const el = document.getElementById(id);
+    if (!el) return Math.min(container.scrollHeight - container.clientHeight, container.scrollTop + container.clientHeight * 0.9);
+    return Math.max(0, el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - offset);
+  };
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { container.scrollTop = targetTop(); return; }
+  const run = (container.__scrollRun = (container.__scrollRun || 0) + 1); // a newer click takes over from an older one
+  const from = container.scrollTop;
+  const t0 = performance.now();
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+  let last = from;
+  const frame = (now) => {
+    if (container.__scrollRun !== run) return;
+    // someone scrolled by hand while it was moving: leave them in control
+    if (Math.abs(container.scrollTop - last) > 3 && now - t0 > 50) return;
+    const k = Math.min(1, (now - t0) / duration);
+    const to = from + (targetTop() - from) * ease(k);
+    container.scrollTop = to;
+    last = container.scrollTop;
+    if (k < 1) requestAnimationFrame(frame);
+    else container.scrollTop = targetTop();
+  };
+  requestAnimationFrame(frame);
+}
+
 const fade = { initial: { opacity: 0, y: 14 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, margin: '-60px' }, transition: { duration: 0.4 } };
 
 /** Coordinated Mars Time (the Martian equivalent of UTC) as hh:mm:ss. */
@@ -107,8 +139,9 @@ export default function HomeHero({ onSelectTab }) {
         </motion.div>
 
         <button
-          onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-          className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 hidden sm:flex flex-col items-center gap-1 text-xs text-zinc-400 hover:text-white cursor-pointer"
+          onClick={() => scrollToSection(scrollRef.current, 'how-it-works')}
+          aria-label="Scroll down to try it"
+          className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1 px-4 py-2 text-xs text-zinc-300 hover:text-white cursor-pointer"
         >
           Try it below
           <motion.span animate={{ y: [0, 5, 0] }} transition={{ duration: 1.6, repeat: Infinity }}><ChevronDown className="w-4 h-4" /></motion.span>

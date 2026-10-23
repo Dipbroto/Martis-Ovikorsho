@@ -78,9 +78,6 @@ function Item({ icon: Icon, label, hint, active, onSelect, kind = 'checkbox' }) 
 
 const Divider = () => <span className="hidden sm:block w-px h-6 bg-white/10 mx-0.5" aria-hidden />;
 
-const QUAKE_SEEN = 'marswalk-quake-seen';
-const readSeen = () => { try { return localStorage.getItem(QUAKE_SEEN) === '1'; } catch { return false; } };
-
 export default function MapToolbar() {
   const s = useMapStore(useShallow((st) => ({
     viewMode: st.viewMode, setViewMode: st.setViewMode,
@@ -93,7 +90,7 @@ export default function MapToolbar() {
     waypoints: st.waypoints,
     isRoverDriving: st.isRoverDriving, setRoverDriving: st.setRoverDriving,
     roverProgress: st.roverProgress, setRoverProgress: st.setRoverProgress,
-    isEVASimulating: st.isEVASimulating, setEVASimulating: st.setEVASimulating,
+    travelMode: st.travelMode, isEVASimulating: st.isEVASimulating, setEVASimulating: st.setEVASimulating,
     setFlightPlanOpen: st.setFlightPlanOpen, setContingencyModalOpen: st.setContingencyModalOpen,
     activeContingency: st.activeContingency,
     routeScanOpen: st.routeScanOpen, setRouteScanOpen: st.setRouteScanOpen,
@@ -101,20 +98,21 @@ export default function MapToolbar() {
     collapsed: st.toolbarCollapsed, setCollapsed: st.setToolbarCollapsed,
     setDockMin: st.setDockMin, setRouteEditing: st.setRouteEditing, setPickTarget: st.setPickTarget,
   })));
-  const [quakeSeen, setQuakeSeen] = useState(readSeen);
 
   const is2d = s.viewMode !== '3d';
+  // The 2D tools work beside the globe too: only the full 3D view needs to switch, split stays split
+  const ensure2d = () => { if (s.viewMode === '3d') s.setViewMode('2d'); };
   const hasRoute = s.waypoints.length > 1;
   const activeCheck = CHECKS.find((c) => c.key === s.terrainOverlay);
   const layerActive = s.terrainOverlay === 'ice' || s.terrainOverlay === 'caves' || s.showRoverTraverses;
 
   const atEnd = s.roverProgress >= 0.99;
   const pausedMid = !s.isRoverDriving && s.roverProgress > 0.01 && !atEnd;
-  const walkLabel = s.isRoverDriving ? 'Pause' : pausedMid ? `Resume ${Math.round(s.roverProgress * 100)}%` : atEnd ? 'Walk again' : 'Walk route';
+  const walkLabel = s.isRoverDriving ? 'Pause' : pausedMid ? `Resume ${Math.round(s.roverProgress * 100)}%` : atEnd ? 'Go again' : s.travelMode === 'rover' ? 'Drive route' : 'Walk route';
 
   // The one big button: plan a walk, or walk the planned one
   const primary = () => {
-    s.setViewMode('2d');
+    ensure2d();
     if (!hasRoute) { s.setRouteEditing(false); s.setDockMin('route-plan', false); return; }
     s.setDockMin('route', false);
     if (s.isRoverDriving) { s.setRoverDriving(false); return; }
@@ -123,13 +121,12 @@ export default function MapToolbar() {
   };
 
   const toggleQuakes = () => {
-    if (!s.quakeMode) s.setViewMode('2d');
+    if (!s.quakeMode) ensure2d();
     s.setQuakeMode(!s.quakeMode);
-    if (!quakeSeen) { setQuakeSeen(true); try { localStorage.setItem(QUAKE_SEEN, '1'); } catch { /* ignore */ } }
     click();
   };
 
-  const withRoute = (fn) => () => { if (hasRoute) fn(); else { s.setViewMode('2d'); s.setDockMin('route-plan', false); } };
+  const withRoute = (fn) => () => { if (hasRoute) fn(); else { ensure2d(); s.setDockMin('route-plan', false); } };
 
   const viewBtn = (id, label) => (
     <button
@@ -211,24 +208,23 @@ export default function MapToolbar() {
                   onClick={toggleQuakes}
                   aria-pressed={s.quakeMode}
                   title="Marsquakes: fault lines, risk zones and the layers inside Mars"
-                  className={`${toolBtn} relative ${s.quakeMode ? 'bg-sky-500/20 border-sky-400/60 text-sky-100' : 'bg-white/[0.04] border-white/10 text-zinc-200 hover:bg-white/[0.09]'}`}
+                  className={`${toolBtn} ${s.quakeMode ? 'bg-sky-500/20 border-sky-400/60 text-sky-100' : 'bg-white/[0.04] border-white/10 text-zinc-200 hover:bg-white/[0.09]'}`}
                 >
                   <Activity className="w-4 h-4" />
                   <span className="hidden md:inline">Marsquakes</span>
-                  {!quakeSeen && <span className="absolute -top-1 -right-1 text-[9px] font-bold px-1 rounded-full bg-sky-400 text-black leading-4">NEW</span>}
                 </button>
               </>
             )}
 
             <Menu label="Tools" icon={SlidersHorizontal}>
-              <Item icon={Ruler} label="Measure distance" hint="Click two points for distance, height change and slope" active={s.isRulerActive} onSelect={() => { s.setViewMode('2d'); if (s.isRulerActive) { s.setRulerActive(false); s.clearRuler(); } else { s.setPickTarget(null); s.setRulerActive(true); } }} />
+              <Item icon={Ruler} label="Measure distance" hint="Click two points for distance, height change and slope" active={s.isRulerActive} onSelect={() => { ensure2d(); if (s.isRulerActive) { s.setRulerActive(false); s.clearRuler(); } else { s.setPickTarget(null); s.setRulerActive(true); } }} />
               <Item icon={Grid} label="Latitude and longitude grid" active={s.showGraticule} onSelect={s.toggleGraticule} />
               <Item icon={Shield} label="2 km and 5 km walkback rings" hint="Planning rings around the base (team assumption)" active={s.showWalkbackLimits} onSelect={s.toggleWalkbackLimits} />
-              <Item icon={Globe} label="Whole planet" hint="Fit all of Mars in view" onSelect={() => { s.setViewMode('2d'); s.setMapCenter([0, 0]); s.setMapZoom(1); }} />
-              <Item icon={Crosshair} label="Jump to Jezero Crater" hint="Perseverance landing site" onSelect={() => { s.setViewMode('2d'); s.setMapCenter([18.4447, 77.4508]); s.setMapZoom(7); }} />
+              <Item icon={Globe} label="Whole planet" hint="Fit all of Mars in view" onSelect={() => { ensure2d(); s.setMapCenter([0, 0]); s.setMapZoom(1); }} />
+              <Item icon={Crosshair} label="Jump to Jezero Crater" hint="Perseverance landing site" onSelect={() => { ensure2d(); s.setMapCenter([18.4447, 77.4508]); s.setMapZoom(7); }} />
               <div className="my-1 mx-2 h-px bg-white/10" role="separator" />
               <div className="px-3 pt-1 pb-1 text-[11px] uppercase tracking-wider text-zinc-500">For your route{hasRoute ? '' : ' (plan one first)'}</div>
-              <Item icon={Radar} label="Safety scan" hint="Steep ground, radio loss, point of no return, shelter and water in one sweep" active={s.routeScanOpen} onSelect={withRoute(() => { s.setViewMode('2d'); s.setRouteScanOpen(!s.routeScanOpen); })} />
+              <Item icon={Radar} label="Safety scan" hint="Steep ground, radio loss, point of no return, shelter and water in one sweep" active={s.routeScanOpen} onSelect={withRoute(() => { ensure2d(); s.setRouteScanOpen(!s.routeScanOpen); })} />
               <Item icon={Glasses} label="Helmet view" hint="Walk the route in a first-person view" active={s.isEVASimulating} onSelect={withRoute(() => s.setEVASimulating(!s.isEVASimulating))} />
               <Item icon={FileText} label="Flight plan and briefing" hint="A printable EVA briefing" onSelect={withRoute(() => s.setFlightPlanOpen(true))} />
               <Item icon={ShieldAlert} label="What if something goes wrong?" hint="Dust storm, radiation event, oxygen fault" active={!!s.activeContingency} onSelect={() => s.setContingencyModalOpen(true)} />

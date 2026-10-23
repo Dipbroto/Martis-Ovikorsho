@@ -46,6 +46,98 @@ interface AppleCardCarouselProps {
   className?: string;
 }
 
+interface GalleryCardProps {
+  card: CardItem;
+  isSelected: boolean;
+  eager: boolean;
+  onCardClick?: (card: CardItem) => void;
+}
+
+// One card. It re-renders only when its own card or its selected state changes, so picking an image does
+// not redraw all the others (a search can return dozens).
+const GalleryCard = React.memo(function GalleryCard({ card, isSelected, eager, onCardClick }: GalleryCardProps) {
+  return (
+    <div
+      onClick={() => onCardClick?.(card)}
+      className={`group relative w-[210px] sm:w-[245px] lg:w-[265px] h-[245px] sm:h-[265px] lg:h-[280px] shrink-0 overflow-hidden flex flex-col justify-between p-4 sm:p-4.5 rounded-xl transition-all duration-200 cursor-pointer select-none ${
+        isSelected
+          ? "ring-2 ring-[#ff8c69] ring-offset-2 ring-offset-black scale-[1.01] shadow-[0_0_24px_rgba(255,140,105,0.4)]"
+          : "border border-white/15 hover:border-white/40 hover:scale-[1.01] hover:shadow-xl hover:shadow-black/70"
+      }`}
+    >
+      {/* Background Image */}
+      <img
+        src={card.src}
+        alt={
+          card.alt ||
+          (typeof card.title === "string"
+            ? card.title
+            : card.category)
+        }
+        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+        fetchpriority={eager ? "high" : "auto"}
+        onError={(e: any) => {
+          e.target.onerror = null;
+          e.target.src = "https://images-assets.nasa.gov/image/PIA26574/PIA26574~small.jpg";
+        }}
+      />
+
+      {/* Gradient overlays */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/60 pointer-events-none" />
+
+      {/* Top content */}
+      <div className="relative z-10 flex flex-col gap-1.5 text-white">
+        <div className="flex items-center justify-between gap-1.5">
+          <span className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-[#ffaa88] truncate max-w-[140px]">
+            {card.category}
+          </span>
+          {card.date && (
+            <span className="font-mono text-[9px] text-zinc-300 bg-black/50 px-1.5 py-0.5 rounded backdrop-blur-xs shrink-0">
+              {card.date}
+            </span>
+          )}
+        </div>
+
+        <div className="text-xs sm:text-sm font-bold tracking-tight leading-snug line-clamp-2 mt-0.5 text-white drop-shadow-md">
+          {card.title}
+        </div>
+
+        {card.coordinates && (
+          <p className="font-mono text-[10px] text-zinc-400 flex items-center gap-1">
+            <span className="text-[#ff8c69]">✦</span>
+            <span>{card.coordinates}</span>
+          </p>
+        )}
+      </div>
+
+      {/* Bottom content */}
+      <div className="relative z-10 flex items-end justify-between pt-2">
+        <div className="text-[10px] text-zinc-300 font-mono tracking-wide flex items-center gap-1.5 opacity-90 group-hover:opacity-100">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#ff8c69] animate-pulse" />
+          <span className="uppercase text-[9px] sm:text-[10px]">Inspect</span>
+        </div>
+
+        <Button
+          size="icon"
+          className={`h-7 w-7 sm:h-8 sm:w-8 rounded-full shadow-md cursor-pointer flex items-center justify-center transition-all duration-200 ${
+            isSelected
+              ? "bg-[#ff8c69] text-black hover:bg-[#ffaa88]"
+              : "bg-white text-black hover:bg-white/90"
+          }`}
+        >
+          <ArrowUpRight
+            className={`h-3.5 w-3.5 transition-transform duration-200 ${
+              isSelected ? "rotate-45" : "group-hover:rotate-45"
+            } will-change-transform`}
+          />
+        </Button>
+      </div>
+    </div>
+  );
+});
+
 const AppleCardCarousel: React.FC<AppleCardCarouselProps> = ({
   cards = defaultCards,
   heading = null,
@@ -110,86 +202,11 @@ const AppleCardCarousel: React.FC<AppleCardCarouselProps> = ({
         className="w-full"
       >
         <CarouselContent className="-ml-3 sm:-ml-3.5 px-1 py-1">
-          {cards.map((card) => {
+          {cards.map((card, index) => {
             const isSelected = selectedId === card.id;
             return (
               <CarouselItem key={card.id} className="pl-3 sm:pl-3.5 basis-auto">
-                <div
-                  onClick={() => onCardClick?.(card)}
-                  className={`group relative w-[210px] sm:w-[245px] lg:w-[265px] h-[245px] sm:h-[265px] lg:h-[280px] shrink-0 overflow-hidden flex flex-col justify-between p-4 sm:p-4.5 rounded-xl transition-all duration-200 cursor-pointer select-none ${
-                    isSelected
-                      ? "ring-2 ring-[#ff8c69] ring-offset-2 ring-offset-black scale-[1.01] shadow-[0_0_24px_rgba(255,140,105,0.4)]"
-                      : "border border-white/15 hover:border-white/40 hover:scale-[1.01] hover:shadow-xl hover:shadow-black/70"
-                  }`}
-                >
-                  {/* Background Image */}
-                  <img
-                    src={card.src}
-                    alt={
-                      card.alt ||
-                      (typeof card.title === "string"
-                        ? card.title
-                        : card.category)
-                    }
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-                    loading="lazy"
-                    onError={(e: any) => {
-                      e.target.onerror = null;
-                      e.target.src = "https://images-assets.nasa.gov/image/PIA26574/PIA26574~small.jpg";
-                    }}
-                  />
-
-                  {/* Gradient overlays */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/60 pointer-events-none" />
-
-                  {/* Top content */}
-                  <div className="relative z-10 flex flex-col gap-1.5 text-white">
-                    <div className="flex items-center justify-between gap-1.5">
-                      <span className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-[#ffaa88] truncate max-w-[140px]">
-                        {card.category}
-                      </span>
-                      {card.date && (
-                        <span className="font-mono text-[9px] text-zinc-300 bg-black/50 px-1.5 py-0.5 rounded backdrop-blur-xs shrink-0">
-                          {card.date}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-xs sm:text-sm font-bold tracking-tight leading-snug line-clamp-2 mt-0.5 text-white drop-shadow-md">
-                      {card.title}
-                    </div>
-
-                    {card.coordinates && (
-                      <p className="font-mono text-[10px] text-zinc-400 flex items-center gap-1">
-                        <span className="text-[#ff8c69]">✦</span>
-                        <span>{card.coordinates}</span>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Bottom content */}
-                  <div className="relative z-10 flex items-end justify-between pt-2">
-                    <div className="text-[10px] text-zinc-300 font-mono tracking-wide flex items-center gap-1.5 opacity-90 group-hover:opacity-100">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#ff8c69] animate-pulse" />
-                      <span className="uppercase text-[9px] sm:text-[10px]">Inspect</span>
-                    </div>
-
-                    <Button
-                      size="icon"
-                      className={`h-7 w-7 sm:h-8 sm:w-8 rounded-full shadow-md cursor-pointer flex items-center justify-center transition-all duration-200 ${
-                        isSelected
-                          ? "bg-[#ff8c69] text-black hover:bg-[#ffaa88]"
-                          : "bg-white text-black hover:bg-white/90"
-                      }`}
-                    >
-                      <ArrowUpRight
-                        className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                          isSelected ? "rotate-45" : "group-hover:rotate-45"
-                        } will-change-transform`}
-                      />
-                    </Button>
-                  </div>
-                </div>
+                <GalleryCard card={card} isSelected={isSelected} eager={index < 5} onCardClick={onCardClick} />
               </CarouselItem>
             );
           })}

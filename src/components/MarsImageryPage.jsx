@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Camera, Search, Navigation, Sparkles, Loader2, ExternalLink, Compass } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
 import { marsImages } from '../data/marsImages';
-import { fetchMarsImagery } from '../services/nasaApiService';
+import { fetchMarsImagery, getCachedImagery } from '../services/nasaApiService';
 import AppleCardCarousel from '@/components/ui/carousel-08';
 
 const EXTENDED_CATEGORIES = [
@@ -13,6 +13,32 @@ const EXTENDED_CATEGORIES = [
   { id: 'panorama', label: 'PANORAMAS', query: 'Mars Panorama Mosaic Surface' },
   { id: 'atmosphere', label: 'ATMOSPHERE & ICE', query: 'Mars Atmosphere Sunset Polar Ice' }
 ];
+
+/** Shows the small version at once (it is already in the card), and fades the larger one in when it arrives. */
+function ProgressiveImage({ preview, full, alt, zoomed, onClick, style }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setLoaded(false); setFailed(false); }, [full]);
+  const sharp = failed ? preview : full;
+  return (
+    <>
+      <img src={preview} alt="" aria-hidden="true" decoding="async" style={style} className={`absolute max-h-full max-w-full object-contain select-none rounded transition-opacity duration-300 ${loaded && !zoomed ? 'opacity-0' : 'opacity-100'}`} />
+      {sharp && sharp !== preview && (
+        <img
+          src={sharp}
+          alt={alt}
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          onClick={onClick}
+          style={style}
+          className={`relative max-h-full max-w-full object-contain cursor-zoom-in select-none rounded transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        />
+      )}
+      {(!sharp || sharp === preview) && <img src={preview} alt={alt} onClick={onClick} style={style} className="relative max-h-full max-w-full object-contain cursor-zoom-in select-none rounded" />}
+    </>
+  );
+}
 
 export default function MarsImageryPage() {
   const flyToCoordinate = useMapStore(s => s.flyToCoordinate);
@@ -27,86 +53,58 @@ export default function MarsImageryPage() {
 
   const detailSectionRef = useRef(null);
 
-  // Fetch from NASA API on mount or category / search query change
+  // Fetch from the NASA API when the category or the search changes. Results already seen show at once and
+  // are refreshed quietly; a category click goes straight away, only typing waits a moment.
   useEffect(() => {
-    let isCancelled = false;
-    setIsLoading(true);
+    const controller = new AbortController();
+    const activeCatObj = EXTENDED_CATEGORIES.find((c) => c.id === activeCategory);
+    const query = searchQuery.trim() ? searchQuery.trim() : (activeCatObj ? activeCatObj.query : 'Jezero Crater Mars');
 
-    const activeCatObj = EXTENDED_CATEGORIES.find(c => c.id === activeCategory);
-    const query = searchQuery.trim() 
-      ? searchQuery.trim() 
-      : (activeCatObj ? activeCatObj.query : 'Jezero Crater Mars');
-
-    const timeoutId = setTimeout(() => {
-      fetchMarsImagery(query, 1).then(nasaItems => {
-        if (isCancelled) return;
-        
-        // Merge with local curated marsImages
-        const mergedMap = new Map();
-
-        // 1. First add curated marsImages that match the active category / search query
-        marsImages.forEach(img => {
-          let matchesCat = activeCategory === 'all';
-          if (!matchesCat) {
-            if (activeCategory === 'rover') matchesCat = img.category === 'rover';
-            else if (activeCategory === 'hirise') matchesCat = img.category === 'hirise';
-            else if (activeCategory === 'atmosphere') matchesCat = img.category === 'atmosphere' || img.category === 'ice';
-            else if (activeCategory === 'panorama') matchesCat = img.tags?.some(t => t.toLowerCase().includes('panorama')) || img.title.toLowerCase().includes('panorama');
-          }
-
-          let matchesQuery = true;
-          if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            matchesQuery = img.title?.toLowerCase().includes(q) ||
-              img.description?.toLowerCase().includes(q) ||
-              img.target?.toLowerCase().includes(q) ||
-              img.mission?.toLowerCase().includes(q) ||
-              img.instrument?.toLowerCase().includes(q) ||
-              img.tags?.some(t => t.toLowerCase().includes(q));
-          }
-
-          if (matchesCat && matchesQuery) {
-            mergedMap.set(img.id, img);
-          }
-        });
-
-        // 2. Add fetched NASA API items
-        if (nasaItems && Array.isArray(nasaItems)) {
-          nasaItems.forEach(item => {
-            if (!mergedMap.has(item.id)) {
-              mergedMap.set(item.id, item);
-            }
-          });
+    // The curated images that match the category and the search, then the library's results after them
+    const merge = (nasaItems) => {
+      const merged = new Map();
+      marsImages.forEach((img) => {
+        let matchesCat = activeCategory === 'all';
+        if (!matchesCat) {
+          if (activeCategory === 'rover') matchesCat = img.category === 'rover';
+          else if (activeCategory === 'hirise') matchesCat = img.category === 'hirise';
+          else if (activeCategory === 'atmosphere') matchesCat = img.category === 'atmosphere' || img.category === 'ice';
+          else if (activeCategory === 'panorama') matchesCat = img.tags?.some((t) => t.toLowerCase().includes('panorama')) || img.title.toLowerCase().includes('panorama');
         }
-
-        const mergedList = Array.from(mergedMap.values());
-        setAllImages(mergedList);
-
-        // Keep current selected image if present, or set first item
-        if (mergedList.length > 0) {
-          setInspectingImage(prev => {
-            if (prev && mergedList.some(i => i.id === prev.id)) return prev;
-            return mergedList[0];
-          });
+        let matchesQuery = true;
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          matchesQuery = img.title?.toLowerCase().includes(q) || img.description?.toLowerCase().includes(q) || img.target?.toLowerCase().includes(q)
+            || img.mission?.toLowerCase().includes(q) || img.instrument?.toLowerCase().includes(q) || img.tags?.some((t) => t.toLowerCase().includes(q));
         }
-        setIsLoading(false);
-      }).catch(err => {
-        console.error("NASA API fetch error:", err);
-        if (!isCancelled) {
-          setAllImages(marsImages);
-          setIsLoading(false);
-        }
+        if (matchesCat && matchesQuery) merged.set(img.id, img);
       });
-    }, 350);
-
-    return () => {
-      isCancelled = true;
-      clearTimeout(timeoutId);
+      (nasaItems || []).forEach((item) => { if (!merged.has(item.id)) merged.set(item.id, item); });
+      const list = Array.from(merged.values());
+      setAllImages(list);
+      if (list.length > 0) setInspectingImage((prev) => (prev && list.some((i) => i.id === prev.id) ? prev : list[0]));
     };
+
+    const cached = getCachedImagery(query);
+    if (cached) merge(cached.items);
+    if (cached?.fresh) { setIsLoading(false); return () => controller.abort(); }
+
+    setIsLoading(!cached);
+    const timeoutId = setTimeout(() => {
+      fetchMarsImagery(query, 1, { signal: controller.signal })
+        .then((items) => { merge(items); setIsLoading(false); })
+        .catch((err) => {
+          if (err?.name === 'AbortError') return;
+          if (!cached) merge([]);
+          setIsLoading(false);
+        });
+    }, searchQuery.trim() ? 350 : 0);
+
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [activeCategory, searchQuery]);
 
   // Map to Apple Card Carousel format
-  const carouselCards = allImages.map(img => {
+  const carouselCards = useMemo(() => allImages.map(img => {
     let catBadge = img.category || img.mission || 'NASA PDS';
     if (catBadge === 'rover') catBadge = 'ROVER MASTCAM';
     else if (catBadge === 'hirise') catBadge = 'ORBITAL HIRISE';
@@ -126,15 +124,15 @@ export default function MarsImageryPage() {
       description: img.description,
       raw: img
     };
-  });
+  }), [allImages]);
 
-  const handleCardClick = (card) => {
+  const handleCardClick = useCallback((card) => {
     marsAudio.playUiClick?.();
     if (card.raw) {
       setInspectingImage(card.raw);
       setZoomLevel(1);
     }
-  };
+  }, []);
 
   const handleFlyTo = (img) => {
     marsAudio.playQuindarTone?.(true);
@@ -254,16 +252,14 @@ export default function MarsImageryPage() {
               {/* Left Column: High-Res Lightbox Viewport (Col 7) */}
               <div className="lg:col-span-7 flex flex-col gap-2">
                 <div className="relative w-full h-[300px] sm:h-[350px] lg:h-[370px] rounded-lg overflow-hidden bg-black/95 border border-white/10 flex items-center justify-center p-2 shadow-inner group">
-                  <img 
-                    src={inspectingImage.imageUrl} 
+                  <ProgressiveImage
+                    key={inspectingImage.id}
+                    preview={inspectingImage.thumbnailUrl || inspectingImage.imageUrl}
+                    full={inspectingImage.imageUrl}
                     alt={inspectingImage.title}
+                    zoomed={zoomLevel > 1}
                     style={{ transform: `scale(${zoomLevel})`, transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)' }}
-                    className="max-h-full max-w-full object-contain cursor-zoom-in select-none rounded"
                     onClick={() => setZoomLevel(prev => prev === 1 ? 1.5 : (prev === 1.5 ? 2.2 : 1))}
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = inspectingImage.thumbnailUrl || 'https://images-assets.nasa.gov/image/PIA26574/PIA26574~medium.jpg';
-                    }}
                   />
 
                   {/* Target Overlay Watermark */}

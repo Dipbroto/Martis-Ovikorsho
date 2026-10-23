@@ -109,7 +109,7 @@ export default function ContingencySimulator() {
     executeEmergencyReturn,
   } = useMapStore(useShallow((s) => ({ activeContingency: s.activeContingency, contingencyDetails: s.contingencyDetails, isContingencyModalOpen: s.isContingencyModalOpen, setContingencyModalOpen: s.setContingencyModalOpen, triggerContingency: s.triggerContingency, clearContingency: s.clearContingency, executeEmergencyReturn: s.executeEmergencyReturn })));
 
-  const inDock = useMapStore((s) => s.activeTab === 'map' && s.viewMode === '2d');
+  const inDock = useMapStore((s) => s.activeTab === 'map' && s.viewMode !== '3d');
 
   return (
     <>

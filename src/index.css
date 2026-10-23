@@ -652,7 +652,7 @@ button:disabled {
   border: 2px solid var(--warning);
   box-shadow: 0 0 18px var(--warning);
   pointer-events: none;
-  animation: roverRadarPing 1.8s cubic-bezier(0.1, 0.5, 0.4, 1) infinite 0.9s;
+  animation: roverRadarPing 1.8s cubic-bezier(0.1, 0.5, 0.4, 1) 0.9s infinite backwards;
 }
 
 @keyframes roverHeadlightPulse {
@@ -956,6 +956,13 @@ button:disabled {
 @keyframes route-draw { to { stroke-dashoffset: 0; } }
 @keyframes route-draw-out { to { opacity: 0; } }
 
+/* The rover: turns to its heading, rocks a little on the move, and lights the ground ahead */
+.rover-vehicle { position: relative; width: 46px; height: 46px; transition: transform 0.3s ease-out; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.7)); }
+.rover-vehicle svg { position: relative; z-index: 2; display: block; }
+.rover-driving svg { animation: rover-rock 0.55s ease-in-out infinite alternate; }
+@keyframes rover-rock { from { transform: translate(-0.3px, 0) rotate(-0.8deg); } to { transform: translate(0.3px, -0.6px) rotate(0.8deg); } }
+.rover-beam { position: absolute; z-index: 1; left: 50%; top: -34px; width: 40px; height: 44px; transform: translateX(-50%); background: radial-gradient(ellipse at 50% 100%, rgba(253, 230, 138, 0.55), rgba(253, 230, 138, 0) 70%); clip-path: polygon(28% 100%, 72% 100%, 100% 0, 0 0); pointer-events: none; }
+
 /* Flags at 25, 50 and 75 percent of the route: dim until the crew passes, then they pop */
 .milestone-icon, .draft-icon, .quake-icon { background: none; border: none; }
 .milestone-flag { transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: rgba(8, 10, 16, 0.75); border: 1.5px solid rgba(255, 255, 255, 0.35); color: rgba(255, 255, 255, 0.6); font: 600 9px/1 ui-monospace, monospace; transition: all 0.3s; }
@@ -1000,6 +1007,6 @@ button:disabled {
 @keyframes mi-glow { 0%, 100% { stroke-opacity: 0.3; } 50% { stroke-opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .walker-walking, .fault-active-glow, .mi-ray, .mi-quake, .mi-glow, .walk-cta-shine, .arrive-burst i { animation: none !important; }
+  .walker-walking, .rover-driving svg, .fault-active-glow, .mi-ray, .mi-quake, .mi-glow, .walk-cta-shine, .arrive-burst i { animation: none !important; }
   .route-draw { animation: none; stroke-dashoffset: 0; opacity: 0; }
 }

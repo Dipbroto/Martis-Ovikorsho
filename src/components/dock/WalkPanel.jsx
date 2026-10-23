@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import useMapStore, { routeSignature } from '../../store/useMapStore';
 import { planAndApplyRoute } from '../../services/routePlanningService';
 import { routeDistance } from '../../utils/marsUtils';
+import { roverRouteHours, ROVER } from '../../terrain/roverModel';
 import DockCard from './DockCard';
 import ElevationScrubber from './ElevationScrubber';
 import ProvenanceBadge from '../ProvenanceBadge';
@@ -12,6 +13,7 @@ import useWalkFeed from './useWalkFeed';
 import { environmentAt, fmtClock, fmtDuration, fmtLtst, startDateFor } from './walkEnvironment';
 
 const SPEEDS = [1, 2, 4];
+const ROVER_KMH = ROVER.cruiseKmh;
 const START_TIMES = [{ v: 9, label: 'Morning', sub: '09:00' }, { v: 12, label: 'Noon', sub: '12:00' }, { v: 16.5, label: 'Late day', sub: '16:30' }, { v: null, label: 'Now', sub: 'real time' }];
 
 const Tile = ({ icon: Icon, label, value, sub, tone = 'text-white' }) => (
@@ -33,7 +35,7 @@ export default function WalkPanel() {
     driveTarget: st.driveTargetWaypointId, setDriveTarget: st.setDriveTargetWaypointId,
     clearWaypoints: st.clearWaypoints, setRouteGeometry: st.setRouteGeometry, setDraft: st.setRouteDraft, setEditing: st.setRouteEditing,
     setScan: st.setRouteScanOpen, scanOpen: st.routeScanOpen, setEVA: st.setEVASimulating, eva: st.isEVASimulating, setPlan: st.setFlightPlanOpen,
-    setWhatIf: st.setContingencyModalOpen, draftMode: st.routeDraft.mode, startLtst: st.walkStartLtst, setStartLtst: st.setWalkStartLtst,
+    setWhatIf: st.setContingencyModalOpen, draftMode: st.routeDraft.mode, startLtst: st.walkStartLtst, setStartLtst: st.setWalkStartLtst, mode: st.travelMode, setMode: st.setTravelMode,
   })));
   const { waypoints, routeGeometry, progress, driving } = s;
   const planned = !!routeGeometry && routeGeometry.signature === routeSignature(waypoints);
@@ -45,6 +47,9 @@ export default function WalkPanel() {
   const points = useMemo(() => (planned ? routeGeometry.points : waypoints.map((w) => [w.lat, w.lon, w.elevation || 0])), [planned, routeGeometry, waypoints]);
   const km = metrics ? metrics.traverseDistanceKm : routeDistance(waypoints) || 0;
   const maxSlope = metrics?.maxSlopeDeg ?? 0;
+  const rover = s.mode === 'rover';
+  const driveHours = useMemo(() => roverRouteHours(points), [points]);
+  const tripHours = rover ? driveHours : metrics?.walkingHours;
 
   // The clock the walk is set against: a chosen local time at the start, or the real time right now
   const nowRef = useRef(new Date());
@@ -58,7 +63,7 @@ export default function WalkPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [at && Math.round(at.lat * 100), at && Math.round(at.lon * 100), Math.round(s.tel.hours * 20), at?.elevation, startDate],
   );
-  const feed = useWalkFeed({ active: progress > 0.003, progress, telemetry: s.tel, position: s.pos, env, lifeLeft: s.life, maxSlope, names });
+  const feed = useWalkFeed({ active: progress > 0.003, progress, telemetry: s.tel, position: s.pos, env, lifeLeft: s.life, maxSlope, names, rover });
 
   const started = progress > 0.003;
   const arrived = progress >= 0.99 && !driving;
@@ -94,8 +99,8 @@ export default function WalkPanel() {
     }
   };
 
-  const subtitle = metrics ? `${km.toFixed(1)} km · ${fmtDuration(metrics.walkingHours)} on foot` : `${km.toFixed(1)} km, drawn by hand`;
-  const title = arrived ? 'You made it' : started ? `${driving ? 'Walking to' : 'Paused on the way to'} ${names.end}` : 'Your route';
+  const subtitle = metrics ? `${km.toFixed(1)} km · ${fmtDuration(tripHours)} ${rover ? 'by rover' : 'on foot'}` : `${km.toFixed(1)} km, drawn by hand`;
+  const title = arrived ? 'You made it' : started ? `${driving ? (rover ? 'Driving to' : 'Walking to') : 'Paused on the way to'} ${names.end}` : 'Your route';
 
   return (
     <DockCard id="route" title={title} subtitle={subtitle} icon={Footprints} accent="#F26A3D">
@@ -123,7 +128,7 @@ export default function WalkPanel() {
             ['Distance', `${km.toFixed(1)} km`],
             ['Steepest', `${maxSlope}°`],
             ['Climb', `${metrics.totalAscentMeters} m`],
-            ['Life support', `${metrics.budgetSharePct}%`],
+            rover ? ['Drive time', fmtDuration(driveHours)] : ['Life support', `${metrics.budgetSharePct}%`],
           ].map(([k, v]) => (
             <div key={k} className="rounded-xl bg-white/[0.04] px-1 py-1.5">
               <div className="text-[10px] text-zinc-400">{k}</div>
@@ -132,7 +137,7 @@ export default function WalkPanel() {
           ))}
         </div>
       )}
-      {metrics?.budgetSharePct > 50 && !started && <p className="mt-2 text-xs text-rose-300 leading-snug">One way uses over half the usable life support, so walking back would not fit.</p>}
+      {metrics?.budgetSharePct > 50 && !started && !rover && <p className="mt-2 text-xs text-rose-300 leading-snug">One way uses over half the usable life support, so walking back would not fit.</p>}
 
       <div className="mt-3">
         <ElevationScrubber
@@ -145,7 +150,21 @@ export default function WalkPanel() {
 
       {!started && (
         <div className="mt-3">
-          <div className="text-xs font-medium text-zinc-300 mb-1.5">Start the walk at (local time on Mars)</div>
+          <div className="text-xs font-medium text-zinc-300 mb-1.5">How do you travel?</div>
+          <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Travel mode">
+            {[{ v: 'rover', label: 'Rover', sub: `about ${ROVER_KMH} km/h` }, { v: 'foot', label: 'On foot', sub: 'EVA, uses life support' }].map(({ v, label, sub }) => (
+              <button key={v} role="radio" aria-checked={s.mode === v} onClick={() => s.setMode(v)} className={`rounded-xl border px-2 py-2 text-left transition-colors cursor-pointer ${s.mode === v ? 'border-emerald-400/60 bg-emerald-500/15' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.08]'}`}>
+                <span className="block text-xs font-semibold text-white">{label}</span>
+                <span className="block text-[11px] text-zinc-400">{sub}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!started && (
+        <div className="mt-3">
+          <div className="text-xs font-medium text-zinc-300 mb-1.5">Start at (local time on Mars)</div>
           <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Start time">
             {START_TIMES.map(({ v, label, sub }) => {
               const on = s.startLtst === v;
@@ -167,7 +186,7 @@ export default function WalkPanel() {
           className={`relative flex-1 h-12 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer text-white overflow-hidden ${driving ? 'bg-white/15 hover:bg-white/20' : 'bg-gradient-to-r from-[#F26A3D] to-[#ff9a4d] shadow-[0_8px_26px_rgba(242,106,61,0.4)] hover:brightness-110'}`}
         >
           {!driving && !started && <span className="absolute inset-0 walk-cta-shine pointer-events-none" aria-hidden="true" />}
-          {driving ? <><Pause className="w-4 h-4 fill-current" />Pause</> : arrived ? <><RotateCcw className="w-4 h-4" />Walk again</> : started ? <><Play className="w-4 h-4 fill-current" />Resume</> : <><Play className="w-4 h-4 fill-current" />Start walking</>}
+          {driving ? <><Pause className="w-4 h-4 fill-current" />Pause</> : arrived ? <><RotateCcw className="w-4 h-4" />Go again</> : started ? <><Play className="w-4 h-4 fill-current" />Resume</> : <><Play className="w-4 h-4 fill-current" />{rover ? 'Start driving' : 'Start walking'}</>}
         </motion.button>
         <div className="flex rounded-xl bg-white/[0.06] p-1 gap-0.5" role="radiogroup" aria-label="Walking speed">
           {SPEEDS.map((v) => (
@@ -185,18 +204,18 @@ export default function WalkPanel() {
         </button>
       </div>
       {s.driveTarget && (
-        <button onClick={() => s.setDriveTarget(null)} className="mt-2 text-xs text-cyan-200 hover:text-white cursor-pointer">Walking to one stop. Walk the whole route instead →</button>
+        <button onClick={() => s.setDriveTarget(null)} className="mt-2 text-xs text-cyan-200 hover:text-white cursor-pointer">Going to one stop. Do the whole route instead →</button>
       )}
 
       <AnimatePresence initial={false}>
         {started && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
             <div className="mt-3 grid grid-cols-3 gap-1.5">
-              <Tile icon={Footprints} label="On foot" value={`T+${fmtClock(s.tel.hours)}`} sub={`${s.tel.distKm.toFixed(1)} of ${km.toFixed(1)} km`} />
-              <Tile icon={Gauge} label="Pace" value={`${s.tel.paceKmh.toFixed(1)} km/h`} sub={`slope ${s.tel.slope.toFixed(0)}°`} />
+              <Tile icon={Footprints} label={rover ? 'On the road' : 'On foot'} value={`T+${fmtClock(s.tel.hours)}`} sub={`${s.tel.distKm.toFixed(1)} of ${km.toFixed(1)} km`} />
+              <Tile icon={Gauge} label={rover ? 'Speed' : 'Pace'} value={`${s.tel.paceKmh.toFixed(1)} km/h`} sub={`slope ${s.tel.slope.toFixed(0)}°`} />
               <Tile icon={Thermometer} label="Height" value={`${Math.round(s.pos?.elevation ?? 0).toLocaleString()} m`} />
             </div>
-            <div className="mt-2 rounded-xl bg-white/[0.04] px-3 py-2.5">
+            {!rover && <div className="mt-2 rounded-xl bg-white/[0.04] px-3 py-2.5">
               <div className="flex items-baseline justify-between text-xs">
                 <span className="text-zinc-300">Life support left</span>
                 <span className="font-semibold text-white tabular-nums">{Math.round(s.life)}%</span>
@@ -207,7 +226,7 @@ export default function WalkPanel() {
               <div className={`mt-1.5 text-xs ${spareTone}`}>
                 {spare < 0 ? 'Past the point of no return: not enough left to walk back.' : `Spare to walk back from here: ${Math.round(spare)}%`}
               </div>
-            </div>
+            </div>}
           </motion.div>
         )}
       </AnimatePresence>

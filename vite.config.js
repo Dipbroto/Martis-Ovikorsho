@@ -9,6 +9,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    // Pre-bundled up front, so the dev server does not stop to optimise it (and reload the page) the first time a walk is planned
+    include: ['lerc'],
+  },
   server: {
     port: 3000,
     open: true,

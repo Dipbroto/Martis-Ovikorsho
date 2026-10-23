@@ -21,6 +21,7 @@ import RouteDraftLayer from './dock/RouteDraftLayer';
 import QuakeLayer from './quakes/QuakeLayer';
 import { nearestPlace } from '../data/places';
 import { legCost, usableBudgetJ } from '../terrain/evaModel';
+import { roverLeg } from '../terrain/roverModel';
 
 // Leaflet's geodesic <Circle> converts metres to degrees with Earth's radius when using EPSG:4326,
 // so real Martian distances have to be scaled up to render at the correct size on this map.
@@ -29,18 +30,45 @@ const marsMetersToLeaflet = (meters) => meters * (L.CRS.Earth.R / MARS.RADIUS_M)
 // The crew on foot: a person glyph in a ring, with a pulse and a time readout while walking
 const PERSON_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2"/><path d="m9 21 3-6 3 6"/><path d="m6 9 6 2 6-2"/><path d="M12 11v4"/></svg>';
 
-const createWalkerIcon = (walking, label) => L.divIcon({
+// A pressurised six-wheeled rover seen from above (like NASA's Space Exploration Vehicle): wheels, a white
+// body, a windscreen with its tint, a solar roof and two headlights. It points north and is turned to its heading.
+const ROVER_SVG = `<svg viewBox="0 0 48 48" width="46" height="46" aria-hidden="true">
+  <defs>
+    <linearGradient id="rv-body" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e2e8f0"/><stop offset="0.5" stop-color="#ffffff"/><stop offset="1" stop-color="#cbd5e1"/></linearGradient>
+    <linearGradient id="rv-glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#0c4a6e"/></linearGradient>
+  </defs>
+  <g fill="#0b0d12" stroke="#475569" stroke-width="0.8">
+    <rect x="6.5" y="9" width="7" height="9" rx="2"/><rect x="34.5" y="9" width="7" height="9" rx="2"/>
+    <rect x="6.5" y="20" width="7" height="9" rx="2"/><rect x="34.5" y="20" width="7" height="9" rx="2"/>
+    <rect x="6.5" y="31" width="7" height="9" rx="2"/><rect x="34.5" y="31" width="7" height="9" rx="2"/>
+  </g>
+  <rect x="12" y="4" width="24" height="40" rx="8" fill="url(#rv-body)" stroke="#94a3b8" stroke-width="1"/>
+  <path d="M16 11.5 Q24 8 32 11.5 L31 19 H17 Z" fill="url(#rv-glass)" stroke="#0c4a6e" stroke-width="0.8"/>
+  <path d="M18 12.5 Q24 10.5 29 12.5" stroke="#fff" stroke-opacity="0.7" stroke-width="0.8" fill="none"/>
+  <rect x="16" y="22" width="16" height="17" rx="2" fill="#1e293b" stroke="#475569" stroke-width="0.8"/>
+  <path d="M16 27.5H32M16 33H32M24 22V39" stroke="#334155" stroke-width="0.7"/>
+  <rect x="12" y="20.5" width="24" height="1.6" fill="#F26A3D"/>
+  <circle cx="17" cy="5.6" r="1.8" fill="#fde68a"/><circle cx="31" cy="5.6" r="1.8" fill="#fde68a"/>
+</svg>`;
+
+const createWalkerIcon = (walking, label, rover) => L.divIcon({
   className: 'custom-rover-icon',
-  html: `
+  html: rover ? `
+    <div style="position:relative;width:56px;height:56px;display:flex;align-items:center;justify-content:center;">
+      ${walking ? '<div class="rover-radar-ring-1"></div><div class="rover-radar-ring-2"></div>' : ''}
+      <div class="rover-vehicle${walking ? ' rover-driving' : ''}" style="transform:rotate(var(--hd,0deg));">
+        <span class="rover-beam"></span>${ROVER_SVG}
+      </div>
+      ${label ? `<div class="walker-label" style="top:-14px">${label}</div>` : ''}
+    </div>` : `
     <div style="position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center;">
       ${walking ? '<div class="rover-radar-ring-1"></div><div class="rover-radar-ring-2"></div>' : ''}
       <div class="walker-heading" style="transform:rotate(var(--hd,0deg));"><span></span></div>
       <div class="walker-disc${walking ? ' walker-walking' : ''}">${PERSON_SVG}</div>
       ${label ? `<div class="walker-label">${label}</div>` : ''}
-    </div>
-  `,
-  iconSize: [44, 44],
-  iconAnchor: [22, 22],
+    </div>`,
+  iconSize: rover ? [56, 56] : [44, 44],
+  iconAnchor: rover ? [28, 28] : [22, 22],
 });
 
 const fmtClock = (hours) => {
@@ -132,8 +160,10 @@ const MapViewController = () => {
     const { x, y } = map.getSize();
     if (!x || !y) return;
     const narrow = x < 768;
-    const topLeft = mapFitBounds.pad?.topLeft || (narrow ? [24, 150] : [Math.min(440, x * 0.32), 150]);
-    const bottomRight = mapFitBounds.pad?.bottomRight || (narrow ? [24, Math.min(260, y * 0.3)] : [Math.min(420, x * 0.3), 150]);
+    // Room for panels, never more than a share of the map itself (the map is half the screen in split view)
+    const room = (pad) => [Math.min(pad[0], x * 0.4), Math.min(pad[1], y * 0.35)];
+    const topLeft = mapFitBounds.pad?.topLeft ? room(mapFitBounds.pad.topLeft) : (narrow ? [24, 150] : [Math.min(440, x * 0.32), 150]);
+    const bottomRight = mapFitBounds.pad?.bottomRight ? room(mapFitBounds.pad.bottomRight) : (narrow ? [24, Math.min(260, y * 0.3)] : [Math.min(420, x * 0.3), 150]);
     // CTX imagery stays sharp to zoom 12; closer than that the 200 m survival overlays get coarse
     map.flyToBounds(mapFitBounds.bounds, { paddingTopLeft: topLeft, paddingBottomRight: bottomRight, maxZoom: 12, duration: 1.2 });
   }, [mapFitBounds, map]);
@@ -209,6 +239,8 @@ const RoverSimulator = ({ waypoints }) => {
   const camFollow = useMapStore((s) => s.camFollow);
   const walkSpeed = useMapStore((s) => s.walkSpeed);
   const hoursOnFoot = useMapStore((s) => s.walkTelemetry.hours);
+  const travelMode = useMapStore((s) => s.travelMode);
+  const rover = travelMode === 'rover';
 
   const [anchorCoord, setAnchorCoord] = useState(null);
   const [currentSegIdx, setCurrentSegIdx] = useState(0);
@@ -221,6 +253,7 @@ const RoverSimulator = ({ waypoints }) => {
   const progRef = useRef(useMapStore.getState().roverProgress || 0);
   const lastTelemetrySync = useRef(0);
   const lastFreePan = useRef(0);
+  const headingRef = useRef(0);
   const camFollowRef = useRef(camFollow);
   camFollowRef.current = camFollow;
   const speedRef = useRef(walkSpeed);
@@ -265,18 +298,21 @@ const RoverSimulator = ({ waypoints }) => {
     return { cumDists, totalDistKm: sum };
   }, [track]);
 
-  // Walking time and metabolic energy accumulated along the track (same model as the planner)
+  // Travel time along the track (rover speeds, or the planner's walking model on foot) and the metabolic
+  // energy a person would use on foot
   const trackCost = useMemo(() => {
     const cumT = [0];
     const cumE = [0];
     for (let i = 0; i < track.pts.length - 1; i++) {
       const a = track.pts[i], b = track.pts[i + 1];
-      const leg = legCost((routeDistances.cumDists[i + 1] - routeDistances.cumDists[i]) * 1000, (b.elevation || 0) - (a.elevation || 0));
-      cumT.push(cumT[i] + leg.timeS);
-      cumE.push(cumE[i] + leg.energyJ);
+      const m = (routeDistances.cumDists[i + 1] - routeDistances.cumDists[i]) * 1000;
+      const dz = (b.elevation || 0) - (a.elevation || 0);
+      const foot = legCost(m, dz);
+      cumT.push(cumT[i] + (rover ? roverLeg(m, dz) : foot).timeS);
+      cumE.push(cumE[i] + foot.energyJ);
     }
     return { cumT, cumE, budgetJ: usableBudgetJ() };
-  }, [track, routeDistances]);
+  }, [track, routeDistances, rover]);
 
   const targetIndex = (driveTargetWaypointId && waypoints) ? waypoints.findIndex((w) => w.id === driveTargetWaypointId) : -1;
   const targetTrackIndex = targetIndex >= 0 ? track.stations[targetIndex] : -1;
@@ -300,11 +336,16 @@ const RoverSimulator = ({ waypoints }) => {
   };
 
   const publish = (sm, distKm) => {
-    const leg = legCost(sm.segM, (sm.b.elevation || 0) - (sm.a.elevation || 0));
+    const dz = (sm.b.elevation || 0) - (sm.a.elevation || 0);
+    const foot = legCost(sm.segM, dz);
+    const leg = rover ? roverLeg(sm.segM, dz) : foot;
     const hours = (trackCost.cumT[sm.seg] + leg.timeS * sm.f) / 3600;
-    const lifeLeft = Math.max(0, 100 * (1 - (trackCost.cumE[sm.seg] + leg.energyJ * sm.f) / trackCost.budgetJ));
+    const lifeLeft = Math.max(0, 100 * (1 - (trackCost.cumE[sm.seg] + foot.energyJ * sm.f) / trackCost.budgetJ));
     const heading = ((Math.atan2(sm.b.lon - sm.a.lon, sm.b.lat - sm.a.lat) * 180) / Math.PI + 360) % 360;
-    markerRef.current?.getElement()?.style.setProperty('--hd', `${heading}deg`);
+    // turn by the shortest way round, so the vehicle never spins the long way at north
+    const diff = ((heading - (headingRef.current % 360) + 540) % 360) - 180;
+    headingRef.current += diff;
+    markerRef.current?.getElement()?.style.setProperty('--hd', `${headingRef.current}deg`);
     setWalkTelemetry({ slope: leg.slopeDeg, paceKmh: leg.timeS > 0 ? (sm.segM / leg.timeS) * 3.6 : 0, hours, distKm, totalKm: routeDistances.totalDistKm });
     setRoverBatterySoC(Math.round(lifeLeft));
     setRoverCurrentPosition({ lat: sm.lat, lon: sm.lon, bearing: Math.round(heading), elevation: Math.round((sm.a.elevation || 0) + ((sm.b.elevation || 0) - (sm.a.elevation || 0)) * sm.f) });
@@ -442,7 +483,7 @@ const RoverSimulator = ({ waypoints }) => {
   }, [isRoverDriving, waypoints, track, trackLatLngs, targetDistKm, targetTrackIndex, routeDistances, trackCost, map]);
 
   const walkerLabel = isRoverDriving ? `T+${fmtClock(hoursOnFoot)}` : null;
-  const walkerIcon = useMemo(() => createWalkerIcon(isRoverDriving, walkerLabel), [isRoverDriving, walkerLabel]);
+  const walkerIcon = useMemo(() => createWalkerIcon(isRoverDriving, walkerLabel, rover), [isRoverDriving, walkerLabel, rover]);
 
   const flags = useMemo(() => {
     if (track.pts.length < 2 || routeDistances.totalDistKm < 1) return [];
@@ -464,7 +505,7 @@ const RoverSimulator = ({ waypoints }) => {
         <>
           {/* Walked part of the route, laid down behind the crew with a warm glow */}
           <Polyline ref={trailGlowRef} positions={traveledPositions} pathOptions={{ color: '#ffb08f', weight: 12, opacity: 0.3, lineCap: 'round', lineJoin: 'round', interactive: false, className: 'walk-trail-glow' }} />
-          <Polyline ref={trailCoreRef} positions={traveledPositions} pathOptions={{ color: '#ffffff', weight: 4, opacity: 0.97, lineCap: 'round', lineJoin: 'round', interactive: false }} />
+          <Polyline ref={trailCoreRef} positions={traveledPositions} pathOptions={rover ? { color: '#ffe6d8', weight: 3.5, opacity: 0.95, dashArray: '1 7', lineCap: 'round', lineJoin: 'round', interactive: false } : { color: '#ffffff', weight: 4, opacity: 0.97, lineCap: 'round', lineJoin: 'round', interactive: false }} />
           <Marker ref={markerRef} position={anchorCoord} icon={walkerIcon} zIndexOffset={1000} interactive={false} />
         </>
       )}

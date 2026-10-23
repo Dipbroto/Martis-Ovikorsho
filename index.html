@@ -11,10 +11,40 @@
     <!-- Google Fonts: Space Grotesk + Rajdhani + Orbitron + JetBrains Mono + Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- The fonts load without blocking the page: on a slow or blocked connection the app still opens, in a fallback font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet"></noscript>
+    <style>
+      html, body { background: #050608; }
+      #boot-fail { display: none; position: fixed; inset: 0; z-index: 99999; align-items: center; justify-content: center; padding: 24px; background: #050608; color: #e5e7eb; font-family: system-ui, sans-serif; text-align: center; }
+      #boot-fail.show { display: flex; }
+      #boot-fail h1 { font-size: 20px; margin: 0 0 8px; color: #fff; }
+      #boot-fail p { margin: 6px auto; max-width: 440px; font-size: 14px; line-height: 1.5; color: #a1a1aa; }
+      #boot-fail button { margin-top: 14px; height: 42px; padding: 0 22px; border: 0; border-radius: 12px; background: #F26A3D; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+      #boot-fail code { background: #18181b; padding: 2px 6px; border-radius: 6px; color: #e4e4e7; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="boot-fail" role="alert">
+      <div>
+        <h1>MarsWalk could not start</h1>
+        <p>The app files did not load. This usually fixes itself with a reload, or when the connection is back.</p>
+        <p>Running it yourself? Check that <code>npm run dev</code> is still running and that <code>npm install</code> has been run.</p>
+        <button onclick="try{navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(x){x.unregister()})})}catch(e){};try{caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})})}catch(e){};setTimeout(function(){location.reload()},200)">Clear the cache and reload</button>
+      </div>
+    </div>
+    <script>
+      // If the app has not drawn anything after a while, or its first script fails, say so instead of leaving a blank page
+      (function () {
+        var shown = false;
+        function fail() { if (!shown) { shown = true; document.getElementById('boot-fail').className = 'show'; } }
+        function empty() { var r = document.getElementById('root'); return !r || !r.firstElementChild; }
+        window.addEventListener('error', function (e) { if (e.target && e.target.tagName === 'SCRIPT' && empty()) fail(); }, true);
+        setTimeout(function () { if (empty()) fail(); }, 15000);
+        window.__bootOk = function () { shown = true; document.getElementById('boot-fail').className = ''; };
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
