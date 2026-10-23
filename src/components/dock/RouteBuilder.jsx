@@ -6,7 +6,7 @@ import useMapStore from '../../store/useMapStore';
 import { AUTONOMOUS_TARGET_PAIRS, ROUTING_MODES } from '../../utils/autonomousRouter';
 import { planAndApplyRoute } from '../../services/routePlanningService';
 import { marsDistance } from '../../utils/marsUtils';
-import useDetailAreas, { areaOf } from '../../utils/useDetailAreas';
+import { MAX_WALK_KM } from '../../terrain/dem';
 import { toPoint } from '../../data/places';
 import { marsAudio } from '../../utils/audioSynthesizer';
 import PlacePicker from './PlacePicker';
@@ -58,22 +58,18 @@ export default function RouteBuilder() {
     draft: s.routeDraft, setDraft: s.setRouteDraft, pickTarget: s.pickTarget, setPickTarget: s.setPickTarget,
     setRouteEditing: s.setRouteEditing, setPlacingWaypoint: s.setPlacingWaypoint, hasRoute: s.waypoints.length > 1,
   })));
-  const areas = useDetailAreas();
   const [open, setOpen] = useState(null); // 'start' | 'end'
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [recent, setRecent] = useState(null); // which end was just set, for a small pop
 
   const { start, end, mode } = draft;
-  const startArea = areaOf(areas, start);
-  const endArea = areaOf(areas, end);
-  const sameArea = !!startArea && startArea.id === endArea?.id;
   const km = start && end ? marsDistance(start.lat, start.lon, end.lat, end.lon) : 0;
 
   let problem = null;
   if (start && end) {
     if (km < 0.1) problem = 'The two points are almost the same place. Choose a destination a little further away.';
-    else if (!sameArea) problem = `Walks are planned on 200 m terrain data, which covers ${areas.length} areas. Put both points inside one of them (shown on the map as dashed boxes).`;
+    else if (km > MAX_WALK_KM) problem = `These points are ${Math.round(km)} km apart. On 8 hours of life support a crew walks about 25 km, so choose points within ${MAX_WALK_KM} km of each other.`;
   }
   const ready = !!start && !!end && !problem;
 
@@ -119,7 +115,7 @@ export default function RouteBuilder() {
         <AnimatePresence initial={false}>
           {open === 'start' && (
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-              <PlacePicker title="the start" otherPoint={end} areas={areas} onPick={(p) => set('start', toPoint(p))} onClose={() => setOpen(null)} />
+              <PlacePicker title="the start" onPick={(p) => set('start', toPoint(p))} onClose={() => setOpen(null)} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -137,7 +133,7 @@ export default function RouteBuilder() {
         <AnimatePresence initial={false}>
           {open === 'end' && (
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-              <PlacePicker title="the destination" otherPoint={start} areas={areas} onPick={(p) => set('end', toPoint(p))} onClose={() => setOpen(null)} />
+              <PlacePicker title="the destination" onPick={(p) => set('end', toPoint(p))} onClose={() => setOpen(null)} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -145,7 +141,7 @@ export default function RouteBuilder() {
 
       {start && end && !problem && (
         <p className="text-xs text-zinc-300">
-          <span className="text-white font-medium">{km.toFixed(1)} km</span> as the crow flies, on {startArea?.metersPerPixel} m terrain in {startArea?.name}.
+          <span className="text-white font-medium">{km.toFixed(1)} km</span> as the crow flies. The route is planned on real NASA 200 m terrain.
         </p>
       )}
       {problem && (
@@ -176,7 +172,7 @@ export default function RouteBuilder() {
         disabled={!ready || busy}
         className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed bg-gradient-to-r from-[#F26A3D] to-[#ff9a4d] text-white shadow-[0_8px_24px_rgba(242,106,61,0.35)] hover:brightness-110 disabled:from-white/10 disabled:to-white/10 disabled:text-zinc-400 disabled:shadow-none"
       >
-        {busy ? <><Loader2 className="w-4 h-4 animate-spin" />Planning on real terrain…</> : !start ? 'Choose a start' : !end ? 'Choose a destination' : <><Sparkles className="w-4 h-4" />Plan the route</>}
+        {busy ? <><Loader2 className="w-4 h-4 animate-spin" />Getting NASA terrain and planning…</> : !start ? 'Choose a start' : !end ? 'Choose a destination' : <><Sparkles className="w-4 h-4" />Plan the route</>}
       </button>
       {error && <p className="text-xs text-rose-200 bg-rose-500/10 border border-rose-400/30 rounded-xl p-2.5 leading-relaxed">{error}</p>}
 

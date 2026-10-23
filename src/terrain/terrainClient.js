@@ -1,6 +1,7 @@
 // Promise API around the terrain worker. Picks the best real terrain grid for a request and makes
 // sure the worker has a copy of it.
-import { ensureTerrainFor, getGridAt, gridContains } from './dem';
+import { ensureTerrainFor, ensureRemoteGrid, getGridAt, gridContains, MAX_WALK_KM } from './dem';
+import { marsDistance } from '../utils/marsUtils';
 
 let worker = null;
 let seq = 0;
@@ -45,8 +46,22 @@ export async function gridForPoints(points) {
   const [first] = points;
   const site = getGridAt(first.lat, first.lon, { siteOnly: true });
   if (site && points.every((p) => gridContains(site, p.lat, p.lon))) return site;
+  // Not inside one of the bundled areas: fetch a 200 m window of NASA's terrain around the points
+  if (points.length > 1) {
+    const far = Math.max(...points.map((p) => marsDistance(first.lat, first.lon, p.lat, p.lon)));
+    if (far > MAX_WALK_KM) throw new Error(`The points are ${Math.round(far)} km apart. On 8 hours of life support a crew walks about 25 km, so choose points within ${MAX_WALK_KM} km of each other.`);
+  }
+  try {
+    return await ensureRemoteGrid(points);
+  } catch (err) {
+    if (points.length < 2) return fallbackGlobal(first, err);
+    throw err;
+  }
+}
+
+function fallbackGlobal(first, err) {
   const global = getGridAt(first.lat, first.lon);
-  if (!global) throw new Error('Terrain data is not available');
+  if (!global) throw err || new Error('Terrain data is not available');
   return global;
 }
 

@@ -94,6 +94,129 @@ export function getGridAt(lat, lon, { siteOnly = false } = {}) {
 export const getLoadedGrid = (id) => grids.get(id) || null;
 export const getDemIndex = () => index;
 
+// ---------- Windows fetched on demand ----------
+// NASA and USGS publish the same HRSC-MOLA 200 m elevation the hero-site grids were cut from as tiles
+// (LERC-compressed, 513 x 513 float32 metres, about 163 m per pixel at level 7) with open cross-origin
+// access. A window around the points of a walk is fetched, cropped and registered like any other grid, so
+// a walk can be planned anywhere on Mars and not only in the areas shipped with the app.
+
+const REMOTE_TILES = 'https://astro.arcgis.com/arcgis/rest/services/OnMars/MDEM200M/ImageServer/tile';
+const REMOTE_LEVEL = 7;
+const REMOTE_RES = 0.3515625 / 2 ** REMOTE_LEVEL; // degrees per pixel
+const REMOTE_TILE = 512;
+const MAX_WINDOW_CELLS = 1_300_000;
+const NODATA = -32768;
+/** The longest walk the app plans. On 8 hours of life support a crew covers about 25 km, so this is generous. */
+export const MAX_WALK_KM = 60;
+
+let lercPromise = null;
+const loadLerc = () => {
+  if (!lercPromise) {
+    // The decoder is WebAssembly; the bundler gives it a URL, which is handed to the decoder
+    lercPromise = Promise.all([import('lerc'), import('lerc/lerc-wasm.wasm?url')]).then(async ([mod, wasm]) => {
+      const L = mod.default || mod;
+      await L.load({ locateFile: () => wasm.default });
+      return L;
+    });
+  }
+  return lercPromise;
+};
+
+/** The box to fetch around some points: their bounding box plus room to walk around obstacles, snapped to 0.1 degree. */
+export function remoteWindowFor(points) {
+  const lats = points.map((p) => p.lat);
+  const lons = points.map((p) => p.lon);
+  const s = Math.min(...lats), n = Math.max(...lats), w = Math.min(...lons), e = Math.max(...lons);
+  const margin = Math.max(0.45, 0.5 * Math.max(n - s, e - w));
+  return {
+    west: Math.max(-180, Math.floor((w - margin) * 10) / 10),
+    east: Math.min(180, Math.ceil((e + margin) * 10) / 10),
+    south: Math.max(-90, Math.floor((s - margin) * 10) / 10),
+    north: Math.min(90, Math.ceil((n + margin) * 10) / 10),
+  };
+}
+
+async function fetchTile(row, col) {
+  const res = await fetch(`${REMOTE_TILES}/${REMOTE_LEVEL}/${row}/${col}`);
+  if (!res.ok) throw new Error(`NASA terrain tile unavailable (${res.status})`);
+  const Lerc = await loadLerc();
+  return Lerc.decode(await res.arrayBuffer());
+}
+
+/** Loads (and caches) a 200 m grid covering all the given points, from NASA's tile service. */
+export function ensureRemoteGrid(points) {
+  const win = remoteWindowFor(points);
+  const id = `nasa200-${win.west}_${win.south}_${win.east}_${win.north}`;
+  if (grids.has(id)) return Promise.resolve(grids.get(id));
+  if (inflight.has(id)) return inflight.get(id);
+
+  const promise = (async () => {
+    const gx0 = Math.floor((win.west + 180) / REMOTE_RES);
+    const gx1 = Math.ceil((win.east + 180) / REMOTE_RES) - 1;
+    const gy0 = Math.floor((90 - win.north) / REMOTE_RES);
+    const gy1 = Math.ceil((90 - win.south) / REMOTE_RES) - 1;
+    const width = gx1 - gx0 + 1;
+    const height = gy1 - gy0 + 1;
+    if (width * height > MAX_WINDOW_CELLS) throw new Error('That area is too large to load as one walk.');
+
+    const tiles = new Map();
+    const jobs = [];
+    for (let tr = Math.floor(gy0 / REMOTE_TILE); tr <= Math.floor(gy1 / REMOTE_TILE); tr++) {
+      for (let tc = Math.floor(gx0 / REMOTE_TILE); tc <= Math.floor(gx1 / REMOTE_TILE); tc++) {
+        jobs.push(fetchTile(tr, tc).then((t) => tiles.set(`${tr}/${tc}`, t)));
+      }
+    }
+    try {
+      await Promise.all(jobs);
+    } catch (err) {
+      throw new Error(err.message.startsWith('NASA') ? err.message : 'NASA terrain data could not be reached. Check the connection and try again.');
+    }
+
+    const data = new Int16Array(width * height);
+    let lo = Infinity, hi = -Infinity;
+    for (let gy = gy0; gy <= gy1; gy++) {
+      const tr = Math.floor(gy / REMOTE_TILE);
+      const ly = gy - tr * REMOTE_TILE;
+      for (let gx = gx0; gx <= gx1; gx++) {
+        const tc = Math.floor(gx / REMOTE_TILE);
+        const t = tiles.get(`${tr}/${tc}`);
+        const v = t.pixels[0][ly * t.width + (gx - tc * REMOTE_TILE)];
+        const out = (gy - gy0) * width + (gx - gx0);
+        if (Number.isFinite(v)) {
+          data[out] = Math.round(v);
+          lo = Math.min(lo, v);
+          hi = Math.max(hi, v);
+        } else {
+          data[out] = NODATA;
+        }
+      }
+    }
+    const grid = {
+      id,
+      name: 'NASA 200 m terrain (fetched for this walk)',
+      west: -180 + gx0 * REMOTE_RES,
+      east: -180 + (gx1 + 1) * REMOTE_RES,
+      north: 90 - gy0 * REMOTE_RES,
+      south: 90 - (gy1 + 1) * REMOTE_RES,
+      width,
+      height,
+      metersPerPixel: Math.round(REMOTE_RES * DEG_TO_M),
+      minElevation: Math.round(lo),
+      maxElevation: Math.round(hi),
+      source: 'HRSC-MOLA Blended DEM Global 200 m v2 (Fergason et al. 2018, USGS Astrogeology), tiles from USGS astro.arcgis.com',
+      remote: true,
+      data,
+      nodata: NODATA,
+    };
+    grids.set(id, grid);
+    listeners.forEach((fn) => fn(grid));
+    return grid;
+  })().finally(() => inflight.delete(id));
+
+  inflight.set(id, promise);
+  return promise;
+}
+
 // ---------- Grid geometry helpers (shared with the terrain worker) ----------
 
 export const cellSizeDeg = (g) => ({

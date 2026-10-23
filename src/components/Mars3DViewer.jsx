@@ -12,6 +12,7 @@ import { playUiClick } from '../utils/audioSynthesizer';
 import { subsolarPoint, lsFromDate } from '../utils/marsSolar';
 import { ORBITERS, orbitShape, orbitPosition, MARS_RADIUS_KM, MARS_SIDEREAL_DAY_S } from '../data/orbiters';
 import { DUST_STORM_REGIONS, DUST_SEASON_LS } from '../data/dustStormRegions';
+import DetailTiles from './globe/DetailTiles';
 
 // A realistic Mars globe built only from real data:
 // - colour: the Viking MDIM 2.1 mosaic (USGS / NASA Trek), stitched by scripts/data/build_globe_texture.py
@@ -33,12 +34,12 @@ const ROVER_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" s
 const LANDER_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12.5h10l-1.8-4H8.8z"/><path d="M8.5 12.5l-3.2 5.8M15.5 12.5l3.2 5.8M12 12.5v5.8"/><path d="M9.3 5.4a3.2 3.2 0 0 1 5.4 0"/><path d="M12 8.5V5.8"/></svg>';
 
 const FLY_TO = [
-  { id: 'global', name: 'Whole planet', lat: 5, lon: -70, dist: 5.6 },
-  { id: 'jezero', name: 'Jezero Crater', lat: 18.4, lon: 77.5, dist: 3.1 },
-  { id: 'gale', name: 'Gale Crater', lat: -5.4, lon: 137.8, dist: 3.1 },
-  { id: 'olympus', name: 'Olympus Mons', lat: 18.6, lon: -134, dist: 3.3 },
-  { id: 'valles', name: 'Valles Marineris', lat: -11, lon: -70, dist: 3.4 },
-  { id: 'north', name: 'North polar cap', lat: 82, lon: 0, dist: 3.6 },
+  { id: 'global', name: 'Whole planet', lat: 5, lon: -70, dist: 7.6 },
+  { id: 'jezero', name: 'Jezero Crater', lat: 18.4, lon: 77.5, dist: 4.4 },
+  { id: 'gale', name: 'Gale Crater', lat: -5.4, lon: 137.8, dist: 4.4 },
+  { id: 'olympus', name: 'Olympus Mons', lat: 18.6, lon: -134, dist: 4.6 },
+  { id: 'valles', name: 'Valles Marineris', lat: -11, lon: -70, dist: 4.8 },
+  { id: 'north', name: 'North polar cap', lat: 82, lon: 0, dist: 4.8 },
 ];
 
 // ---------- data hooks ----------
@@ -490,6 +491,7 @@ export default function Mars3DViewer() {
   });
   const [layers, setLayers] = useState({ sites: true, route: true, water: false, caves: false, sun: false, orbiters: false, storms: false, grid: false });
   const [autoRotate, setAutoRotate] = useState(true);
+  const [detail, setDetail] = useState({ z: 0, loading: 0 });
   const [panelOpen, setPanelOpen] = useState(true);
   const rootRef = useRef(null);
   const [target, setTarget] = useState(null);
@@ -536,7 +538,7 @@ export default function Mars3DViewer() {
   // Start on the whole planet, turned towards the planned route if there is one
   const initial = useMemo(() => {
     const [lat, lon] = route ? route.center : [5, -70];
-    return dirFor(lat, lon).multiplyScalar(5.6).toArray();
+    return dirFor(lat, lon).multiplyScalar(7.6).toArray();
     // only on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -548,7 +550,7 @@ export default function Mars3DViewer() {
     // Bring each new layer into view
     if (key === 'sun') {
       const s = subsolarPoint(new Date());
-      flyTo(s.lat * 0.5, s.lon + 70, 5.6, 'sun');
+      flyTo(s.lat * 0.5, s.lon + 70, 7.2, 'sun');
     } else if (key === 'orbiters') {
       const cam = controls.current?.object;
       if (cam && cam.position.length() < 12) {
@@ -557,13 +559,13 @@ export default function Mars3DViewer() {
         setTarget(cam.position.clone().setLength(14));
       }
     } else if (key === 'storms') {
-      flyTo(-15, 40, 5.6, 'storms');
+      flyTo(-15, 40, 7.2, 'storms');
     }
   };
 
   const selectSite = (site) => {
     setSelectedPOI({ ...site, poiType: 'landingSite' });
-    flyTo(site.lat, site.lon, 3.0, site.id);
+    flyTo(site.lat, site.lon, 4.4, site.id);
   };
 
   if (!hasWebGL) {
@@ -589,6 +591,7 @@ export default function Mars3DViewer() {
         <Suspense fallback={<Html center><div className="text-zinc-300 text-sm whitespace-nowrap">Loading NASA imagery…</div></Html>}>
           <Globe />
         </Suspense>
+        <DetailTiles onStatus={setDetail} />
         <Atmosphere />
         {layers.storms && <DustStorms lightDir={lightDir} />}
         {layers.orbiters && <Orbiters />}
@@ -603,7 +606,7 @@ export default function Mars3DViewer() {
         <OrbitControls
           ref={controls}
           enablePan={false}
-          minDistance={2.35}
+          minDistance={2.12}
           maxDistance={18}
           rotateSpeed={0.45}
           zoomSpeed={0.7}
@@ -730,7 +733,7 @@ export default function Mars3DViewer() {
         <div className="ui-panel rounded-2xl p-1.5 flex items-center gap-1 overflow-x-auto custom-scrollbar-x">
           {route && (
             <button
-              onClick={() => flyTo(route.center[0], route.center[1], 2.75, 'route')}
+              onClick={() => flyTo(route.center[0], route.center[1], 4.2, 'route')}
               className={`shrink-0 h-8 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${active === 'route' ? 'bg-[#F26A3D] text-white' : 'text-[#ffc2a8] hover:bg-white/10'}`}
             >
               My route
@@ -746,7 +749,11 @@ export default function Mars3DViewer() {
             </button>
           ))}
         </div>
-        <p className="mt-1.5 text-center text-[11px] text-zinc-500">Viking MDIM 2.1 colour mosaic (NASA/USGS) with MOLA relief · drag to rotate, scroll to zoom</p>
+        <p className="mt-1.5 text-center text-[11px] text-zinc-500">
+          {detail.z >= 4
+            ? `NASA THEMIS infrared (100 m) with Viking colour and MOLA relief${detail.loading ? ` · loading ${detail.loading} more tiles…` : ''}`
+            : 'Viking MDIM 2.1 colour mosaic (NASA/USGS) with MOLA relief · drag to rotate, scroll to zoom in for detail'}
+        </p>
       </div>
     </div>
   );

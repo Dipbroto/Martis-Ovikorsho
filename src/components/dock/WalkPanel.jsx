@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, RotateCcw, LocateFixed, Radar, Glasses, FileText, ShieldAlert, Pencil, Trash2, Footprints, Sun, Moon, Thermometer, Gauge, Wind, CloudFog, Radiation, Sparkles } from 'lucide-react';
+import { Loader2, Play, Pause, RotateCcw, LocateFixed, Radar, Glasses, FileText, ShieldAlert, Pencil, Trash2, Footprints, Sun, Moon, Thermometer, Gauge, Wind, CloudFog, Radiation, Sparkles } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore, { routeSignature } from '../../store/useMapStore';
 import { planAndApplyRoute } from '../../services/routePlanningService';
@@ -80,7 +80,19 @@ export default function WalkPanel() {
     s.setDraft({ start: first && { name: first.name, lat: first.lat, lon: first.lon, elevation: first.elevation }, end: last && { name: last.name, lat: last.lat, lon: last.lon, elevation: last.elevation } });
     s.setEditing(true);
   };
-  const snap = () => planAndApplyRoute({ origin: first, destination: last, mode: s.draftMode }).catch(() => {});
+  const [snapping, setSnapping] = useState(false);
+  const [snapError, setSnapError] = useState(null);
+  const snap = async () => {
+    setSnapping(true);
+    setSnapError(null);
+    try {
+      await planAndApplyRoute({ origin: first, destination: last, mode: s.draftMode });
+    } catch (err) {
+      setSnapError(err.message || 'That route could not be planned.');
+    } finally {
+      setSnapping(false);
+    }
+  };
 
   const subtitle = metrics ? `${km.toFixed(1)} km · ${fmtDuration(metrics.walkingHours)} on foot` : `${km.toFixed(1)} km, drawn by hand`;
   const title = arrived ? 'You made it' : started ? `${driving ? 'Walking to' : 'Paused on the way to'} ${names.end}` : 'Your route';
@@ -98,7 +110,10 @@ export default function WalkPanel() {
       {!planned && (
         <div className="mt-2.5 rounded-xl border border-amber-400/30 bg-amber-500/10 p-2.5 text-xs text-amber-100 leading-relaxed">
           This route is straight lines between your points. Plan it on real terrain to get a walkable path.
-          <button onClick={snap} className="mt-2 w-full h-9 rounded-lg bg-amber-400 text-black text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer hover:bg-amber-300"><Sparkles className="w-3.5 h-3.5" />Plan on real terrain</button>
+          <button onClick={snap} disabled={snapping} className="mt-2 w-full h-9 rounded-lg bg-amber-400 text-black text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer hover:bg-amber-300 disabled:opacity-70">
+            {snapping ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Getting NASA terrain and planning…</> : <><Sparkles className="w-3.5 h-3.5" />Plan on real terrain</>}
+          </button>
+          {snapError && <p className="mt-2 text-rose-800 bg-rose-100 rounded-lg p-2 leading-snug">{snapError}</p>}
         </div>
       )}
 
