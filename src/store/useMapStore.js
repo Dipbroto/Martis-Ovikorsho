@@ -139,7 +139,7 @@ const useMapStore = create((set, get) => ({
   driveTargetWaypointId: null, // specific waypoint ID for station-targeted simulation or null for full route
   roverCurrentPosition: null, // {lat, lon, bearing, elevation}
   roverBatterySoC: 100, // % of usable life support left for the walking crew (name kept from the rover sim)
-  camFollow: true, // Auto-follow vehicle with camera during drive simulation
+  camFollow: false, // Camera follow during a drive (off: the map stays framed on the whole route; the crosshair button in the drive panel turns it on)
   
   setRoverDriving: (val) => {
     set({ isRoverDriving: val });
