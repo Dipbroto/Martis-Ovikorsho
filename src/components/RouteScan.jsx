@@ -22,7 +22,8 @@ const fmtH = (h) => `${Math.floor(h)} h ${String(Math.round((h % 1) * 60)).padSt
 
 async function scanRoute(points) {
   const pts = points.map(([lat, lon, elevation]) => ({ lat, lon, elevation }));
-  const base = pts[0];
+  const markedLocation = useMapStore.getState().markedLocation;
+  const base = markedLocation || pts[0];
   const end = pts[pts.length - 1];
 
   // Distance, slope and walking energy along the path
@@ -62,9 +63,10 @@ async function scanRoute(points) {
     else if (firstLost < 0 && i > 0) firstLost = i;
   });
   const contactPct = Math.round((inContact / pts.length) * 100);
+  const baseLabel = markedLocation ? 'marked station antenna' : 'base antenna';
   findings.push(firstLost < 0
-    ? { key: 'radio', icon: Radio, level: 'ok', title: 'Radio contact the whole way', detail: 'The base antenna can see every point of the route.' }
-    : { key: 'radio', icon: Radio, level: 'warn', title: `Radio lost at ${km[firstLost].toFixed(1)} km`, detail: `Terrain blocks the base antenna for ${100 - contactPct}% of the route. Plan a relay or check-in before this point.`, at: pts[firstLost], km: km[firstLost] });
+    ? { key: 'radio', icon: Radio, level: 'ok', title: 'Radio contact the whole way', detail: `The ${baseLabel} can see every point of the route.` }
+    : { key: 'radio', icon: Radio, level: 'warn', title: `Radio lost at ${km[firstLost].toFixed(1)} km`, detail: `Terrain blocks the ${baseLabel} for ${100 - contactPct}% of the route. Plan a relay or check-in before this point.`, at: pts[firstLost], km: km[firstLost] });
 
   // Point of no return: outbound energy so far + cheapest walk back must fit the usable budget
   const budget = usableBudgetJ();

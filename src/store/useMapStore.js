@@ -122,7 +122,7 @@ const useMapStore = create((set, get) => ({
   })),
   clearWaypoints: () => set({ waypoints: [], selectedWaypointId: null, driveTargetWaypointId: null, evaCurrentWaypointIndex: 0, isRoverDriving: false, roverProgress: 0, roverCurrentPosition: null }),
   clearSelection: () => set({ selectedWaypointId: null, selectedPOI: null }),
-  setPlacingWaypoint: (val) => set({ isPlacingWaypoint: val, isRulerActive: false }),
+  setPlacingWaypoint: (val) => set({ isPlacingWaypoint: val, isRulerActive: false, isMarkingLocation: false }),
 
   // Full-resolution path from the terrain planner. Only drawn while `signature` still matches the
   // waypoint ids it was planned for (see routeSignature), so manual edits hide stale geometry.
@@ -170,7 +170,7 @@ const useMapStore = create((set, get) => ({
     const routeDraft = { ...state.routeDraft, [key]: point };
     return { routeDraft, pickTarget: key === 'start' && !routeDraft.end ? 'end' : null };
   }),
-  setPickTarget: (pickTarget) => set({ pickTarget, isPlacingWaypoint: false, isRulerActive: false }),
+  setPickTarget: (pickTarget) => set({ pickTarget, isPlacingWaypoint: false, isRulerActive: false, isMarkingLocation: false }),
   walkStartLtst: 9, // local solar time (hours) the walk starts at; null means "right now"
   setWalkStartLtst: (walkStartLtst) => set({ walkStartLtst }),
   travelMode: 'rover', // 'rover' (default: nobody walks 40 km) or 'foot'
@@ -218,12 +218,36 @@ const useMapStore = create((set, get) => ({
   
   isRulerActive: false,
   rulerPoints: [], // max 2 points [{lat, lon, elevation}]
-  setRulerActive: (val) => set({ isRulerActive: val, isPlacingWaypoint: false }),
+  setRulerActive: (val) => set({ isRulerActive: val, isPlacingWaypoint: false, isMarkingLocation: false }),
   addRulerPoint: (pt) => set((state) => {
     if (state.rulerPoints.length >= 2) return { rulerPoints: [pt] };
     return { rulerPoints: [...state.rulerPoints, pt] };
   }),
   clearRuler: () => set({ rulerPoints: [] }),
+
+  // ========================
+  // MARKED USER LOCATION (BASE STATION REFERENCE)
+  // ========================
+  markedLocation: null, // { lat, lon, elevation, name, timestamp }
+  isMarkingLocation: false,
+  setMarkedLocation: (loc) => set({
+    markedLocation: loc ? {
+      ...loc,
+      lon: ((Number(loc.lon) + 180) % 360 + 360) % 360 - 180,
+      lat: Math.max(-90, Math.min(90, Number(loc.lat))),
+      elevation: Number(loc.elevation) || 0,
+      name: loc.name || 'Marked Station',
+      timestamp: Date.now()
+    } : null,
+    isMarkingLocation: false
+  }),
+  clearMarkedLocation: () => set({ markedLocation: null, isMarkingLocation: false }),
+  setIsMarkingLocation: (val) => set((state) => ({
+    isMarkingLocation: typeof val === 'boolean' ? val : !state.isMarkingLocation,
+    isPlacingWaypoint: false,
+    isRulerActive: false,
+    pickTarget: null
+  })),
 
   // ========================
   // EXPEDITION PRESETS

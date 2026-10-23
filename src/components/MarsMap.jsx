@@ -6,7 +6,7 @@ import useMapStore from '../store/useMapStore';
 import { marsLayers, RELIEF_SHADE_URL } from '../data/marsLayers';
 import { getElevation } from '../utils/elevationService';
 import { marsDistance, MARS } from '../utils/marsUtils';
-import CoordinateDisplay from './CoordinateDisplay';
+import CoordinateDisplay, { formatCoord } from './CoordinateDisplay';
 import POIMarkers from './POIMarkers';
 import RoverTraverses from './RoverTraverses';
 import { ResourceLayer } from './ResourceOverlays';
@@ -26,6 +26,27 @@ import { roverLeg } from '../terrain/roverModel';
 // Leaflet's geodesic <Circle> converts metres to degrees with Earth's radius when using EPSG:4326,
 // so real Martian distances have to be scaled up to render at the correct size on this map.
 const marsMetersToLeaflet = (meters) => meters * (L.CRS.Earth.R / MARS.RADIUS_M);
+
+// The marked station reference icon: pulsating cyan beacon
+const markedLocationIcon = L.divIcon({
+  className: 'custom-marked-station-icon',
+  html: `
+    <div style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
+      <div style="position:absolute;inset:0;border-radius:9999px;background:rgba(0,255,204,0.3);animation:ping 2s cubic-bezier(0,0,0.2,1) infinite;"></div>
+      <div style="position:absolute;inset:6px;border-radius:9999px;background:#090C14;border:2px solid #00FFCC;box-shadow:0 0 16px rgba(0,255,204,0.7);display:flex;align-items:center;justify-content:center;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00FFCC" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+      </div>
+      <div style="position:absolute;top:42px;left:50%;transform:translateX(-50%);white-space:nowrap;background:rgba(9,12,20,0.95);color:#00FFCC;border:1px solid rgba(0,255,204,0.5);border-radius:6px;padding:2px 6px;font-family:monospace;font-size:9px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,0.8);letter-spacing:0.06em;pointer-events:none;">
+        BASE REF
+      </div>
+    </div>
+  `,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+});
 
 // The crew on foot: a person glyph in a ring, with a pulse and a time readout while walking
 const PERSON_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2"/><path d="m9 21 3-6 3 6"/><path d="m6 9 6 2 6-2"/><path d="M12 11v4"/></svg>';
@@ -86,6 +107,8 @@ const MapEvents = () => {
   const setViewCenter = useMapStore((s) => s.setViewCenter);
   const pickTarget = useMapStore((s) => s.pickTarget);
   const pickPoint = useMapStore((s) => s.pickPoint);
+  const isMarkingLocation = useMapStore((s) => s.isMarkingLocation);
+  const setMarkedLocation = useMapStore((s) => s.setMarkedLocation);
 
   useMapEvents({
     moveend(e) {
@@ -109,7 +132,16 @@ const MapEvents = () => {
       lon = lon - 180;
       const elevation = getElevation(lat, lon);
 
-      if (pickTarget) {
+      if (isMarkingLocation) {
+        const near = nearestPlace(lat, lon, 1.5);
+        setMarkedLocation({
+          name: near ? `Station @ ${near.name}` : `Station [${formatCoord(lat, true)}, ${formatCoord(lon, false)}]`,
+          lat,
+          lon,
+          elevation,
+        });
+        marsAudio.playQuindarTone(true);
+      } else if (pickTarget) {
         const near = nearestPlace(lat, lon, 1.5);
         pickPoint({
           name: near ? near.name : `${Math.abs(lat).toFixed(3)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(3)}°${lon >= 0 ? 'E' : 'W'}`,
@@ -637,6 +669,11 @@ const MarsMap = () => {
   const removeWaypoint = useMapStore((s) => s.removeWaypoint);
   const showRoverTraverses = useMapStore((s) => s.showRoverTraverses);
   const routeGeometry = useMapStore((s) => s.routeGeometry);
+  const markedLocation = useMapStore((s) => s.markedLocation);
+  const clearMarkedLocation = useMapStore((s) => s.clearMarkedLocation);
+  const isMarkingLocation = useMapStore((s) => s.isMarkingLocation);
+  const setRouteDraft = useMapStore((s) => s.setRouteDraft);
+  const setDockMin = useMapStore((s) => s.setDockMin);
 
   // Keyboard shortcuts: Ctrl+Z undo, Backspace/Delete removes the selected waypoint (Esc is in useEscapeBack)
   useEffect(() => {
@@ -679,10 +716,11 @@ const MarsMap = () => {
 
   // Base waypoint for the walkback planning rings (2 km / 5 km; team planning assumptions)
   // Mars 1 degree latitude ~ 59.16 km -> 2 km is approx 0.0338 degrees
-  const baseWP = waypoints && waypoints.length > 0 ? waypoints[0] : null;
+  // Prefers user's markedLocation if set, otherwise waypoints[0]
+  const baseWP = markedLocation || (waypoints && waypoints.length > 0 ? waypoints[0] : null);
 
   return (
-    <div className={`w-full h-full relative ${isPlacingWaypoint || isRulerActive || pickTarget ? 'crosshair-cursor' : ''}`}>
+    <div className={`w-full h-full relative ${isPlacingWaypoint || isRulerActive || pickTarget || isMarkingLocation ? 'crosshair-cursor' : ''}`}>
       <MapContainer
         center={[0, 0]}
         zoom={1}
@@ -801,6 +839,46 @@ const MarsMap = () => {
 
         {/* POI Markers */}
         <POIMarkers />
+
+        {/* User Marked Reference Location (Station) */}
+        {markedLocation && (
+          <Marker position={[markedLocation.lat, markedLocation.lon]} icon={markedLocationIcon}>
+            <Popup autoPanPadding={[50, 50]}>
+              <div className="font-mono text-xs space-y-2 p-1 min-w-[210px]">
+                <div className="flex items-center justify-between text-cyber-cyan font-bold border-b border-cyber-cyan/30 pb-1.5">
+                  <span className="flex items-center gap-1.5 text-xs">
+                    📍 {markedLocation.name || 'Marked Station'}
+                  </span>
+                  <span className="text-[9px] bg-cyber-cyan/15 text-cyber-cyan px-1.5 py-0.5 rounded border border-cyber-cyan/30">REFERENCE BASE</span>
+                </div>
+                <div className="text-zinc-300 text-[11px] space-y-1">
+                  <div>Coordinates: <span className="text-white font-semibold">{formatCoord(markedLocation.lat, true)}, {formatCoord(markedLocation.lon, false)}</span></div>
+                  <div>Elevation: <span className="text-white font-semibold">{Math.round(markedLocation.elevation).toLocaleString()} m</span></div>
+                </div>
+                <div className="text-[10px] text-zinc-400 bg-white/[0.04] p-1.5 rounded border border-white/5 leading-snug">
+                  Active reference origin for terrain slope, UHF radio coverage & walkback range.
+                </div>
+                <div className="pt-1 flex items-center justify-between gap-1.5">
+                  <button
+                    onClick={() => clearMarkedLocation()}
+                    className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                  >
+                    Remove Pin
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRouteDraft({ start: { name: markedLocation.name || 'Marked Station', lat: markedLocation.lat, lon: markedLocation.lon, elevation: markedLocation.elevation } });
+                      setDockMin('route-plan', false);
+                    }}
+                    className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                  >
+                    Set as Route Start
+                  </button>
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        )}
 
         {/* Marsquakes (only while that layer is on) */}
         <QuakeLayer />

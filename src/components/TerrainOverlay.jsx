@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ImageOverlay } from 'react-leaflet';
-import { Mountain, Undo2, Radio, AlertTriangle, ShieldCheck } from 'lucide-react';
+import {
+  Mountain, Undo2, Radio, AlertTriangle, ShieldCheck,
+  CheckCircle2, AlertOctagon, TrendingUp, Wifi, WifiOff, MapPin
+} from 'lucide-react';
 import useMapStore from '../store/useMapStore';
+import DockCard from './dock/DockCard';
 import { computeReturnField, computeSlopeField, computeViewshed, isCoarseGrid } from '../terrain/terrainClient';
 import { renderCommsOverlay, renderReturnOverlay, renderSlopeOverlay } from '../terrain/overlayImage';
 import { EVA_ASSUMPTIONS, energyToHours, lifeSupportBudgetJ, usableBudgetJ } from '../terrain/evaModel';
@@ -12,9 +16,27 @@ import ProvenanceBadge from './ProvenanceBadge';
 const ANALYSIS_MODES = ['slope', 'return', 'comms'];
 
 export const TERRAIN_OVERLAYS = {
-  slope: { label: 'SLOPE', icon: Mountain, title: 'Slope hazard from the real elevation grid' },
-  return: { label: 'RETURN', icon: Undo2, title: 'Point of no return: where you can still walk back to base' },
-  comms: { label: 'COMMS', icon: Radio, title: 'Radio line-of-sight to the base antenna' },
+  slope: {
+    label: 'SLOPE',
+    icon: Mountain,
+    title: 'Slope Hazard Analysis',
+    subtitle: 'NASA HRSC/MOLA 200 m topography grid',
+    accent: '#f59e0b',
+  },
+  return: {
+    label: 'RETURN',
+    icon: Undo2,
+    title: 'Walkback Return Margin',
+    subtitle: 'Point of no return & life-support safety range',
+    accent: '#10b981',
+  },
+  comms: {
+    label: 'COMMS',
+    icon: Radio,
+    title: 'UHF Radio Line-of-Sight',
+    subtitle: 'Surface direct comms & terrain shadow analysis',
+    accent: '#00FFCC',
+  },
 };
 
 const ANTENNA_HEIGHT_M = 10;
@@ -33,6 +55,7 @@ export function TerrainOverlayLayer() {
   const mode = useMapStore((s) => s.terrainOverlay);
   const waypoints = useMapStore((s) => s.waypoints);
   const mapCenter = useMapStore((s) => s.viewCenter || s.mapCenter);
+  const markedLocation = useMapStore((s) => s.markedLocation);
   const terrainVersion = useMapStore((s) => s.terrainVersion);
   const roverProgress = useMapStore((s) => s.roverProgress);
   const roverPosition = useMapStore((s) => s.roverCurrentPosition);
@@ -40,8 +63,13 @@ export function TerrainOverlayLayer() {
   const contingencyTitle = useMapStore((s) => s.contingencyDetails?.title ?? null);
   const setStatus = useMapStore((s) => s.setTerrainOverlayStatus);
 
-  const base = waypoints[0] || (mapCenter ? { lat: mapCenter[0], lon: mapCenter[1], name: 'Map centre' } : null);
-  const baseKey = base ? `${base.lat.toFixed(5)},${base.lon.toFixed(5)}` : '';
+  // Measures with respect to marked location if the user marked one, otherwise first waypoint or map centre
+  const base = markedLocation
+    ? { lat: markedLocation.lat, lon: markedLocation.lon, name: markedLocation.name || 'Marked Station', isMarked: true, elevation: markedLocation.elevation }
+    : (waypoints[0]
+      ? { ...waypoints[0], isMarked: false }
+      : (mapCenter ? { lat: mapCenter[0], lon: mapCenter[1], name: 'Map centre', isMarked: false } : null));
+  const baseKey = base ? `${base.lat.toFixed(5)},${base.lon.toFixed(5)}${base.isMarked ? '_marked' : ''}` : '';
   const [analysis, setAnalysis] = useState(null); // { mode, baseKey, grid, field } | { error }
 
   useEffect(() => {
@@ -128,6 +156,8 @@ export function TerrainOverlayLayer() {
     setStatus({
       mode,
       baseName: base.name || 'Base',
+      isMarked: !!base.isMarked,
+      baseCoords: `${base.lat.toFixed(2)}°, ${base.lon.toFixed(2)}°`,
       gridName: analysis.grid.name,
       source: analysis.grid.source,
       metersPerPixel: analysis.grid.metersPerPixel,
@@ -140,7 +170,7 @@ export function TerrainOverlayLayer() {
       currentName: current?.name || (roverPosition ? 'Current position' : null),
       contingencyTitle: contingencyMultiplier < 1 ? contingencyTitle : null,
     });
-  }, [mode, base?.name, analysis, ready, coarse, budgetJ, spentJ, remainingJ, returnHereJ]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, base?.name, base?.isMarked, base?.lat, base?.lon, analysis, ready, coarse, budgetJ, spentJ, remainingJ, returnHereJ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!url) return null;
   const g = analysis.grid;
@@ -160,83 +190,331 @@ const hours = (j) => `${energyToHours(j).toFixed(1)} h`;
 /** Legend and live status for the active terrain overlay. */
 export function TerrainOverlayPanel() {
   const status = useMapStore((s) => s.terrainOverlayStatus);
+  const setTerrainOverlay = useMapStore((s) => s.setTerrainOverlay);
   if (!status) return null;
 
   const { mode } = status;
-  const meta = TERRAIN_OVERLAYS[mode];
+  const meta = TERRAIN_OVERLAYS[mode] || {
+    label: 'TERRAIN',
+    icon: Mountain,
+    title: 'Terrain Analysis',
+    subtitle: 'Surface evaluation',
+    accent: '#00FFCC'
+  };
   const Icon = meta.icon;
 
   let body;
   if (status.error) {
-    body = <p className="text-rose-300">{status.error}</p>;
+    body = (
+      <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-200 text-xs flex items-center gap-2.5">
+        <AlertOctagon className="w-4 h-4 text-rose-400 shrink-0" />
+        <span className="leading-snug">{status.error}</span>
+      </div>
+    );
   } else if (status.loading) {
-    body = <p className="text-space-300 animate-pulse">Computing on real terrain...</p>;
+    body = (
+      <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center space-y-2">
+        <div className="inline-block w-5 h-5 border-2 border-cyber-cyan border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-space-300 font-mono tracking-wide">Synthesizing NASA DEM elevation mesh...</p>
+      </div>
+    );
   } else if (status.coarse) {
     body = (
-      <p className="text-amber-300 leading-relaxed">
-        Only coarse ({Math.round(status.metersPerPixel / 1000)} km/pixel) terrain covers this base. High-resolution 200 m
-        terrain is available at: {status.sites.join(', ')}.
-      </p>
+      <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/30 text-xs space-y-1.5">
+        <div className="flex items-center gap-1.5 font-semibold text-amber-300">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>Coarse Global Grid Active</span>
+        </div>
+        <p className="text-[11px] text-zinc-300 leading-relaxed">
+          Only coarse ({Math.round(status.metersPerPixel / 1000)} km/px) terrain covers this base. High-res 200 m terrain is active at: <strong className="text-white">{status.sites.join(', ')}</strong>.
+        </p>
+      </div>
     );
   } else if (mode === 'slope') {
     body = (
-      <ul className="space-y-1">
-        <li className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm bg-yellow-500/60" />10–15°: tiring, slows walking</li>
-        <li className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm bg-orange-500/70" />15–20°: hazardous footing</li>
-        <li className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm bg-red-600/80" />&gt; {EVA_ASSUMPTIONS.maxSlopeDeg}°: treated as impassable</li>
-      </ul>
+      <div className="space-y-3 font-sans">
+        {/* Origin Coordinates Bar */}
+        <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-zinc-400 text-[11px]">Analysis Origin:</span>
+            <span className="text-white font-medium font-mono text-[11px]">{status.baseName}</span>
+          </div>
+          <span className="text-[10px] text-zinc-400 font-mono">{status.baseCoords}</span>
+        </div>
+
+        {/* Hazard Class Cards */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-mono font-semibold px-0.5">
+            Terrain Incline Tiers
+          </div>
+
+          {/* Nominal (< 10°) */}
+          <div className="p-2 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/20 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-emerald-200">Safe Traverse Ground</div>
+                <div className="text-[10px] text-zinc-400">Nominal speed & oxygen consumption</div>
+              </div>
+            </div>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+              &lt; 10°
+            </span>
+          </div>
+
+          {/* Moderate (10° - 15°) */}
+          <div className="p-2 rounded-xl bg-yellow-500/[0.06] border border-yellow-500/20 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-yellow-500/20 text-yellow-300 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-yellow-200">Strenuous Incline</div>
+                <div className="text-[10px] text-zinc-400">Loose regolith · High metabolic burn</div>
+              </div>
+            </div>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 shrink-0">
+              10–15°
+            </span>
+          </div>
+
+          {/* Hazardous (15° - 20°) */}
+          <div className="p-2 rounded-xl bg-orange-500/[0.06] border border-orange-500/20 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-orange-500/20 text-orange-300 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-orange-200">Hazardous Footing</div>
+                <div className="text-[10px] text-zinc-400">Slip risk · Mandatory rest breaks</div>
+              </div>
+            </div>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30 shrink-0">
+              15–20°
+            </span>
+          </div>
+
+          {/* Impassable (> 20°) */}
+          <div className="p-2 rounded-xl bg-rose-500/[0.08] border border-rose-500/30 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-rose-500/20 text-rose-300 flex items-center justify-center shrink-0">
+                <AlertOctagon className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-rose-200">Impassable Barrier</div>
+                <div className="text-[10px] text-zinc-400">Crater walls & cliffs · Avoid on foot</div>
+              </div>
+            </div>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/25 text-rose-300 border border-rose-500/40 shrink-0">
+              &gt; 20°
+            </span>
+          </div>
+        </div>
+
+        {/* Footer Provenance */}
+        {status.source && !status.coarse && (
+          <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 text-[11px] text-zinc-400">
+            <span className="truncate" title={status.source}>{status.gridName} · {status.metersPerPixel} m/px</span>
+            <ProvenanceBadge type="DERIVED" size="xs" detail="HRSC-MOLA" />
+          </div>
+        )}
+      </div>
     );
   } else if (mode === 'comms') {
     body = (
-      <ul className="space-y-1">
-        <li className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm bg-cyan-400/50" />Line-of-sight to the {ANTENNA_HEIGHT_M} m antenna at {status.baseName}</li>
-        <li className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm bg-red-900/80" />Radio shadow: relay via orbiter or rover needed</li>
-        <li className="text-space-400">Includes terrain and Mars curvature; ignores ionospheric effects.</li>
-      </ul>
+      <div className="space-y-3 font-sans">
+        {/* Antenna Specs Telemetry */}
+        <div className="grid grid-cols-3 gap-1.5 text-center font-mono">
+          <div className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-2">
+            <span className="block text-[8px] text-zinc-400 tracking-wider">MAST HEIGHT</span>
+            <span className="text-xs text-white font-bold">{ANTENNA_HEIGHT_M} m</span>
+          </div>
+          <div className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-2">
+            <span className="block text-[8px] text-zinc-400 tracking-wider">BAND</span>
+            <span className="text-xs text-cyber-cyan font-bold">UHF Direct</span>
+          </div>
+          <div className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-2">
+            <span className="block text-[8px] text-zinc-400 tracking-wider">CREW RX</span>
+            <span className="text-xs text-white font-bold">{RECEIVER_HEIGHT_M} m</span>
+          </div>
+        </div>
+
+        {/* Origin Antenna Base */}
+        <div className="flex items-center justify-between p-2 rounded-xl bg-cyber-cyan/[0.06] border border-cyber-cyan/20 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-cyber-cyan animate-ping" />
+            <span className="text-cyber-cyan font-semibold text-[11px]">Transmitter Mast:</span>
+            <span className="text-white font-mono text-[11px]">{status.baseName}</span>
+          </div>
+          <span className="text-[10px] text-zinc-400 font-mono">{status.baseCoords}</span>
+        </div>
+
+        {/* Signal Coverage Cards */}
+        <div className="space-y-1.5">
+          {/* Line of Sight Card */}
+          <div className="p-2.5 rounded-xl bg-cyan-500/[0.08] border border-cyan-500/30 flex items-start gap-3">
+            <div className="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center shrink-0 mt-0.5">
+              <Wifi className="w-4 h-4 text-cyan-300" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-cyan-200">Line-of-Sight (LOS)</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-400/20 text-cyan-300 font-mono font-bold border border-cyan-400/30">ACTIVE LINK</span>
+              </div>
+              <p className="text-[11px] text-zinc-300 mt-1 leading-snug">
+                Direct radio beam to base. Real-time telemetry, suit biometrics & voice nominal.
+              </p>
+            </div>
+          </div>
+
+          {/* Radio Shadow Card */}
+          <div className="p-2.5 rounded-xl bg-rose-950/40 border border-rose-500/30 flex items-start gap-3">
+            <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-300 flex items-center justify-center shrink-0 mt-0.5">
+              <WifiOff className="w-4 h-4 text-rose-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-rose-200">Radio Shadow (Blackout)</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono font-bold border border-rose-500/40">OCCLUDED</span>
+              </div>
+              <p className="text-[11px] text-zinc-300 mt-1 leading-snug">
+                Crater rims or ridges occlude signal. Orbital satellite pass (MRO/Odyssey) or repeater rover required.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        {status.source && !status.coarse && (
+          <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 text-[11px] text-zinc-400">
+            <span className="truncate" title={status.source}>Curvature + DEM · {status.metersPerPixel} m/px</span>
+            <ProvenanceBadge type="DERIVED" size="xs" detail="HRSC-MOLA" />
+          </div>
+        )}
+      </div>
     );
   } else {
+    // Return Range
     const returnHere = status.returnHereJ;
     const safe = returnHere !== null && returnHere <= status.remainingJ;
     body = (
-      <div className="space-y-2">
-        <div className="grid grid-cols-3 gap-1.5 text-center">
-          <div className="bg-space-900/80 rounded p-1.5"><span className="block text-[8px] text-space-400">BUDGET</span><span className="text-white font-bold">{hours(status.budgetJ)}</span></div>
-          <div className="bg-space-900/80 rounded p-1.5"><span className="block text-[8px] text-space-400">USED</span><span className="text-white font-bold">{hours(status.spentJ)}</span></div>
-          <div className="bg-space-900/80 rounded p-1.5"><span className="block text-[8px] text-space-400">LEFT</span><span className={`font-bold ${status.remainingJ > 0 ? 'text-emerald-300' : 'text-rose-400'}`}>{hours(Math.max(0, status.remainingJ))}</span></div>
-        </div>
-        {returnHere !== null && (
-          <div className={`flex items-start gap-2 p-2 rounded border ${safe ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-200' : 'border-rose-500/50 bg-rose-950/50 text-rose-200'}`}>
-            {safe ? <ShieldCheck className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
-            <span>
-              {Number.isFinite(returnHere)
-                ? <>Walking back from {status.currentName || 'here'} needs {hours(returnHere)}. {safe ? 'Within the remaining budget.' : 'BEYOND THE POINT OF NO RETURN.'}</>
-                : <>No walkable route back to base from {status.currentName || 'here'}.</>}
+      <div className="space-y-3 font-sans">
+        {/* Life Support Budget Cards */}
+        <div className="grid grid-cols-3 gap-1.5 text-center font-mono">
+          <div className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-2">
+            <span className="block text-[8px] text-zinc-400 tracking-wider">TOTAL O₂</span>
+            <span className="text-xs text-white font-bold">{hours(status.budgetJ)}</span>
+          </div>
+          <div className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-2">
+            <span className="block text-[8px] text-zinc-400 tracking-wider">CONSUMED</span>
+            <span className="text-xs text-amber-300 font-bold">{hours(status.spentJ)}</span>
+          </div>
+          <div className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-2">
+            <span className="block text-[8px] text-zinc-400 tracking-wider">REMAINING</span>
+            <span className={`text-xs font-bold ${status.remainingJ > 0 ? 'text-emerald-300' : 'text-rose-400'}`}>
+              {hours(Math.max(0, status.remainingJ))}
             </span>
           </div>
+        </div>
+
+        {/* Current Walkback Feasibility Banner */}
+        {returnHere !== null && (
+          <div className={`p-2.5 rounded-xl border flex items-start gap-2.5 ${
+            safe 
+              ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-200' 
+              : 'border-rose-500/50 bg-rose-950/60 text-rose-200 animate-pulse'
+          }`}>
+            <div className={`p-1 rounded-lg shrink-0 ${safe ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+              {safe ? <ShieldCheck className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+            </div>
+            <div className="text-xs leading-snug">
+              {Number.isFinite(returnHere) ? (
+                <div>
+                  <div className="font-semibold mb-0.5">
+                    {safe ? 'Walkback Feasible' : 'CRITICAL: POINT OF NO RETURN'}
+                  </div>
+                  <div className="text-[11px] text-zinc-300">
+                    Returning to {status.baseName} requires <strong className="text-white font-mono">{hours(returnHere)}</strong>. {safe ? 'Within safe life-support margin.' : 'Exceeds oxygen breathing capacity!'}
+                  </div>
+                </div>
+              ) : (
+                <div>No walkable route back to base from this position.</div>
+              )}
+            </div>
+          </div>
         )}
-        {status.contingencyTitle && <p className="text-amber-300">Budget reduced by contingency: {status.contingencyTitle}</p>}
-        <ul className="space-y-1">
-          <li className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm bg-emerald-500/50" />Can walk there and back to base</li>
-          <li className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm bg-amber-500/70" />Last 15% of margin: turn back soon</li>
-          <li className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm bg-black/70 border border-white/10" />Beyond the point of no return</li>
-        </ul>
-        <p className="text-space-400">{EVA_ASSUMPTIONS.lifeSupportHours} h life support, {Math.round(EVA_ASSUMPTIONS.reserveFraction * 100)}% kept in reserve.</p>
+
+        {status.contingencyTitle && (
+          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>Contingency Active: <strong>{status.contingencyTitle}</strong></span>
+          </div>
+        )}
+
+        {/* Zone Range Guide */}
+        <div className="space-y-1.5">
+          <div className="p-2 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/20 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+              <span className="text-zinc-200 font-medium">Safe Round-Trip Zone</span>
+            </div>
+            <span className="text-[10px] text-emerald-300 font-mono">100% Returnable</span>
+          </div>
+
+          <div className="p-2 rounded-xl bg-amber-500/[0.06] border border-amber-500/20 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+              <span className="text-zinc-200 font-medium">Turn-Back Threshold (Last 15% Margin)</span>
+            </div>
+            <span className="text-[10px] text-amber-300 font-mono">Turn Back Soon</span>
+          </div>
+
+          <div className="p-2 rounded-xl bg-black/60 border border-rose-500/30 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+              <span className="text-zinc-200 font-medium">Beyond Point of No Return</span>
+            </div>
+            <span className="text-[10px] text-rose-300 font-mono">Unrecoverable</span>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-400">
+          <span>{EVA_ASSUMPTIONS.lifeSupportHours} h life support · 25% emergency reserve</span>
+          <ProvenanceBadge type="DERIVED" size="xs" detail="HRSC-MOLA" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="shrink-0 bg-[#0B0D12]/95 backdrop-blur-xl p-3.5 rounded-2xl border border-white/10 shadow-[0_16px_44px_rgba(0,0,0,0.5)] text-xs text-space-200 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-white font-bold text-xs"><Icon className="w-3.5 h-3.5 text-cyber-cyan" />{meta.title}</span>
-      </div>
+    <DockCard
+      id={`terrain-overlay-${mode}`}
+      title={meta.title}
+      subtitle={meta.subtitle}
+      icon={Icon}
+      accent={meta.accent}
+      onClose={() => setTerrainOverlay(null)}
+      actions={
+        status.baseName ? (
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded font-mono border max-w-[150px] truncate ${
+              status.isMarked
+                ? 'bg-cyber-cyan/15 text-cyber-cyan border-cyber-cyan/35 shadow-[0_0_8px_rgba(0,255,204,0.15)]'
+                : 'bg-white/10 text-zinc-300 border-white/10'
+            }`}
+            title={`Origin: ${status.baseName} (${status.baseCoords})`}
+          >
+            {status.isMarked ? '📍 ' : '⚓ '}{status.baseName}
+          </span>
+        ) : null
+      }
+    >
       {body}
-      {status.source && !status.coarse && (
-        <div className="pt-1.5 border-t border-white/[0.06] flex items-center justify-between gap-2">
-          <span className="text-space-500 truncate" title={status.source}>{status.gridName} · {status.metersPerPixel} m/px</span>
-          <ProvenanceBadge type="DERIVED" size="xs" detail="HRSC-MOLA" />
-        </div>
-      )}
-    </div>
+    </DockCard>
   );
 }
+

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Globe, Crosshair, Grid, Shield, Ruler, Play, Pause, ChevronDown, ChevronUp, Check,
-  Layers, SlidersHorizontal, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints,
+  Layers, SlidersHorizontal, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints, MapPin,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../store/useMapStore';
@@ -97,6 +97,10 @@ export default function MapToolbar() {
     quakeMode: st.quakeMode, setQuakeMode: st.setQuakeMode,
     collapsed: st.toolbarCollapsed, setCollapsed: st.setToolbarCollapsed,
     setDockMin: st.setDockMin, setRouteEditing: st.setRouteEditing, setPickTarget: st.setPickTarget,
+    markedLocation: st.markedLocation,
+    isMarkingLocation: st.isMarkingLocation,
+    setIsMarkingLocation: st.setIsMarkingLocation,
+    clearMarkedLocation: st.clearMarkedLocation,
   })));
 
   const is2d = s.viewMode !== '3d';
@@ -217,6 +221,19 @@ export default function MapToolbar() {
             )}
 
             <Menu label="Tools" icon={SlidersHorizontal}>
+              <Item
+                icon={MapPin}
+                label={s.markedLocation ? "Station location marked" : "Mark station location"}
+                hint={s.markedLocation
+                  ? `Station at ${s.markedLocation.lat.toFixed(2)}°, ${s.markedLocation.lon.toFixed(2)}° (click to re-pin)`
+                  : "Click map to set reference station for slope, radio & walkback"
+                }
+                active={s.isMarkingLocation || !!s.markedLocation}
+                onSelect={() => {
+                  ensure2d();
+                  s.setIsMarkingLocation(!s.isMarkingLocation);
+                }}
+              />
               <Item icon={Ruler} label="Measure distance" hint="Click two points for distance, height change and slope" active={s.isRulerActive} onSelect={() => { ensure2d(); if (s.isRulerActive) { s.setRulerActive(false); s.clearRuler(); } else { s.setPickTarget(null); s.setRulerActive(true); } }} />
               <Item icon={Grid} label="Latitude and longitude grid" active={s.showGraticule} onSelect={s.toggleGraticule} />
               <Item icon={Shield} label="2 km and 5 km walkback rings" hint="Planning rings around the base (team assumption)" active={s.showWalkbackLimits} onSelect={s.toggleWalkbackLimits} />
