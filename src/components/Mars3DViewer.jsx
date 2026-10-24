@@ -39,12 +39,12 @@ const HOME_DIST = 7.6; // the default view: the whole planet with room around it
 const INTRO_DIST = 10.5; // the camera starts here and glides in to HOME_DIST once the planet is ready
 
 const FLY_TO = [
-  { id: 'global', name: 'Whole planet', lat: 5, lon: -70, dist: 7.6 },
-  { id: 'jezero', name: 'Jezero Crater', lat: 18.4, lon: 77.5, dist: 4.4 },
-  { id: 'gale', name: 'Gale Crater', lat: -5.4, lon: 137.8, dist: 4.4 },
-  { id: 'olympus', name: 'Olympus Mons', lat: 18.6, lon: -134, dist: 4.6 },
-  { id: 'valles', name: 'Valles Marineris', lat: -11, lon: -70, dist: 4.8 },
-  { id: 'north', name: 'North polar cap', lat: 82, lon: 0, dist: 4.8 },
+  { id: 'global', name: 'Whole planet', lat: 5, lon: -70, dist: 7.6, mapZoom: 2 },
+  { id: 'jezero', name: 'Jezero Crater', lat: 18.38, lon: 77.58, dist: 2.18, mapZoom: 8 },
+  { id: 'gale', name: 'Gale Crater', lat: -4.8, lon: 137.6, dist: 2.21, mapZoom: 8 },
+  { id: 'olympus', name: 'Olympus Mons', lat: 18.65, lon: -133.8, dist: 2.32, mapZoom: 6 },
+  { id: 'valles', name: 'Valles Marineris', lat: -9.8, lon: -76.5, dist: 2.45, mapZoom: 6 },
+  { id: 'north', name: 'North polar cap', lat: 84.0, lon: 0.0, dist: 2.36, mapZoom: 6 },
 ];
 
 // ---------- data hooks ----------
@@ -451,14 +451,35 @@ function DustStorms({ lightDir }) {
   );
 }
 
-/** Flies the camera to a requested spot; any drag by the user takes over immediately. */
+/** Flies the camera to a requested spot in a smooth orbital arc above Mars; any drag takes over immediately. */
 function CameraRig({ target, controls, onArrive }) {
   const { camera } = useThree();
   useFrame((_, dt) => {
     if (!target) return;
-    camera.position.lerp(target, 1 - Math.exp(-dt * 3.2));
+
+    const curLen = camera.position.length();
+    const tgtLen = target.length();
+    const curDir = camera.position.clone().normalize();
+    const tgtDir = target.clone().normalize();
+
+    // Smooth orbital arc interpolation
+    const factor = 1 - Math.exp(-dt * 3.4);
+    curDir.lerp(tgtDir, factor).normalize();
+
+    // Preserve orbital clearance so camera never cuts through the planet
+    const newLen = THREE.MathUtils.lerp(curLen, tgtLen, factor);
+    const angle = camera.position.angleTo(target);
+    const arcBoost = Math.sin(Math.min(Math.PI, angle)) * 0.45;
+    const finalLen = Math.max(newLen, 2.06) + (angle > 0.25 ? arcBoost : 0);
+
+    camera.position.copy(curDir.multiplyScalar(finalLen));
     controls.current?.update();
-    if (camera.position.distanceTo(target) < 0.01) onArrive();
+
+    if (camera.position.distanceTo(target) < 0.015) {
+      camera.position.copy(target);
+      controls.current?.update();
+      onArrive();
+    }
   });
   return null;
 }
@@ -560,11 +581,12 @@ export default function Mars3DViewer() {
     return { points, km, center: points[Math.floor(points.length / 2)] };
   }, [waypoints, routeGeometry]);
 
-  const flyTo = (lat, lon, dist, id) => {
+  const flyTo = (lat, lon, dist, id, mapZoom = 7) => {
     playUiClick();
     setAutoRotate(false);
     setActive(id);
     setTarget(dirFor(lat, lon).multiplyScalar(dist));
+    flyToCoordinate(lat, lon, mapZoom);
   };
 
   // Start on the whole planet, turned towards the planned route if there is one
@@ -611,7 +633,7 @@ export default function Mars3DViewer() {
   const selectSite = (site) => {
     setSelectedCelestial(null);
     setSelectedPOI({ ...site, poiType: 'landingSite' });
-    flyTo(site.lat, site.lon, 4.4, site.id);
+    flyTo(site.lat, site.lon, 2.18, site.id, 8);
   };
 
   if (!hasWebGL) {
@@ -673,7 +695,7 @@ export default function Mars3DViewer() {
         <OrbitControls
           ref={controls}
           enablePan={false}
-          minDistance={2.12}
+          minDistance={2.06}
           maxDistance={38}
           rotateSpeed={0.45}
           zoomSpeed={0.7}
@@ -900,7 +922,7 @@ export default function Mars3DViewer() {
         <div className="ui-panel rounded-2xl p-1.5 flex items-center gap-1 overflow-x-auto custom-scrollbar-x">
           {route && (
             <button
-              onClick={() => flyTo(route.center[0], route.center[1], 4.2, 'route')}
+              onClick={() => flyTo(route.center[0], route.center[1], 2.22, 'route', 8)}
               className={`shrink-0 h-8 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${active === 'route' ? 'bg-[#F26A3D] text-white' : 'text-[#ffc2a8] hover:bg-white/10'}`}
             >
               My route
@@ -909,7 +931,7 @@ export default function Mars3DViewer() {
           {FLY_TO.map((p) => (
             <button
               key={p.id}
-              onClick={() => flyTo(p.lat, p.lon, p.dist, p.id)}
+              onClick={() => flyTo(p.lat, p.lon, p.dist, p.id, p.mapZoom)}
               className={`shrink-0 h-8 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer ${active === p.id ? 'bg-white text-black' : 'text-zinc-300 hover:text-white hover:bg-white/10'}`}
             >
               {p.name}
