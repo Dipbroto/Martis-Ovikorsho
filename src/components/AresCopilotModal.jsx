@@ -8,12 +8,13 @@ import { marsAudio } from '../utils/audioSynthesizer';
 import { planAndApplyRoute } from '../services/routePlanningService';
 
 const SUGGESTIONS = [
-  { label: "🗺️ Plan Jezero Delta Traverse", text: "Plan a 4-waypoint exploration traverse across the Jezero Crater ancient river delta." },
+  { label: "🗺️ Plan Jezero Traverse", text: "Plan an exploration traverse across Jezero Crater to Belva Crater delta scarp." },
   { label: "🌐 Switch to 3D Globe View", text: "Switch the map viewport to 3D topographical globe view." },
   { label: "🌋 Inspect Olympus Mons", text: "Fly to Olympus Mons and analyze the caldera." },
   { label: "🔬 Open Science Lab", text: "Open the In-Situ Science Lab module." },
   { label: "⚠️ Simulate Dust Storm", text: "Simulate a severe Martian dust storm contingency." },
-  { label: "🚶 Start EVA HUD Walk", text: "Start the Astronaut EVA Helmet HUD walk simulation." }
+  { label: "🚶 Start EVA HUD Walk", text: "Start the Astronaut EVA Helmet HUD walk simulation." },
+  { label: "🚨 Abort & Return to Base", text: "Execute emergency return corridor to base refuge." }
 ];
 
 export default function AresCopilotModal() {
@@ -90,6 +91,7 @@ export default function AresCopilotModal() {
             destination: { name: args.destination_name, lat: args.destination_lat, lon: args.destination_lon },
             mode,
           });
+          setActiveTab('map');
           setSidebarTab('route');
           setSidebarOpen(true);
           const m = result.metrics;
@@ -105,12 +107,15 @@ export default function AresCopilotModal() {
 
       case "clear_route": {
         clearWaypoints();
+        useMapStore.getState().setRouteGeometry(null);
         summaryText = "Cleared active traverse and purged waypoints.";
         break;
       }
 
       case "switch_view_mode": {
-        const mode = (args.mode || '2d').toLowerCase();
+        let mode = (args.mode || '2d').toLowerCase();
+        if (mode === 'globe') mode = '3d';
+        if (mode === 'map') mode = '2d';
         if (['2d', '3d', 'split'].includes(mode)) {
           setViewMode(mode);
           setActiveTab('map');
@@ -131,14 +136,71 @@ export default function AresCopilotModal() {
 
       case "open_feature": {
         const feature = args.feature_name;
-        if (feature === 'science_lab') setScienceLabOpen(true);
-        else if (feature === 'flight_plan') setFlightPlanOpen(true);
-        else if (feature === 'imagery_gallery') setImageryModalOpen(true);
-        else if (feature === 'contingency_sim') setContingencyModalOpen(true);
-        else if (feature === 'eva_hud') setEVASimulating(true);
-        else if (feature === 'profile_dashboard') setProfileModalOpen(true);
-        else if (feature === 'audio_rack') setAudioRackOpen(true);
+        const store = useMapStore.getState();
+        if (feature === 'science_lab') {
+          setActiveTab('science');
+        } else if (feature === 'flight_plan') {
+          setFlightPlanOpen(true);
+        } else if (feature === 'imagery_gallery') {
+          setActiveTab('imagery');
+        } else if (feature === 'contingency_sim') {
+          setActiveTab('contingency');
+        } else if (feature === 'eva_hud') {
+          setActiveTab('map');
+          setEVASimulating(true);
+        } else if (feature === 'profile_dashboard') {
+          setProfileModalOpen(true);
+        } else if (feature === 'audio_rack') {
+          setAudioRackOpen(true);
+        } else if (feature === 'guided_planner') {
+          store.setGuidedPlannerOpen(true);
+        } else if (feature === 'data_methods') {
+          store.setDataMethodsOpen(true);
+        } else if (feature === 'sky_ephemeris') {
+          setActiveTab('sky');
+        } else if (feature === 'weather') {
+          setActiveTab('map');
+          store.setBottomPanelTab('weather');
+          store.setBottomPanelOpen(true);
+        } else if (feature === 'radiation') {
+          setActiveTab('map');
+          store.setBottomPanelTab('radiation');
+          store.setBottomPanelOpen(true);
+        } else if (feature === 'dust_tracker') {
+          setActiveTab('map');
+          store.setBottomPanelTab('dust');
+          store.setBottomPanelOpen(true);
+        } else if (feature === 'elevation_profile') {
+          setActiveTab('map');
+          store.setBottomPanelTab('elevation');
+          store.setBottomPanelOpen(true);
+        } else if (feature === 'layers_panel') {
+          setActiveTab('map');
+          setSidebarTab('layers');
+          setSidebarOpen(true);
+        } else if (feature === 'poi_panel') {
+          setActiveTab('map');
+          setSidebarTab('poi');
+          setSidebarOpen(true);
+        } else if (feature === 'mission_timeline') {
+          setActiveTab('map');
+          setSidebarTab('mission');
+          setSidebarOpen(true);
+        }
         summaryText = `Opened module: ${String(feature).replaceAll('_', ' ').toUpperCase()}`;
+        break;
+      }
+
+      case "execute_emergency_return": {
+        try {
+          await useMapStore.getState().executeEmergencyReturn();
+          setActiveTab('map');
+          summaryText = "Executed emergency low-slope return corridor to base refuge.";
+          reply = "EMERGENCY RETREAT INITIATED: Calculated lowest-slope return corridor back to basecamp on NASA elevation data. Automated navigation engaged.";
+        } catch (err) {
+          summaryText = `Emergency return failed: ${err.message}`;
+          reply = `Emergency return could not be computed: ${err.message}`;
+        }
         break;
       }
 
@@ -166,6 +228,35 @@ export default function AresCopilotModal() {
       case "toggle_ambient_audio": {
         toggleAudio();
         summaryText = "Toggled Martian ambient soundscape.";
+        break;
+      }
+
+      case "toggle_map_tool": {
+        const toolName = args.tool_name;
+        const store = useMapStore.getState();
+        setActiveTab('map');
+        if (toolName === 'marsquakes' || toolName === 'faults') {
+          store.setQuakeMode(!store.quakeMode);
+          summaryText = store.quakeMode ? "Disabled Marsquakes layer." : "Enabled Marsquakes and Cerberus Fossae fault lines.";
+        } else if (toolName === 'graticule') {
+          store.toggleGraticule();
+          summaryText = store.showGraticule ? "Hidden lat/lon graticule." : "Displayed lat/lon coordinate graticule grid.";
+        } else if (toolName === 'walkback') {
+          store.toggleWalkbackLimits();
+          summaryText = store.showWalkbackLimits ? "Hidden 2km/5km walkback rings." : "Displayed 2km/5km team walkback safety limits.";
+        } else if (toolName === 'rover_traverses') {
+          store.toggleRoverTraverses();
+          summaryText = store.showRoverTraverses ? "Hidden rover traverse tracks." : "Displayed historical rover traverse paths.";
+        } else if (toolName === 'slope_overlay') {
+          store.setTerrainOverlay('slope');
+          summaryText = "Toggled slope gradient hazard terrain overlay.";
+        } else if (toolName === 'return_overlay') {
+          store.setTerrainOverlay('return');
+          summaryText = "Toggled return walkback safety reach overlay.";
+        } else if (toolName === 'comms_overlay') {
+          store.setTerrainOverlay('comms');
+          summaryText = "Toggled direct line-of-sight habitat comms overlay.";
+        }
         break;
       }
 
@@ -209,12 +300,28 @@ export default function AresCopilotModal() {
     setIsProcessing(true);
 
     try {
-      // 2. Telemetry state snapshot for Gemini context
+      // 2. Rich telemetry state snapshot for Gemini context
+      const storeState = useMapStore.getState();
       const appState = {
-        viewMode,
-        currentSol,
-        cursorPosition,
-        waypointCount: waypoints?.length || 0
+        activeTab: storeState.activeTab,
+        viewMode: storeState.viewMode,
+        currentSol: storeState.currentSol,
+        cursorPosition: storeState.cursorPosition,
+        waypointCount: waypoints?.length || 0,
+        waypoints: (waypoints || []).map(w => ({ name: w.name, lat: w.lat, lon: w.lon, elevation: w.elevation })),
+        weather: storeState.weather ? {
+          season: storeState.weather.seasonName || storeState.weather.season,
+          tempMin: storeState.weather.tempMin,
+          tempMax: storeState.weather.tempMax,
+          tempAvg: storeState.weather.tempAvg,
+          pressurePa: storeState.weather.pressure,
+          windSpeed: storeState.weather.windSpeed,
+          windDir: storeState.weather.windDirectionName,
+          tau: storeState.weather.tau,
+          uvIndex: storeState.weather.uvIndex
+        } : null,
+        activeContingency: storeState.activeContingency,
+        sampleCount: storeState.collectedSamples?.length || 0
       };
 
       // 3. Request Gemini Agent response

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 const STORAGE_PREFIX = 'ares_chat_history_';
 
 // Most recent messages kept when loading history (and therefore sent to the model as context)
-const MAX_HISTORY_MESSAGES = 40;
+const MAX_HISTORY_MESSAGES = 80;
 
 const createDefaultGreeting = () => ({
   role: 'model',

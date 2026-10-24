@@ -511,9 +511,9 @@ const hm = (s) => {
 };
 
 export default function Mars3DViewer() {
-  const { waypoints, routeGeometry, selectedPOI, setSelectedPOI, setViewMode, flyToCoordinate, viewMode } = useMapStore(useShallow((s) => ({
+  const { waypoints, routeGeometry, selectedPOI, setSelectedPOI, setViewMode, flyToCoordinate, viewMode, mapCenter, mapZoom } = useMapStore(useShallow((s) => ({
     viewMode: s.viewMode, waypoints: s.waypoints, routeGeometry: s.routeGeometry, selectedPOI: s.selectedPOI, setSelectedPOI: s.setSelectedPOI,
-    setViewMode: s.setViewMode, flyToCoordinate: s.flyToCoordinate,
+    setViewMode: s.setViewMode, flyToCoordinate: s.flyToCoordinate, mapCenter: s.mapCenter, mapZoom: s.mapZoom,
   })));
   const [hasWebGL] = useState(() => {
     try {
@@ -588,6 +588,20 @@ export default function Mars3DViewer() {
     setTarget(dirFor(lat, lon).multiplyScalar(dist));
     flyToCoordinate(lat, lon, mapZoom);
   };
+
+  // Re-orient the 3D globe camera whenever the map center changes (e.g. from Eva navigation)
+  const prevCenterRef = useRef(null);
+  useEffect(() => {
+    if (!mapCenter) return;
+    const [lat, lon] = mapCenter;
+    if (prevCenterRef.current && prevCenterRef.current[0] === lat && prevCenterRef.current[1] === lon) return;
+    prevCenterRef.current = [lat, lon];
+    if (lat === 0 && lon === 0) return; // default global view
+    setAutoRotate(false);
+    const match = FLY_TO.find(p => p.id !== 'global' && Math.abs(p.lat - lat) < 0.5 && Math.abs(p.lon - lon) < 0.5);
+    const dist = match ? match.dist : Math.max(2.18, 2.5 - ((mapZoom || 4) - 3) * 0.1);
+    setTarget(dirFor(lat, lon).multiplyScalar(dist));
+  }, [mapCenter, mapZoom]);
 
   // Start on the whole planet, turned towards the planned route if there is one
   const home = useMemo(() => {
