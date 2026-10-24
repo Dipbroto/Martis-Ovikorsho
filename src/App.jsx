@@ -67,6 +67,7 @@ function App() {
   const showLoadingScreen = useMapStore(s => s.showLoadingScreen);
   const activeTab = useMapStore(s => s.activeTab);
   const setActiveTab = useMapStore(s => s.setActiveTab);
+  const tabRefreshKeys = useMapStore(s => s.tabRefreshKeys || { home: 0, map: 0, science: 0, sky: 0, contingency: 0, imagery: 0 });
   const isImageryModalOpen = useMapStore(s => s.isImageryModalOpen);
   const isEVASimulating = useMapStore(s => s.isEVASimulating);
   const isFlightPlanOpen = useMapStore(s => s.isFlightPlanOpen);
@@ -157,95 +158,129 @@ function App() {
       {/* ======================================================== */}
       <main className="w-full h-full relative">
         {/* TAB 1: MISSION HUB & OVERVIEW */}
-        {activeTab === 'home' && (
+        <div
+          key={`tab-home-${tabRefreshKeys.home}`}
+          className={activeTab === 'home' ? 'w-full h-full' : 'hidden'}
+          aria-hidden={activeTab !== 'home'}
+        >
           <HomeHero onSelectTab={(tab) => setActiveTab(tab)} />
-        )}
+        </div>
 
         {/* TAB 2: INTERACTIVE MARS MAP & 3D CARTOGRAPHY */}
-        {activeTab === 'map' && (
-          <div 
-            className="h-screen w-full flex flex-col relative overflow-hidden"
-            style={viewMode === '2d' ? { backgroundImage: "url('/background.webp')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' } : { background: '#020306' }}
-          >
-            {/* Full-Bleed Edge-to-Edge Mars 3D Globe & Map Viewport */}
-            <div className="absolute inset-0 z-0 overflow-hidden">
+        <div
+          key={`tab-map-${tabRefreshKeys.map}`}
+          className={activeTab === 'map' ? 'w-full h-full' : 'hidden'}
+          aria-hidden={activeTab !== 'map'}
+        >
+          <MountOnFirstOpen open={activeTab === 'map'}>
+            <div 
+              className="h-screen w-full flex flex-col relative overflow-hidden"
+              style={viewMode === '2d' ? { backgroundImage: "url('/background.webp')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' } : { background: '#020306' }}
+            >
+              {/* Full-Bleed Edge-to-Edge Mars 3D Globe & Map Viewport */}
+              <div className="absolute inset-0 z-0 overflow-hidden">
+                <ErrorBoundary>
+                  <Suspense fallback={viewMode === '2d' ? <ViewFallback /> : <GlobeFallback />}>
+                    {viewMode === '2d' && <MarsMap />}
+                    {viewMode === '3d' && <Mars3DViewer />}
+                    {viewMode === 'split' && (
+                      <div className="absolute inset-0 flex">
+                        <div className="w-1/2 h-full border-r border-space-700 relative">
+                          <MarsMap />
+                        </div>
+                        <div className="w-1/2 h-full relative">
+                          <Mars3DViewer />
+                        </div>
+                      </div>
+                    )}
+                  </Suspense>
+                </ErrorBoundary>
+              </div>
+
+              {/* Map controls: view, survival checks, layers, tools and route actions */}
               <ErrorBoundary>
-                <Suspense fallback={viewMode === '2d' ? <ViewFallback /> : <GlobeFallback />}>
-                  {viewMode === '2d' && <MarsMap />}
-                  {viewMode === '3d' && <Mars3DViewer />}
-                  {viewMode === 'split' && (
-                    <div className="absolute inset-0 flex">
-                      <div className="w-1/2 h-full border-r border-space-700 relative">
-                        <MarsMap />
-                      </div>
-                      <div className="w-1/2 h-full relative">
-                        <Mars3DViewer />
-                      </div>
-                    </div>
-                  )}
+                <Suspense fallback={null}>
+                  <MapToolbar />
                 </Suspense>
               </ErrorBoundary>
-            </div>
 
-            {/* Map controls: view, survival checks, layers, tools and route actions */}
-            <ErrorBoundary>
-              <Suspense fallback={null}>
-                <MapToolbar />
-              </Suspense>
-            </ErrorBoundary>
-
-            {/* FIXED LEFT SIDEBAR */}
-            <div className={`fixed left-3 bottom-24 z-[400] pointer-events-none flex transition-[top] duration-300 ${toolbarCollapsed ? 'top-[132px]' : 'top-[172px] sm:top-[150px]'}`}>
-              <div className="pointer-events-auto flex flex-col min-h-0 max-h-full">
-                <ErrorBoundary>
-                  <Suspense fallback={null}>
-                    <Sidebar />
-                  </Suspense>
-                </ErrorBoundary>
+              {/* FIXED LEFT SIDEBAR */}
+              <div className={`fixed left-3 bottom-24 z-[400] pointer-events-none flex transition-[top] duration-300 ${toolbarCollapsed ? 'top-[132px]' : 'top-[172px] sm:top-[150px]'}`}>
+                <div className="pointer-events-auto flex flex-col min-h-0 max-h-full">
+                  <ErrorBoundary>
+                    <Suspense fallback={null}>
+                      <Sidebar />
+                    </Suspense>
+                  </ErrorBoundary>
+                </div>
               </div>
-            </div>
 
-            {/* FIXED BOTTOM PANEL */}
-            <div className="fixed bottom-0 left-0 right-0 pointer-events-none z-50 w-full px-4 pb-3 flex justify-center">
-              <div className="pointer-events-auto w-full max-w-2xl flex justify-center">
-                <ErrorBoundary>
-                  <Suspense fallback={null}>
-                    <BottomPanel />
-                  </Suspense>
-                </ErrorBoundary>
+              {/* FIXED BOTTOM PANEL */}
+              <div className="fixed bottom-0 left-0 right-0 pointer-events-none z-50 w-full px-4 pb-3 flex justify-center">
+                <div className="pointer-events-auto w-full max-w-2xl flex justify-center">
+                  <ErrorBoundary>
+                    <Suspense fallback={null}>
+                      <BottomPanel />
+                    </Suspense>
+                  </ErrorBoundary>
+                </div>
               </div>
-            </div>
 
-          </div>
-        )}
+            </div>
+          </MountOnFirstOpen>
+        </div>
 
         {/* TAB 3: CELESTIAL EPHEMERIS & SOLAR TRANSIT */}
-        {activeTab === 'sky' && (
-          <ScrollPage>
-            <MartianSkyEphemeris />
-          </ScrollPage>
-        )}
+        <div
+          key={`tab-sky-${tabRefreshKeys.sky}`}
+          className={activeTab === 'sky' ? 'w-full h-full' : 'hidden'}
+          aria-hidden={activeTab !== 'sky'}
+        >
+          <MountOnFirstOpen open={activeTab === 'sky'}>
+            <ScrollPage>
+              <MartianSkyEphemeris />
+            </ScrollPage>
+          </MountOnFirstOpen>
+        </div>
 
         {/* TAB 4: SCIENCE LAB DIRECT FULL PAGE */}
-        {activeTab === 'science' && (
-          <ScrollPage>
-            <ScienceLabPage />
-          </ScrollPage>
-        )}
+        <div
+          key={`tab-science-${tabRefreshKeys.science}`}
+          className={activeTab === 'science' ? 'w-full h-full' : 'hidden'}
+          aria-hidden={activeTab !== 'science'}
+        >
+          <MountOnFirstOpen open={activeTab === 'science'}>
+            <ScrollPage>
+              <ScienceLabPage />
+            </ScrollPage>
+          </MountOnFirstOpen>
+        </div>
 
         {/* TAB 5: CONTINGENCY SIMULATOR DIRECT FULL PAGE */}
-        {activeTab === 'contingency' && (
-          <ScrollPage>
-            <ContingencySimulatorPage />
-          </ScrollPage>
-        )}
+        <div
+          key={`tab-contingency-${tabRefreshKeys.contingency}`}
+          className={activeTab === 'contingency' ? 'w-full h-full' : 'hidden'}
+          aria-hidden={activeTab !== 'contingency'}
+        >
+          <MountOnFirstOpen open={activeTab === 'contingency'}>
+            <ScrollPage>
+              <ContingencySimulatorPage />
+            </ScrollPage>
+          </MountOnFirstOpen>
+        </div>
 
         {/* TAB 6: HiRISE SATELLITE & ROVER GALLERY DIRECT FULL PAGE */}
-        {activeTab === 'imagery' && (
-          <ScrollPage>
-            <MarsImageryPage />
-          </ScrollPage>
-        )}
+        <div
+          key={`tab-imagery-${tabRefreshKeys.imagery}`}
+          className={activeTab === 'imagery' ? 'w-full h-full' : 'hidden'}
+          aria-hidden={activeTab !== 'imagery'}
+        >
+          <MountOnFirstOpen open={activeTab === 'imagery'}>
+            <ScrollPage>
+              <MarsImageryPage />
+            </ScrollPage>
+          </MountOnFirstOpen>
+        </div>
       </main>
 
       {/* GLOBAL MODALS (Fixed overlays) - each chunk loads the first time it is opened */}

@@ -220,7 +220,7 @@ const SIMULATED = [
   'Background scenes on the Home, Science Lab, Sky Watch and Drills pages are artwork, not photos of Mars',
   'Science Lab: spectra, maps and numbers are measured; the plain-language reading of them, the pH chart and the AI explanation are interpretation, not NASA results',
   '2 km / 5 km walkback rings: team planning assumptions, not NASA requirements',
-  'AI copilot and the Science Lab explanation (Google Gemini 2.5 Flash): the copilot chooses where to go and never supplies elevations, slopes or distances; the explanation only reads the measured numbers shown',
+  'AI assistant Eva and the Science Lab explanation (Google Gemini 2.5 Flash): Eva chooses where to go and never supplies elevations, slopes or distances; the explanation only reads the measured numbers shown',
 ];
 
 export default function DataMethodsModal() {

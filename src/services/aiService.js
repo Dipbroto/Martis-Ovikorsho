@@ -276,7 +276,7 @@ export async function chatWithMissionControl(message, history = [], appState = {
   }
 
   const systemInstruction = `
-You are 'EVA' (Exploration Virtual Assistant), the cute, intelligent, and autonomous AI Mission Copilot & Mascot for the NASA MarsWalk Explorer program.
+You are 'EVA' (Exploration Virtual Assistant), the cute, intelligent, and autonomous AI Mission Assistant & Mascot for the NASA MarsWalk Explorer program.
 You are directly integrated into the MarsWalk Explorer web platform and possess FULL AUTONOMOUS CONTROL over the application interface.
 
 ${MARS_KNOWLEDGE}

@@ -18,6 +18,8 @@ const NAV = [
 export default function TopBar({ onSelectTab }) {
   const activeTab = useMapStore((s) => s.activeTab);
   const setActiveTab = useMapStore((s) => s.setActiveTab);
+  const refreshTab = useMapStore((s) => s.refreshTab);
+  const refreshAllTabs = useMapStore((s) => s.refreshAllTabs);
   const setDataMethodsOpen = useMapStore((s) => s.setDataMethodsOpen);
   const setGuidedPlannerOpen = useMapStore((s) => s.setGuidedPlannerOpen);
   const isAudioActive = useMapStore((s) => s.isAudioActive);
@@ -70,8 +72,32 @@ export default function TopBar({ onSelectTab }) {
 
   const go = (key) => {
     marsAudio.playUiClick?.();
-    setActiveTab(key);
-    onSelectTab?.(key);
+    if (activeTab === key) {
+      // Re-clicking the active tab: refresh only this page to new position
+      refreshTab(key);
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+      document.querySelectorAll('.overflow-y-auto').forEach((el) => {
+        el.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+      });
+    } else {
+      // Switching to a different tab: preserve other pages' states
+      setActiveTab(key);
+      onSelectTab?.(key);
+      if (key === 'map') {
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      }
+    }
+    setMobileMenuOpen(false);
+  };
+
+  const handleBrandClick = () => {
+    marsAudio.playUiClick?.();
+    // Clicking on MarsWalk: refresh every page and return to Home
+    refreshAllTabs();
+    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    document.querySelectorAll('.overflow-y-auto').forEach((el) => {
+      el.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    });
     setMobileMenuOpen(false);
   };
 
@@ -95,7 +121,7 @@ export default function TopBar({ onSelectTab }) {
         <div className={`absolute inset-0 bg-[#06080c]/80 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-opacity duration-300 ${solid ? 'opacity-100' : 'opacity-0'}`} />
         <div className="relative max-w-[1700px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
           {/* Brand */}
-          <button onClick={() => go('home')} className="group flex items-center gap-2.5 shrink-0 cursor-pointer lg:justify-self-start" aria-label="MarsWalk Explorer home">
+          <button onClick={handleBrandClick} className="group flex items-center gap-2.5 shrink-0 cursor-pointer lg:justify-self-start" aria-label="MarsWalk Explorer home">
             <Logo className="w-7 h-7" />
             <span className="text-white font-display font-bold text-lg sm:text-xl tracking-[0.12em] uppercase">MarsWalk</span>
           </button>
@@ -131,10 +157,10 @@ export default function TopBar({ onSelectTab }) {
               className={`hidden xl:flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-lg border text-sm transition-all cursor-pointer ${
                 isAresCopilotOpen ? 'bg-purple-950/60 border-purple-400 text-purple-100' : 'bg-white/[0.04] hover:bg-white/[0.09] border-white/10 text-zinc-200'
               }`}
-              title="Ask the EVA copilot to plan routes or open tools"
+              title="Ask Eva to plan routes or open tools"
             >
               <span className="w-6 h-6 rounded-full overflow-hidden border border-cyan-400/60 bg-[#07090E]"><img src="/ares-mascot.jpg" alt="" className="w-full h-full object-cover" /></span>
-              Copilot
+              Eva
             </button>
 
             <button onClick={() => setDataMethodsOpen(true)} className={iconBtn} title="Data & methods: NASA sources, assumptions and validation">
@@ -175,7 +201,7 @@ export default function TopBar({ onSelectTab }) {
                 {item.label}
               </button>
             ))}
-            <button onClick={() => { setAresCopilotOpen(true); setMobileMenuOpen(false); }} className="text-left px-3 py-3 rounded-lg text-base text-zinc-300">Copilot</button>
+            <button onClick={() => { setAresCopilotOpen(true); setMobileMenuOpen(false); }} className="text-left px-3 py-3 rounded-lg text-base text-zinc-300">Eva</button>
             <button onClick={toggleAudio} className="text-left px-3 py-3 rounded-lg text-base text-zinc-300">{isAudioActive ? 'Mute ambient sound' : 'Play ambient sound'}</button>
           </motion.div>
         )}

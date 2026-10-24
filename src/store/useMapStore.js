@@ -20,6 +20,40 @@ const useMapStore = create((set, get) => ({
   // NAVIGATION & TAB STATE
   // ========================
   activeTab: 'home', // 'home' | 'map' | 'science' | 'sky' | 'contingency' | 'imagery'
+  tabRefreshKeys: {
+    home: 0,
+    map: 0,
+    science: 0,
+    sky: 0,
+    contingency: 0,
+    imagery: 0,
+  },
+  refreshTab: (key) => set((state) => ({
+    tabRefreshKeys: {
+      ...state.tabRefreshKeys,
+      [key]: (state.tabRefreshKeys[key] || 0) + 1,
+    }
+  })),
+  refreshAllTabs: () => set((state) => ({
+    activeTab: 'home',
+    tabRefreshKeys: {
+      home: (state.tabRefreshKeys.home || 0) + 1,
+      map: (state.tabRefreshKeys.map || 0) + 1,
+      science: (state.tabRefreshKeys.science || 0) + 1,
+      sky: (state.tabRefreshKeys.sky || 0) + 1,
+      contingency: (state.tabRefreshKeys.contingency || 0) + 1,
+      imagery: (state.tabRefreshKeys.imagery || 0) + 1,
+    },
+    waypoints: [],
+    routeGeometry: null,
+    selectedPOI: null,
+    mapCenter: [0, 0],
+    mapZoom: 1,
+    isScienceLabOpen: false,
+    isImageryModalOpen: false,
+    isContingencyModalOpen: false,
+    isAresCopilotOpen: false,
+  })),
   // Switching main tabs closes any lingering overlay modals
   setActiveTab: (tab) => set({
     activeTab: tab,

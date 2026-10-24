@@ -278,13 +278,13 @@ export default function AresCopilotModal() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-display font-black text-sm tracking-widest text-white uppercase">EVA COPILOT</h3>
+                  <h3 className="font-display font-black text-sm tracking-widest text-white uppercase">EVA</h3>
                   <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
                     AUTONOMOUS
                   </span>
                 </div>
                 <p className="text-[10px] font-mono text-cyan-300/80">
-                  {user ? `Connected: ${user.email}` : 'Autonomous Martian Flight Agent · EVA AI'}
+                  {user ? `Connected: ${user.email}` : 'Autonomous Martian Exploration Assistant · EVA'}
                 </p>
               </div>
             </div>
@@ -311,7 +311,7 @@ export default function AresCopilotModal() {
                   setAresCopilotOpen(false);
                 }}
                 className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all cursor-pointer"
-                title="Close copilot"
+                title="Close Eva"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -354,7 +354,7 @@ export default function AresCopilotModal() {
                       <div className="w-4 h-4 rounded-full overflow-hidden border border-cyan-400/60 shadow-[0_0_8px_rgba(6,182,212,0.4)] shrink-0">
                         <img src="/ares-mascot.jpg" alt="EVA" className="w-full h-full object-cover" />
                       </div>
-                      <span>EVA · MISSION COPILOT</span>
+                      <span>EVA · MISSION AI</span>
                     </span>
                   )}
                 </div>
