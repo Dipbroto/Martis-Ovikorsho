@@ -45,6 +45,316 @@ function createRealisticSaturnRingTexture() {
 }
 
 /**
+ * RealisticSun Component:
+ * Physically accurate star rendering featuring:
+ * 1. NASA SDO Photosphere with dual-layer convective churn & Eddington limb darkening
+ * 2. Blinding incandescent core falloff (blackbody thermal emission peak)
+ * 3. Chromosphere fringe emission (H-alpha rim)
+ * 4. Inverted Fresnel atmospheric glow (no hard sphere boundary)
+ * 5. Procedural camera-oriented coronal streamers (solar wind plasma outflow)
+ * 6. Optical diffraction glare spikes (spacecraft telescope optics)
+ */
+function RealisticSun({ sun, position, texture, onSelectBody, isHovered, onHoverChange }) {
+  const { camera } = useThree();
+  const meshRef = useRef();
+  const coronaRef = useRef();
+  const glareRef = useRef();
+
+  // Custom Shader for the Photosphere with Eddington limb darkening,
+  // convective churn, and chromospheric rim
+  const photosphereMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: texture },
+        uTime: { value: 0 },
+        uHover: { value: 0 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normalMatrix * normal);
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          vViewDir = normalize(-mvPosition.xyz);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uMap;
+        uniform float uTime;
+        uniform float uHover;
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+
+        void main() {
+          // Convective turbulence: dual opposing UV drift for boiling solar granulation
+          vec2 uv1 = vec2(vUv.x + uTime * 0.002, vUv.y);
+          vec2 uv2 = vec2(vUv.x * 2.2 - uTime * 0.0035, vUv.y * 2.2 + uTime * 0.0015);
+
+          vec4 tex1 = texture2D(uMap, uv1);
+          vec4 tex2 = texture2D(uMap, uv2);
+          vec3 plasma = mix(tex1.rgb, tex2.rgb, 0.28);
+
+          // Physical Eddington limb darkening: cos(theta) = dot(normal, viewDir)
+          float mu = clamp(dot(vNormal, vViewDir), 0.0, 1.0);
+          float limbDarkening = 0.40 + 0.60 * pow(mu, 0.65);
+
+          // Blinding incandescent thermal emission at center of disk (T ~ 5778 K blackbody)
+          vec3 incandescentCore = vec3(1.0, 0.98, 0.92);
+          float coreGlow = pow(mu, 2.4);
+
+          // Fiery chromospheric rim (ionized hydrogen-alpha rim at the grazing limb)
+          float rimFactor = pow(1.0 - mu, 2.8);
+          vec3 chromosphericRim = vec3(1.0, 0.42, 0.08) * 1.85;
+
+          // Composite photosphere radiance
+          vec3 color = plasma * limbDarkening;
+          color = mix(color, incandescentCore, coreGlow * 0.62);
+          color += chromosphericRim * rimFactor;
+
+          gl_FragColor = vec4(color * (1.18 + uHover * 0.25), 1.0);
+        }
+      `,
+    });
+  }, [texture]);
+
+  // Atmosphere shader for smooth chromospheric transition (eliminates hard edge)
+  const atmosphereMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          vViewDir = normalize(-mvPosition.xyz);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+
+        void main() {
+          // BackSide normals point inward toward center
+          float mu = abs(dot(vNormal, vViewDir));
+          float rim = pow(1.0 - mu, 3.2);
+          float pulse = 0.96 + 0.04 * sin(uTime * 1.4);
+          vec3 glowColor = mix(vec3(1.0, 0.78, 0.22), vec3(1.0, 0.35, 0.05), rim);
+          gl_FragColor = vec4(glowColor * 1.6, rim * 0.55 * pulse);
+        }
+      `,
+      side: THREE.BackSide,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, []);
+
+  // Camera-facing dynamic coronal streamers shader
+  const coronaMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        varying vec2 vUv;
+
+        void main() {
+          vec2 p = (vUv - 0.5) * 2.0;
+          float r = length(p);
+          if (r > 1.0) discard;
+
+          float theta = atan(p.y, p.x);
+
+          // Dynamic radial plasma streamers (solar wind magnetic outflow)
+          float s1 = sin(theta * 11.0 + uTime * 0.28);
+          float s2 = sin(theta * 23.0 - uTime * 0.18 + sin(theta * 4.0));
+          float s3 = cos(theta * 37.0 + uTime * 0.42);
+          float streamers = 0.75 + 0.16 * s1 + 0.10 * s2 + 0.06 * s3;
+
+          // Double exponential decay: inner corona + extended solar wind
+          float inner = exp(-r * 6.5);
+          float outer = exp(-r * 2.4) * 0.35;
+          float intensity = (inner + outer) * streamers;
+
+          // Color ramp: incandescent white-gold -> luminous amber -> cosmic deep orange
+          vec3 colInner = vec3(1.0, 0.96, 0.84);
+          vec3 colMid = vec3(1.0, 0.68, 0.18);
+          vec3 colOuter = vec3(0.92, 0.28, 0.04);
+
+          vec3 color = mix(colInner, colMid, smoothstep(0.08, 0.45, r));
+          color = mix(color, colOuter, smoothstep(0.45, 0.95, r));
+
+          // Soft boundary fade
+          float alpha = intensity * smoothstep(1.0, 0.35, r);
+          gl_FragColor = vec4(color * 1.6, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, []);
+
+  // Optical diffraction spikes & anamorphic spacecraft flare
+  const glareMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        varying vec2 vUv;
+
+        void main() {
+          vec2 p = (vUv - 0.5) * 2.0;
+          float r = length(p);
+          if (r > 1.0) discard;
+
+          // Anamorphic horizontal glare streak (characteristic of spacecraft optics)
+          float hStreak = exp(-abs(p.y) * 48.0) * exp(-abs(p.x) * 1.8) * 0.42;
+
+          // Vertical diffraction spike
+          float vStreak = exp(-abs(p.x) * 48.0) * exp(-abs(p.y) * 1.8) * 0.32;
+
+          // Diagonal 4-point cross (45 deg)
+          vec2 rotP = vec2(p.x * 0.7071 - p.y * 0.7071, p.x * 0.7071 + p.y * 0.7071);
+          float diagStreak = (exp(-abs(rotP.x) * 65.0) * exp(-abs(rotP.y) * 2.4) +
+                              exp(-abs(rotP.y) * 65.0) * exp(-abs(rotP.x) * 2.4)) * 0.20;
+
+          // Intense central optical blooming
+          float centerBloom = exp(-r * 7.5) * 0.72;
+
+          float totalGlow = (hStreak + vStreak + diagStreak + centerBloom) * smoothstep(1.0, 0.68, r);
+          vec3 glareColor = mix(vec3(1.0, 0.98, 0.92), vec3(1.0, 0.72, 0.35), r);
+
+          gl_FragColor = vec4(glareColor * 1.3, totalGlow * 0.7);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, []);
+
+  // Update uniforms and orientation per frame
+  useFrame(({ clock, camera: currentCamera }) => {
+    const t = clock.getElapsedTime();
+    if (photosphereMaterial) {
+      photosphereMaterial.uniforms.uTime.value = t;
+      photosphereMaterial.uniforms.uHover.value = THREE.MathUtils.lerp(
+        photosphereMaterial.uniforms.uHover.value,
+        isHovered ? 1.0 : 0.0,
+        0.1
+      );
+    }
+    if (atmosphereMaterial) {
+      atmosphereMaterial.uniforms.uTime.value = t;
+    }
+    if (coronaMaterial) {
+      coronaMaterial.uniforms.uTime.value = t;
+    }
+    if (glareMaterial) {
+      glareMaterial.uniforms.uTime.value = t;
+    }
+
+    // Solar axial rotation
+    if (meshRef.current) {
+      meshRef.current.rotation.y = t * 0.02;
+    }
+
+    // Orient billboard coronal and glare quads to camera
+    if (coronaRef.current) {
+      coronaRef.current.quaternion.copy(currentCamera.quaternion);
+    }
+    if (glareRef.current) {
+      glareRef.current.quaternion.copy(currentCamera.quaternion);
+    }
+  });
+
+  return (
+    <group position={position}>
+      {/* 1. Solar Photosphere with Convective Churn & Limb Darkening */}
+      <mesh
+        ref={meshRef}
+        material={photosphereMaterial}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelectBody?.(sun);
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          onHoverChange(true);
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          onHoverChange(false);
+          document.body.style.cursor = '';
+        }}
+      >
+        <sphereGeometry args={[3.4, 64, 64]} />
+      </mesh>
+
+      {/* 2. Inverted Chromospheric Atmosphere Halo */}
+      <mesh material={atmosphereMaterial}>
+        <sphereGeometry args={[3.85, 48, 48]} />
+      </mesh>
+
+      {/* 3. Camera-Facing Dynamic Coronal Streamers Quad */}
+      <mesh ref={coronaRef} material={coronaMaterial}>
+        <planeGeometry args={[38, 38]} />
+      </mesh>
+
+      {/* 4. Optical Diffraction Spikes & Glare Quad */}
+      <mesh ref={glareRef} material={glareMaterial}>
+        <planeGeometry args={[54, 54]} />
+      </mesh>
+
+      {/* 5. Tactical Ephemeris Readout */}
+      <Html center zIndexRange={[40, 0]} style={{ pointerEvents: 'none' }}>
+        <div
+          style={{ opacity: isHovered || camera.position.length() > 8 ? 1 : 0.8 }}
+          className="translate-y-8 flex items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-400/30 bg-black/80 px-2.5 py-0.5 text-[11px] font-mono text-amber-200 shadow-xl backdrop-blur transition-all"
+        >
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+          <span className="font-bold">SUN</span>
+          <span className="text-zinc-400">·</span>
+          <span className="text-zinc-300">{sun.distAu.toFixed(2)} AU</span>
+          <span className="text-amber-400/90 font-semibold">
+            ({sun.lightMinutes.toFixed(1)}m light delay)
+          </span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+/**
  * Deep Space Cosmos Component:
  * Renders the real all-sky Milky Way galaxy skysphere, deep space galaxies (Andromeda,
  * Triangulum, Magellanic Clouds), nebulae, star clusters, real NASA/USGS planets,
@@ -66,12 +376,14 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
     phobos: '/textures/planets/phobos.png',
   });
 
-  // Calibrate textures to sRGB color space
+  // Calibrate textures to sRGB color space and enable repeat wrapping
   useEffect(() => {
     Object.values(textures).forEach((tex) => {
       if (tex) {
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.anisotropy = 4;
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
         tex.needsUpdate = true;
       }
     });
@@ -105,8 +417,6 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
   const [hoveredId, setHoveredId] = useState(null);
 
   // Animation references
-  const sunMesh = useRef();
-  const coronaMesh = useRef();
   const earthMesh = useRef();
   const moonMesh = useRef();
   const jupiterMesh = useRef();
@@ -119,15 +429,6 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
   // Astronomical rotations and orbital motion ticks
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
-
-    // Sun slow axial rotation and gentle coronal breathing
-    if (sunMesh.current) {
-      sunMesh.current.rotation.y = t * 0.02;
-    }
-    if (coronaMesh.current) {
-      const s = 1 + Math.sin(t * 1.5) * 0.035;
-      coronaMesh.current.scale.set(s, s, s);
-    }
 
     // Earth axial rotation (23.4° tilt)
     if (earthMesh.current) {
@@ -197,75 +498,22 @@ export default function DeepSpaceCosmos({ now, subsolar, onSelectBody }) {
       </mesh>
 
       {/* ============================================================== */}
-      {/* 1. THE SUN (NASA SDO Photosphere with Active Convective Corona) */}
+      {/* 1. THE SUN (Physically Realistic Photosphere & Dynamic Corona) */}
       {/* ============================================================== */}
       {(() => {
         const sun = planets.find((p) => p.id === 'sun');
         if (!sun) return null;
         const sunPos = dirFor(sun.lat, sun.lon).multiplyScalar(125);
-        const isHovered = hoveredId === 'sun';
 
         return (
-          <group position={sunPos}>
-            {/* Blazing core sphere with NASA SDO Photosphere Texture */}
-            <mesh
-              ref={sunMesh}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectBody?.(sun);
-              }}
-              onPointerOver={(e) => {
-                e.stopPropagation();
-                setHoveredId('sun');
-                document.body.style.cursor = 'pointer';
-              }}
-              onPointerOut={() => {
-                setHoveredId(null);
-                document.body.style.cursor = '';
-              }}
-            >
-              <sphereGeometry args={[3.4, 48, 48]} />
-              <meshBasicMaterial map={textures.sun} />
-            </mesh>
-
-            {/* Inner radiant corona */}
-            <mesh ref={coronaMesh}>
-              <sphereGeometry args={[4.4, 32, 32]} />
-              <meshBasicMaterial
-                color="#fef08a"
-                transparent
-                opacity={0.45}
-                blending={THREE.AdditiveBlending}
-              />
-            </mesh>
-
-            {/* Outer solar flare atmosphere */}
-            <mesh scale={2.2}>
-              <sphereGeometry args={[3.6, 24, 24]} />
-              <meshBasicMaterial
-                color="#f97316"
-                transparent
-                opacity={0.18}
-                blending={THREE.AdditiveBlending}
-              />
-            </mesh>
-
-            {/* Tactical Label */}
-            <Html center zIndexRange={[40, 0]} style={{ pointerEvents: 'none' }}>
-              <div
-                style={{ opacity: isHovered || camera.position.length() > 8 ? 1 : 0.8 }}
-                className="translate-y-8 flex items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-400/30 bg-black/80 px-2.5 py-0.5 text-[11px] font-mono text-amber-200 shadow-xl backdrop-blur transition-all"
-              >
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                <span className="font-bold">SUN</span>
-                <span className="text-zinc-400">·</span>
-                <span className="text-zinc-300">{sun.distAu.toFixed(2)} AU</span>
-                <span className="text-amber-400/90 font-semibold">
-                  ({sun.lightMinutes.toFixed(1)}m light delay)
-                </span>
-              </div>
-            </Html>
-          </group>
+          <RealisticSun
+            sun={sun}
+            position={sunPos}
+            texture={textures.sun}
+            onSelectBody={onSelectBody}
+            isHovered={hoveredId === 'sun'}
+            onHoverChange={(h) => setHoveredId(h ? 'sun' : null)}
+          />
         );
       })()}
 
