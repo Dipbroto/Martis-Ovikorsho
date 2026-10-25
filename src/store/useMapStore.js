@@ -466,11 +466,26 @@ const useMapStore = create((set, get) => ({
   bottomPanelTab: 'elevation', // 'elevation' | 'weather' | 'radiation' | 'dust'
   showLoadingScreen: false,
   
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  setSidebarTab: (tab) => set({ sidebarTab: tab, sidebarOpen: true, isEVASimulating: false }),
+  setSidebarOpen: (open) => set((state) => ({
+    sidebarOpen: open,
+    bottomPanelOpen: (open && typeof window !== 'undefined' && window.innerWidth < 640) ? false : state.bottomPanelOpen
+  })),
+  setSidebarTab: (tab) => set((state) => ({
+    sidebarTab: tab,
+    sidebarOpen: true,
+    isEVASimulating: false,
+    bottomPanelOpen: (typeof window !== 'undefined' && window.innerWidth < 640) ? false : state.bottomPanelOpen
+  })),
   setRightSidebarOpen: (open) => set({ rightSidebarOpen: open }),
-  setBottomPanelOpen: (open) => set({ bottomPanelOpen: open }),
-  setBottomPanelTab: (tab) => set({ bottomPanelTab: tab, bottomPanelOpen: true }),
+  setBottomPanelOpen: (open) => set((state) => ({
+    bottomPanelOpen: open,
+    sidebarOpen: (open && typeof window !== 'undefined' && window.innerWidth < 640) ? false : state.sidebarOpen
+  })),
+  setBottomPanelTab: (tab) => set((state) => ({
+    bottomPanelTab: tab,
+    bottomPanelOpen: true,
+    sidebarOpen: (typeof window !== 'undefined' && window.innerWidth < 640) ? false : state.sidebarOpen
+  })),
   setShowLoadingScreen: (show) => set({ showLoadingScreen: show }),
   
   // ========================

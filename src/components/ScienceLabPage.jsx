@@ -63,7 +63,7 @@ export default function ScienceLabPage() {
   const ready = target && data && analysis;
 
   return (
-    <div className="relative min-h-screen text-white font-sans -mt-24 -mx-6 sm:-mx-10 lg:-mx-14">
+    <div className="relative min-h-screen text-white font-sans -mt-20 sm:-mt-24 -mx-3 sm:-mx-8 lg:-mx-14">
       {/* Background: the rover-at-sunset scene from the map, fading into the page */}
       <div className="fixed inset-0 z-0 pointer-events-none transform-gpu" aria-hidden="true">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/background.webp')" }} />
@@ -71,7 +71,7 @@ export default function ScienceLabPage() {
         <div className="absolute inset-0 bg-gradient-to-r from-[#05070b]/60 via-[#05070b]/15 to-transparent" />
       </div>
 
-      <div className="relative z-10 max-w-[1500px] mx-auto px-5 sm:px-10 lg:px-14 pt-28 pb-24">
+      <div className="relative z-10 max-w-[1500px] mx-auto px-3.5 sm:px-8 lg:px-14 pt-24 sm:pt-28 pb-20 sm:pb-24">
         {/* HERO */}
         <header className="max-w-3xl">
           <p className="text-sm font-medium text-[#ffa07f] flex items-center gap-2"><FlaskConical className="w-4 h-4" />Science Lab</p>

@@ -186,8 +186,21 @@ function ObservationCanvas({
     setMousePos({ x, y });
   };
 
-  const loupeX = isHovered ? mousePos.x : obs.loupeCenter.x;
-  const loupeY = isHovered ? mousePos.y : obs.loupeCenter.y;
+  const handleTouchMove = (e) => {
+    if (!containerRef.current || !e.touches || !e.touches[0]) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = Math.max(5, Math.min(95, ((touch.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(5, Math.min(95, ((touch.clientY - rect.top) / rect.height) * 100));
+    setMousePos({ x, y });
+    setIsHovered(true);
+  };
+
+  const rawLoupeX = isHovered ? mousePos.x : obs.loupeCenter.x;
+  const rawLoupeY = isHovered ? mousePos.y : obs.loupeCenter.y;
+  // Clamp loupe position so the 8x circle never gets chopped off by the canvas container borders
+  const loupeX = Math.max(16, Math.min(84, rawLoupeX));
+  const loupeY = Math.max(18, Math.min(82, rawLoupeY));
 
   const imageFilterStyle = (() => {
     if (displayMode === 'contrast') {
@@ -202,7 +215,12 @@ function ObservationCanvas({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onMouseMove={handleMouseMove}
-      className="relative w-full aspect-[16/10] bg-[#020307] rounded-xl overflow-hidden border border-white/10 select-none shadow-2xl flex items-center justify-center group"
+      onTouchStart={handleTouchMove}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={() => setIsHovered(false)}
+      className={`relative w-full aspect-[16/10] bg-[#020307] rounded-xl overflow-hidden border border-white/10 select-none shadow-2xl flex items-center justify-center group ${
+        showLoupe ? 'touch-none' : 'touch-pan-y'
+      }`}
     >
       {/* 1. Genuine NASA Rover Photographic File */}
       <img
@@ -246,8 +264,8 @@ function ObservationCanvas({
         <div
           className="absolute z-20 pointer-events-none rounded-2xl overflow-hidden border-2 border-sky-400 shadow-[0_0_25px_rgba(56,189,248,0.4)] backdrop-blur-md bg-black/80 transition-all duration-75"
           style={{
-            width: '160px',
-            height: '160px',
+            width: 'clamp(115px, 32vw, 160px)',
+            height: 'clamp(115px, 32vw, 160px)',
             left: `${loupeX}%`,
             top: `${loupeY}%`,
             transform: 'translate(-50%, -50%)',
@@ -259,7 +277,7 @@ function ObservationCanvas({
             style={{
               backgroundImage: `url(${obs.imageSrc})`,
               backgroundSize: '800%',
-              backgroundPosition: `${loupeX}% ${loupeY}%`,
+              backgroundPosition: `${rawLoupeX}% ${rawLoupeY}%`,
               ...imageFilterStyle,
             }}
           />
@@ -270,11 +288,11 @@ function ObservationCanvas({
             <div className="w-5 h-5 rounded-full border border-sky-400/80" />
           </div>
           {/* Loupe Badges */}
-          <div className="absolute top-1.5 left-2 bg-black/85 text-[9px] font-mono text-sky-300 px-1.5 py-0.5 rounded border border-sky-400/30">
+          <div className="absolute top-1.5 left-2 bg-black/85 text-[8px] sm:text-[9px] font-mono text-sky-300 px-1.5 py-0.5 rounded border border-sky-400/30">
             8× CCD ZOOM
           </div>
           <div className="absolute bottom-1.5 right-2 bg-black/85 text-[8px] font-mono text-zinc-400 px-1.5 py-0.5 rounded border border-white/10">
-            {Math.round(loupeX)}% · {Math.round(loupeY)}%
+            {Math.round(rawLoupeX)}% · {Math.round(rawLoupeY)}%
           </div>
         </div>
       )}
@@ -371,28 +389,32 @@ function ObservationCanvas({
         </svg>
       )}
 
-      {/* 4. Authentic Camera OSD HUD Banners */}
-      <div className="absolute top-2.5 left-3 flex items-center gap-2 text-[10px] font-mono text-zinc-300 bg-black/80 px-2.5 py-1 rounded-md backdrop-blur border border-white/10 shadow-lg">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="text-white font-semibold">{obs.camera}</span>
-        <span className="text-zinc-500">·</span>
-        <span>SOL {obs.sol}</span>
-        <span className="text-zinc-500">·</span>
-        <span className="text-amber-300 font-semibold">{obs.lstStr}</span>
+      {/* 4. Authentic Camera OSD HUD Banners (Responsive to prevent edge cutting & collisions) */}
+      <div className="absolute top-2 sm:top-2.5 left-2 sm:left-3 right-2 sm:right-3 flex items-center justify-between pointer-events-none gap-1.5 z-10">
+        <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 shadow-lg truncate max-w-[70%] sm:max-w-none">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <span className="text-white font-semibold truncate">{obs.camera}</span>
+          <span className="text-zinc-500 hidden sm:inline">·</span>
+          <span className="shrink-0">SOL {obs.sol}</span>
+          <span className="text-zinc-500 hidden sm:inline">·</span>
+          <span className="text-amber-300 font-semibold shrink-0 hidden sm:inline">{obs.lstStr}</span>
+        </div>
+
+        <div className="text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 shadow-lg flex items-center gap-1.5 shrink-0">
+          <span className="text-zinc-400 hidden xs:inline">PDS:</span>
+          <span className="text-white font-semibold">{obs.nasaId}</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+        </div>
       </div>
 
-      <div className="absolute top-2.5 right-3 text-[10px] font-mono text-zinc-300 bg-black/80 px-2.5 py-1 rounded-md backdrop-blur border border-white/10 shadow-lg flex items-center gap-2">
-        <span className="text-zinc-400">PDS:</span>
-        <span className="text-white font-semibold">{obs.nasaId}</span>
-        <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-      </div>
+      <div className="absolute bottom-2 sm:bottom-2.5 left-2 sm:left-3 right-2 sm:right-3 flex items-center justify-between pointer-events-none gap-1.5 z-10">
+        <div className="text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 truncate max-w-[62%] sm:max-w-none">
+          <span className="hidden sm:inline">FOV </span>{obs.fov} <span className="hidden md:inline">· {obs.filter}</span>
+        </div>
 
-      <div className="absolute bottom-2.5 left-3 text-[10px] font-mono text-zinc-300 bg-black/80 px-2.5 py-1 rounded-md backdrop-blur border border-white/10">
-        FOV {obs.fov} · {obs.filter}
-      </div>
-
-      <div className="absolute bottom-2.5 right-3 text-[10px] font-mono text-zinc-300 bg-black/80 px-2.5 py-1 rounded-md backdrop-blur border border-white/10">
-        COORD: <span className="text-amber-200 font-semibold">{obs.altAz}</span>
+        <div className="text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 shrink-0">
+          <span className="hidden sm:inline">COORD: </span><span className="text-amber-200 font-semibold">{obs.altAz}</span>
+        </div>
       </div>
     </div>
   );
@@ -426,16 +448,18 @@ export default function RoverAstrophotography({ onSyncMoment }) {
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#070a12]/80 backdrop-blur-xl p-5 sm:p-6 shadow-2xl">
+    <div className="rounded-2xl border border-white/10 bg-[#070a12]/80 backdrop-blur-xl p-3.5 sm:p-6 shadow-2xl">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <div className="flex items-center gap-2">
-            <Camera className="w-4 h-4 text-[#ff7b4d]" />
-            <h3 className="text-base font-semibold text-white tracking-wide">
-              NASA Rover Surface Astrophotography
-            </h3>
-            <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 font-semibold">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Camera className="w-4 h-4 text-[#ff7b4d] shrink-0" />
+              <h3 className="text-sm sm:text-base font-semibold text-white tracking-wide">
+                NASA Rover Surface Astrophotography
+              </h3>
+            </div>
+            <span className="text-[9px] sm:text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 font-semibold shrink-0">
               Genuine NASA Raw Frames
             </span>
           </div>
@@ -445,7 +469,7 @@ export default function RoverAstrophotography({ onSyncMoment }) {
         </div>
 
         {/* View & Tool Options */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* 8x Loupe Toggle */}
           <button
             onClick={() => {
@@ -472,13 +496,14 @@ export default function RoverAstrophotography({ onSyncMoment }) {
                 setDisplayMode('hud');
                 setShowReticle(true);
               }}
-              className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 rounded-md transition cursor-pointer ${
                 displayMode === 'hud'
                   ? 'bg-white/15 text-white font-semibold'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              Science HUD
+              <span className="sm:hidden">HUD</span>
+              <span className="hidden sm:inline">Science HUD</span>
             </button>
             <button
               onClick={() => {
@@ -486,13 +511,14 @@ export default function RoverAstrophotography({ onSyncMoment }) {
                 setDisplayMode('raw');
                 setShowReticle(false);
               }}
-              className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 rounded-md transition cursor-pointer ${
                 displayMode === 'raw'
                   ? 'bg-white/15 text-white font-semibold'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              Raw Frame
+              <span className="sm:hidden">Raw</span>
+              <span className="hidden sm:inline">Raw Frame</span>
             </button>
             <button
               onClick={() => {
@@ -500,20 +526,21 @@ export default function RoverAstrophotography({ onSyncMoment }) {
                 setDisplayMode('contrast');
                 setShowReticle(true);
               }}
-              className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 rounded-md transition cursor-pointer ${
                 displayMode === 'contrast'
                   ? 'bg-white/15 text-white font-semibold'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              Contrast Stretch
+              <span className="sm:hidden">Contrast</span>
+              <span className="hidden sm:inline">Contrast Stretch</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Observation Selector Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar-x mb-4">
+      <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar-x touch-pan-x mb-4">
         {HISTORIC_OBSERVATIONS.map((obs) => {
           const isActive = obs.id === current.id;
           return (
@@ -549,25 +576,25 @@ export default function RoverAstrophotography({ onSyncMoment }) {
 
       {/* Metadata Telemetry Grid */}
       <div className="mt-3.5 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs font-mono">
-        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5">
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5 min-w-0">
           <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Mission / Site</div>
           <div className="text-white font-semibold truncate mt-0.5">{current.rover}</div>
           <div className="text-zinc-400 text-[11px] truncate">{current.siteName}</div>
         </div>
 
-        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5">
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5 min-w-0">
           <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Martian Time</div>
           <div className="text-amber-200 font-semibold mt-0.5">Sol {current.sol}</div>
-          <div className="text-zinc-400 text-[11px]">{current.lstStr}</div>
+          <div className="text-zinc-400 text-[11px] truncate">{current.lstStr}</div>
         </div>
 
-        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5">
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5 min-w-0">
           <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Optics &amp; Filter</div>
           <div className="text-sky-300 font-semibold truncate mt-0.5">{current.exposure}</div>
           <div className="text-zinc-400 text-[11px] truncate">{current.filter}</div>
         </div>
 
-        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5">
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5 min-w-0">
           <div className="text-[10px] text-zinc-500 uppercase tracking-wider">NASA Catalog</div>
           <div className="text-white font-semibold truncate mt-0.5">{current.nasaId}</div>
           <div className="text-zinc-400 text-[11px] truncate">{current.credit.split('/')[0]}</div>
@@ -576,8 +603,8 @@ export default function RoverAstrophotography({ onSyncMoment }) {
 
       {/* Scientific Explanation & Narrative */}
       <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 text-xs text-zinc-300 leading-relaxed space-y-1.5">
-        <div className="font-semibold text-white flex items-center justify-between gap-2 text-sm">
-          <div className="flex items-center gap-1.5">
+        <div className="font-semibold text-white flex flex-wrap items-center justify-between gap-2 text-sm">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span>{current.title}</span>
             <span className="text-zinc-500 font-normal">·</span>
             <span className="text-zinc-400 font-normal text-xs">{current.earthDate}</span>
@@ -603,7 +630,7 @@ export default function RoverAstrophotography({ onSyncMoment }) {
       </div>
 
       {/* Action Footer: Align with Sky Overhead */}
-      <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-white/10">
+      <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-white/10">
         <div className="text-xs text-zinc-300 flex items-center gap-2">
           {aligned ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -618,7 +645,7 @@ export default function RoverAstrophotography({ onSyncMoment }) {
               </span>
             ) : (
               <span>
-                Compare this photo with the full celestial sphere by aligning the sky dome overhead.
+                Compare this photo with the celestial sphere by aligning the sky dome overhead.
               </span>
             )}
           </span>
@@ -626,7 +653,7 @@ export default function RoverAstrophotography({ onSyncMoment }) {
 
         <button
           onClick={handleAlignSkyOverhead}
-          className="flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold tracking-wide transition cursor-pointer shadow-lg bg-white text-black hover:bg-zinc-200 border border-white"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold tracking-wide transition cursor-pointer shadow-lg bg-white text-black hover:bg-zinc-200 border border-white shrink-0"
         >
           <ArrowUp className="w-3.5 h-3.5 text-black" />
           <span>Align Sky Overhead (Sol {current.sol})</span>

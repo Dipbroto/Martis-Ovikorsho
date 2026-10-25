@@ -63,7 +63,7 @@ export default function AuthModal() {
   return (
     <AnimatePresence>
       {isAuthModalOpen && (
-      <div key="auth-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div key="auth-modal" className="fixed inset-0 z-[700] flex items-center justify-center p-4">
         <motion.div 
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 

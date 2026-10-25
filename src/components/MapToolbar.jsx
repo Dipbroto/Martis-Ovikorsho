@@ -164,7 +164,7 @@ export default function MapToolbar() {
 
   return (
     <div className="fixed top-[76px] left-3 right-3 sm:left-4 sm:right-4 z-[420] pointer-events-none">
-      <div className="pointer-events-auto ui-panel rounded-2xl p-1.5 flex flex-nowrap items-center gap-1.5 w-fit max-w-full overflow-x-auto custom-scrollbar-x">
+      <div className="pointer-events-auto ui-panel rounded-2xl p-1.5 flex flex-nowrap items-center gap-1.5 w-fit max-w-full overflow-x-auto custom-scrollbar-x touch-pan-x">
         {viewGroup}
 
         {!s.collapsed && (

@@ -113,7 +113,7 @@ export default function TopBar({ onSelectTab }) {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ease-[cubic-bezier(0.3,0.7,0.2,1)] focus-within:translate-y-0 ${hidden && !mobileMenuOpen ? '-translate-y-full' : 'translate-y-0'}`}
+      className={`fixed top-0 left-0 right-0 z-[500] transition-transform duration-300 ease-[cubic-bezier(0.3,0.7,0.2,1)] focus-within:translate-y-0 ${hidden && !mobileMenuOpen ? '-translate-y-full' : 'translate-y-0'}`}
     >
       <div className="relative w-full">
         {/* Over the hero the bar is nearly invisible; it turns to glass once the page moves or on other pages */}

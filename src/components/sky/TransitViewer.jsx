@@ -214,10 +214,11 @@ export default function TransitViewer({ transit, fluxWm2, siteName }) {
         <button
           onClick={() => { setAimMode((v) => !v); if (aimMode) setAimB(null); }}
           aria-pressed={aimMode}
-          className={`ml-auto flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer ${aimMode ? 'border-amber-400/60 bg-amber-500/15 text-amber-100' : 'border-white/15 text-zinc-300 hover:text-white'}`}
+          className={`w-full sm:w-auto sm:ml-auto flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer ${aimMode ? 'border-amber-400/60 bg-amber-500/15 text-amber-100' : 'border-white/15 text-zinc-300 hover:text-white'}`}
           title="Drag up or down on the Sun to move Phobos's path"
         >
-          {aimMode ? <Crosshair className="w-3.5 h-3.5" /> : <Hand className="w-3.5 h-3.5" />}{aimMode ? 'Aiming: drag on the Sun' : 'Aim the path yourself'}
+          {aimMode ? <Crosshair className="w-3.5 h-3.5" /> : <Hand className="w-3.5 h-3.5" />}
+          <span>{aimMode ? 'Aiming: drag on the Sun' : 'Aim the path yourself'}</span>
         </button>
       </div>
 
@@ -259,10 +260,19 @@ export default function TransitViewer({ transit, fluxWm2, siteName }) {
       </div>
 
       {/* Numbers */}
-      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-2.5"><div className="text-[11px] text-zinc-400">Lasts</div><div className="text-lg font-semibold tabular-nums">{chordHalf > 0 ? `${Math.round((2 * chordHalf) / speedPerS)} s` : 'misses'}</div></div>
-        <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-2.5"><div className="text-[11px] text-zinc-400">Deepest dip</div><div className="text-lg font-semibold tabular-nums">{Math.round(maxCover * 100)}%</div></div>
-        <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-2.5"><div className="text-[11px] text-zinc-400">Solar panels now</div><div className={`text-lg font-semibold tabular-nums ${cover > 0.2 ? 'text-amber-300' : 'text-emerald-300'}`}>{Math.round((1 - cover) * 100)}%</div></div>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+        <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-2 sm:p-2.5 min-w-0">
+          <div className="text-[10px] sm:text-[11px] text-zinc-400 truncate">Lasts</div>
+          <div className="text-base sm:text-lg font-semibold tabular-nums mt-0.5">{chordHalf > 0 ? `${Math.round((2 * chordHalf) / speedPerS)} s` : 'misses'}</div>
+        </div>
+        <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-2 sm:p-2.5 min-w-0">
+          <div className="text-[10px] sm:text-[11px] text-zinc-400 truncate">Deepest dip</div>
+          <div className="text-base sm:text-lg font-semibold tabular-nums mt-0.5">{Math.round(maxCover * 100)}%</div>
+        </div>
+        <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-2 sm:p-2.5 min-w-0">
+          <div className="text-[10px] sm:text-[11px] text-zinc-400 truncate">Solar panels</div>
+          <div className={`text-base sm:text-lg font-semibold tabular-nums mt-0.5 ${cover > 0.2 ? 'text-amber-300' : 'text-emerald-300'}`}>{Math.round((1 - cover) * 100)}%</div>
+        </div>
       </div>
       <p className="mt-2 text-xs text-zinc-500">Phobos looks {Math.round(ratio * 100)}% as wide as the Sun from here, so it can never cover all of it: Mars has no total solar eclipses.</p>
     </div>

@@ -86,7 +86,7 @@ export default function UserProfileDashboard() {
   return (
     <AnimatePresence>
       {isProfileModalOpen && user && (
-      <div key="profile-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div key="profile-modal" className="fixed inset-0 z-[700] flex items-center justify-center p-4">
         <motion.div 
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 

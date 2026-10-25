@@ -377,7 +377,7 @@ export default function MartianSkyEphemeris() {
     : `Earth is ${Math.round(sky.earth.elongation)}° from the Sun, so it shines as ${sky.earth.evening ? 'an evening star after sunset' : 'a morning star before sunrise'}.`;
 
   return (
-    <div className="relative min-h-screen text-white font-sans -mt-24 -mx-6 sm:-mx-10 lg:-mx-14">
+    <div className="relative min-h-screen text-white font-sans -mt-20 sm:-mt-24 -mx-3 sm:-mx-8 lg:-mx-14">
       {/* Background: a Martian canyon under the Milky Way */}
       <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/textures/sky-canyon.jpg')" }} />
@@ -385,7 +385,7 @@ export default function MartianSkyEphemeris() {
         <div className="absolute inset-0 bg-gradient-to-r from-[#03040a]/80 via-transparent to-transparent" />
       </div>
 
-      <div className="relative z-10 max-w-[1500px] mx-auto px-5 sm:px-10 lg:px-14 pt-28 pb-24">
+      <div className="relative z-10 max-w-[1500px] mx-auto px-3.5 sm:px-8 lg:px-14 pt-24 sm:pt-28 pb-20 sm:pb-24">
         <header className="max-w-3xl">
           <p className="text-sm font-medium text-[#ffa07f] flex items-center gap-2"><Telescope className="w-4 h-4" />Sky Watch</p>
           <h1 className="mt-2 text-4xl sm:text-6xl font-bold tracking-tight leading-[1.04]">Look up from Mars.</h1>

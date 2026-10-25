@@ -54,7 +54,7 @@ const ViewFallback = () => (
 
 // Shared shell for the full-page tabs
 const ScrollPage = ({ children }) => (
-  <div className="w-full h-screen overflow-y-auto overflow-x-hidden relative pt-24 px-6 sm:px-10 lg:px-14 custom-scrollbar bg-[#040508]">
+  <div className="w-full h-screen overflow-y-auto overflow-x-hidden relative pt-20 sm:pt-24 px-3 sm:px-8 lg:px-14 custom-scrollbar bg-[#040508]">
     <ErrorBoundary>
       <Suspense fallback={<ViewFallback />}>{children}</Suspense>
     </ErrorBoundary>
@@ -68,6 +68,7 @@ function App() {
   const activeTab = useMapStore(s => s.activeTab);
   const setActiveTab = useMapStore(s => s.setActiveTab);
   const tabRefreshKeys = useMapStore(s => s.tabRefreshKeys || { home: 0, map: 0, science: 0, sky: 0, contingency: 0, imagery: 0 });
+  const bottomPanelOpen = useMapStore(s => s.bottomPanelOpen);
   const isImageryModalOpen = useMapStore(s => s.isImageryModalOpen);
   const isEVASimulating = useMapStore(s => s.isEVASimulating);
   const isFlightPlanOpen = useMapStore(s => s.isFlightPlanOpen);
@@ -205,7 +206,7 @@ function App() {
               </ErrorBoundary>
 
               {/* FIXED LEFT SIDEBAR */}
-              <div className={`fixed left-3 bottom-24 z-[400] pointer-events-none flex transition-[top] duration-300 ${toolbarCollapsed ? 'top-[132px]' : 'top-[172px] sm:top-[150px]'}`}>
+              <div className={`fixed left-3 z-[400] pointer-events-none flex transition-[top,bottom] duration-300 ${toolbarCollapsed ? 'top-[132px]' : 'top-[172px] sm:top-[150px]'} ${bottomPanelOpen ? 'bottom-[318px] sm:bottom-24' : 'bottom-24'}`}>
                 <div className="pointer-events-auto flex flex-col min-h-0 max-h-full">
                   <ErrorBoundary>
                     <Suspense fallback={null}>
@@ -216,7 +217,7 @@ function App() {
               </div>
 
               {/* FIXED BOTTOM PANEL */}
-              <div className="fixed bottom-0 left-0 right-0 pointer-events-none z-50 w-full px-4 pb-3 flex justify-center">
+              <div className="fixed bottom-0 left-0 right-0 pointer-events-none z-[450] w-full px-4 pb-3 flex justify-center">
                 <div className="pointer-events-auto w-full max-w-2xl flex justify-center">
                   <ErrorBoundary>
                     <Suspense fallback={null}>

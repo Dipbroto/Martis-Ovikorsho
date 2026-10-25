@@ -570,14 +570,14 @@ export default function ContingencySimulatorPage() {
   const routeName = source === 'mine' ? 'My planned route' : pair?.name;
 
   return (
-    <div className="relative min-h-screen text-white font-sans -mt-24 -mx-6 sm:-mx-10 lg:-mx-14">
+    <div className="relative min-h-screen text-white font-sans -mt-20 sm:-mt-24 -mx-3 sm:-mx-8 lg:-mx-14">
       <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/textures/drills-storm-base.jpg')" }} />
         <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-[#05060a]/45 to-[#05060a]/90" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#05060a]/70 via-[#05060a]/15 to-transparent" />
       </div>
 
-      <div className="relative z-10 max-w-[1500px] mx-auto px-5 sm:px-10 lg:px-14 pt-28 pb-24">
+      <div className="relative z-10 max-w-[1500px] mx-auto px-3.5 sm:px-8 lg:px-14 pt-24 sm:pt-28 pb-20 sm:pb-24">
         <header className="flex flex-wrap items-end justify-between gap-6">
           <div className="max-w-3xl">
             <p className="text-sm font-medium text-[#ffa07f] flex items-center gap-2"><ShieldAlert className="w-4 h-4" />Contingency drills</p>

@@ -65,7 +65,7 @@ export default function MarsImageryModal() {
   return (
     <AnimatePresence>
       {isImageryModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 lg:p-8 font-sans">
+        <div className="fixed inset-0 z-[700] flex items-center justify-center p-3 sm:p-6 lg:p-8 font-sans">
           {/* Backdrop */}
           <motion.div 
             initial={{ opacity: 0 }}

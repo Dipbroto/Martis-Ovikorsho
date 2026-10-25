@@ -20,10 +20,11 @@ export default function MapDock() {
   // The marsquake explorer is a mode of its own: while it is on, its panel is the only one beside the map
   const quakes = useMapStore((s) => s.quakeMode);
   const sidebarOpen = useMapStore((s) => s.sidebarOpen);
+  const bottomPanelOpen = useMapStore((s) => s.bottomPanelOpen);
   const quakeFolded = useMapStore((s) => !!s.dockMin.quake);
   const split = useMapStore((s) => s.viewMode === 'split');
   return (
-    <div className={`absolute z-[430] left-3 right-3 bottom-[92px] max-h-[44vh] sm:top-[140px] sm:bottom-[112px] sm:max-h-none ${quakes && quakeFolded ? 'sm:w-[270px]' : split ? 'sm:w-[320px]' : 'sm:w-[372px]'} pointer-events-none flex flex-col gap-3 overflow-y-auto overflow-x-hidden custom-scrollbar-y [&>*]:pointer-events-auto sm:pr-0.5 ${quakes ? (sidebarOpen ? 'sm:left-[404px]' : 'sm:left-[84px]') + ' sm:right-auto' : 'sm:left-auto sm:right-4'}`} aria-label="Map panels">
+    <div className={`absolute z-[430] left-3 right-3 ${bottomPanelOpen ? 'bottom-[318px] max-h-[35vh]' : 'bottom-[92px] max-h-[44vh]'} sm:top-[140px] sm:bottom-[112px] sm:max-h-none ${quakes && quakeFolded ? 'sm:w-[270px]' : split ? 'sm:w-[320px]' : 'sm:w-[372px]'} pointer-events-none flex flex-col gap-3 overflow-y-auto overflow-x-hidden custom-scrollbar-y [&>*]:pointer-events-auto sm:pr-0.5 ${quakes ? (sidebarOpen ? 'sm:left-[404px]' : 'sm:left-[84px]') + ' sm:right-auto' : 'sm:left-auto sm:right-4'}`} aria-label="Map panels">
       <AnimatePresence initial={false}>
         <ContingencyAlert key="alert" />
       </AnimatePresence>
