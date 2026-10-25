@@ -5,21 +5,20 @@ const GEMINI_MODEL = "gemini-2.5-flash";
 // Number of most recent chat messages forwarded to the model as context
 const MAX_CONTEXT_TURNS = 50;
 
-// The Gemini key must never ship in the production bundle. In production every request goes through
-// the `gemini-proxy` Supabase Edge Function (see supabase/functions/gemini-proxy). The direct key is
-// honoured in `vite dev` only; `import.meta.env.DEV` is false in builds so this branch is stripped out.
-const DEV_API_KEY = import.meta.env.DEV ? import.meta.env.VITE_GEMINI_API_KEY : undefined;
+// If VITE_GEMINI_API_KEY is configured (e.g. in development or in Vercel environment variables),
+// calls go directly to Gemini. Otherwise, calls route through the Supabase edge function proxy.
+const DIRECT_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || undefined;
 
-export const isAiConfigured = Boolean(DEV_API_KEY) || isSupabaseConfigured;
+export const isAiConfigured = Boolean(DIRECT_API_KEY) || isSupabaseConfigured;
 
 /** Sends a Gemini `generateContent` request body and returns the parsed JSON response. */
 async function generateContent(body) {
-  if (DEV_API_KEY) {
+  if (DIRECT_API_KEY) {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": DEV_API_KEY },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": DIRECT_API_KEY },
         body: JSON.stringify(body),
       }
     );
