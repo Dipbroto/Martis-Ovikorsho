@@ -334,11 +334,18 @@ export default function AresCopilotModal() {
         ({ summaryText: actionExecutedSummary, reply } = await executeAutonomousAction(agentResult.action));
       }
 
-      // 5. Persist and render AI message
+      // 5. Persist and render AI message (prioritizes Gemini's multilingual response)
+      let displayText = agentResult?.text?.trim();
+      if (!displayText) {
+        displayText = reply || "Telemetry synchronized.";
+      } else if (reply && agentResult?.action?.tool === 'plan_route' && !displayText.includes('km')) {
+        displayText = `${displayText}\n\n📊 ${reply}`;
+      }
+
       const modelMsg = await saveChatMessage({
         userId: user?.id,
         role: 'model',
-        text: reply || agentResult?.text || "Telemetry synchronized.",
+        text: displayText,
         actionData: agentResult?.action ? {
           ...agentResult.action,
           executionSummary: actionExecutedSummary

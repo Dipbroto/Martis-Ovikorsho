@@ -7,7 +7,7 @@ const MAX_HISTORY_MESSAGES = 80;
 
 const createDefaultGreeting = () => ({
   role: 'model',
-  text: "EVA Autonomous Uplink Online. I am authorized to operate surface navigation, plot EVA traverses, control 2D/3D viewports, and execute mission contingencies. State your objective, Commander.",
+  text: "EVA Online. I have full autonomous control over surface navigation, 2D/3D viewports, and mission systems, backed by Google's unrestricted world knowledge. I understand and speak all languages fluently — how can I assist you, Commander?",
   timestamp: new Date().toISOString()
 });
 
