@@ -385,7 +385,7 @@ export default function MartianSkyEphemeris() {
         <div className="absolute inset-0 bg-gradient-to-r from-[#03040a]/80 via-transparent to-transparent" />
       </div>
 
-      <div className="relative z-10 max-w-[1500px] mx-auto px-3.5 sm:px-8 lg:px-14 pt-24 sm:pt-28 pb-20 sm:pb-24">
+      <div className="relative z-10 max-w-[1500px] w-full min-w-0 mx-auto px-3 sm:px-8 lg:px-14 pt-24 sm:pt-28 pb-20 sm:pb-24">
         <header className="max-w-3xl">
           <p className="text-sm font-medium text-[#ffa07f] flex items-center gap-2"><Telescope className="w-4 h-4" />Sky Watch</p>
           <h1 className="mt-2 text-4xl sm:text-6xl font-bold tracking-tight leading-[1.04]">Look up from Mars.</h1>
@@ -486,9 +486,9 @@ export default function MartianSkyEphemeris() {
         </Panel>
 
         {/* Survival-relevant cards + NASA Rover Astrophotography Archive */}
-        <div className="mt-6 grid lg:grid-cols-3 gap-6 items-start">
-          <div className="lg:col-span-2 flex flex-col gap-6">
-            <div className="grid sm:grid-cols-2 gap-6 items-start">
+        <div className="mt-6 grid lg:grid-cols-3 gap-6 items-start w-full min-w-0 max-w-full">
+          <div className="lg:col-span-2 flex flex-col gap-6 w-full min-w-0 max-w-full">
+            <div className="grid sm:grid-cols-2 gap-6 items-start w-full min-w-0">
               <Panel title="Daylight for an EVA" icon={Sun}>
                 {sunUp.rises.length && sunUp.sets.length ? (
                   <>
@@ -516,10 +516,12 @@ export default function MartianSkyEphemeris() {
             </div>
 
             {/* NASA Rover Astrophotography Archive */}
-            <RoverAstrophotography onSyncMoment={syncToMoment} />
+            <div className="w-full min-w-0 max-w-full overflow-hidden">
+              <RoverAstrophotography onSyncMoment={syncToMoment} />
+            </div>
           </div>
 
-          <div className="lg:col-span-1 flex flex-col gap-4">
+          <div className="lg:col-span-1 flex flex-col gap-4 w-full min-w-0 max-w-full">
             <Panel title="Phobos crosses the Sun" icon={Eclipse}>
               {site.lat > 70 ? (
                 <p className="text-sm text-zinc-300">Phobos never rises above 70° latitude, so there are no transits here.</p>

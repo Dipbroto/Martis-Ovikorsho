@@ -218,7 +218,7 @@ function ObservationCanvas({
       onTouchStart={handleTouchMove}
       onTouchMove={handleTouchMove}
       onTouchEnd={() => setIsHovered(false)}
-      className={`relative w-full aspect-[16/10] bg-[#020307] rounded-xl overflow-hidden border border-white/10 select-none shadow-2xl flex items-center justify-center group ${
+      className={`relative w-full aspect-[4/3] sm:aspect-[16/10] bg-[#020307] rounded-xl overflow-hidden border border-white/10 select-none shadow-2xl flex items-center justify-center group ${
         showLoupe ? 'touch-none' : 'touch-pan-y'
       }`}
     >
@@ -229,7 +229,7 @@ function ObservationCanvas({
         style={imageFilterStyle}
         onLoad={() => setImgLoaded(true)}
         onError={() => setImgError(true)}
-        className={`w-full h-full object-cover transition-opacity duration-300 ${
+        className={`max-w-full max-h-full object-contain transition-opacity duration-300 ${
           imgLoaded ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -377,8 +377,8 @@ function ObservationCanvas({
             </g>
           )}
 
-          {/* Angular Scale Bar in Bottom Right */}
-          <g transform="translate(480, 370)">
+          {/* Angular Scale Bar in Bottom Right (positioned above OSD banner) */}
+          <g transform="translate(480, 345)">
             <line x1="0" y1="0" x2="100" y2="0" stroke="#ffffff" strokeWidth="1.2" strokeOpacity="0.7" />
             <line x1="0" y1="-4" x2="0" y2="4" stroke="#ffffff" strokeWidth="1.2" strokeOpacity="0.7" />
             <line x1="100" y1="-4" x2="100" y2="4" stroke="#ffffff" strokeWidth="1.2" strokeOpacity="0.7" />
@@ -390,8 +390,8 @@ function ObservationCanvas({
       )}
 
       {/* 4. Authentic Camera OSD HUD Banners (Responsive to prevent edge cutting & collisions) */}
-      <div className="absolute top-2 sm:top-2.5 left-2 sm:left-3 right-2 sm:right-3 flex items-center justify-between pointer-events-none gap-1.5 z-10">
-        <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 shadow-lg truncate max-w-[70%] sm:max-w-none">
+      <div className="absolute top-2 sm:top-2.5 left-2 sm:left-3 right-2 sm:right-3 flex items-center justify-between pointer-events-none gap-1.5 z-10 min-w-0">
+        <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 shadow-lg truncate max-w-[65%] sm:max-w-none min-w-0">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
           <span className="text-white font-semibold truncate">{obs.camera}</span>
           <span className="text-zinc-500 hidden sm:inline">·</span>
@@ -407,8 +407,8 @@ function ObservationCanvas({
         </div>
       </div>
 
-      <div className="absolute bottom-2 sm:bottom-2.5 left-2 sm:left-3 right-2 sm:right-3 flex items-center justify-between pointer-events-none gap-1.5 z-10">
-        <div className="text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 truncate max-w-[62%] sm:max-w-none">
+      <div className="absolute bottom-2 sm:bottom-2.5 left-2 sm:left-3 right-2 sm:right-3 flex items-center justify-between pointer-events-none gap-1.5 z-10 min-w-0">
+        <div className="text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 truncate max-w-[60%] sm:max-w-none min-w-0">
           <span className="hidden sm:inline">FOV </span>{obs.fov} <span className="hidden md:inline">· {obs.filter}</span>
         </div>
 
@@ -448,14 +448,14 @@ export default function RoverAstrophotography({ onSyncMoment }) {
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#070a12]/80 backdrop-blur-xl p-3.5 sm:p-6 shadow-2xl">
+    <div className="w-full max-w-full min-w-0 rounded-2xl border border-white/10 bg-[#070a12]/80 backdrop-blur-xl p-3 sm:p-5 lg:p-6 shadow-2xl overflow-hidden">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 w-full min-w-0">
+        <div className="w-full sm:flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2">
               <Camera className="w-4 h-4 text-[#ff7b4d] shrink-0" />
-              <h3 className="text-sm sm:text-base font-semibold text-white tracking-wide">
+              <h3 className="text-sm sm:text-base font-semibold text-white tracking-wide truncate">
                 NASA Rover Surface Astrophotography
               </h3>
             </div>
@@ -463,13 +463,13 @@ export default function RoverAstrophotography({ onSyncMoment }) {
               Genuine NASA Raw Frames
             </span>
           </div>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-zinc-400 mt-1 line-clamp-2 sm:line-clamp-none">
             Authentic photographic image files captured from the surface of Mars by Curiosity &amp; Perseverance
           </p>
         </div>
 
         {/* View & Tool Options */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="w-full sm:w-auto flex flex-wrap items-center justify-start sm:justify-end gap-2 shrink-0">
           {/* 8x Loupe Toggle */}
           <button
             onClick={() => {
@@ -477,7 +477,7 @@ export default function RoverAstrophotography({ onSyncMoment }) {
               setShowLoupe((v) => !v);
             }}
             aria-pressed={showLoupe}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-mono border transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-mono border transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
               showLoupe
                 ? 'bg-sky-500/20 border-sky-400/50 text-sky-200'
                 : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white'
@@ -489,7 +489,7 @@ export default function RoverAstrophotography({ onSyncMoment }) {
           </button>
 
           {/* Mode Switcher */}
-          <div className="flex rounded-lg border border-white/10 bg-black/40 p-0.5 text-xs font-mono">
+          <div className="flex rounded-lg border border-white/10 bg-black/40 p-0.5 text-xs font-mono shrink-0">
             <button
               onClick={() => {
                 playUiClick?.();
@@ -540,7 +540,7 @@ export default function RoverAstrophotography({ onSyncMoment }) {
       </div>
 
       {/* Observation Selector Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar-x touch-pan-x mb-4">
+      <div className="w-full max-w-full min-w-0 flex gap-2 overflow-x-auto pb-2 custom-scrollbar-x touch-pan-x mb-4">
         {HISTORIC_OBSERVATIONS.map((obs) => {
           const isActive = obs.id === current.id;
           return (
@@ -575,7 +575,7 @@ export default function RoverAstrophotography({ onSyncMoment }) {
       />
 
       {/* Metadata Telemetry Grid */}
-      <div className="mt-3.5 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs font-mono">
+      <div className="mt-3.5 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs font-mono w-full min-w-0">
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5 min-w-0">
           <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Mission / Site</div>
           <div className="text-white font-semibold truncate mt-0.5">{current.rover}</div>
@@ -602,7 +602,7 @@ export default function RoverAstrophotography({ onSyncMoment }) {
       </div>
 
       {/* Scientific Explanation & Narrative */}
-      <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 text-xs text-zinc-300 leading-relaxed space-y-1.5">
+      <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 text-xs text-zinc-300 leading-relaxed space-y-1.5 w-full min-w-0 max-w-full break-words">
         <div className="font-semibold text-white flex flex-wrap items-center justify-between gap-2 text-sm">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span>{current.title}</span>
@@ -630,7 +630,7 @@ export default function RoverAstrophotography({ onSyncMoment }) {
       </div>
 
       {/* Action Footer: Align with Sky Overhead */}
-      <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-white/10">
+      <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-white/10 w-full min-w-0">
         <div className="text-xs text-zinc-300 flex items-center gap-2">
           {aligned ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
