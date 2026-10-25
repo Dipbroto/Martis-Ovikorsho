@@ -231,14 +231,24 @@ export default function AresFloatingButton() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Mouse coordinate tracking for the mascot head to follow the cursor
+  // Mouse & Touch coordinate tracking for the mascot head to follow the cursor / finger
   useEffect(() => {
     const handleMouseMove = (e) => {
       mouseRef.current.x = e.clientX / window.innerWidth;
       mouseRef.current.y = e.clientY / window.innerHeight;
     };
+    const handleTouchMove = (e) => {
+      if (e.touches && e.touches[0]) {
+        mouseRef.current.x = e.touches[0].clientX / window.innerWidth;
+        mouseRef.current.y = e.touches[0].clientY / window.innerHeight;
+      }
+    };
     window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('touchmove', handleTouchMove);
+    };
   }, []);
 
   if (isAresCopilotOpen) return null;
@@ -253,9 +263,9 @@ export default function AresFloatingButton() {
         // Small delay so click event doesn't fire immediately upon drag release
         setTimeout(() => setIsDragging(false), 80);
       }}
-      className="fixed bottom-6 right-6 z-[500] pointer-events-auto hidden sm:flex items-end gap-2.5 select-none cursor-grab active:cursor-grabbing"
+      className="fixed bottom-4 right-3 sm:bottom-6 sm:right-6 z-[500] pointer-events-auto flex items-end gap-2 sm:gap-2.5 select-none cursor-grab active:cursor-grabbing touch-none"
     >
-      {/* Short hint, only while hovering the mascot (no constant chatter) */}
+      {/* Short hint, only while hovering the mascot on pointer devices */}
       <AnimatePresence>
         {isHovered && !large && (
           <motion.div
@@ -279,12 +289,12 @@ export default function AresFloatingButton() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.9 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22, delay: 0.6 }}
-            className="absolute bottom-full right-1 mb-1"
+            className="absolute bottom-full right-1 mb-1 max-w-[75vw] sm:max-w-none"
           >
             <button
               ref={bubbleRef}
               onClick={() => { marsAudio.playUiClick?.(); setAresCopilotOpen(true); }}
-              className="relative block whitespace-nowrap rounded-2xl rounded-br-md bg-white text-slate-900 px-4 py-2.5 text-sm font-medium shadow-[0_10px_30px_rgba(0,0,0,0.45)] cursor-pointer will-change-transform"
+              className="relative block whitespace-normal sm:whitespace-nowrap rounded-2xl rounded-br-md bg-white text-slate-900 px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-medium shadow-[0_10px_30px_rgba(0,0,0,0.45)] cursor-pointer will-change-transform"
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
@@ -306,7 +316,7 @@ export default function AresFloatingButton() {
 
       {/* 3D Interactive Mascot (Compact & Completely Draggable) */}
       <motion.div
-        whileTap={{ scale: 0.96 }}
+        whileTap={{ scale: 0.94 }}
         onMouseEnter={() => {
           setIsHovered(true);
           marsAudio.playUiHover?.();
@@ -317,10 +327,10 @@ export default function AresFloatingButton() {
           marsAudio.playUiClick?.();
           setAresCopilotOpen(true);
         }}
-        className="relative w-20 h-20 flex items-center justify-center group"
+        className="relative w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center group"
       >
         {/* Soft Ambient Floating Shadow */}
-        <div className="absolute -bottom-1 w-12 h-2.5 bg-cyan-500/20 blur-sm rounded-full pointer-events-none transition-all duration-300 group-hover:scale-125 group-hover:bg-cyan-400/35" />
+        <div className="absolute -bottom-1 w-10 sm:w-12 h-2 sm:h-2.5 bg-cyan-500/20 blur-sm rounded-full pointer-events-none transition-all duration-300 group-hover:scale-125 group-hover:bg-cyan-400/35" />
 
         {/* 3D Canvas rendering the Robot Mascot freely floating */}
         {/* The canvas is 1.5x the hit area with the camera pulled back to match, so the waving arm is never clipped */}
@@ -338,8 +348,8 @@ export default function AresFloatingButton() {
         </div>
 
         {/* Subtle Online Status Pill Badge */}
-        <span ref={dotRef} className="absolute top-1 right-2 flex h-2.5 w-2.5 z-20 pointer-events-none will-change-transform">
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+        <span ref={dotRef} className="absolute top-0.5 right-1 sm:top-1 sm:right-2 flex h-2 sm:h-2.5 w-2 sm:w-2.5 z-20 pointer-events-none will-change-transform">
+          <span className="relative inline-flex rounded-full h-2 sm:h-2.5 w-2 sm:h-2.5 bg-emerald-400 shadow-[0_0_6px_#34d399]" />
         </span>
       </motion.div>
 

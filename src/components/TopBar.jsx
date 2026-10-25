@@ -154,7 +154,7 @@ export default function TopBar({ onSelectTab }) {
                 marsAudio.playUiClick?.();
                 setAresCopilotOpen(!isAresCopilotOpen);
               }}
-              className={`hidden xl:flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-lg border text-sm transition-all cursor-pointer ${
+              className={`hidden md:flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-lg border text-sm transition-all cursor-pointer ${
                 isAresCopilotOpen ? 'bg-purple-950/60 border-purple-400 text-purple-100' : 'bg-white/[0.04] hover:bg-white/[0.09] border-white/10 text-zinc-200'
               }`}
               title="Ask Eva to plan routes or open tools"
@@ -201,7 +201,20 @@ export default function TopBar({ onSelectTab }) {
                 {item.label}
               </button>
             ))}
-            <button onClick={() => { setAresCopilotOpen(true); setMobileMenuOpen(false); }} className="text-left px-3 py-3 rounded-lg text-base text-zinc-300">Eva</button>
+            <button
+              onClick={() => {
+                marsAudio.playUiClick?.();
+                setAresCopilotOpen(true);
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-2.5 px-3 py-3 rounded-lg text-base text-zinc-300 hover:bg-white/[0.05] transition-colors"
+            >
+              <span className="relative w-6 h-6 rounded-full overflow-hidden border border-cyan-400/60 bg-[#07090E] shrink-0">
+                <img src="/ares-mascot.jpg" alt="" className="w-full h-full object-cover" />
+                <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              </span>
+              <span>Eva (AI Assistant)</span>
+            </button>
             <button onClick={toggleAudio} className="text-left px-3 py-3 rounded-lg text-base text-zinc-300">{isAudioActive ? 'Mute ambient sound' : 'Play ambient sound'}</button>
           </motion.div>
         )}
