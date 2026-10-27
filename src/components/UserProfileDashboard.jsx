@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, ShieldCheck, X, LogOut, Route, FlaskConical, Settings, Clock, MapPin, Lock, Key, Loader2, Play } from 'lucide-react';
+import { User, ShieldCheck, X, LogOut, Route, FlaskConical, Settings, Clock, MapPin, Lock, Key, Loader2, Play, Users, Radio, Copy, Check } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { supabase } from '../lib/supabase';
+import { getFriendships } from '../services/crewCommsService';
 import { marsAudio } from '../utils/audioSynthesizer';
 
 export default function UserProfileDashboard() {
@@ -13,6 +14,11 @@ export default function UserProfileDashboard() {
   const setUser = useMapStore(s => s.setUser);
   const setProfile = useMapStore(s => s.setProfile);
   const setWaypoints = useMapStore(s => s.setWaypoints);
+  const setCrewCommsOpen = useMapStore(s => s.setCrewCommsOpen);
+  const setActiveCommsFriend = useMapStore(s => s.setActiveCommsFriend);
+
+  const [friendsList, setFriendsList] = useState([]);
+  const [copiedCallsign, setCopiedCallsign] = useState(false);
 
   const [activeTab, setActiveTab] = useState('overview');
   const [missions, setMissions] = useState([]);
@@ -22,6 +28,15 @@ export default function UserProfileDashboard() {
   const [loadError, setLoadError] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [passwordStatus, setPasswordStatus] = useState('');
+
+  // Fetch Crew Friendships on profile open
+  useEffect(() => {
+    if (isProfileModalOpen && user) {
+      getFriendships(user.id).then((res) => {
+        if (res?.friends) setFriendsList(res.friends);
+      });
+    }
+  }, [isProfileModalOpen, user]);
 
   // Fetch Missions when opening the missions tab
   useEffect(() => {
@@ -143,6 +158,12 @@ export default function UserProfileDashboard() {
               >
                 <FlaskConical className="w-4 h-4" /> Science Logs
               </button>
+              <button
+                onClick={() => setActiveTab('crew')}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-mono tracking-wider transition-all text-left ${activeTab === 'crew' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50' : 'text-space-400 hover:bg-white/5 hover:text-white'}`}
+              >
+                <Users className="w-4 h-4" /> Crew Network ({friendsList.length})
+              </button>
               <button 
                 onClick={() => setActiveTab('settings')}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-mono tracking-wider transition-all text-left ${activeTab === 'settings' ? 'bg-mars-500/20 text-mars-400 border border-mars-500/50' : 'text-space-400 hover:bg-white/5 hover:text-white'}`}
@@ -172,18 +193,35 @@ export default function UserProfileDashboard() {
                   <p className="text-space-400 font-mono text-sm">Authenticated via Secure NASA Uplink</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-space-900/50 border border-white/10 rounded-2xl p-6 flex flex-col gap-2 relative overflow-hidden group">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-space-900/50 border border-white/10 rounded-2xl p-5 flex flex-col gap-1 relative overflow-hidden group">
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-mars-500/10 rounded-full blur-xl group-hover:bg-mars-500/20 transition-all" />
-                    <Route className="w-6 h-6 text-mars-400 mb-2" />
-                    <span className="text-3xl font-display font-black text-white">{profile?.total_distance_km || 0} <span className="text-lg text-space-400">km</span></span>
-                    <span className="text-xs font-mono text-space-400 uppercase tracking-wider">Total Distance Roved</span>
+                    <Route className="w-5 h-5 text-mars-400 mb-1" />
+                    <span className="text-2xl font-display font-black text-white">{profile?.total_distance_km || 0} <span className="text-sm text-space-400">km</span></span>
+                    <span className="text-[11px] font-mono text-space-400 uppercase tracking-wider">Distance Roved</span>
                   </div>
-                  <div className="bg-space-900/50 border border-white/10 rounded-2xl p-6 flex flex-col gap-2 relative overflow-hidden group">
+                  <div className="bg-space-900/50 border border-white/10 rounded-2xl p-5 flex flex-col gap-1 relative overflow-hidden group">
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-cyan-500/10 rounded-full blur-xl group-hover:bg-cyan-500/20 transition-all" />
-                    <FlaskConical className="w-6 h-6 text-cyan-400 mb-2" />
-                    <span className="text-3xl font-display font-black text-white">{profile?.samples_collected || 0} <span className="text-lg text-space-400">Samples</span></span>
-                    <span className="text-xs font-mono text-space-400 uppercase tracking-wider">Astrobiology Cache</span>
+                    <FlaskConical className="w-5 h-5 text-cyan-400 mb-1" />
+                    <span className="text-2xl font-display font-black text-white">{profile?.samples_collected || 0} <span className="text-sm text-space-400">Samples</span></span>
+                    <span className="text-[11px] font-mono text-space-400 uppercase tracking-wider">Astrobiology Cache</span>
+                  </div>
+                  <div className="bg-space-900/50 border border-white/10 rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden group">
+                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all" />
+                    <div>
+                      <Radio className="w-5 h-5 text-emerald-400 mb-1" />
+                      <span className="text-2xl font-display font-black text-white">{friendsList.length} <span className="text-sm text-space-400">Crew</span></span>
+                      <div className="text-[11px] font-mono text-space-400 uppercase tracking-wider">Connected Astronauts</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setProfileModalOpen(false);
+                        setCrewCommsOpen(true);
+                      }}
+                      className="mt-2 py-1 px-2.5 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700/60 text-cyan-300 text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Radio size={12} /> Launch Comms
+                    </button>
                   </div>
                 </div>
 
@@ -192,9 +230,31 @@ export default function UserProfileDashboard() {
                     <Clock className="w-4 h-4" /> Identity Timeline
                   </h3>
                   <div className="space-y-4 font-mono text-xs text-space-400">
+                    <div className="flex justify-between border-b border-white/5 pb-2 items-center">
+                      <span>Astronaut Callsign</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-bold">{profile?.username || 'Explorer'}</span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard?.writeText(profile?.username || 'Explorer');
+                            setCopiedCallsign(true);
+                            setTimeout(() => setCopiedCallsign(false), 2000);
+                          }}
+                          className="px-2 py-0.5 rounded bg-space-800 hover:bg-space-700 text-[10px] text-cyan-300 border border-cyan-800 flex items-center gap-1 transition-all"
+                          title="Copy Callsign to share with crewmates"
+                        >
+                          {copiedCallsign ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                          <span>{copiedCallsign ? 'Copied' : 'Copy'}</span>
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex justify-between border-b border-white/5 pb-2">
                       <span>Clearance Level</span>
                       <span className="text-emerald-400">Level 4 (Planetary Surface)</span>
+                    </div>
+                    <div className="flex justify-between border-b border-white/5 pb-2">
+                      <span>DSN Inter-Astronaut Relay</span>
+                      <span className="text-cyan-400">Active • P2P Transceiver Online</span>
                     </div>
                     <div className="flex justify-between border-b border-white/5 pb-2">
                       <span>Auth Email</span>
@@ -305,6 +365,66 @@ export default function UserProfileDashboard() {
                             "{log.notes}"
                           </div>
                         )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* CREW NETWORK TAB */}
+            {activeTab === 'crew' && (
+              <div className="space-y-6 animate-fade-in">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h2 className="text-2xl font-display font-black text-white uppercase tracking-widest mb-1">Crew Network</h2>
+                    <p className="text-space-400 font-mono text-sm">Authenticated Martian explorer contacts & direct radio relays</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setProfileModalOpen(false);
+                      setCrewCommsOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-black font-display font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2"
+                  >
+                    <Radio size={14} /> Open DSN Comms Panel
+                  </button>
+                </div>
+
+                {friendsList.length === 0 ? (
+                  <div className="bg-space-900/30 border border-white/5 rounded-2xl p-10 text-center space-y-3 font-mono">
+                    <Users className="w-12 h-12 mx-auto text-space-600 opacity-50" />
+                    <p className="text-white font-bold">No Crewmates Connected Yet</p>
+                    <p className="text-xs text-space-400 max-w-md mx-auto">
+                      Share your callsign <span className="text-cyan-400 font-bold font-mono">{profile?.username}</span> with fellow explorers, or search the astronaut registry to connect.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono">
+                    {friendsList.map((f) => (
+                      <div key={f.friendshipId} className="bg-space-900/50 border border-white/10 rounded-2xl p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-space-800 border border-cyan-500/40 flex items-center justify-center font-display font-bold text-cyan-300 text-xs shrink-0">
+                            {f.user.username?.slice(0, 2).toUpperCase() || 'EX'}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-display font-bold text-white truncate flex items-center gap-1.5">
+                              <span>{f.user.username}</span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                            </div>
+                            <div className="text-xs text-space-400 truncate">{f.user.rank || 'Active Explorer'}</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setActiveCommsFriend(f.user);
+                            setProfileModalOpen(false);
+                            setCrewCommsOpen(true);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-xs font-mono transition-all flex items-center gap-1.5 shrink-0"
+                        >
+                          <Radio size={12} /> Radio
+                        </button>
                       </div>
                     ))}
                   </div>

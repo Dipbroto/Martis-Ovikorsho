@@ -296,3 +296,96 @@ where jsonb_typeof(waypoints) = 'array' and jsonb_array_length(waypoints) >= 2;
 update public.profiles p set
   total_distance_km = coalesce((select sum(m.total_distance) from public.missions m where m.user_id = p.id), 0),
   samples_collected = (select count(*) from public.science_logs s where s.user_id = p.id);
+
+
+-- ==============================================================================
+-- 6. CREW COMMS & INTER-ASTRONAUT NETWORK (FRIENDSHIPS & DIRECT MESSAGES)
+-- ==============================================================================
+
+-- FRIENDSHIPS: Tracks friend requests and established connections between astronauts
+create table if not exists public.friendships (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade not null,     -- Initiator of the request
+  friend_id uuid references public.profiles(id) on delete cascade not null,   -- Recipient of the request
+  status text not null check (status in ('pending', 'accepted', 'declined', 'blocked')) default 'pending',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  constraint unique_friendship_pair unique (user_id, friend_id),
+  constraint no_self_friendship check (user_id <> friend_id)
+);
+
+-- Ensure any legacy self-friendships are purged and constraint is enforced
+delete from public.friendships where user_id = friend_id;
+alter table public.friendships drop constraint if exists no_self_friendship;
+alter table public.friendships add constraint no_self_friendship check (user_id <> friend_id);
+
+create index if not exists friendships_user_id_idx on public.friendships(user_id);
+create index if not exists friendships_friend_id_idx on public.friendships(friend_id);
+create index if not exists friendships_status_idx on public.friendships(status);
+
+-- DIRECT_MESSAGES: User-to-user astronaut communications & shared coordinates
+create table if not exists public.direct_messages (
+  id uuid default gen_random_uuid() primary key,
+  sender_id uuid references public.profiles(id) on delete cascade not null,
+  receiver_id uuid references public.profiles(id) on delete cascade not null,
+  content text not null,
+  action_data jsonb, -- e.g. shared waypoint coordinates or traverse route
+  read_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  constraint no_self_message check (sender_id <> receiver_id)
+);
+
+create index if not exists direct_messages_conversation_idx on public.direct_messages(sender_id, receiver_id, created_at desc);
+create index if not exists direct_messages_receiver_unread_idx on public.direct_messages(receiver_id, read_at) where read_at is null;
+
+-- RLS FOR FRIENDSHIPS
+alter table public.friendships enable row level security;
+
+drop policy if exists "Users can view their own friendships" on public.friendships;
+create policy "Users can view their own friendships" on public.friendships 
+  for select using (auth.uid() = user_id or auth.uid() = friend_id);
+
+drop policy if exists "Users can send friend requests" on public.friendships;
+create policy "Users can send friend requests" on public.friendships 
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update their friendship status" on public.friendships;
+create policy "Users can update their friendship status" on public.friendships 
+  for update using (auth.uid() = friend_id or auth.uid() = user_id);
+
+drop policy if exists "Users can delete their friendships" on public.friendships;
+create policy "Users can delete their friendships" on public.friendships 
+  for delete using (auth.uid() = user_id or auth.uid() = friend_id);
+
+-- RLS FOR DIRECT MESSAGES
+alter table public.direct_messages enable row level security;
+
+drop policy if exists "Users can read their direct messages" on public.direct_messages;
+create policy "Users can read their direct messages" on public.direct_messages 
+  for select using (auth.uid() = sender_id or auth.uid() = receiver_id);
+
+drop policy if exists "Users can insert direct messages as sender" on public.direct_messages;
+create policy "Users can insert direct messages as sender" on public.direct_messages 
+  for insert with check (auth.uid() = sender_id);
+
+drop policy if exists "Recipients can update read_at" on public.direct_messages;
+create policy "Recipients can update read_at" on public.direct_messages 
+  for update using (auth.uid() = receiver_id);
+
+-- ENABLE REALTIME REPLICATION FOR INSTANT CHAT & REQUESTS
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and tablename = 'friendships'
+  ) then
+    alter publication supabase_realtime add table public.friendships;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and tablename = 'direct_messages'
+  ) then
+    alter publication supabase_realtime add table public.direct_messages;
+  end if;
+end $$;

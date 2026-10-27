@@ -12,6 +12,7 @@ import HomeHero from './components/HomeHero';
 import MountOnFirstOpen from './components/MountOnFirstOpen';
 import { supabase } from './lib/supabase';
 import { fetchProfile } from './services/profileService';
+import { getUnreadCommsCount, subscribeToCrewComms } from './services/crewCommsService';
 
 
 // Everything below is split into its own chunk and only downloaded when it is first needed
@@ -33,6 +34,7 @@ const AresCopilotModal = lazyWithRetry(() => import('./components/AresCopilotMod
 const AresFloatingButton = lazyWithRetry(() => import('./components/AresFloatingButton'));
 const AuthModal = lazyWithRetry(() => import('./components/AuthModal'));
 const UserProfileDashboard = lazyWithRetry(() => import('./components/UserProfileDashboard'));
+const CrewCommsModal = lazyWithRetry(() => import('./components/CrewCommsModal'));
 const DataMethodsModal = lazyWithRetry(() => import('./components/DataMethodsModal'));
 const GuidedPlannerModal = lazyWithRetry(() => import('./components/GuidedPlannerModal'));
 const MartianStreetViewModal = lazyWithRetry(() => import('./components/MartianStreetViewModal'));
@@ -78,10 +80,26 @@ function App() {
   const isAresCopilotOpen = useMapStore(s => s.isAresCopilotOpen);
   const isAuthModalOpen = useMapStore(s => s.isAuthModalOpen);
   const isProfileModalOpen = useMapStore(s => s.isProfileModalOpen);
+  const isCrewCommsOpen = useMapStore(s => s.isCrewCommsOpen);
+  const setUnreadCommsCount = useMapStore(s => s.setUnreadCommsCount);
+  const user = useMapStore(s => s.user);
   const isDataMethodsOpen = useMapStore(s => s.isDataMethodsOpen);
   const isGuidedPlannerOpen = useMapStore(s => s.isGuidedPlannerOpen);
   const setUser = useMapStore(s => s.setUser);
   const setProfile = useMapStore(s => s.setProfile);
+
+  // Track unread DSN Crew Comms messages and requests
+  useEffect(() => {
+    if (!user) {
+      setUnreadCommsCount(0);
+      return;
+    }
+    getUnreadCommsCount(user.id).then((count) => setUnreadCommsCount(count));
+    const unsub = subscribeToCrewComms(user.id, () => {
+      getUnreadCommsCount(user.id).then((count) => setUnreadCommsCount(count));
+    });
+    return () => unsub?.();
+  }, [user, setUnreadCommsCount]);
 
   // Initialize Supabase Auth
   useEffect(() => {
@@ -150,6 +168,7 @@ function App() {
       {showLoadingScreen && <LoadingScreen />}
       <MountOnFirstOpen open={isAuthModalOpen}><AuthModal /></MountOnFirstOpen>
       <MountOnFirstOpen open={isProfileModalOpen}><UserProfileDashboard /></MountOnFirstOpen>
+      <MountOnFirstOpen open={isCrewCommsOpen}><CrewCommsModal /></MountOnFirstOpen>
       <MountOnFirstOpen open={isDataMethodsOpen}><DataMethodsModal /></MountOnFirstOpen>
       <MountOnFirstOpen open={isGuidedPlannerOpen}><GuidedPlannerModal /></MountOnFirstOpen>
 

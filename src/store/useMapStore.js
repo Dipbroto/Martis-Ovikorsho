@@ -78,6 +78,7 @@ const useMapStore = create((set, get) => ({
     isContingencyModalOpen: false,
     activeContingency: null,
     isAudioRackOpen: false,
+    isCrewCommsOpen: false,
     sidebarOpen: false,
     sidebarTab: 'guide',
     bottomPanelOpen: false,
@@ -806,6 +807,9 @@ const useMapStore = create((set, get) => ({
   guidedPlannerPairId: null, // site to preselect when the guided planner opens
   isProfileModalOpen: false,
   isAresCopilotOpen: false,
+  isCrewCommsOpen: false,
+  activeCommsFriend: null,
+  unreadCommsCount: 0,
   
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
@@ -816,6 +820,9 @@ const useMapStore = create((set, get) => ({
   setAresCopilotOpen: (val) => set((state) => ({
     isAresCopilotOpen: typeof val === 'boolean' ? val : !state.isAresCopilotOpen
   })),
+  setCrewCommsOpen: (val) => set({ isCrewCommsOpen: val }),
+  setActiveCommsFriend: (friend) => set({ activeCommsFriend: friend }),
+  setUnreadCommsCount: (count) => set({ unreadCommsCount: count }),
 }));
 
 export const routeSignature = (waypoints) => (waypoints || []).map((w) => w.id).join('|');

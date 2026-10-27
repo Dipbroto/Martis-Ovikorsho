@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Menu, X, Volume2, VolumeX, User, Maximize, Minimize, Database, Compass } from 'lucide-react';
+import { Menu, X, Volume2, VolumeX, User, Maximize, Minimize, Database, Compass, Radio } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
@@ -33,6 +33,9 @@ export default function TopBar({ onSelectTab }) {
   const setProfileModalOpen = useMapStore((s) => s.setProfileModalOpen);
   const isAresCopilotOpen = useMapStore((s) => s.isAresCopilotOpen);
   const setAresCopilotOpen = useMapStore((s) => s.setAresCopilotOpen);
+  const isCrewCommsOpen = useMapStore((s) => s.isCrewCommsOpen);
+  const setCrewCommsOpen = useMapStore((s) => s.setCrewCommsOpen);
+  const unreadCommsCount = useMapStore((s) => s.unreadCommsCount);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -168,6 +171,26 @@ export default function TopBar({ onSelectTab }) {
               {isAudioActive ? <Volume2 className="w-[18px] h-[18px] text-[#ff7b4d]" /> : <VolumeX className="w-[18px] h-[18px]" />}
             </button>
 
+            <button
+              onClick={() => {
+                marsAudio.playUiClick?.();
+                if (!user) {
+                  setAuthModalOpen(true);
+                } else {
+                  setCrewCommsOpen(!isCrewCommsOpen);
+                }
+              }}
+              className={`${iconBtn} relative ${isCrewCommsOpen ? 'bg-cyan-950/70 border border-cyan-500/50 text-cyan-300' : ''}`}
+              title={user ? 'Crew Comms: Astronaut Radio, Friends & Direct Messages' : 'Sign in to access Crew Comms'}
+            >
+              <Radio className="w-[18px] h-[18px]" />
+              {unreadCommsCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-cyan-400 text-black text-[10px] font-bold font-mono flex items-center justify-center animate-pulse">
+                  {unreadCommsCount}
+                </span>
+              )}
+            </button>
+
             <button onClick={() => (user ? setProfileModalOpen(true) : setAuthModalOpen(true))} className={`${iconBtn} border border-white/15`} title={user ? (profile?.username || user?.email) : 'Sign in to save missions'}>
               <User className="w-4 h-4" />
             </button>
@@ -213,6 +236,28 @@ export default function TopBar({ onSelectTab }) {
               <span>Eva (AI Assistant)</span>
             </button>
             <button onClick={() => { marsAudio.playUiClick?.(); setAudioRackOpen(true); setMobileMenuOpen(false); }} className="flex items-center gap-2.5 px-3 py-3 rounded-lg text-base text-zinc-300 hover:bg-white/[0.05] transition-colors"><Volume2 className="w-5 h-5 text-[#ff7b4d]" /><span>Martian Audio & NASA Downlink</span></button>
+            <button
+              onClick={() => {
+                marsAudio.playUiClick?.();
+                if (!user) {
+                  setAuthModalOpen(true);
+                } else {
+                  setCrewCommsOpen(true);
+                }
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center justify-between px-3 py-3 rounded-lg text-base text-zinc-300 hover:bg-white/[0.05] transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <Radio className="w-5 h-5 text-cyan-400" />
+                <span>Crew Comms (P2P Radio)</span>
+              </div>
+              {unreadCommsCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-cyan-400 text-black text-xs font-bold font-mono">
+                  {unreadCommsCount}
+                </span>
+              )}
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
