@@ -11,6 +11,7 @@ import { marsDistance } from '../utils/marsUtils';
 // finds, each pinned to the spot on the route where it happens.
 
 const fieldAt = (grid, field, lat, lon) => {
+  if (!grid || !field) return null;
   const { x, y } = latLonToPixel(grid, lat, lon);
   const c = Math.floor(x), r = Math.floor(y);
   if (c < 0 || r < 0 || c >= grid.width || r >= grid.height) return null;

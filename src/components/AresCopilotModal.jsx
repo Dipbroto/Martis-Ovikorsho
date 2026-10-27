@@ -43,6 +43,8 @@ export default function AresCopilotModal() {
   const setProfileModalOpen = useMapStore(s => s.setProfileModalOpen);
   const setActiveTab = useMapStore(s => s.setActiveTab);
   const setAudioRackOpen = useMapStore(s => s.setAudioRackOpen);
+  const copilotPrefillQuery = useMapStore(s => s.copilotPrefillQuery);
+  const setCopilotPrefillQuery = useMapStore(s => s.setCopilotPrefillQuery);
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -359,6 +361,15 @@ export default function AresCopilotModal() {
       setIsProcessing(false);
     }
   };
+
+  // Auto-send query if launched with prefilled request from Eva's proactive callout
+  useEffect(() => {
+    if (isAresCopilotOpen && copilotPrefillQuery) {
+      const q = copilotPrefillQuery;
+      setCopilotPrefillQuery(null);
+      handleSend(q);
+    }
+  }, [isAresCopilotOpen, copilotPrefillQuery]);
 
   const handleClearHistory = async () => {
     marsAudio.playUiClick?.();

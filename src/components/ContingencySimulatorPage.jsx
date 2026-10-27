@@ -530,8 +530,9 @@ export default function ContingencySimulatorPage() {
     const t = setTimeout(async () => {
       try {
         const { assumptions, blocked } = scenarioSetup(scenarioId, value, points, along, fraction);
-        const { grid, field } = await computeReturnField({ lat: points[0][0], lon: points[0][1] }, { maxCostJ: lifeSupportBudgetJ() * 1.05, assumptions, blocked });
-        if (id !== profId.current) return;
+        const res = await computeReturnField({ lat: points[0][0], lon: points[0][1] }, { maxCostJ: lifeSupportBudgetJ() * 1.05, assumptions, blocked });
+        if (id !== profId.current || !res || !res.grid) return;
+        const { grid, field } = res;
         const homeCostAt = (lat, lon) => {
           const { x, y } = latLonToPixel(grid, lat, lon);
           const c = Math.floor(x), r = Math.floor(y);

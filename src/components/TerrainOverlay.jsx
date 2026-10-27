@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { ImageOverlay } from 'react-leaflet';
 import {
   Mountain, Undo2, Radio, AlertTriangle, ShieldCheck,
-  CheckCircle2, AlertOctagon, TrendingUp, Wifi, WifiOff, MapPin
+  CheckCircle2, AlertOctagon, TrendingUp, Wifi, WifiOff, MapPin,
+  Gauge, RefreshCw, Zap, ShieldAlert
 } from 'lucide-react';
+import { marsAudio } from '../utils/audioSynthesizer';
 import useMapStore from '../store/useMapStore';
 import DockCard from './dock/DockCard';
 import { computeReturnField, computeSlopeField, computeViewshed, isCoarseGrid } from '../terrain/terrainClient';
@@ -26,9 +28,9 @@ export const TERRAIN_OVERLAYS = {
   return: {
     label: 'RETURN',
     icon: Undo2,
-    title: 'Walkback Return Margin',
-    subtitle: 'Point of no return & life-support safety range',
-    accent: '#10b981',
+    title: 'Point of No Return',
+    subtitle: 'Safe walkback limit & life-support safety range',
+    accent: '#ff2d55',
   },
   comms: {
     label: 'COMMS',
@@ -43,6 +45,7 @@ const ANTENNA_HEIGHT_M = 10;
 const RECEIVER_HEIGHT_M = 2;
 
 const fieldValueAt = (grid, field, lat, lon) => {
+  if (!grid || !field) return null;
   const { x, y } = latLonToPixel(grid, lat, lon);
   const col = Math.floor(x);
   const row = Math.floor(y);
@@ -62,6 +65,8 @@ export function TerrainOverlayLayer() {
   const contingencyMultiplier = useMapStore((s) => s.contingencyDetails?.o2MarginMultiplier ?? 1);
   const contingencyTitle = useMapStore((s) => s.contingencyDetails?.title ?? null);
   const setStatus = useMapStore((s) => s.setTerrainOverlayStatus);
+  const isochroneO2Hours = useMapStore((s) => s.isochroneO2Hours);
+  const isochroneLeakMultiplier = useMapStore((s) => s.isochroneLeakMultiplier);
 
   // Measures with respect to marked location if the user marked one, otherwise first waypoint or map centre
   const base = markedLocation
@@ -82,7 +87,7 @@ export function TerrainOverlayLayer() {
     const run = mode === 'slope'
       ? computeSlopeField(anchor)
       : mode === 'return'
-        ? computeReturnField(anchor, { maxCostJ: lifeSupportBudgetJ() })
+        ? computeReturnField(anchor, { maxCostJ: lifeSupportBudgetJ({ ...EVA_ASSUMPTIONS, lifeSupportHours: 12 }) })
         : computeViewshed(anchor, { observerHeight: ANTENNA_HEIGHT_M, targetHeight: RECEIVER_HEIGHT_M });
     run
       .then(({ grid, field }) => !cancelled && setAnalysis({ mode, baseKey, grid, field }))
@@ -100,7 +105,7 @@ export function TerrainOverlayLayer() {
   useEffect(() => {
     if (mode !== 'return' || !here) return undefined;
     let cancelled = false;
-    computeReturnField({ lat: here.lat, lon: here.lon }, { maxCostJ: lifeSupportBudgetJ(), direction: 'from' })
+    computeReturnField({ lat: here.lat, lon: here.lon }, { maxCostJ: lifeSupportBudgetJ({ ...EVA_ASSUMPTIONS, lifeSupportHours: 12 }), direction: 'from' })
       .then(({ field }) => !cancelled && setOutbound({ key: `${baseKey}|${hereKey}`, field }))
       .catch(() => !cancelled && setOutbound(null));
     return () => { cancelled = true; };
@@ -111,16 +116,33 @@ export function TerrainOverlayLayer() {
   // Energy already spent on the traverse, from the simulated progress along the route
   const profile = useMemo(() => routeEnergyProfile(waypoints), [waypoints, terrainVersion]); // eslint-disable-line react-hooks/exhaustive-deps
   const progressStep = Math.round((roverProgress || 0) * 50) / 50;
-  const budgetJ = usableBudgetJ(EVA_ASSUMPTIONS, contingencyMultiplier);
+  const activeAssumptions = useMemo(() => ({
+    ...EVA_ASSUMPTIONS,
+    lifeSupportHours: isochroneO2Hours,
+  }), [isochroneO2Hours]);
+  const combinedMultiplier = contingencyMultiplier * isochroneLeakMultiplier;
+  const budgetJ = usableBudgetJ(activeAssumptions, combinedMultiplier);
   const spentJ = energyAtFraction(profile, progressStep);
-  const remainingJ = budgetJ - spentJ;
+  const remainingJ = Math.max(0, budgetJ - spentJ);
 
   // Report the return cost from the traverse position, or from the route's end before it starts
-  const current = analysis?.mode === 'return' && analysis.grid
+  const current = analysis?.mode === 'return' && analysis?.grid
     ? (roverPosition && roverProgress > 0 ? roverPosition : waypoints[waypoints.length - 1] || base)
     : null;
   const outboundReady = outbound && outbound.key === `${baseKey}|${hereKey}`;
-  const returnHereJ = current ? fieldValueAt(analysis.grid, analysis.field, current.lat, current.lon) : null;
+  const returnHereJ = current && analysis?.grid && analysis?.field
+    ? fieldValueAt(analysis.grid, analysis.field, current.lat, current.lon)
+    : null;
+  const isBreached = Boolean(
+    analysis?.grid && analysis?.field && (
+      (returnHereJ !== null && (returnHereJ > remainingJ || !Number.isFinite(returnHereJ))) ||
+      (waypoints.length > 1 && waypoints.some((wp) => {
+        const c = fieldValueAt(analysis.grid, analysis.field, wp.lat, wp.lon);
+        return c !== null && (c > remainingJ || !Number.isFinite(c));
+      }))
+    )
+  );
+  const breachDeltaJ = returnHereJ !== null && returnHereJ > remainingJ ? (returnHereJ - remainingJ) : 0;
 
   const ready = analysis && !analysis.error && analysis.mode === mode && analysis.baseKey === baseKey;
   const coarse = ready && isCoarseGrid(analysis.grid);
@@ -169,10 +191,14 @@ export function TerrainOverlayLayer() {
       returnHereJ,
       currentName: current?.name || (roverPosition ? 'Current position' : null),
       contingencyTitle: contingencyMultiplier < 1 ? contingencyTitle : null,
+      isochroneO2Hours,
+      isochroneLeakMultiplier,
+      isBreached,
+      breachDeltaJ,
     });
-  }, [mode, base?.name, base?.isMarked, base?.lat, base?.lon, analysis, ready, coarse, budgetJ, spentJ, remainingJ, returnHereJ]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, base?.name, base?.isMarked, base?.lat, base?.lon, analysis, ready, coarse, budgetJ, spentJ, remainingJ, returnHereJ, isochroneO2Hours, isochroneLeakMultiplier, isBreached, breachDeltaJ]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!url) return null;
+  if (!url || !analysis?.grid) return null;
   const g = analysis.grid;
   return (
     <ImageOverlay
@@ -191,6 +217,12 @@ const hours = (j) => `${energyToHours(j).toFixed(1)} h`;
 export function TerrainOverlayPanel() {
   const status = useMapStore((s) => s.terrainOverlayStatus);
   const setTerrainOverlay = useMapStore((s) => s.setTerrainOverlay);
+  const isochroneO2Hours = useMapStore((s) => s.isochroneO2Hours);
+  const isochroneLeakMultiplier = useMapStore((s) => s.isochroneLeakMultiplier);
+  const setIsochroneO2Hours = useMapStore((s) => s.setIsochroneO2Hours);
+  const setIsochroneLeakMultiplier = useMapStore((s) => s.setIsochroneLeakMultiplier);
+  const resetIsochroneSimulation = useMapStore((s) => s.resetIsochroneSimulation);
+  const executeEmergencyReturn = useMapStore((s) => s.executeEmergencyReturn);
   if (!status) return null;
 
   const { mode } = status;
@@ -397,11 +429,104 @@ export function TerrainOverlayPanel() {
       </div>
     );
   } else {
-    // Return Range
+    // Return Range (Dynamic Isochrone)
     const returnHere = status.returnHereJ;
-    const safe = returnHere !== null && returnHere <= status.remainingJ;
+    const isBreached = status.isBreached || (returnHere !== null && returnHere > status.remainingJ);
+    const safe = !isBreached && returnHere !== null && returnHere <= status.remainingJ;
     body = (
       <div className="space-y-3 font-sans">
+        {/* Tactical O2 Slider */}
+        <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.07] space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5 text-zinc-300 font-mono text-[11px] font-semibold">
+              <Gauge className="w-3.5 h-3.5 text-cyber-cyan" />
+              SUIT O₂ TANK DURATION
+            </span>
+            <span className="text-xs font-mono font-bold text-cyber-cyan bg-cyber-cyan/15 px-2 py-0.5 rounded border border-cyber-cyan/30">
+              {status.isochroneO2Hours?.toFixed(1) || '8.0'} h PLSS
+            </span>
+          </div>
+          <input
+            type="range"
+            min="2"
+            max="10"
+            step="0.5"
+            value={status.isochroneO2Hours || 8}
+            onChange={(e) => {
+              setIsochroneO2Hours(Number(e.target.value));
+              marsAudio.playQuindarTone?.(false);
+            }}
+            className="w-full accent-[#00FFCC] cursor-pointer h-1.5 bg-white/10 rounded-lg appearance-none"
+          />
+          <div className="flex justify-between text-[9px] text-zinc-400 font-mono px-0.5">
+            <span>2.0 h (Emergency)</span>
+            <span>6.0 h</span>
+            <span className="text-zinc-200">8.0 h (NASA Nominal)</span>
+            <span>10.0 h (Max)</span>
+          </div>
+        </div>
+
+        {/* Metabolic Stress & Suit Breach Simulation Toggles */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-mono font-semibold px-0.5 flex items-center justify-between">
+            <span>Metabolic Stress / Breach Simulation</span>
+            <button
+              onClick={() => {
+                resetIsochroneSimulation();
+                marsAudio.playQuindarTone?.(false);
+              }}
+              className="text-[9px] text-zinc-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
+              title="Reset simulation parameters"
+            >
+              <RefreshCw className="w-2.5 h-2.5" /> Reset
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              onClick={() => {
+                setIsochroneLeakMultiplier(1.0);
+                marsAudio.playQuindarTone?.(false);
+              }}
+              className={`p-1.5 rounded-lg text-left border transition-all cursor-pointer ${
+                (status.isochroneLeakMultiplier ?? 1.0) === 1.0
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-white shadow-[0_0_8px_rgba(16,185,129,0.2)]'
+                  : 'bg-white/[0.03] border-white/10 text-zinc-400 hover:bg-white/[0.07] hover:text-zinc-200'
+              }`}
+            >
+              <div className="text-[10px] font-bold font-mono">1.0× Nominal</div>
+              <div className="text-[9px] text-zinc-400 leading-tight">Baseline pace</div>
+            </button>
+            <button
+              onClick={() => {
+                setIsochroneLeakMultiplier(0.71);
+                marsAudio.playQuindarTone?.(false);
+              }}
+              className={`p-1.5 rounded-lg text-left border transition-all cursor-pointer ${
+                (status.isochroneLeakMultiplier ?? 1.0) === 0.71
+                  ? 'bg-amber-500/20 border-amber-500/50 text-white shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                  : 'bg-white/[0.03] border-white/10 text-zinc-400 hover:bg-white/[0.07] hover:text-zinc-200'
+              }`}
+            >
+              <div className="text-[10px] font-bold font-mono text-amber-300">1.4× Exertion</div>
+              <div className="text-[9px] text-zinc-400 leading-tight">Steep regolith</div>
+            </button>
+            <button
+              onClick={() => {
+                setIsochroneLeakMultiplier(0.5);
+                marsAudio.playQuindarTone?.(true);
+              }}
+              className={`p-1.5 rounded-lg text-left border transition-all cursor-pointer ${
+                (status.isochroneLeakMultiplier ?? 1.0) === 0.5
+                  ? 'bg-rose-500/25 border-rose-500/60 text-white shadow-[0_0_10px_rgba(244,63,94,0.3)] animate-pulse'
+                  : 'bg-white/[0.03] border-white/10 text-zinc-400 hover:bg-white/[0.07] hover:text-zinc-200'
+              }`}
+            >
+              <div className="text-[10px] font-bold font-mono text-rose-400">0.5× Breach</div>
+              <div className="text-[9px] text-zinc-400 leading-tight">Depressurization</div>
+            </button>
+          </div>
+        </div>
+
         {/* Life Support Budget Cards */}
         <div className="grid grid-cols-3 gap-1.5 text-center font-mono">
           <div className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-2">
@@ -420,32 +545,46 @@ export function TerrainOverlayPanel() {
           </div>
         </div>
 
-        {/* Current Walkback Feasibility Banner */}
-        {returnHere !== null && (
-          <div className={`p-2.5 rounded-xl border flex items-start gap-2.5 ${
-            safe 
-              ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-200' 
-              : 'border-rose-500/50 bg-rose-950/60 text-rose-200 animate-pulse'
-          }`}>
-            <div className={`p-1 rounded-lg shrink-0 ${safe ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
-              {safe ? <ShieldCheck className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+        {/* Current Walkback Feasibility & Emergency Abort Action Banner */}
+        {isBreached ? (
+          <div className="p-3 rounded-xl border border-rose-500/70 bg-rose-950/70 text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.3)] space-y-2.5">
+            <div className="flex items-start gap-2.5">
+              <div className="p-1.5 rounded-lg bg-rose-500/30 text-rose-300 shrink-0 mt-0.5">
+                <AlertTriangle className="w-4 h-4 text-rose-400 animate-pulse" />
+              </div>
+              <div className="text-xs leading-snug">
+                <div className="font-bold text-rose-200">
+                  CRITICAL: POINT OF NO RETURN BREACHED
+                </div>
+                <div className="text-[11px] text-rose-200/90 mt-0.5">
+                  Returning to {status.baseName} requires <strong className="text-white font-mono">{hours(returnHere || 0)}</strong>. Exceeds oxygen capacity by <strong className="text-rose-300 font-mono">{hours(status.breachDeltaJ || 0)}</strong>!
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                executeEmergencyReturn();
+                marsAudio.playQuindarTone?.(true);
+              }}
+              className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-rose-600 to-red-500 hover:from-rose-500 hover:to-red-400 text-white font-bold text-xs font-mono uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(225,29,72,0.4)] cursor-pointer transition-all active:scale-[0.98]"
+            >
+              <Undo2 className="w-4 h-4" />
+              Engage Emergency Return Path
+            </button>
+          </div>
+        ) : returnHere !== null ? (
+          <div className="p-2.5 rounded-xl border border-emerald-500/40 bg-emerald-950/40 text-emerald-200 flex items-start gap-2.5">
+            <div className="p-1 rounded-lg bg-emerald-500/20 text-emerald-300 shrink-0">
+              <ShieldCheck className="w-4 h-4" />
             </div>
             <div className="text-xs leading-snug">
-              {Number.isFinite(returnHere) ? (
-                <div>
-                  <div className="font-semibold mb-0.5">
-                    {safe ? 'Walkback Feasible' : 'CRITICAL: POINT OF NO RETURN'}
-                  </div>
-                  <div className="text-[11px] text-zinc-300">
-                    Returning to {status.baseName} requires <strong className="text-white font-mono">{hours(returnHere)}</strong>. {safe ? 'Within safe life-support margin.' : 'Exceeds oxygen breathing capacity!'}
-                  </div>
-                </div>
-              ) : (
-                <div>No walkable route back to base from this position.</div>
-              )}
+              <div className="font-semibold mb-0.5 text-emerald-100">Walkback Feasible</div>
+              <div className="text-[11px] text-zinc-300">
+                Returning to {status.baseName} requires <strong className="text-white font-mono">{hours(returnHere)}</strong>. Within safe life-support margin (NASA 25% reserve preserved).
+              </div>
             </div>
           </div>
-        )}
+        ) : null}
 
         {status.contingencyTitle && (
           <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center gap-2">
@@ -458,32 +597,48 @@ export function TerrainOverlayPanel() {
         <div className="space-y-1.5">
           <div className="p-2 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/20 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-              <span className="text-zinc-200 font-medium">Safe Round-Trip Zone</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+              <span className="text-zinc-200 font-medium">Safe Return Zone</span>
             </div>
-            <span className="text-[10px] text-emerald-300 font-mono">100% Returnable</span>
+            <span className="text-[10px] text-emerald-300 font-mono">&lt; 65% Budget</span>
           </div>
 
           <div className="p-2 rounded-xl bg-amber-500/[0.06] border border-amber-500/20 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-              <span className="text-zinc-200 font-medium">Turn-Back Threshold (Last 15% Margin)</span>
+              <span className="text-zinc-200 font-medium">Turn-Back Margin</span>
             </div>
-            <span className="text-[10px] text-amber-300 font-mono">Turn Back Soon</span>
+            <span className="text-[10px] text-amber-300 font-mono">65% – 82%</span>
           </div>
 
-          <div className="p-2 rounded-xl bg-black/60 border border-rose-500/30 flex items-center justify-between text-xs">
+          <div className="p-2 rounded-xl bg-rose-500/[0.08] border border-rose-500/30 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-              <span className="text-zinc-200 font-medium">Beyond Point of No Return</span>
+              <span className="text-zinc-200 font-medium">Critical Danger Band</span>
             </div>
-            <span className="text-[10px] text-rose-300 font-mono">Unrecoverable</span>
+            <span className="text-[10px] text-rose-300 font-mono">82% – 96.5%</span>
+          </div>
+
+          <div className="p-2 rounded-xl bg-rose-950/60 border border-rose-500/60 flex items-center justify-between text-xs shadow-[0_0_10px_rgba(244,63,94,0.15)]">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ff2d55] ring-2 ring-rose-400/80 animate-ping" />
+              <span className="text-white font-bold">Point of No Return Line</span>
+            </div>
+            <span className="text-[10px] text-rose-300 font-mono font-bold">100% Boundary</span>
+          </div>
+
+          <div className="p-2 rounded-xl bg-black/60 border border-white/[0.06] flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-zinc-700" />
+              <span className="text-zinc-400 font-medium">Fatal Martian Void</span>
+            </div>
+            <span className="text-[10px] text-zinc-500 font-mono">Unrecoverable</span>
           </div>
         </div>
 
         {/* Footer */}
         <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-400">
-          <span>{EVA_ASSUMPTIONS.lifeSupportHours} h life support · 25% emergency reserve</span>
+          <span>{status.isochroneO2Hours || 8} h life support · 25% NASA reserve</span>
           <ProvenanceBadge type="DERIVED" size="xs" detail="HRSC-MOLA" />
         </div>
       </div>

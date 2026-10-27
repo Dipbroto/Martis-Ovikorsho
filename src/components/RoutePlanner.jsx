@@ -8,7 +8,7 @@ import { expeditionPresets } from '../data/expeditionPresets';
 import { 
   MapPin, Plus, Trash2, Navigation, Clock, ArrowUpDown, Route, 
   Compass, Play, Pause, Cpu, ShieldCheck, Sparkles, Zap, ChevronRight, 
-  FileText, ShieldAlert, CheckCircle2, Info, RotateCcw 
+  FileText, ShieldAlert, CheckCircle2, Info, RotateCcw, Footprints 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AUTONOMOUS_TARGET_PAIRS, generateAutonomousTraverse } from '../utils/autonomousRouter';
@@ -53,7 +53,7 @@ export default function RoutePlanner() {
     driveTargetWaypointId,
     setDriveTargetWaypointId,
     routeGeometry,
-  } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, terrainVersion: s.terrainVersion, isPlacingWaypoint: s.isPlacingWaypoint, setPlacingWaypoint: s.setPlacingWaypoint, removeWaypoint: s.removeWaypoint, undoLastPoint: s.undoLastPoint, setWaypoints: s.setWaypoints, updateWaypoint: s.updateWaypoint, clearWaypoints: s.clearWaypoints, loadExpeditionPreset: s.loadExpeditionPreset, activePresetId: s.activePresetId, setEVASimulating: s.setEVASimulating, setFlightPlanOpen: s.setFlightPlanOpen, setContingencyModalOpen: s.setContingencyModalOpen, activeContingency: s.activeContingency, setMapCenter: s.setMapCenter, setMapZoom: s.setMapZoom, selectedWaypointId: s.selectedWaypointId, setSelectedWaypoint: s.setSelectedWaypoint, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, driveTargetWaypointId: s.driveTargetWaypointId, setDriveTargetWaypointId: s.setDriveTargetWaypointId, routeGeometry: s.routeGeometry })));
+  } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, terrainVersion: s.terrainVersion, isPlacingWaypoint: s.isPlacingWaypoint, setPlacingWaypoint: s.setPlacingWaypoint, removeWaypoint: s.removeWaypoint, undoLastPoint: s.undoLastPoint, setWaypoints: s.setWaypoints, updateWaypoint: s.updateWaypoint, clearWaypoints: s.clearWaypoints, loadExpeditionPreset: s.loadExpeditionPreset, activePresetId: s.activePresetId, setEVASimulating: s.setEVASimulating, setFlightPlanOpen: s.setFlightPlanOpen, setContingencyModalOpen: s.setContingencyModalOpen, activeContingency: s.activeContingency, setMapCenter: s.setMapCenter, setMapZoom: s.setMapZoom, selectedWaypointId: s.selectedWaypointId, setSelectedWaypoint: s.setSelectedWaypoint, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, driveTargetWaypointId: s.driveTargetWaypointId, setDriveTargetWaypointId: s.setDriveTargetWaypointId, routeGeometry: s.routeGeometry, openStreetView: s.openStreetView })));
 
   const [activeTab, setActiveTab] = useState('manual'); // 'manual' | 'auto'
   const [distance, setDistance] = useState(0);
@@ -444,6 +444,16 @@ export default function RoutePlanner() {
                           </div>
                         </div>
 
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openStreetView(wp);
+                          }}
+                          className="p-1.5 rounded-md text-[#ff9a4d] hover:text-[#ffc5ad] hover:bg-space-700/80 border border-[#ff7b4d]/30 transition-all shrink-0 cursor-pointer"
+                          title={`Surface 3D at ${wp.name || 'Waypoint ' + (index + 1)} (NASA Engine)`}
+                        >
+                          <Footprints className="w-3.5 h-3.5" />
+                        </button>
                         {/* Quick Drive Rover to this Spot */}
                         {index > 0 && (
                           <button
@@ -631,7 +641,7 @@ export default function RoutePlanner() {
                   <Info className="w-3.5 h-3.5 text-mars-400" />
                   <span>"Why This Route?" Decision Support</span>
                 </span>
-                <ProvenanceBadge type="DERIVED" size="xs" detail={generatedRouteResult.grid.metersPerPixel > 1000 ? "A* · global MOLA" : "A* · 200 m DEM"} />
+                <ProvenanceBadge type="DERIVED" size="xs" detail={generatedRouteResult?.grid?.metersPerPixel > 1000 ? "A* · global MOLA" : "A* · 200 m DEM"} />
               </div>
 
               <p className="text-[11px] text-space-200 leading-relaxed font-sans">

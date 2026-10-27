@@ -35,7 +35,7 @@ export default function WalkPanel() {
     driveTarget: st.driveTargetWaypointId, setDriveTarget: st.setDriveTargetWaypointId,
     clearWaypoints: st.clearWaypoints, setRouteGeometry: st.setRouteGeometry, setDraft: st.setRouteDraft, setEditing: st.setRouteEditing,
     setScan: st.setRouteScanOpen, scanOpen: st.routeScanOpen, setEVA: st.setEVASimulating, eva: st.isEVASimulating, setPlan: st.setFlightPlanOpen,
-    setWhatIf: st.setContingencyModalOpen, draftMode: st.routeDraft.mode, startLtst: st.walkStartLtst, setStartLtst: st.setWalkStartLtst, mode: st.travelMode, setMode: st.setTravelMode,
+    setWhatIf: st.setContingencyModalOpen, openStreetView: st.openStreetView, draftMode: st.routeDraft.mode, startLtst: st.walkStartLtst, setStartLtst: st.setWalkStartLtst, mode: st.travelMode, setMode: st.setTravelMode,
   })));
   const { waypoints, routeGeometry, progress, driving } = s;
   const planned = !!routeGeometry && routeGeometry.signature === routeSignature(waypoints);
@@ -272,6 +272,7 @@ export default function WalkPanel() {
 
       <div className="mt-3 grid grid-cols-2 gap-1.5">
         {[
+          { label: 'Surface 3D', icon: Footprints, act: () => s.openStreetView(waypoints[Math.min(waypoints.length - 1, Math.max(0, Math.floor(progress * (waypoints.length - 1))))] || waypoints[0]) },
           { label: 'Safety scan', icon: Radar, on: s.scanOpen, act: () => s.setScan(!s.scanOpen) },
           { label: 'Helmet view', icon: Glasses, on: s.eva, act: () => s.setEVA(!s.eva) },
           { label: 'Briefing', icon: FileText, act: () => s.setPlan(true) },

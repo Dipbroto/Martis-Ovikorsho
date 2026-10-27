@@ -1,3 +1,4 @@
+import { AlertTriangle, Undo2, X, Footprints } from 'lucide-react';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MapContainer, Pane, TileLayer, useMap, useMapEvents, CircleMarker, Popup, Polyline, Circle, Marker, ZoomControl, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
@@ -673,7 +674,15 @@ const MarsMap = () => {
   const clearMarkedLocation = useMapStore((s) => s.clearMarkedLocation);
   const isMarkingLocation = useMapStore((s) => s.isMarkingLocation);
   const setRouteDraft = useMapStore((s) => s.setRouteDraft);
+  const setRoutePlanOpen = useMapStore((s) => s.setRoutePlanOpen);
+  const openStreetView = useMapStore((s) => s.openStreetView);
   const setDockMin = useMapStore((s) => s.setDockMin);
+  const terrainOverlay = useMapStore((s) => s.terrainOverlay);
+  const terrainOverlayStatus = useMapStore((s) => s.terrainOverlayStatus);
+  const isochroneBreachDismissed = useMapStore((s) => s.isochroneBreachDismissed);
+  const setIsochroneBreachDismissed = useMapStore((s) => s.setIsochroneBreachDismissed);
+  const executeEmergencyReturn = useMapStore((s) => s.executeEmergencyReturn);
+  const isBreached = terrainOverlay === 'return' && terrainOverlayStatus?.isBreached && !isochroneBreachDismissed;
 
   // Keyboard shortcuts: Ctrl+Z undo, Backspace/Delete removes the selected waypoint (Esc is in useEscapeBack)
   useEffect(() => {
@@ -868,6 +877,7 @@ const MarsMap = () => {
                   <button
                     onClick={() => {
                       setRouteDraft({ start: { name: markedLocation.name || 'Marked Station', lat: markedLocation.lat, lon: markedLocation.lon, elevation: markedLocation.elevation } });
+                      setRoutePlanOpen(true);
                       setDockMin('route-plan', false);
                     }}
                     className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded text-[10px] font-bold cursor-pointer transition-colors"
@@ -954,6 +964,30 @@ const MarsMap = () => {
                 {i === 0 ? 'Base' : (wp.name || 'Objective').slice(0, 32)}
               </Tooltip>
             )}
+            <Popup className="mars-telemetry-popup">
+              <div className="font-mono text-xs space-y-1.5 p-1 min-w-[200px]">
+                <div className="flex items-center justify-between border-b border-white/10 pb-1">
+                  <span className="font-bold text-white flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-sky-400" />
+                    {wp.name || `Waypoint ${i + 1}`}
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold">
+                    STATION #{i + 1}
+                  </span>
+                </div>
+                <div className="text-[11px] text-zinc-300 space-y-0.5">
+                  <div>Elevation: <span className="text-white font-semibold">{Math.round(wp.elevation ?? 0).toLocaleString()} m</span></div>
+                  <div>Coords: <span className="text-zinc-400">{wp.lat.toFixed(3)}°, {wp.lon.toFixed(3)}°</span></div>
+                </div>
+                <button
+                  onClick={() => openStreetView(wp)}
+                  className="w-full mt-2 py-1.5 px-2 bg-gradient-to-r from-[#ff7b4d] to-[#ff9a4d] hover:brightness-110 text-white font-bold text-[11px] rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow transition-all active:scale-95"
+                >
+                  <Footprints className="w-3.5 h-3.5" />
+                  Surface 3D (NASA Engine)
+                </button>
+              </div>
+            </Popup>
           </CircleMarker>
         ))}
 
@@ -976,6 +1010,47 @@ const MarsMap = () => {
         {/* Animated Driving Rover Simulator */}
         <RoverSimulator waypoints={waypoints} />
       </MapContainer>
+
+      {/* Point of No Return Dynamic Breach Tactical HUD Banner */}
+      {isBreached && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[440] w-[94%] max-w-xl bg-rose-950/90 border-2 border-rose-500/80 rounded-2xl p-3 sm:p-3.5 shadow-[0_0_30px_rgba(244,63,94,0.4)] backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 animate-pulse">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-rose-500/30 text-rose-300 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(244,63,94,0.5)]">
+              <AlertTriangle className="w-5 h-5 text-rose-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-rose-100 uppercase tracking-wider flex items-center gap-2">
+                <span>Point of No Return Breached</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-300 font-mono font-bold">
+                  CRITICAL
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-300 truncate mt-0.5">
+                Route exceeds safe life-support walkback envelope to {terrainOverlayStatus?.baseName || 'Base'}.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+            <button
+              onClick={() => {
+                executeEmergencyReturn();
+                marsAudio.playQuindarTone?.(true);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-red-500 hover:from-rose-500 hover:to-red-400 text-white font-bold text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 shadow-[0_2px_10px_rgba(225,29,72,0.4)] cursor-pointer transition-all active:scale-95"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              Emergency Return
+            </button>
+            <button
+              onClick={() => setIsochroneBreachDismissed(true)}
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 cursor-pointer transition-colors"
+              title="Dismiss alert banner"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Everything beside the map: places, route and walk, measuring, overlays, marsquakes */}
       <MapDock />

@@ -2,17 +2,18 @@ import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Globe, Crosshair, Grid, Shield, Ruler, Play, Pause, ChevronDown, ChevronUp, Check,
-  Layers, SlidersHorizontal, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints, MapPin,
+  Layers, SlidersHorizontal, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints, MapPin, Camera, Rocket,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../store/useMapStore';
 import useDismiss from '../utils/useDismiss';
 import { marsAudio } from '../utils/audioSynthesizer';
+import { getElevation } from '../utils/elevationService';
 
 const click = () => marsAudio.playQuindarTone?.(false);
 
 const CHECKS = [
-  { key: 'return', label: 'Return range', short: 'Return', icon: Undo2, hint: 'Where you can walk to and still get back to base on the life support you have left' },
+  { key: 'return', label: 'Point of no return', short: 'Return', icon: Undo2, hint: 'Where you can walk to and still get back to base on the life support you have left' },
   { key: 'slope', label: 'Slope hazard', short: 'Slope', icon: Mountain, hint: 'Steep ground that is slow, tiring or impassable on foot' },
   { key: 'comms', label: 'Radio coverage', short: 'Radio', icon: Radio, hint: 'Where you keep line of sight to the base antenna' },
 ];
@@ -49,7 +50,17 @@ function Menu({ label, icon: Icon, badge, children }) {
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && pos && createPortal(
-        <div ref={menuRef} role="menu" style={{ top: pos.top, left: pos.left }} className="ui-menu fixed w-72 max-w-[calc(100vw-24px)] rounded-xl p-1.5 z-[460]" onClick={() => setOpen(false)}>
+        <div
+          ref={menuRef}
+          role="menu"
+          style={{
+            top: pos.top,
+            left: pos.left,
+            maxHeight: `calc(100vh - ${pos.top + 16}px)`,
+          }}
+          className="ui-menu fixed w-72 max-w-[calc(100vw-24px)] rounded-xl p-1.5 z-[460] overflow-y-auto overscroll-contain shadow-2xl"
+          onClick={() => setOpen(false)}
+        >
           {children}
         </div>,
         document.body,
@@ -96,7 +107,7 @@ export default function MapToolbar() {
     routeScanOpen: st.routeScanOpen, setRouteScanOpen: st.setRouteScanOpen,
     quakeMode: st.quakeMode, setQuakeMode: st.setQuakeMode,
     collapsed: st.toolbarCollapsed, setCollapsed: st.setToolbarCollapsed,
-    setDockMin: st.setDockMin, setRouteEditing: st.setRouteEditing, setPickTarget: st.setPickTarget,
+    setDockMin: st.setDockMin, setRouteEditing: st.setRouteEditing, setPickTarget: st.setPickTarget, setRoutePlanOpen: st.setRoutePlanOpen, isStreetViewOpen: st.isStreetViewOpen, openStreetView: st.openStreetView, viewCenter: st.viewCenter,
     markedLocation: st.markedLocation,
     isMarkingLocation: st.isMarkingLocation,
     setIsMarkingLocation: st.setIsMarkingLocation,
@@ -117,7 +128,7 @@ export default function MapToolbar() {
   // The one big button: plan a walk, or walk the planned one
   const primary = () => {
     ensure2d();
-    if (!hasRoute) { s.setRouteEditing(false); s.setDockMin('route-plan', false); return; }
+    if (!hasRoute) { s.setRouteEditing(false); s.setRoutePlanOpen(true); s.setDockMin('route-plan', false); return; }
     s.setDockMin('route', false);
     if (s.isRoverDriving) { s.setRoverDriving(false); return; }
     if (atEnd) s.setRoverProgress(0);
@@ -130,7 +141,7 @@ export default function MapToolbar() {
     click();
   };
 
-  const withRoute = (fn) => () => { if (hasRoute) fn(); else { ensure2d(); s.setDockMin('route-plan', false); } };
+  const withRoute = (fn) => () => { if (hasRoute) fn(); else { ensure2d(); s.setRoutePlanOpen(true); s.setDockMin('route-plan', false); } };
 
   const viewBtn = (id, label) => (
     <button
@@ -187,15 +198,24 @@ export default function MapToolbar() {
                 <div className="flex items-center gap-0.5 bg-white/[0.05] rounded-lg p-0.5 shrink-0" role="group" aria-label="Survival checks">
                   {CHECKS.map(({ key, short, icon: Icon, hint }) => {
                     const on = s.terrainOverlay === key;
+                    const isReturn = key === 'return';
                     return (
                       <button
                         key={key}
                         onClick={() => { s.setTerrainOverlay(key); click(); }}
                         aria-pressed={on}
                         title={hint}
-                        className={`h-8 px-2.5 rounded-md flex items-center gap-1.5 text-sm font-medium transition-colors cursor-pointer ${on ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/50' : 'text-zinc-300 hover:text-white'}`}
+                        className={`h-8 px-2.5 rounded-md flex items-center gap-1.5 text-sm font-medium transition-all cursor-pointer ${
+                          on
+                            ? isReturn
+                              ? 'bg-rose-500/25 text-rose-200 ring-1 ring-rose-400/80 shadow-[0_0_12px_rgba(244,63,94,0.35)] font-semibold'
+                              : 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/50'
+                            : isReturn
+                              ? 'text-rose-300 hover:text-white hover:bg-rose-500/10'
+                              : 'text-zinc-300 hover:text-white'
+                        }`}
                       >
-                        <Icon className="w-4 h-4" />
+                        <Icon className={`w-4 h-4 ${isReturn && on ? 'text-rose-400 animate-pulse' : ''}`} />
                         <span className="hidden sm:inline">{short}</span>
                       </button>
                     );
@@ -221,6 +241,23 @@ export default function MapToolbar() {
             )}
 
             <Menu label="Tools" icon={SlidersHorizontal}>
+              <Item
+                icon={Rocket}
+                label="Martian surface 3D (NASA JPL Engine)"
+                hint="Explore Mars surface in 3D: official NASA JPL Perseverance & Curiosity rover simulation"
+                active={s.isStreetViewOpen}
+                onSelect={() => {
+                  ensure2d();
+                  const lat = (s.viewCenter && s.viewCenter[0]) || s.mapCenter[0] || 18.4447;
+                  const lon = (s.viewCenter && s.viewCenter[1]) || s.mapCenter[1] || 77.4508;
+                  s.openStreetView(s.markedLocation || {
+                    name: 'Martian Surface Station',
+                    lat,
+                    lon,
+                    elevation: getElevation(lat, lon),
+                  });
+                }}
+              />
               <Item
                 icon={MapPin}
                 label={s.markedLocation ? "Station location marked" : "Mark station location"}

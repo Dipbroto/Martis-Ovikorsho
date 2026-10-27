@@ -18,13 +18,14 @@ const STEPS = [
 /** First-visit card at the top of the dock: the idea in three steps. It goes away for good once closed. */
 export default function MapWelcome() {
   const hasRoute = useMapStore((s) => s.waypoints.length > 0);
+  const routePlanOpen = useMapStore((s) => s.routePlanOpen);
   const [dismissed, setDismissed] = useState(read);
 
   const dismiss = () => {
     setDismissed(true);
     try { localStorage.setItem(KEY, '1'); } catch { /* private mode: it will just show again next visit */ }
   };
-  if (dismissed || hasRoute) return null;
+  if (dismissed || hasRoute || !routePlanOpen) return null;
 
   return (
     <DockCard id="welcome" title="Plan a walk on Mars" subtitle="and make sure you can get back" icon={Compass} accent="#ffa07f" onClose={dismiss}>

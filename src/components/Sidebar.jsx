@@ -40,7 +40,7 @@ export default function Sidebar() {
   const tabs = [
     { id: 'guide', label: 'Guide', title: 'Survival guide', sub: 'Life support, hazards and NASA directives', icon: ShieldCheck },
     { id: 'layers', label: 'Base map', title: 'Map layers', sub: 'Real NASA imagery and data', icon: Layers },
-    { id: 'route', label: 'Route', title: 'Route planner', sub: 'Plan a walk and check the way back', icon: Route },
+    { id: 'route', label: 'Plan Walk', title: 'Plan a walk', sub: 'Plan a walk and check the way back', icon: Route },
     { id: 'poi', label: 'Places', title: 'Places', sub: 'Landing sites, rovers and landmarks', icon: MapPin },
     { id: 'mission', label: 'Mission', title: 'Mission', sub: 'Timeline, supplies and report', icon: Rocket },
   ];
@@ -116,7 +116,13 @@ export default function Sidebar() {
                       key={tab.id}
                       role="tab"
                       aria-selected={isActive}
-                      onClick={() => setSidebarTab(tab.id)}
+                      onClick={() => {
+                      setSidebarTab(tab.id);
+                      if (tab.id === 'route') {
+                        useMapStore.getState().setRoutePlanOpen(true);
+                        useMapStore.getState().setDockMin('route-plan', false);
+                      }
+                    }}
                       className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[11px] font-medium transition-colors cursor-pointer ${isActive ? 'bg-white/[0.12] text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-white/[0.06]'}`}
                     >
                       <Icon className={`w-4 h-4 ${isActive ? 'text-[#ff8a5f]' : ''}`} />
@@ -161,7 +167,13 @@ export default function Sidebar() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setSidebarTab(tab.id)}
+                  onClick={() => {
+                  setSidebarTab(tab.id);
+                  if (tab.id === 'route') {
+                    useMapStore.getState().setRoutePlanOpen(true);
+                    useMapStore.getState().setDockMin('route-plan', false);
+                  }
+                }}
                   className="hidden sm:flex w-10 h-10 rounded-xl items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                   title={tab.title}
                   aria-label={tab.title}

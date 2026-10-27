@@ -58,18 +58,49 @@ export function renderSlopeOverlay(grid, slope) {
  * life-support budget (outbound + return cost); darkens the rest.
  */
 export function renderReturnOverlay(grid, costToBase, costFromHere, remainingJ) {
-  const OUT_OF_REACH = [5, 6, 8, 150];
-  if (remainingJ <= 0) return paint(grid, () => OUT_OF_REACH);
+  // Fatal Martian void: deep obsidian abyss showing unrecoverable ground
+  const FATAL_VOID = [8, 10, 18, 185];
+  if (remainingJ <= 0) return paint(grid, () => FATAL_VOID);
+
   // Unreachable cells (Infinity) are capped just past the budget so edges interpolate cleanly
-  const cap = remainingJ * 1.25;
+  const cap = remainingJ * 1.3;
   const values = new Float32Array(grid.width * grid.height);
-  for (let i = 0; i < values.length; i++) values[i] = Math.min(cap, costFromHere[i] + costToBase[i]);
+  for (let i = 0; i < values.length; i++) {
+    values[i] = Math.min(cap, costFromHere[i] + costToBase[i]);
+  }
+
   return paintSmooth(grid, values, (roundTrip) => {
-    if (!(roundTrip <= remainingJ)) return OUT_OF_REACH;
+    // 1. Outside life-support budget
+    if (roundTrip > remainingJ) {
+      // Outer fringe of the razor-sharp neon crimson contour (100% to 102.5%)
+      if (roundTrip <= remainingJ * 1.025) {
+        return [255, 30, 60, 245];
+      }
+      return FATAL_VOID;
+    }
+
+    // 2. Inside life-support budget: share of budget consumed
     const share = roundTrip / remainingJ;
-    if (share > 0.85) return [245, 158, 11, 200]; // last 15% of margin: the point-of-no-return band
-    return [16, 185, 129, Math.round(85 + 70 * (1 - share))];
-  });
+
+    // Razor-sharp inner edge of the 100% boundary (96.5% to 100%)
+    if (share >= 0.965) {
+      return [255, 30, 60, 255]; // Razor-sharp neon crimson isochrone contour
+    }
+
+    // Critical Danger Band (82% to 96.5%): intense warning red
+    if (share > 0.82) {
+      return [239, 68, 68, 205];
+    }
+
+    // Turn-Back Caution Margin (65% to 82%): tactical amber
+    if (share > 0.65) {
+      return [245, 158, 11, 190];
+    }
+
+    // Safe Return Zone (0% to 65%): luminous emerald green gradient
+    const alpha = Math.round(85 + 85 * (1 - (share / 0.65)));
+    return [16, 185, 129, alpha];
+  }, 3);
 }
 
 export function renderCommsOverlay(grid, visible) {

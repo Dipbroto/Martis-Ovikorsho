@@ -193,8 +193,10 @@ const useMapStore = create((set, get) => ({
   // ========================
   routeDraft: { start: null, end: null, mode: 'safety' }, // start/end: { name, lat, lon, elevation }
   setRouteDraft: (patch) => set((state) => ({ routeDraft: { ...state.routeDraft, ...patch } })),
+  routePlanOpen: false, // true when user opens the "Plan a walk" card in the right dock
+  setRoutePlanOpen: (routePlanOpen) => set({ routePlanOpen }),
   routeEditing: false, // true while the builder is shown even though a route exists
-  setRouteEditing: (routeEditing) => set({ routeEditing }),
+  setRouteEditing: (routeEditing) => set((state) => ({ routeEditing, routePlanOpen: routeEditing ? true : state.routePlanOpen })),
   pickTarget: null, // 'start' | 'end' | null: the next click on the map fills that end of the draft route
   // A click on the map (or on a place) while a point is being picked fills that end of the draft; picking the
   // start moves straight on to the destination.
@@ -249,6 +251,22 @@ const useMapStore = create((set, get) => ({
   setRouteScan: (routeScan) => set({ routeScan }),
   terrainOverlayStatus: null, // written by TerrainOverlayLayer for the legend/status card
   setTerrainOverlayStatus: (terrainOverlayStatus) => set({ terrainOverlayStatus }),
+
+  // Dynamic Isochrone & Point of No Return simulation state
+  isochroneO2Hours: 8, // Life support duration in hours (2 to 10 h)
+  isochroneLeakMultiplier: 1.0, // 1.0 = nominal, 0.71 = high exertion (1.4x burn), 0.5 = suit breach
+  isochroneBreachDismissed: false,
+  setIsochroneO2Hours: (val) => set({ isochroneO2Hours: Math.max(2, Math.min(10, Number(val) || 8)), isochroneBreachDismissed: false }),
+  setIsochroneLeakMultiplier: (val) => set({ isochroneLeakMultiplier: Number(val) || 1.0, isochroneBreachDismissed: false }),
+  setIsochroneBreachDismissed: (val) => set({ isochroneBreachDismissed: !!val }),
+  resetIsochroneSimulation: () => set({ isochroneO2Hours: 8, isochroneLeakMultiplier: 1.0, isochroneBreachDismissed: false }),
+
+  // Eva Proactive Mission Copilot State
+  evaCallout: null, // { id, type: 'critical'|'warning'|'info'|'success', title, text, actionText, actionFn, prefillQuery, timestamp }
+  setEvaCallout: (evaCallout) => set({ evaCallout }),
+  dismissEvaCallout: () => set({ evaCallout: null }),
+  copilotPrefillQuery: null,
+  setCopilotPrefillQuery: (query) => set({ copilotPrefillQuery: query }),
   
   isRulerActive: false,
   rulerPoints: [], // max 2 points [{lat, lon, elevation}]
@@ -363,6 +381,17 @@ const useMapStore = create((set, get) => ({
   clearActivities: () => set({ missionActivities: [] }),
 
   // ========================
+  // MARTIAN STREET VIEW ("ACCESS MARS" HYBRID 360° & 3D WALK)
+  // ========================
+  isStreetViewOpen: false,
+  streetViewLocation: null,
+  openStreetView: (loc) => {
+    set({ isStreetViewOpen: true, streetViewLocation: loc });
+    marsAudio.playQuindarTone?.(true);
+  },
+  closeStreetView: () => set({ isStreetViewOpen: false }),
+
+  // ========================
   // EVA ASTRONAUT HUD & SIMULATION
   // ========================
   isEVASimulating: false,
@@ -474,6 +503,7 @@ const useMapStore = create((set, get) => ({
     sidebarTab: tab,
     sidebarOpen: true,
     isEVASimulating: false,
+    routePlanOpen: tab === 'route' ? true : state.routePlanOpen,
     bottomPanelOpen: (typeof window !== 'undefined' && window.innerWidth < 640) ? false : state.bottomPanelOpen
   })),
   setRightSidebarOpen: (open) => set({ rightSidebarOpen: open }),

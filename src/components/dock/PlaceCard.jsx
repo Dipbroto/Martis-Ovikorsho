@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapPin, Flag, Play, Trash2, Mountain, Rocket } from 'lucide-react';
+import { MapPin, Flag, Play, Trash2, Footprints, Mountain, Rocket } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../../store/useMapStore';
 import DockCard from './DockCard';
@@ -41,9 +41,9 @@ const Fact = ({ label, value }) => (
 export default function PlaceCard() {
   const { selectedPOI, selectedWaypointId, waypoints, clearSelection, setRouteDraft, setRouteEditing, setDockMin, hasRoute, driveTarget, setDriveTarget, setRoverProgress, setRoverDriving, removeWaypoint } = useMapStore(useShallow((s) => ({
     selectedPOI: s.selectedPOI, selectedWaypointId: s.selectedWaypointId, waypoints: s.waypoints, clearSelection: s.clearSelection,
-    setRouteDraft: s.setRouteDraft, setRouteEditing: s.setRouteEditing, setDockMin: s.setDockMin, hasRoute: s.waypoints.length > 1,
+    setRouteDraft: s.setRouteDraft, setRouteEditing: s.setRouteEditing, setDockMin: s.setDockMin, setRoutePlanOpen: s.setRoutePlanOpen, hasRoute: s.waypoints.length > 1,
     driveTarget: s.driveTargetWaypointId, setDriveTarget: s.setDriveTargetWaypointId, setRoverProgress: s.setRoverProgress,
-    setRoverDriving: s.setRoverDriving, removeWaypoint: s.removeWaypoint,
+    setRoverDriving: s.setRoverDriving, removeWaypoint: s.removeWaypoint, openStreetView: s.openStreetView,
   })));
   const [more, setMore] = useState(false);
 
@@ -55,7 +55,8 @@ export default function PlaceCard() {
   const setEnd = (key) => {
     const p = place || stop;
     setRouteDraft({ [key]: { name: p.name, lat: p.lat, lon: p.lon, elevation: p.elevation } });
-    if (hasRoute) setRouteEditing(true);
+    if (hasRoute) setRouteEditing(true); else setRoutePlanOpen(true);
+    setDockMin('route-plan', false);
     setDockMin('route', false);
     marsAudio.playQuindarTone?.(true);
   };
@@ -69,6 +70,13 @@ export default function PlaceCard() {
           <Fact label="Position" value={`${stop.lat.toFixed(3)}°, ${stop.lon.toFixed(3)}°`} />
         </div>
         {stop.reason && <p className="mt-2.5 text-xs text-zinc-400 leading-relaxed">{stop.reason}</p>}
+        <button
+          onClick={() => openStreetView(stop)}
+          className="w-full mt-2.5 h-10 rounded-xl bg-gradient-to-r from-[#ff7b4d]/20 via-[#ff9a4d]/25 to-[#ff7b4d]/20 hover:from-[#ff7b4d]/30 hover:to-[#ff9a4d]/35 border border-[#ff7b4d]/40 text-[#ffc5ad] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-[0_0_15px_rgba(255,123,77,0.15)] active:scale-[0.98]"
+        >
+          <Footprints className="w-4 h-4 text-[#ff8c69] animate-pulse" />
+          <span>Street View (360° Walk)</span>
+        </button>
         <div className="mt-3 flex gap-2">
           {stopIndex > 0 && (
             <button

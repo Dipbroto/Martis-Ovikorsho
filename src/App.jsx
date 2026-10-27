@@ -35,6 +35,7 @@ const AuthModal = lazyWithRetry(() => import('./components/AuthModal'));
 const UserProfileDashboard = lazyWithRetry(() => import('./components/UserProfileDashboard'));
 const DataMethodsModal = lazyWithRetry(() => import('./components/DataMethodsModal'));
 const GuidedPlannerModal = lazyWithRetry(() => import('./components/GuidedPlannerModal'));
+const MartianStreetViewModal = lazyWithRetry(() => import('./components/MartianStreetViewModal'));
 
 // While the 3D code loads: the same dark space the globe sits in, so nothing flashes
 const GlobeFallback = () => (
@@ -70,6 +71,7 @@ function App() {
   const tabRefreshKeys = useMapStore(s => s.tabRefreshKeys || { home: 0, map: 0, science: 0, sky: 0, contingency: 0, imagery: 0 });
   const bottomPanelOpen = useMapStore(s => s.bottomPanelOpen);
   const isImageryModalOpen = useMapStore(s => s.isImageryModalOpen);
+  const isStreetViewOpen = useMapStore(s => s.isStreetViewOpen);
   const isEVASimulating = useMapStore(s => s.isEVASimulating);
   const isFlightPlanOpen = useMapStore(s => s.isFlightPlanOpen);
   const isAudioRackOpen = useMapStore(s => s.isAudioRackOpen);
@@ -289,6 +291,9 @@ function App() {
       </ErrorBoundary>
       <ErrorBoundary>
         <MountOnFirstOpen open={isImageryModalOpen}><MarsImageryModal /></MountOnFirstOpen>
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <MountOnFirstOpen open={isStreetViewOpen}><MartianStreetViewModal /></MountOnFirstOpen>
       </ErrorBoundary>
       <ErrorBoundary>
         <MountOnFirstOpen open={isEVASimulating}><EVAHelmetHUD /></MountOnFirstOpen>
