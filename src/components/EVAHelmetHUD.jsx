@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Compass, Heart, Navigation, ChevronRight, ChevronLeft, Play, Pause, Radio, ChevronUp, ChevronDown } from 'lucide-react';
+import { X, Compass, Heart, Navigation, ChevronRight, ChevronLeft, Play, Pause, Radio, ChevronUp, ChevronDown, Mic } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
 import { marsAudio } from '../utils/audioSynthesizer';
@@ -24,6 +24,7 @@ export default function EVAHelmetHUD() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [lidarEnabled, setLidarEnabled] = useState(true);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [nasaMicActive, setNasaMicActive] = useState(false);
   const [commsLog, setCommsLog] = useState([
     { id: 1, sender: 'CAPCOM (Houston)', text: 'Marswalk Explorer, EVA telemetry is green. Proceed with planned traverse.' },
   ]);
@@ -213,8 +214,24 @@ export default function EVAHelmetHUD() {
             </div>
           </div>
 
-          {/* Right: PROMINENT BACK TO MAP BUTTON */}
+          {/* Right: PROMINENT BACK TO MAP BUTTON & NASA LIVE MIC */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                marsAudio.init();
+                const playing = marsAudio.toggleNasaTrack('wind_sol4');
+                setNasaMicActive(playing);
+              }}
+              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer backdrop-blur-md pointer-events-auto ${
+                nasaMicActive
+                  ? 'bg-amber-500/30 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                  : 'bg-black/60 border-white/20 text-zinc-300 hover:text-white'
+              }`}
+              title="Stream real Perseverance SuperCam acoustic microphone recording of Martian wind"
+            >
+              <Mic className={`w-3.5 h-3.5 ${nasaMicActive ? 'text-amber-400 animate-pulse' : ''}`} />
+              <span>{nasaMicActive ? 'NASA LIVE MIC [ON]' : 'NASA LIVE MIC'}</span>
+            </button>
             <button
               onClick={() => {
                 setEVASimulating(false);

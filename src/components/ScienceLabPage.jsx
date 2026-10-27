@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, Droplets, ExternalLink, RotateCcw, ShieldCheck,
 } from 'lucide-react';
-import { playUiClick } from '../utils/audioSynthesizer';
+import { playUiClick, playLaserZap } from '../utils/audioSynthesizer';
 import useScienceLab from '../hooks/useScienceLab';
 import useMapStore from '../store/useMapStore';
 import { imageUrl, paleoEnvironment, PDS_HOME } from '../data/scienceLab';
@@ -187,6 +187,11 @@ export default function ScienceLabPage() {
                       <button onClick={handleCacheSample} disabled={isSealingTube || cachedSuccess} className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm text-zinc-200 hover:bg-white/10 transition disabled:opacity-60 cursor-pointer">
                         {cachedSuccess ? <><CheckCircle2 className="w-4 h-4 text-emerald-400" />Sealed</> : <><Database className="w-4 h-4" />{isSealingTube ? 'Sealing…' : 'Seal a sample'}</>}
                       </button>
+                      {activeInstrument === 'supercam' && (
+                        <button onClick={() => playLaserZap?.()} className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 px-4 py-2.5 text-sm transition cursor-pointer" title="Listen to real SuperCam pulsed laser shots ionizing rock target Máaz (NASA Sol 12)">
+                          <Zap className="w-4 h-4 text-rose-400 animate-pulse" />Hear SuperCam laser (Sol 12)
+                        </button>
+                      )}
                     </div>
                     {cacheError && <p className="mt-2 text-xs text-amber-300">{cacheError}</p>}
                   </div>

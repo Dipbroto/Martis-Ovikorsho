@@ -14,6 +14,23 @@ export default function BottomPanel() {
   const bottomPanelTab = useMapStore(s => s.bottomPanelTab);
   const setBottomPanelTab = useMapStore(s => s.setBottomPanelTab);
   const weather = useMapStore(s => s.weather);
+  const weatherMode = useMapStore(s => s.weatherMode);
+  const roverWeatherFeed = useMapStore(s => s.roverWeatherFeed || []);
+  const roverWeatherSelectedSol = useMapStore(s => s.roverWeatherSelectedSol);
+
+  // Active downlinked rover sol data if in downlink mode
+  const activeDownlinkWeather = (roverWeatherFeed && roverWeatherFeed.length > 0)
+    ? (roverWeatherFeed.find(s => s.sol === roverWeatherSelectedSol) || roverWeatherFeed[0])
+    : null;
+  const isDownlinkMode = weatherMode === 'downlink' && activeDownlinkWeather != null;
+
+  const currentTempDisplay = isDownlinkMode
+    ? `${activeDownlinkWeather.temperature.avg}°C`
+    : (weather?.temperature?.avg !== undefined ? `${Math.round(weather.temperature.avg)}°C` : '-62°C');
+
+  const weatherBadgeText = isDownlinkMode
+    ? `${activeDownlinkWeather.temperature.avg}°C (REMS)`
+    : (weather?.temperature?.avg !== undefined ? `${Math.round(weather.temperature.avg)}°C` : 'MEDA');
   const waypoints = useMapStore(s => s.waypoints);
   const viewCenter = useMapStore(s => s.viewCenter || s.mapCenter);
   useMapStore(s => s.terrainVersion); // refresh once terrain grids load
@@ -34,8 +51,8 @@ export default function BottomPanel() {
       id: 'weather', 
       label: 'Weather', 
       icon: Cloud,
-      badge: weather?.temperature?.avg !== undefined ? `${Math.round(weather.temperature.avg)}°C` : 'MEDA',
-      badgeColor: 'text-amber-400 bg-amber-950/60 border-amber-800'
+      badge: weatherBadgeText,
+      badgeColor: isDownlinkMode ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800' : 'text-amber-400 bg-amber-950/60 border-amber-800'
     },
     { 
       id: 'radiation', 
@@ -71,9 +88,14 @@ export default function BottomPanel() {
         className="cursor-pointer group flex items-center justify-between gap-3 px-4 py-2 rounded-full bg-[#0B0C10]/85 border border-white/10 shadow-hud-glass backdrop-blur-2xl hover:bg-[#0B0C10]/95 hover:border-[#F16938]/40 transition-all font-mono text-xs text-stone-300 hover:text-white"
         title="Open the conditions panel: elevation profile, weather, radiation and dust (modelled values)"
       >
-        <div className="flex items-center gap-1.5 text-amber-300">
-          <Cloud className="w-3.5 h-3.5 text-amber-400" />
-          <span className="font-bold tabular-nums">{weather?.temperature?.avg !== undefined ? `${Math.round(weather.temperature.avg)}°C` : '-62°C'}</span>
+        <div className={`flex items-center gap-1.5 ${isDownlinkMode ? 'text-emerald-300' : 'text-amber-300'}`}>
+          <Cloud className={`w-3.5 h-3.5 ${isDownlinkMode ? 'text-emerald-400' : 'text-amber-400'}`} />
+          <span className="font-bold tabular-nums">{currentTempDisplay}</span>
+          {isDownlinkMode && (
+            <span className="text-[9px] font-mono text-emerald-400 bg-emerald-950/80 px-1 py-0.2 rounded border border-emerald-800/60">
+              REMS
+            </span>
+          )}
         </div>
         <span className="text-white/20 hidden sm:inline">|</span>
         <div className="hidden sm:flex items-center gap-1.5 text-purple-300">

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Globe, Crosshair, Grid, Shield, Ruler, Play, Pause, ChevronDown, ChevronUp, Check,
-  Layers, SlidersHorizontal, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints, MapPin, Camera, Rocket,
+  Layers, SlidersHorizontal, Volume2, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints, MapPin, Camera, Rocket,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../store/useMapStore';
@@ -112,6 +112,8 @@ export default function MapToolbar() {
     isMarkingLocation: st.isMarkingLocation,
     setIsMarkingLocation: st.setIsMarkingLocation,
     clearMarkedLocation: st.clearMarkedLocation,
+    isAudioRackOpen: st.isAudioRackOpen,
+    setAudioRackOpen: st.setAudioRackOpen,
   })));
 
   const is2d = s.viewMode !== '3d';
@@ -241,6 +243,13 @@ export default function MapToolbar() {
             )}
 
             <Menu label="Tools" icon={SlidersHorizontal}>
+              <Item
+                icon={Volume2}
+                label="Martian Audio & NASA Downlink"
+                hint="Real Perseverance microphone wind, SuperCam laser & InSight marsquake recordings"
+                active={s.isAudioRackOpen}
+                onSelect={() => s.setAudioRackOpen(true)}
+              />
               <Item
                 icon={Rocket}
                 label="Martian surface 3D (NASA JPL Engine)"

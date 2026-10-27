@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, Info } from 'lucide-react';
+import { ChevronDown, Info, Crosshair } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useMapStore from '../store/useMapStore';
 import { marsLayers, LAYER_CATEGORIES } from '../data/marsLayers';
@@ -13,7 +13,7 @@ const Switch = ({ on }) => (
   </span>
 );
 
-const LayerItem = ({ layer, isActive, opacity, onToggle, onOpacityChange }) => {
+const LayerItem = ({ layer, isActive, opacity, onToggle, onOpacityChange, onFlyTo }) => {
   const [showInfo, setShowInfo] = useState(false);
   const derived = layer.category === LAYER_CATEGORIES.DERIVED;
 
@@ -61,12 +61,22 @@ const LayerItem = ({ layer, isActive, opacity, onToggle, onOpacityChange }) => {
               </label>
               {layer.legend && (
                 <div className="mt-3">
-                  <div className="h-2 w-full rounded-full" style={{ background: layer.legend.gradient }} />
+                  <div className="h-2 w-full rounded-full" style={{ background: layer.legend.gradient || `linear-gradient(to right, ${layer.legend.colors?.join(', ')})` }} />
                   <div className="mt-1 flex justify-between text-[11px] text-zinc-400">
                     <span>{layer.legend.min}</span>
                     <span>{layer.legend.max}</span>
                   </div>
                 </div>
+              )}
+              {layer.landingSite && (
+                <button
+                  type="button"
+                  onClick={() => onFlyTo?.(layer.landingSite.lat, layer.landingSite.lon, layer.landingSite.zoom)}
+                  className="mt-3 w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-semibold cursor-pointer transition-all active:scale-95"
+                >
+                  <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Zoom to {layer.landingSite.name} (Sub-Meter View)</span>
+                </button>
               )}
             </div>
           </motion.div>
@@ -96,6 +106,7 @@ const LayerCategory = ({ name, layers }) => {
   const activeLayers = useMapStore((s) => s.activeLayers) || [];
   const layerOpacity = useMapStore((s) => s.layerOpacity) || {};
   const toggleLayer = useMapStore((s) => s.toggleLayer);
+  const flyToCoordinate = useMapStore((s) => s.flyToCoordinate);
   const setLayerOpacity = useMapStore((s) => s.setLayerOpacity);
   const on = layers.filter((l) => activeLayers.includes(l.id)).length;
 
@@ -119,6 +130,7 @@ const LayerCategory = ({ name, layers }) => {
               {layers.map((layer) => (
                 <LayerItem
                   key={layer.id}
+                  onFlyTo={flyToCoordinate}
                   layer={layer}
                   isActive={activeLayers.includes(layer.id)}
                   opacity={Math.round((layerOpacity[layer.id] !== undefined ? layerOpacity[layer.id] : layer.defaultOpacity ?? 1) * 100)}

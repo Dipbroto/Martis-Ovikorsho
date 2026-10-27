@@ -165,6 +165,41 @@ const MapEvents = () => {
   return null;
 };
 
+// Component for ArcGIS dynamic export MapServer layers (e.g. CRISM mineralogy)
+const ArcGisExportTileLayer = ({ url, opacity, bounds, minZoom = 0, maxZoom = 18 }) => {
+  const map = useMap();
+  useEffect(() => {
+    const LayerClass = L.TileLayer.extend({
+      getTileUrl: function (coords) {
+        const tileSize = this.getTileSize();
+        const nwPoint = coords.scaleBy(tileSize);
+        const sePoint = nwPoint.add(tileSize);
+        const nw = this._map.unproject(nwPoint, coords.z);
+        const se = this._map.unproject(sePoint, coords.z);
+        const minX = Math.max(-180, Math.min(180, nw.lng));
+        const maxX = Math.max(-180, Math.min(180, se.lng));
+        const minY = Math.max(-90, Math.min(90, se.lat));
+        const maxY = Math.max(-90, Math.min(90, nw.lat));
+        const bbox = `${minX},${minY},${maxX},${maxY}`;
+        return url.replace('{bbox}', bbox);
+      },
+    });
+    const layer = new LayerClass(url, {
+      opacity: typeof opacity === 'number' ? opacity : 0.85,
+      bounds: bounds || [[-90, -180], [90, 180]],
+      minZoom,
+      maxZoom,
+      noWrap: true,
+      tileSize: 256,
+    });
+    layer.addTo(map);
+    return () => {
+      map.removeLayer(layer);
+    };
+  }, [map, url, opacity, bounds, minZoom, maxZoom]);
+  return null;
+};
+
 // Controls camera view smoothly when mapCenter or mapZoom changes in store, and handles resizing
 const MapViewController = () => {
   const map = useMap();
@@ -204,7 +239,7 @@ const MapViewController = () => {
   useEffect(() => {
     if (mapCenter && Array.isArray(mapCenter) && mapCenter.length === 2) {
       if (!mapCenter.every(Number.isFinite)) return;
-      const targetZoom = Math.min(Math.max(typeof mapZoom === 'number' ? mapZoom : 2, map.getMinZoom()), 14);
+      const targetZoom = Math.min(Math.max(typeof mapZoom === 'number' ? mapZoom : 2, map.getMinZoom()), 18);
       const size = map.getSize();
       // flyTo divides by the container size; a hidden or zero-sized map (background tab, collapsed
       // split view) would produce NaN coordinates and crash the map, so jump without animating there.
@@ -734,7 +769,7 @@ const MarsMap = () => {
         center={[0, 0]}
         zoom={1}
         minZoom={0}
-        maxZoom={14}
+        maxZoom={18}
         crs={L.CRS.EPSG4326}
         style={{ height: '100%', width: '100%', background: '#050608' }}
         worldCopyJump={false}
@@ -759,13 +794,25 @@ const MarsMap = () => {
             then CTX ~5 m once zoomed in, then the Viking colour mosaic blended on top as colour only. */}
         {activeLayerConfigs.map((layer) => {
           const opacity = layerOpacity[layer.id] !== undefined ? layerOpacity[layer.id] : layer.defaultOpacity;
+          if (layer.type === 'arcgis-export') {
+            return (
+              <ArcGisExportTileLayer
+                key={layer.id}
+                url={layer.url}
+                opacity={opacity}
+                bounds={layer.bounds}
+                minZoom={layer.minZoom || 0}
+                maxZoom={layer.displayMaxZoom || layer.maxZoom || 18}
+              />
+            );
+          }
           if (layer.composite) {
             const viking = vikingOn ? marsLayers.find((l) => l.id === 'viking-color') : null;
             return (
               <React.Fragment key={layer.id}>
-                <TileLayer url={layer.url} opacity={opacity} attribution={layer.attribution} noWrap bounds={[[-65, -180], [65, 180]]} minZoom={HD_FROM_ZOOM} maxNativeZoom={layer.maxZoom} maxZoom={14} />
-                <TileLayer url={layer.ctxUrl} opacity={opacity} noWrap bounds={[[-90, -180], [90, 180]]} tileSize={512} zoomOffset={-1} minZoom={8} maxNativeZoom={13} maxZoom={14} />
-                {viking && <TileLayer url={viking.url} className="tile-blend-color" opacity={0.9} noWrap bounds={[[-90, -180], [90, 180]]} minZoom={HD_FROM_ZOOM} maxNativeZoom={viking.maxZoom} maxZoom={14} />}
+                <TileLayer url={layer.url} opacity={opacity} attribution={layer.attribution} noWrap bounds={[[-65, -180], [65, 180]]} minZoom={HD_FROM_ZOOM} maxNativeZoom={layer.maxZoom} maxZoom={18} />
+                <TileLayer url={layer.ctxUrl} opacity={opacity} noWrap bounds={[[-90, -180], [90, 180]]} tileSize={512} zoomOffset={-1} minZoom={8} maxNativeZoom={13} maxZoom={18} />
+                {viking && <TileLayer url={viking.url} className="tile-blend-color" opacity={0.9} noWrap bounds={[[-90, -180], [90, 180]]} minZoom={HD_FROM_ZOOM} maxNativeZoom={viking.maxZoom} maxZoom={18} />}
               </React.Fragment>
             );
           }
@@ -778,14 +825,14 @@ const MarsMap = () => {
               attribution={layer.attribution}
               noWrap={true}
               bounds={layer.bounds || [[-90, -180], [90, 180]]}
-              minZoom={0}
-              maxNativeZoom={layer.maxZoom}
-              maxZoom={14}
+              minZoom={layer.minZoom || 0}
+              maxNativeZoom={layer.maxZoom || 18}
+              maxZoom={layer.displayMaxZoom || 18}
             />
           );
         })}
 
-        {/* Real relief: the HRSC-MOLA hillshade blended over the photos as light and shadow only.
+                {/* Real relief: the HRSC-MOLA hillshade blended over the photos as light and shadow only.
             It is sharp to zoom 7; past zoom 9 it would only blur, and CTX carries its own shading. */}
         {(vikingOn || activeLayers.includes('nasa-hd')) && (
           <TileLayer url={RELIEF_SHADE_URL} className="tile-blend-relief" noWrap bounds={[[-90, -180], [90, 180]]} maxNativeZoom={7} maxZoom={9} />

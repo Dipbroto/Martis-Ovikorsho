@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, HelpCircle, Layers, Spline, MousePointerClick, LocateFixed, X } from 'lucide-react';
+import { Activity, HelpCircle, Layers, Spline, MousePointerClick, LocateFixed, X, Volume2 } from 'lucide-react';
+import { playMarsquakeAudio } from '../../utils/audioSynthesizer';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../../store/useMapStore';
 import DockCard from '../dock/DockCard';
@@ -51,6 +52,9 @@ function FaultDetail({ f, onClose, onZoom }) {
       <p className="mt-2 text-xs text-zinc-300 leading-relaxed">{type.hint}</p>
       <p className="mt-1.5 text-xs text-zinc-400 leading-relaxed">{PRESERVED[f.p] || ''}.{f.a ? ' InSight placed more of its marsquakes here than anywhere else, so these fractures are still moving today.' : ''}</p>
       <button onClick={onZoom} className="mt-2.5 w-full h-8 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"><LocateFixed className="w-3.5 h-3.5" />Zoom to it</button>
+      <button onClick={() => playMarsquakeAudio?.()} className="mt-2 w-full h-8 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer" title="Play genuine InSight SEIS seismometer recording of Sol 128 marsquake">
+        <Volume2 className="w-3.5 h-3.5 text-rose-300 animate-pulse" />Hear InSight Marsquake (NASA Sol 128)
+      </button>
     </motion.div>
   );
 }

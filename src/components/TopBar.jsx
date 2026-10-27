@@ -19,10 +19,13 @@ export default function TopBar({ onSelectTab }) {
   const activeTab = useMapStore((s) => s.activeTab);
   const setActiveTab = useMapStore((s) => s.setActiveTab);
   const refreshTab = useMapStore((s) => s.refreshTab);
+  const resetMapToDefault = useMapStore((s) => s.resetMapToDefault);
   const refreshAllTabs = useMapStore((s) => s.refreshAllTabs);
   const setDataMethodsOpen = useMapStore((s) => s.setDataMethodsOpen);
   const setGuidedPlannerOpen = useMapStore((s) => s.setGuidedPlannerOpen);
   const isAudioActive = useMapStore((s) => s.isAudioActive);
+  const isAudioRackOpen = useMapStore((s) => s.isAudioRackOpen);
+  const setAudioRackOpen = useMapStore((s) => s.setAudioRackOpen);
   const toggleAudio = useMapStore((s) => s.toggleAudio);
   const user = useMapStore((s) => s.user);
   const profile = useMapStore((s) => s.profile);
@@ -33,30 +36,18 @@ export default function TopBar({ onSelectTab }) {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [hidden, setHidden] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const lastY = useRef(new WeakMap());
-
-  // Slide away when the page scrolls down, come back on any scroll up. Any large scroll container counts,
-  // small panels (sidebars, modals) are ignored.
+  // Keep header permanently visible (pinned). Only update glass backdrop styling on scroll.
   useEffect(() => {
-    const onScroll = (e) => {
-      const el = e.target === document ? document.scrollingElement : e.target;
-      if (!(el instanceof Element) || el.clientHeight < window.innerHeight * 0.6) return;
-      const y = el.scrollTop;
-      const delta = y - (lastY.current.get(el) ?? y);
-      lastY.current.set(el, y);
+    const onScroll = () => {
+      const y = window.scrollY || document.documentElement.scrollTop || 0;
       setScrolled(y > 24);
-      if (y < 24) setHidden(false);
-      else if (delta > 6) setHidden(true);
-      else if (delta < -6) setHidden(false);
     };
-    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
-    return () => document.removeEventListener('scroll', onScroll, { capture: true });
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   useEffect(() => {
-    setHidden(false);
     setScrolled(false);
   }, [activeTab]);
 
@@ -72,7 +63,16 @@ export default function TopBar({ onSelectTab }) {
 
   const go = (key) => {
     marsAudio.playUiClick?.();
-    if (activeTab === key) {
+    if (key === 'map') {
+      // Clicking Map always resets it back to its default state
+      resetMapToDefault();
+      onSelectTab?.('map');
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+      document.querySelectorAll('.overflow-y-auto').forEach((el) => {
+        el.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+      });
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 80);
+    } else if (activeTab === key) {
       // Re-clicking the active tab: refresh only this page to new position
       refreshTab(key);
       window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
@@ -83,9 +83,6 @@ export default function TopBar({ onSelectTab }) {
       // Switching to a different tab: preserve other pages' states
       setActiveTab(key);
       onSelectTab?.(key);
-      if (key === 'map') {
-        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
-      }
     }
     setMobileMenuOpen(false);
   };
@@ -113,7 +110,7 @@ export default function TopBar({ onSelectTab }) {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-[500] transition-transform duration-300 ease-[cubic-bezier(0.3,0.7,0.2,1)] focus-within:translate-y-0 ${hidden && !mobileMenuOpen ? '-translate-y-full' : 'translate-y-0'}`}
+      className="fixed top-0 left-0 right-0 z-[500] transition-transform duration-300 ease-[cubic-bezier(0.3,0.7,0.2,1)] translate-y-0"
     >
       <div className="relative w-full">
         {/* Over the hero the bar is nearly invisible; it turns to glass once the page moves or on other pages */}
@@ -167,7 +164,7 @@ export default function TopBar({ onSelectTab }) {
               <Database className="w-[18px] h-[18px]" />
             </button>
 
-            <button onClick={toggleAudio} className={`${iconBtn} hidden sm:flex`} title={isAudioActive ? 'Mute ambient sound' : 'Play ambient Martian sound'}>
+            <button onClick={() => { marsAudio.playUiClick?.(); setAudioRackOpen(!isAudioRackOpen); }} className={`${iconBtn} hidden sm:flex ${isAudioRackOpen ? 'bg-white/15 text-white' : ''}`} title="Martian Audio & NASA Downlink (Perseverance & InSight)">
               {isAudioActive ? <Volume2 className="w-[18px] h-[18px] text-[#ff7b4d]" /> : <VolumeX className="w-[18px] h-[18px]" />}
             </button>
 
@@ -215,7 +212,7 @@ export default function TopBar({ onSelectTab }) {
               </span>
               <span>Eva (AI Assistant)</span>
             </button>
-            <button onClick={toggleAudio} className="text-left px-3 py-3 rounded-lg text-base text-zinc-300">{isAudioActive ? 'Mute ambient sound' : 'Play ambient sound'}</button>
+            <button onClick={() => { marsAudio.playUiClick?.(); setAudioRackOpen(true); setMobileMenuOpen(false); }} className="flex items-center gap-2.5 px-3 py-3 rounded-lg text-base text-zinc-300 hover:bg-white/[0.05] transition-colors"><Volume2 className="w-5 h-5 text-[#ff7b4d]" /><span>Martian Audio & NASA Downlink</span></button>
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,5 +1,60 @@
-// Martian Web Audio API Synthesizer
-// Generates authentic procedural sounds: Martian wind, suit respirators, geiger clicks, and NASA Quindar beeps
+// Martian Web Audio API Synthesizer & NASA Planetary Audio Engine
+// Generates authentic procedural sounds & streams real acoustic recordings from NASA Perseverance and InSight
+
+export const NASA_AUDIO_TRACKS = {
+  wind_sol4: {
+    id: 'wind_sol4',
+    title: 'Perseverance Wind (Sol 4)',
+    instrument: 'SuperCam Acoustic Microphone',
+    spacecraft: 'Perseverance (Mars 2020)',
+    site: 'Jezero Crater Paleolake',
+    sol: 4,
+    date: 'Feb 22, 2021',
+    description: 'First raw acoustic recording of Martian wind ever captured by a surface microphone.',
+    src: '/audio/nasa_perseverance_wind_sol4.mp3',
+    loop: true,
+    defaultVol: 0.7,
+  },
+  wind_filtered: {
+    id: 'wind_filtered',
+    title: 'Filtered Martian Breeze',
+    instrument: 'SuperCam Microphone (Filtered)',
+    spacecraft: 'Perseverance (Mars 2020)',
+    site: 'Jezero Crater Paleolake',
+    sol: 4,
+    date: 'Feb 22, 2021',
+    description: 'Rover mechanical noise subtracted, highlighting the thin 0.01-bar carbon dioxide breeze.',
+    src: '/audio/nasa_perseverance_wind_filtered.ogg',
+    loop: true,
+    defaultVol: 0.65,
+  },
+  laser_sol12: {
+    id: 'laser_sol12',
+    title: 'SuperCam Laser Rock Zap',
+    instrument: 'SuperCam LIBS Pulsed Laser',
+    spacecraft: 'Perseverance (Mars 2020)',
+    site: 'Target rock "Máaz", Jezero',
+    sol: 12,
+    date: 'March 2, 2021',
+    description: 'Acoustic clicks of 30 pulsed laser shots ionizing rock surface 3.1 m away into optical plasma.',
+    src: '/audio/nasa_supercam_laser_sol12.mp3',
+    loop: false,
+    defaultVol: 0.85,
+  },
+  marsquake_sol128: {
+    id: 'marsquake_sol128',
+    title: 'InSight Sol 128 Marsquake',
+    instrument: 'SEIS Seismometer (VBB & SP)',
+    spacecraft: 'InSight Lander',
+    site: 'Elysium Planitia',
+    sol: 128,
+    date: 'April 6, 2019',
+    description: 'First seismic event recorded from inside Mars, sped up 60× into audible range.',
+    src: '/audio/nasa_insight_marsquake_sol128.mp4',
+    loop: false,
+    defaultVol: 0.9,
+  },
+};
 
 class MarsAudioSynthesizer {
   constructor() {
@@ -8,21 +63,27 @@ class MarsAudioSynthesizer {
     this.isMuted = true;
     this.masterGain = null;
     this.analyser = null;
-    
+
     // Wind nodes
     this.windNode = null;
     this.windFilter = null;
     this.windGain = null;
     this.windVol = 0.25;
-    
+
     // Breathing nodes & intervals
     this.breathGain = null;
     this.breathTimer = null;
     this.breathVol = 0.04;
-    
+
     // Geiger timer
     this.geigerTimer = null;
     this.geigerVol = 0.06;
+
+    // NASA Acoustic Audio Elements & Web Audio Nodes
+    this.nasaElements = {};
+    this.nasaSources = {};
+    this.nasaGains = {};
+    this.activeNasaTracks = new Set();
   }
 
   init() {
@@ -30,17 +91,17 @@ class MarsAudioSynthesizer {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
-      
+
       this.ctx = new AudioContext();
       this.analyser = this.ctx.createAnalyser();
       this.analyser.fftSize = 64;
 
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.setValueAtTime(0.3, this.ctx.currentTime);
-      
+
       this.masterGain.connect(this.analyser);
       this.analyser.connect(this.ctx.destination);
-      
+
       this.isInitialized = true;
       this.setupWindGenerator();
       this.setupRespirator();
@@ -51,12 +112,12 @@ class MarsAudioSynthesizer {
 
   setupWindGenerator() {
     if (!this.ctx) return;
-    
+
     const bufferSize = this.ctx.sampleRate * 4;
     const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
     let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-    
+
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
       b0 = 0.99886 * b0 + white * 0.0555179;
@@ -100,7 +161,7 @@ class MarsAudioSynthesizer {
 
   setupRespirator() {
     if (!this.ctx) return;
-    
+
     this.breathGain = this.ctx.createGain();
     this.breathGain.gain.setValueAtTime(0, this.ctx.currentTime);
     this.breathGain.connect(this.masterGain);
@@ -145,6 +206,124 @@ class MarsAudioSynthesizer {
     osc.stop(startTime + duration);
   }
 
+  // ==========================================================
+  // REAL NASA ACOUSTIC AUDIO ENGINE (PERSEVERANCE & INSIGHT)
+  // ==========================================================
+
+  getOrCreateNasaAudioElement(trackId) {
+    if (typeof window === 'undefined') return null;
+    if (!this.nasaElements[trackId]) {
+      const track = NASA_AUDIO_TRACKS[trackId];
+      if (!track) return null;
+
+      const audio = new Audio(track.src);
+      audio.loop = !!track.loop;
+      audio.preload = 'auto';
+      audio.crossOrigin = 'anonymous';
+
+      // Connect to Web Audio graph if available so FFT visualizer picks it up
+      if (this.ctx) {
+        try {
+          const source = this.ctx.createMediaElementSource(audio);
+          const trackGain = this.ctx.createGain();
+          trackGain.gain.setValueAtTime(track.defaultVol || 0.6, this.ctx.currentTime);
+          source.connect(trackGain);
+          trackGain.connect(this.masterGain);
+
+          this.nasaSources[trackId] = source;
+          this.nasaGains[trackId] = trackGain;
+        } catch (e) {
+          console.warn('Could not connect media element source:', e);
+        }
+      }
+
+      audio.addEventListener('ended', () => {
+        if (!track.loop) {
+          this.activeNasaTracks.delete(trackId);
+        }
+      });
+
+      this.nasaElements[trackId] = audio;
+    }
+    return this.nasaElements[trackId];
+  }
+
+  playNasaTrack(trackId, options = {}) {
+    this.init();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+
+    const audio = this.getOrCreateNasaAudioElement(trackId);
+    if (!audio) return false;
+
+    const track = NASA_AUDIO_TRACKS[trackId];
+    if (options.loop !== undefined) audio.loop = options.loop;
+    audio.currentTime = 0;
+
+    const vol = options.volume ?? track?.defaultVol ?? 0.6;
+    if (this.nasaGains[trackId] && this.ctx) {
+      this.nasaGains[trackId].gain.setValueAtTime(vol, this.ctx.currentTime);
+    } else {
+      audio.volume = vol;
+    }
+
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          this.activeNasaTracks.add(trackId);
+        })
+        .catch((err) => {
+          console.warn('NASA audio play prevented:', err);
+        });
+    }
+
+    return true;
+  }
+
+  stopNasaTrack(trackId) {
+    const audio = this.nasaElements[trackId];
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      this.activeNasaTracks.delete(trackId);
+    }
+  }
+
+  toggleNasaTrack(trackId) {
+    if (this.isNasaTrackPlaying(trackId)) {
+      this.stopNasaTrack(trackId);
+      return false;
+    } else {
+      this.playNasaTrack(trackId);
+      return true;
+    }
+  }
+
+  isNasaTrackPlaying(trackId) {
+    const audio = this.nasaElements[trackId];
+    return audio ? !audio.paused && !audio.ended : false;
+  }
+
+  setNasaTrackVolume(trackId, val) {
+    const v = Math.max(0, Math.min(1, val));
+    if (this.nasaGains[trackId] && this.ctx) {
+      this.nasaGains[trackId].gain.setValueAtTime(v, this.ctx.currentTime);
+    }
+    const audio = this.nasaElements[trackId];
+    if (audio) audio.volume = v;
+  }
+
+  stopAllNasaTracks() {
+    Object.keys(this.nasaElements).forEach((id) => this.stopNasaTrack(id));
+    this.activeNasaTracks.clear();
+  }
+
+  // ==========================================================
+  // INSTRUMENTS & TELEMETRY SOUNDS
+  // ==========================================================
+
   playQuindarTone(isIntro = true) {
     if (this.isMuted || !this.ctx) return;
     try {
@@ -152,7 +331,7 @@ class MarsAudioSynthesizer {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       const now = this.ctx.currentTime;
-      
+
       const freq = isIntro ? 2525 : 2475;
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, now);
@@ -190,7 +369,7 @@ class MarsAudioSynthesizer {
       gain.connect(this.masterGain);
 
       osc.start(now);
-    } catch (e) { /* audio is optional; ignore playback errors */ }
+    } catch (e) { /* ignore */ }
   }
 
   startGeigerLoop(clicksPerSec = 2) {
@@ -215,7 +394,7 @@ class MarsAudioSynthesizer {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
-    
+
     this.isMuted = !this.isMuted;
     if (this.windGain && this.ctx) {
       const now = this.ctx.currentTime;
@@ -227,6 +406,7 @@ class MarsAudioSynthesizer {
       this.startGeigerLoop(1.5);
     } else {
       this.stopGeigerLoop();
+      this.stopAllNasaTracks();
     }
 
     return !this.isMuted;
@@ -260,19 +440,19 @@ class MarsAudioSynthesizer {
       const now = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      
+
       osc.type = 'sine';
       osc.frequency.setValueAtTime(pitch, now);
       osc.frequency.exponentialRampToValueAtTime(pitch * 0.5, now + 0.04);
-      
+
       gain.gain.setValueAtTime(0.04, now);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
-      
+
       osc.connect(gain);
       gain.connect(this.masterGain);
       osc.start(now);
       osc.stop(now + 0.04);
-    } catch (e) { /* audio is optional; ignore playback errors */ }
+    } catch (e) { /* ignore */ }
   }
 
   playUiHover() {
@@ -281,17 +461,17 @@ class MarsAudioSynthesizer {
       const now = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      
+
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(1200, now);
       gain.gain.setValueAtTime(0.015, now);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.02);
-      
+
       osc.connect(gain);
       gain.connect(this.masterGain);
       osc.start(now);
       osc.stop(now + 0.02);
-    } catch (e) { /* audio is optional; ignore playback errors */ }
+    } catch (e) { /* ignore */ }
   }
 
   playUiSwoosh() {
@@ -300,19 +480,19 @@ class MarsAudioSynthesizer {
       const now = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      
+
       osc.type = 'sine';
       osc.frequency.setValueAtTime(220, now);
       osc.frequency.exponentialRampToValueAtTime(440, now + 0.08);
-      
+
       gain.gain.setValueAtTime(0.03, now);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-      
+
       osc.connect(gain);
       gain.connect(this.masterGain);
       osc.start(now);
       osc.stop(now + 0.08);
-    } catch (e) { /* audio is optional; ignore playback errors */ }
+    } catch (e) { /* ignore */ }
   }
 
   playSuccessChime() {
@@ -332,43 +512,37 @@ class MarsAudioSynthesizer {
         osc.start(now + i * 0.08);
         osc.stop(now + i * 0.08 + 0.3);
       });
-    } catch (e) { /* audio is optional; ignore playback errors */ }
+    } catch (e) { /* ignore */ }
   }
 
   playLaserZap() {
     if (!this.ctx) this.init();
     if (!this.ctx || this.isMuted) return;
+
+    // Trigger authentic NASA SuperCam laser audio
+    this.playNasaTrack('laser_sol12');
+
+    // Procedural laser tonal sweep as backup / layer
     try {
       const now = this.ctx.currentTime;
-      // Laser tonal sweep
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(3200, now);
       osc.frequency.exponentialRampToValueAtTime(180, now + 0.12);
-      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.setValueAtTime(0.06, now);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
       osc.connect(gain);
       gain.connect(this.masterGain);
       osc.start(now);
       osc.stop(now + 0.12);
+    } catch (e) { /* ignore */ }
+  }
 
-      // Plasma ionization noise pop
-      const bufferSize = Math.floor(this.ctx.sampleRate * 0.05);
-      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.2));
-      }
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = buffer;
-      const noiseGain = this.ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.05, now + 0.02);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
-      noise.connect(noiseGain);
-      noiseGain.connect(this.masterGain);
-      noise.start(now + 0.02);
-    } catch (e) { /* audio is optional; ignore playback errors */ }
+  playMarsquakeAudio() {
+    if (!this.ctx) this.init();
+    if (!this.ctx || this.isMuted) return;
+    this.playNasaTrack('marsquake_sol128');
   }
 
   playSampleSeal() {
@@ -376,7 +550,6 @@ class MarsAudioSynthesizer {
     if (!this.ctx || this.isMuted) return;
     try {
       const now = this.ctx.currentTime;
-      // Mechanical servo purge sound
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = 'triangle';
@@ -389,11 +562,10 @@ class MarsAudioSynthesizer {
       osc.start(now);
       osc.stop(now + 0.22);
 
-      // Hermetic seal click
       setTimeout(() => {
         this.playSuccessChime();
       }, 160);
-    } catch (e) { /* audio is optional; ignore playback errors */ }
+    } catch (e) { /* ignore */ }
   }
 
   getFrequencyData(array) {
@@ -410,4 +582,5 @@ export const playUiHover = () => marsAudio.playUiHover();
 export const playUiSwoosh = () => marsAudio.playUiSwoosh();
 export const playSuccessChime = () => marsAudio.playSuccessChime();
 export const playLaserZap = () => marsAudio.playLaserZap();
+export const playMarsquakeAudio = () => marsAudio.playMarsquakeAudio();
 export const playSampleSeal = () => marsAudio.playSampleSeal();

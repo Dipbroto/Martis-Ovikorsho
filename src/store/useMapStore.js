@@ -28,12 +28,74 @@ const useMapStore = create((set, get) => ({
     contingency: 0,
     imagery: 0,
   },
-  refreshTab: (key) => set((state) => ({
+  resetMapToDefault: () => set((state) => ({
+    activeTab: 'map',
     tabRefreshKeys: {
       ...state.tabRefreshKeys,
-      [key]: (state.tabRefreshKeys[key] || 0) + 1,
-    }
+      map: (state.tabRefreshKeys.map || 0) + 1,
+    },
+    viewMode: '2d',
+    mapCenter: [0, 0],
+    mapZoom: 1,
+    viewCenter: null,
+    mapFitBounds: null,
+    cursorPosition: null,
+    waypoints: [],
+    selectedWaypointId: null,
+    driveTargetWaypointId: null,
+    routeGeometry: null,
+    isRoverDriving: false,
+    roverProgress: 0,
+    roverCurrentPosition: null,
+    camFollow: false,
+    routeDraft: { start: null, end: null, mode: 'safety' },
+    routePlanOpen: false,
+    routeEditing: false,
+    pickTarget: null,
+    walkTelemetry: { slope: 0, paceKmh: 0, hours: 0, distKm: 0, totalKm: 0 },
+    selectedPOI: null,
+    isPlacingWaypoint: false,
+    isRulerActive: false,
+    rulerPoints: [],
+    isMarkingLocation: false,
+    markedLocation: null,
+    showWalkbackLimits: false,
+    showGraticule: false,
+    showRoverTraverses: false,
+    terrainOverlay: null,
+    routeScanOpen: false,
+    routeScan: null,
+    terrainOverlayStatus: null,
+    quakeMode: false,
+    faultSelected: null,
+    isStreetViewOpen: false,
+    streetViewLocation: null,
+    isEVASimulating: false,
+    evaCurrentWaypointIndex: 0,
+    isFlightPlanOpen: false,
+    isScienceLabOpen: false,
+    isImageryModalOpen: false,
+    isContingencyModalOpen: false,
+    activeContingency: null,
+    isAudioRackOpen: false,
+    sidebarOpen: false,
+    sidebarTab: 'guide',
+    bottomPanelOpen: false,
+    toolbarCollapsed: false,
+    activeLayers: getDefaultVisibleLayers(),
   })),
+  refreshTab: (key) => {
+    if (key === 'map') {
+      get().resetMapToDefault();
+    } else {
+      set((state) => ({
+        tabRefreshKeys: {
+          ...state.tabRefreshKeys,
+          [key]: (state.tabRefreshKeys[key] || 0) + 1,
+        }
+      }));
+    }
+  },
   refreshAllTabs: () => set((state) => ({
     activeTab: 'home',
     tabRefreshKeys: {
@@ -351,10 +413,36 @@ const useMapStore = create((set, get) => ({
   })),
 
   // ========================
-  // WEATHER
+  // WEATHER (DUAL-MODE: IN-SITU ROVER DOWNLINK VS SEASONAL PROJECTION)
   // ========================
+  weatherMode: 'downlink', // 'downlink' | 'projection'
+  roverWeatherFeed: [],
+  isWeatherFeedLoading: false,
+  roverWeatherSelectedSol: null,
   currentSol: initialSol,
   weather: generateWeatherForSol(initialSol),
+
+  setWeatherMode: (mode) => set({ weatherMode: mode }),
+  setRoverWeatherSelectedSol: (sol) => set({ roverWeatherSelectedSol: sol }),
+
+  loadRoverWeatherFeed: async () => {
+    set({ isWeatherFeedLoading: true });
+    try {
+      const { fetchLiveRoverWeather } = await import('../services/marsWeatherService');
+      const feed = await fetchLiveRoverWeather();
+      if (feed && feed.length > 0) {
+        set({
+          roverWeatherFeed: feed,
+          isWeatherFeedLoading: false,
+          roverWeatherSelectedSol: feed[0]?.sol ?? null,
+        });
+      } else {
+        set({ isWeatherFeedLoading: false });
+      }
+    } catch {
+      set({ isWeatherFeedLoading: false });
+    }
+  },
   
   updateWeather: () => {
     const sol = getSolFromDate();
