@@ -3,6 +3,7 @@ import { getDefaultVisibleLayers } from '../data/marsLayers';
 import { generateWeatherForSol, getSolFromDate } from '../data/weatherSimulation';
 import { marsAudio } from '../utils/audioSynthesizer';
 import { planTraverse } from '../terrain/terrainClient';
+import { usableBudgetJ } from '../terrain/evaModel';
 
 const initialSol = getSolFromDate();
 
@@ -164,7 +165,8 @@ const useMapStore = create((set, get) => ({
   // `pad` ({ topLeft, bottomRight }, in pixels) overrides the default room left for the sidebar and the dock
   fitMapTo: (bounds, pad) => set({ mapFitBounds: { bounds, pad, at: Date.now() } }),
   setCursorPosition: (pos) => set({ cursorPosition: pos }),
-  setViewMode: (mode) => set({ viewMode: mode, isEVASimulating: false }),
+  // The walk is drawn by the 2D map, so it waits while the full-screen globe is up instead of showing Pause with nothing moving
+  setViewMode: (mode) => set({ viewMode: mode, isEVASimulating: false, ...(mode === '3d' ? { isRoverDriving: false } : {}) }),
 
   // Incremented whenever a real terrain grid finishes loading (see src/terrain/terrainSync.js)
   terrainVersion: 0,
@@ -790,6 +792,14 @@ const useMapStore = create((set, get) => ({
         points: plan.path.map((p) => [p.lat, p.lon, p.elevation]),
         stations: plan.keyIndices,
         source: plan.grid.source,
+        metrics: {
+          distanceM: plan.metrics.distanceM,
+          traverseDistanceKm: Math.round(plan.metrics.distanceM / 10) / 100,
+          maxSlopeDeg: Math.round(plan.metrics.maxSlopeDeg * 10) / 10,
+          totalAscentMeters: Math.round(plan.metrics.ascentM),
+          walkingHours: Math.round((plan.metrics.timeS / 3600) * 10) / 10,
+          budgetSharePct: Math.round((plan.metrics.energyJ / usableBudgetJ()) * 100),
+        },
       };
     } catch (err) {
       console.warn('Emergency route on real terrain unavailable, using straight corridor:', err.message);

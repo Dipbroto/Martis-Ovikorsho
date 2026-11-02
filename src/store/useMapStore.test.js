@@ -93,4 +93,21 @@ describe('map undo', () => {
     expect(store().waypoints).toHaveLength(1);
     store().setRoverDriving(false);
   });
+
+  it('pauses a walk when the full-screen globe opens, and not for the other views', () => {
+    store().setRoverDriving(true);
+    store().setViewMode('split');
+    expect(store().isRoverDriving).toBe(true);
+    store().setViewMode('3d');
+    expect(store().isRoverDriving).toBe(false);
+    store().setViewMode('2d');
+  });
+
+  it('forgets the walk when the route is cleared', () => {
+    store().addWaypoint({ lat: 1, lon: 1 });
+    store().setRoverProgress(0.4);
+    store().clearWaypoints();
+    expect(store().roverProgress).toBe(0);
+    expect(store().isRoverDriving).toBe(false);
+  });
 });

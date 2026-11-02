@@ -66,8 +66,9 @@ export default function TopBar({ onSelectTab }) {
 
   const go = (key) => {
     marsAudio.playUiClick?.();
-    if (key === 'map') {
-      // Clicking Map always resets it back to its default state
+    if (key === 'map' && activeTab === 'map') {
+      // Clicking Map while already on it puts it back to its default state; coming back from another tab keeps
+      // the route, the walk and the view as they were
       resetMapToDefault();
       onSelectTab?.('map');
       window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });

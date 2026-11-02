@@ -24,8 +24,10 @@ const fmtH = (h) => `${Math.floor(h)} h ${String(Math.round((h % 1) * 60)).padSt
 async function scanRoute(points) {
   const pts = points.map(([lat, lon, elevation]) => ({ lat, lon, elevation }));
   const markedLocation = useMapStore.getState().markedLocation;
-  const base = markedLocation || pts[0];
   const end = pts[pts.length - 1];
+  // An emergency route starts where the crew is and ends at the base
+  const isAbort = useMapStore.getState().waypoints.at(-1)?.type === 'abort_refuge';
+  const base = markedLocation || (isAbort ? end : pts[0]);
 
   // Distance, slope and walking energy along the path
   const km = [0];
@@ -70,13 +72,20 @@ async function scanRoute(points) {
     : { key: 'radio', icon: Radio, level: 'warn', title: `Radio lost at ${km[firstLost].toFixed(1)} km`, detail: `Terrain blocks the ${baseLabel} for ${100 - contactPct}% of the route. Plan a relay or check-in before this point.`, at: pts[firstLost], km: km[firstLost] });
 
   // Point of no return: outbound energy so far + cheapest walk back must fit the usable budget
+  // In the rover the suits stay full, so the check is whether the crew could walk home if the rover failed
   const budget = usableBudgetJ();
+  const rover = useMapStore.getState().travelMode === 'rover';
   let turnBack = -1;
   for (let i = 0; i < pts.length; i++) {
     const home = fieldAt(back.grid, back.field, pts[i].lat, pts[i].lon);
-    if (!(Number.isFinite(home) && energy[i] + home <= budget)) { turnBack = i; break; }
+    if (!(Number.isFinite(home) && (rover ? 0 : energy[i]) + home <= budget)) { turnBack = i; break; }
   }
-  if (turnBack < 0) {
+  if (rover) {
+    const limit = Math.max(0, turnBack - 1);
+    findings.push(turnBack < 0
+      ? { key: 'return', icon: Undo2, level: 'ok', title: 'Walking distance from base the whole way', detail: 'If the rover failed anywhere on this route, the crew could still walk back on one suit.', at: end, km: totalKm }
+      : { key: 'return', icon: Undo2, level: 'warn', title: `Rover-only past ${km[limit].toFixed(1)} km`, detail: 'If the rover failed beyond this point, the walk back would not fit one suit of life support.', at: pts[limit], km: km[limit] });
+  } else if (turnBack < 0) {
     const homeFromEnd = fieldAt(back.grid, back.field, end.lat, end.lon) || 0;
     const spare = energyToHours(budget - energy[energy.length - 1] - homeFromEnd);
     findings.push({ key: 'return', icon: Undo2, level: spare > 1 ? 'ok' : 'warn', title: 'You can walk back from the end', detail: `Out and back leaves ${fmtH(Math.max(0, spare))} of usable life support (25% reserve untouched).`, at: end, km: totalKm });
@@ -121,6 +130,7 @@ function useRouteScan() {
   const waypoints = useMapStore((s) => s.waypoints);
   const routeGeometry = useMapStore((s) => s.routeGeometry);
   const setRouteScan = useMapStore((s) => s.setRouteScan);
+  const travelMode = useMapStore((s) => s.travelMode);
   const planned = routeGeometry && routeGeometry.signature === routeSignature(waypoints) ? routeGeometry : null;
 
   useEffect(() => {
@@ -138,7 +148,7 @@ function useRouteScan() {
       })
       .catch((e) => !cancelled && setRouteScan({ error: e.message }));
     return () => { cancelled = true; };
-  }, [open, planned, setRouteScan]);
+  }, [open, planned, travelMode, setRouteScan]);
 }
 
 export function RouteScanPanel() {

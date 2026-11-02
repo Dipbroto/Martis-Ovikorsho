@@ -1,16 +1,19 @@
 import { useEffect, useRef } from 'react';
-import useMapStore from '../store/useMapStore';
+import useMapStore, { routeSignature } from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
 import { marsDistance } from '../utils/marsUtils';
+import { roverRouteHours } from '../terrain/roverModel';
 
 export default function EvaProactiveAdvisor() {
   const waypoints = useMapStore((s) => s.waypoints);
+  const routeGeometry = useMapStore((s) => s.routeGeometry);
   const terrainOverlayStatus = useMapStore((s) => s.terrainOverlayStatus);
   const isRoverDriving = useMapStore((s) => s.isRoverDriving);
   const activeContingency = useMapStore((s) => s.activeContingency);
   const travelMode = useMapStore((s) => s.travelMode);
   const setTravelMode = useMapStore((s) => s.setTravelMode);
   const setTerrainOverlay = useMapStore((s) => s.setTerrainOverlay);
+  const setRouteScanOpen = useMapStore((s) => s.setRouteScanOpen);
   const setEVASimulating = useMapStore((s) => s.setEVASimulating);
   const setRoverDriving = useMapStore((s) => s.setRoverDriving);
   const executeEmergencyReturn = useMapStore((s) => s.executeEmergencyReturn);
@@ -102,6 +105,15 @@ export default function EvaProactiveAdvisor() {
       }
     }
 
+    // The distance and time of the route as planned on the terrain, which is longer than the straight legs between stops
+    const planned = routeGeometry && routeGeometry.signature === routeSignature(waypoints);
+    if (planned && routeGeometry.metrics?.distanceM) totalDistKm = routeGeometry.metrics.distanceM / 1000;
+    const tripMinutes = travelMode === 'rover' && planned
+      ? Math.round(roverRouteHours(routeGeometry.points) * 60)
+      : Math.round((totalDistKm / (travelMode === 'rover' ? 10 : 3.0)) * 60);
+    const tripLabel = travelMode === 'rover' ? 'Rover drive time' : 'Suited walking time';
+    const tripText = tripMinutes >= 120 ? `${(tripMinutes / 60).toFixed(1)} h` : `${tripMinutes} min`;
+
     // Skip if breach is already active
     if (terrainOverlayStatus?.isBreached) return;
 
@@ -155,15 +167,38 @@ export default function EvaProactiveAdvisor() {
           },
         },
       }, 16000);
+    } else if (travelMode === 'foot' && planned && routeGeometry.metrics?.budgetSharePct > 50) {
+      // One way takes over half the usable life support, so out and back cannot fit
+      triggerCallout({
+        id: `no-return-${routeKey}`,
+        type: 'warning',
+        title: 'WALK BACK DOES NOT FIT',
+        text: `One way uses ${routeGeometry.metrics.budgetSharePct}% of the usable life support, so the crew could not walk all the way back. Recommend the Safety Scan's turn-back point or Rover mode.`,
+        primaryAction: {
+          label: 'Switch to Rover',
+          action: () => {
+            setTravelMode('rover');
+            dismissEvaCallout();
+            marsAudio.playUiClick?.();
+          },
+        },
+        secondaryAction: {
+          label: 'Safety Scan',
+          action: () => {
+            setRouteScanOpen(true);
+            dismissEvaCallout();
+          },
+        },
+      }, 16000);
     } else if (maxSlope < 9.0 && totalDistKm > 1.0) {
       // Nominal Route Verification
       triggerCallout({
         id: `route-nominal-${routeKey}`,
         type: 'success',
         title: 'ROUTE VERIFICATION NOMINAL',
-        text: `Traverse path verified: ${totalDistKm.toFixed(1)} km across stable ground (<${Math.max(3, maxSlope).toFixed(0)}° grade). Suited walking time ~${Math.round((totalDistKm / 3.0) * 60)} min with safe life-support margin.`,
+        text: `Traverse path verified: ${totalDistKm.toFixed(1)} km across stable ground (<${Math.max(3, maxSlope).toFixed(0)}° grade). ${tripLabel} ~${tripText}${travelMode === 'foot' ? ' with safe life-support margin' : ''}.`,
         primaryAction: {
-          label: 'Start Walk',
+          label: travelMode === 'rover' ? 'Start Drive' : 'Start Walk',
           action: () => {
             setRoverDriving(true);
             dismissEvaCallout();
@@ -199,6 +234,8 @@ export default function EvaProactiveAdvisor() {
           },
         },
       }, 12000);
+    } else if (useMapStore.getState().evaCallout?.id === 'traverse-driving') {
+      dismissEvaCallout();
     }
   }, [isRoverDriving]); // eslint-disable-line react-hooks/exhaustive-deps
 

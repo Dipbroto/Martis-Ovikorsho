@@ -202,6 +202,12 @@ const ArcGisExportTileLayer = ({ url, opacity, bounds, minZoom = 0, maxZoom = 18
   return null;
 };
 
+// What the camera effects below last acted on. The map is built again when the view switches between 2D, 3D and Split,
+// and without this it would fly back to the whole planet and to the route again each time.
+let appliedFit = null;
+let appliedCenter = null;
+let appliedZoom = null;
+
 // Controls camera view smoothly when mapCenter or mapZoom changes in store, and handles resizing
 const MapViewController = () => {
   const map = useMap();
@@ -226,7 +232,7 @@ const MapViewController = () => {
 
   // Frame a newly planned route, leaving room for the sidebar, toolbar and side panels
   useEffect(() => {
-    if (!mapFitBounds) return;
+    if (!mapFitBounds || mapFitBounds === appliedFit) return;
     const { x, y } = map.getSize();
     if (!x || !y) return;
     const narrow = x < 768;
@@ -235,12 +241,16 @@ const MapViewController = () => {
     const topLeft = mapFitBounds.pad?.topLeft ? room(mapFitBounds.pad.topLeft) : (narrow ? [24, 150] : [Math.min(440, x * 0.32), 150]);
     const bottomRight = mapFitBounds.pad?.bottomRight ? room(mapFitBounds.pad.bottomRight) : (narrow ? [24, Math.min(260, y * 0.3)] : [Math.min(420, x * 0.3), 150]);
     // CTX imagery stays sharp to zoom 12; closer than that the 200 m survival overlays get coarse
+    appliedFit = mapFitBounds;
     map.flyToBounds(mapFitBounds.bounds, { paddingTopLeft: topLeft, paddingBottomRight: bottomRight, maxZoom: 12, duration: 1.2 });
   }, [mapFitBounds, map]);
 
   useEffect(() => {
     if (mapCenter && Array.isArray(mapCenter) && mapCenter.length === 2) {
       if (!mapCenter.every(Number.isFinite)) return;
+      if (mapCenter === appliedCenter && mapZoom === appliedZoom) return;
+      appliedCenter = mapCenter;
+      appliedZoom = mapZoom;
       const targetZoom = Math.min(Math.max(typeof mapZoom === 'number' ? mapZoom : 2, map.getMinZoom()), 18);
       const size = map.getSize();
       // flyTo divides by the container size; a hidden or zero-sized map (background tab, collapsed
@@ -470,6 +480,8 @@ const RoverSimulator = ({ waypoints }) => {
     const totalDistKm = routeDistances.totalDistKm;
     if (totalDistKm <= 0) return undefined;
 
+    // The store has the last word: a new route (an emergency return, say) starts from its own progress
+    progRef.current = useMapStore.getState().roverProgress || 0;
     let dist = progRef.current * totalDistKm;
     if (progRef.current >= 0.99 || (targetDistKm > 0.1 && dist >= targetDistKm - 0.05)) {
       dist = 0;
@@ -577,7 +589,8 @@ const RoverSimulator = ({ waypoints }) => {
     animId = requestAnimationFrame(drive);
     return () => {
       cancelAnimationFrame(animId);
-      if (progRef.current > 0) setRoverProgress(progRef.current);
+      // Keep the place on this route only: progress on a replaced route means nothing on the new one
+      if (progRef.current > 0 && useMapStore.getState().waypoints === waypoints) setRoverProgress(progRef.current);
     };
     // sample/publish/stationAt only read `track` and the cost tables, which are dependencies
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -721,6 +734,11 @@ const RouteDrawIn = ({ positions }) => {
 };
 
 const MarsMap = () => {
+  // Opens where the map was last looking, not on the whole planet
+  const [startView] = useState(() => {
+    const { viewCenter, viewZoom } = useMapStore.getState();
+    return viewCenter && Number.isFinite(viewZoom) ? { center: viewCenter, zoom: viewZoom } : { center: [0, 0], zoom: 1 };
+  });
   const activeLayers = useMapStore((s) => s.activeLayers);
   const layerOpacity = useMapStore((s) => s.layerOpacity);
   const waypoints = useMapStore((s) => s.waypoints);
@@ -802,8 +820,8 @@ const MarsMap = () => {
   return (
     <div className={`w-full h-full relative ${isPlacingWaypoint || isRulerActive || pickTarget || isMarkingLocation ? 'crosshair-cursor' : ''}`}>
       <MapContainer
-        center={[0, 0]}
-        zoom={1}
+        center={startView.center}
+        zoom={startView.zoom}
         minZoom={0}
         maxZoom={18}
         crs={L.CRS.EPSG4326}

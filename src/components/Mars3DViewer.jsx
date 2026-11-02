@@ -240,9 +240,10 @@ function SiteMarker({ site, onSelect, selected }) {
   );
 }
 
-function RouteOnGlobe({ points, label }) {
+function RouteOnGlobe({ points, label, crew }) {
   const line = useMemo(() => points.map(([lat, lon]) => dirFor(lat, lon).multiplyScalar(R * 1.003)), [points]);
   const mid = line[Math.floor(line.length / 2)];
+  const crewAt = useMemo(() => (crew ? dirFor(crew[0], crew[1]).multiplyScalar(R * 1.012) : null), [crew]);
   const ring = useRef();
   const tag = useRef();
   const { camera } = useThree();
@@ -258,6 +259,12 @@ function RouteOnGlobe({ points, label }) {
   return (
     <group>
       {line.length > 1 && <Line points={line} color="#ff7b4d" lineWidth={3} />}
+      {crewAt && (
+        <mesh position={crewAt}>
+          <sphereGeometry args={[0.03, 16, 12]} />
+          <meshBasicMaterial color="#ffffff" />
+        </mesh>
+      )}
       <mesh position={mid} quaternion={quat}>
         <ringGeometry args={[0.03, 0.04, 40]} />
         <meshBasicMaterial color="#ff7b4d" transparent />
@@ -515,6 +522,10 @@ export default function Mars3DViewer() {
     viewMode: s.viewMode, waypoints: s.waypoints, routeGeometry: s.routeGeometry, selectedPOI: s.selectedPOI, setSelectedPOI: s.setSelectedPOI,
     setViewMode: s.setViewMode, flyToCoordinate: s.flyToCoordinate, mapCenter: s.mapCenter, mapZoom: s.mapZoom, globeFocus: s.globeFocus,
   })));
+  // Where the crew had got to on the walk, if one was started
+  const crewPos = useMapStore((s) => s.roverCurrentPosition);
+  const crewProgress = useMapStore((s) => s.roverProgress);
+  const crew = useMemo(() => (crewPos && crewProgress > 0.003 ? [crewPos.lat, crewPos.lon] : null), [crewPos, crewProgress]);
   const covered = useMapStore((s) => s.isStreetViewOpen); // nothing here is visible behind the surface view
   const [hasWebGL] = useState(() => {
     try {
@@ -719,7 +730,7 @@ export default function Mars3DViewer() {
         {layers.sites && landingSites.map((site) => (
           <SiteMarker key={site.id} site={site} onSelect={selectSite} selected={selectedSite?.id === site.id} />
         ))}
-        {layers.route && route && <RouteOnGlobe points={route.points} label={`Your route · ${route.km.toFixed(1)} km`} />}
+        {layers.route && route && <RouteOnGlobe points={route.points} label={`Your route · ${route.km.toFixed(1)} km`} crew={crew} />}
         <CameraRig target={target} controls={controls} onArrive={() => setTarget(null)} />
         <OrbitControls
           ref={controls}

@@ -6,7 +6,7 @@ import {
   Gauge, RefreshCw, Zap, ShieldAlert
 } from 'lucide-react';
 import { marsAudio } from '../utils/audioSynthesizer';
-import useMapStore from '../store/useMapStore';
+import useMapStore, { routeSignature } from '../store/useMapStore';
 import DockCard from './dock/DockCard';
 import { computeReturnField, computeSlopeField, computeViewshed, isCoarseGrid } from '../terrain/terrainClient';
 import { renderCommsOverlay, renderReturnOverlay, renderSlopeOverlay } from '../terrain/overlayImage';
@@ -67,12 +67,17 @@ export function TerrainOverlayLayer() {
   const setStatus = useMapStore((s) => s.setTerrainOverlayStatus);
   const isochroneO2Hours = useMapStore((s) => s.isochroneO2Hours);
   const isochroneLeakMultiplier = useMapStore((s) => s.isochroneLeakMultiplier);
+  const routeGeometry = useMapStore((s) => s.routeGeometry);
+  const rover = useMapStore((s) => s.travelMode === 'rover');
+
+  // An emergency route starts where the crew is and ends at the base
+  const home = waypoints[waypoints.length - 1]?.type === 'abort_refuge' ? waypoints[waypoints.length - 1] : waypoints[0];
 
   // Measures with respect to marked location if the user marked one, otherwise first waypoint or map centre
   const base = markedLocation
     ? { lat: markedLocation.lat, lon: markedLocation.lon, name: markedLocation.name || 'Marked Station', isMarked: true, elevation: markedLocation.elevation }
-    : (waypoints[0]
-      ? { ...waypoints[0], isMarked: false }
+    : (home
+      ? { ...home, isMarked: false }
       : (mapCenter ? { lat: mapCenter[0], lon: mapCenter[1], name: 'Map centre', isMarked: false } : null));
   const baseKey = base ? `${base.lat.toFixed(5)},${base.lon.toFixed(5)}${base.isMarked ? '_marked' : ''}` : '';
   const [analysis, setAnalysis] = useState(null); // { mode, baseKey, grid, field } | { error }
@@ -113,8 +118,11 @@ export function TerrainOverlayLayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, baseKey, hereKey, terrainVersion]);
 
-  // Energy already spent on the traverse, from the simulated progress along the route
-  const profile = useMemo(() => routeEnergyProfile(waypoints), [waypoints, terrainVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Energy already spent on the traverse, from the simulated progress along the route as planned
+  const profile = useMemo(() => {
+    const planned = routeGeometry && routeGeometry.signature === routeSignature(waypoints);
+    return routeEnergyProfile(planned ? routeGeometry.points.map(([lat, lon]) => ({ lat, lon })) : waypoints);
+  }, [waypoints, routeGeometry, terrainVersion]); // eslint-disable-line react-hooks/exhaustive-deps
   const progressStep = Math.round((roverProgress || 0) * 50) / 50;
   const activeAssumptions = useMemo(() => ({
     ...EVA_ASSUMPTIONS,
@@ -122,27 +130,32 @@ export function TerrainOverlayLayer() {
   }), [isochroneO2Hours]);
   const combinedMultiplier = contingencyMultiplier * isochroneLeakMultiplier;
   const budgetJ = usableBudgetJ(activeAssumptions, combinedMultiplier);
-  const spentJ = energyAtFraction(profile, progressStep);
+  // In the rover the suits stay full; what matters is whether the crew could walk home if it failed
+  const spentJ = rover ? 0 : energyAtFraction(profile, progressStep);
   const remainingJ = Math.max(0, budgetJ - spentJ);
+  const started = Boolean(roverPosition && roverProgress > 0);
 
   // Report the return cost from the traverse position, or from the route's end before it starts
   const current = analysis?.mode === 'return' && analysis?.grid
-    ? (roverPosition && roverProgress > 0 ? roverPosition : waypoints[waypoints.length - 1] || base)
+    ? (started ? roverPosition : waypoints[waypoints.length - 1] || base)
     : null;
   const outboundReady = outbound && outbound.key === `${baseKey}|${hereKey}`;
   const returnHereJ = current && analysis?.grid && analysis?.field
     ? fieldValueAt(analysis.grid, analysis.field, current.lat, current.lon)
     : null;
-  const isBreached = Boolean(
-    analysis?.grid && analysis?.field && (
-      (returnHereJ !== null && (returnHereJ > remainingJ || !Number.isFinite(returnHereJ))) ||
-      (waypoints.length > 1 && waypoints.some((wp) => {
-        const c = fieldValueAt(analysis.grid, analysis.field, wp.lat, wp.lon);
-        return c !== null && (c > remainingJ || !Number.isFinite(c));
-      }))
-    )
-  );
-  const breachDeltaJ = returnHereJ !== null && returnHereJ > remainingJ ? (returnHereJ - remainingJ) : 0;
+  // On the way, only where the crew stands counts. Before setting off, the farthest stop of the route does.
+  let worstReturnJ = returnHereJ;
+  if (!started && analysis?.grid && analysis?.field && waypoints.length > 1) {
+    waypoints.forEach((wp) => {
+      const c = fieldValueAt(analysis.grid, analysis.field, wp.lat, wp.lon);
+      if (c !== null && (worstReturnJ === null || !(c <= worstReturnJ))) worstReturnJ = c;
+    });
+  }
+  const beyondReach = worstReturnJ !== null && (worstReturnJ > remainingJ || !Number.isFinite(worstReturnJ));
+  const isBreached = !rover && beyondReach;
+  const breachDeltaJ = beyondReach && Number.isFinite(worstReturnJ) ? worstReturnJ - remainingJ : 0;
+  // Before setting off: the walk out plus the walk back from the end must fit together
+  const roundTripJ = !rover && !started && Number.isFinite(returnHereJ) ? profile.totalEnergyJ + returnHereJ : null;
 
   const ready = analysis && !analysis.error && analysis.mode === mode && analysis.baseKey === baseKey;
   const coarse = ready && isCoarseGrid(analysis.grid);
@@ -188,7 +201,9 @@ export function TerrainOverlayLayer() {
       budgetJ,
       spentJ,
       remainingJ,
-      returnHereJ,
+      returnHereJ: started ? returnHereJ : worstReturnJ,
+      roundTripJ,
+      rover,
       currentName: current?.name || (roverPosition ? 'Current position' : null),
       contingencyTitle: contingencyMultiplier < 1 ? contingencyTitle : null,
       isochroneO2Hours,
@@ -196,7 +211,7 @@ export function TerrainOverlayLayer() {
       isBreached,
       breachDeltaJ,
     });
-  }, [mode, base?.name, base?.isMarked, base?.lat, base?.lon, analysis, ready, coarse, budgetJ, spentJ, remainingJ, returnHereJ, isochroneO2Hours, isochroneLeakMultiplier, isBreached, breachDeltaJ]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, base?.name, base?.isMarked, base?.lat, base?.lon, analysis, ready, coarse, budgetJ, spentJ, remainingJ, returnHereJ, worstReturnJ, roundTripJ, rover, started, isochroneO2Hours, isochroneLeakMultiplier, isBreached, breachDeltaJ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!url || !analysis?.grid) return null;
   const g = analysis.grid;
@@ -431,8 +446,9 @@ export function TerrainOverlayPanel() {
   } else {
     // Return Range (Dynamic Isochrone)
     const returnHere = status.returnHereJ;
-    const isBreached = status.isBreached || (returnHere !== null && returnHere > status.remainingJ);
+    const isBreached = status.isBreached;
     const safe = !isBreached && returnHere !== null && returnHere <= status.remainingJ;
+    const returnCost = Number.isFinite(returnHere) ? hours(returnHere) : 'more than a full suit';
     body = (
       <div className="space-y-3 font-sans">
         {/* Tactical O2 Slider */}
@@ -557,7 +573,7 @@ export function TerrainOverlayPanel() {
                   CRITICAL: POINT OF NO RETURN BREACHED
                 </div>
                 <div className="text-[11px] text-rose-200/90 mt-0.5">
-                  Returning to {status.baseName} requires <strong className="text-white font-mono">{hours(returnHere || 0)}</strong>. Exceeds oxygen capacity by <strong className="text-rose-300 font-mono">{hours(status.breachDeltaJ || 0)}</strong>!
+                  Returning to {status.baseName} requires <strong className="text-white font-mono">{returnCost}</strong>.{status.breachDeltaJ > 0 && <> Exceeds oxygen capacity by <strong className="text-rose-300 font-mono">{hours(status.breachDeltaJ)}</strong>!</>}
                 </div>
               </div>
             </div>
@@ -572,6 +588,20 @@ export function TerrainOverlayPanel() {
               Engage Emergency Return Path
             </button>
           </div>
+        ) : (status.rover && returnHere !== null && !safe) || status.roundTripJ > status.budgetJ ? (
+          <div className="p-2.5 rounded-xl border border-amber-500/40 bg-amber-950/40 text-amber-200 flex items-start gap-2.5">
+            <div className="p-1 rounded-lg bg-amber-500/20 text-amber-300 shrink-0">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+            <div className="text-xs leading-snug">
+              <div className="font-semibold mb-0.5 text-amber-100">{status.rover ? 'Beyond Walking Range' : 'Round Trip Does Not Fit'}</div>
+              <div className="text-[11px] text-zinc-300">
+                {status.rover
+                  ? <>If the rover failed here, walking back to {status.baseName} would take <strong className="text-white font-mono">{returnCost}</strong> of life support, more than one suit carries.</>
+                  : <>Out and back needs <strong className="text-white font-mono">{hours(status.roundTripJ)}</strong> of the usable <strong className="text-white font-mono">{hours(status.budgetJ)}</strong>. Turn back early or take the rover.</>}
+              </div>
+            </div>
+          </div>
         ) : returnHere !== null ? (
           <div className="p-2.5 rounded-xl border border-emerald-500/40 bg-emerald-950/40 text-emerald-200 flex items-start gap-2.5">
             <div className="p-1 rounded-lg bg-emerald-500/20 text-emerald-300 shrink-0">
@@ -580,7 +610,7 @@ export function TerrainOverlayPanel() {
             <div className="text-xs leading-snug">
               <div className="font-semibold mb-0.5 text-emerald-100">Walkback Feasible</div>
               <div className="text-[11px] text-zinc-300">
-                Returning to {status.baseName} requires <strong className="text-white font-mono">{hours(returnHere)}</strong>. Within safe life-support margin (NASA 25% reserve preserved).
+                {status.rover ? 'If the rover failed here, walking back' : 'Returning'} to {status.baseName} requires <strong className="text-white font-mono">{hours(returnHere)}</strong>. Within safe life-support margin (NASA 25% reserve preserved).
               </div>
             </div>
           </div>
