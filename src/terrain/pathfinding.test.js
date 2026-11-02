@@ -38,6 +38,11 @@ describe('evaModel', () => {
 });
 
 describe('planRoute', () => {
+  it('refuses a destination outside the grid instead of stopping at its edge', () => {
+    const g = makeGrid(() => 0);
+    expect(() => planRoute(g, at(g, 20, 20), { lat: 5, lon: 5 })).toThrow(/outside the loaded terrain/);
+  });
+
   it('walks straight across flat ground', () => {
     const g = makeGrid(() => 0);
     const res = planRoute(g, at(g, 20, 2), at(g, 20, 38), { mode: 'energy' });

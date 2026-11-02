@@ -96,6 +96,11 @@ function rowGeometry(grid) {
   return { dx, dy };
 }
 
+function onGrid(grid, lat, lon) {
+  const { x, y } = latLonToPixel(grid, lat, lon);
+  return x >= -1 && x <= grid.width && y >= -1 && y <= grid.height;
+}
+
 function toCell(grid, lat, lon) {
   const { x, y } = latLonToPixel(grid, lat, lon);
   const col = Math.min(grid.width - 1, Math.max(0, Math.floor(x)));
@@ -191,6 +196,9 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
   const weight = makeWeight(mode, assumptions);
   const hScale = minWeightPerMeter(weight, assumptions);
   const dxMin = Math.min(...dx);
+
+  // toCell clamps to the grid, which would quietly plan a route to its edge instead of to the point asked for
+  if (!onGrid(grid, start.lat, start.lon) || !onGrid(grid, goal.lat, goal.lon)) throw new Error('Start or destination is outside the loaded terrain');
 
   const s = toCell(grid, start.lat, start.lon);
   const t = toCell(grid, goal.lat, goal.lon);

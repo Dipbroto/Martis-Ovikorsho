@@ -1,6 +1,6 @@
 // Promise API around the terrain worker. Picks the best real terrain grid for a request and makes
 // sure the worker has a copy of it.
-import { ensureTerrainFor, ensureRemoteGrid, getGridAt, gridContains, MAX_ROUTE_KM } from './dem';
+import { ensureTerrainFor, ensureRemoteGrid, getGridAt, getLoadedGrid, gridContains, MAX_ROUTE_KM } from './dem';
 import { marsDistance } from '../utils/marsUtils';
 
 let worker = null;
@@ -50,18 +50,19 @@ export async function gridForPoints(points) {
   if (points.length > 1) {
     const far = Math.max(...points.map((p) => marsDistance(first.lat, first.lon, p.lat, p.lon)));
     // Further apart than any 200 m window can cover: plan on the coarse global terrain instead of refusing
-    if (far > MAX_ROUTE_KM) return fallbackGlobal(first);
+    if (far > MAX_ROUTE_KM) return fallbackGlobal();
   }
   try {
     return await ensureRemoteGrid(points);
   } catch (err) {
-    if (points.length < 2) return fallbackGlobal(first, err);
+    if (points.length < 2) return fallbackGlobal(err);
     throw err;
   }
 }
 
-function fallbackGlobal(first, err) {
-  const global = getGridAt(first.lat, first.lon);
+// The global grid by name: the finest grid at a point can be a small site grid that doesn't reach the other points
+function fallbackGlobal(err) {
+  const global = getLoadedGrid('global');
   if (!global) throw err || new Error('Terrain data is not available');
   return global;
 }
