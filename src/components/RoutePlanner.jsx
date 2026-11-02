@@ -32,7 +32,8 @@ export default function RoutePlanner() {
     isPlacingWaypoint, 
     setPlacingWaypoint, 
     removeWaypoint, 
-    undoLastPoint,
+    undo,
+    openStreetView,
     setWaypoints,
     updateWaypoint, 
     clearWaypoints,
@@ -53,7 +54,7 @@ export default function RoutePlanner() {
     driveTargetWaypointId,
     setDriveTargetWaypointId,
     routeGeometry,
-  } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, terrainVersion: s.terrainVersion, isPlacingWaypoint: s.isPlacingWaypoint, setPlacingWaypoint: s.setPlacingWaypoint, removeWaypoint: s.removeWaypoint, undoLastPoint: s.undoLastPoint, setWaypoints: s.setWaypoints, updateWaypoint: s.updateWaypoint, clearWaypoints: s.clearWaypoints, loadExpeditionPreset: s.loadExpeditionPreset, activePresetId: s.activePresetId, setEVASimulating: s.setEVASimulating, setFlightPlanOpen: s.setFlightPlanOpen, setContingencyModalOpen: s.setContingencyModalOpen, activeContingency: s.activeContingency, setMapCenter: s.setMapCenter, setMapZoom: s.setMapZoom, selectedWaypointId: s.selectedWaypointId, setSelectedWaypoint: s.setSelectedWaypoint, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, driveTargetWaypointId: s.driveTargetWaypointId, setDriveTargetWaypointId: s.setDriveTargetWaypointId, routeGeometry: s.routeGeometry, openStreetView: s.openStreetView })));
+  } = useMapStore(useShallow((s) => ({ waypoints: s.waypoints, terrainVersion: s.terrainVersion, isPlacingWaypoint: s.isPlacingWaypoint, setPlacingWaypoint: s.setPlacingWaypoint, removeWaypoint: s.removeWaypoint, undo: s.undo, setWaypoints: s.setWaypoints, updateWaypoint: s.updateWaypoint, clearWaypoints: s.clearWaypoints, loadExpeditionPreset: s.loadExpeditionPreset, activePresetId: s.activePresetId, setEVASimulating: s.setEVASimulating, setFlightPlanOpen: s.setFlightPlanOpen, setContingencyModalOpen: s.setContingencyModalOpen, activeContingency: s.activeContingency, setMapCenter: s.setMapCenter, setMapZoom: s.setMapZoom, selectedWaypointId: s.selectedWaypointId, setSelectedWaypoint: s.setSelectedWaypoint, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, driveTargetWaypointId: s.driveTargetWaypointId, setDriveTargetWaypointId: s.setDriveTargetWaypointId, routeGeometry: s.routeGeometry, openStreetView: s.openStreetView })));
 
   const [activeTab, setActiveTab] = useState('manual'); // 'manual' | 'auto'
   const [distance, setDistance] = useState(0);
@@ -891,8 +892,7 @@ export default function RoutePlanner() {
           {waypoints && waypoints.length > 0 && (
             <button
               onClick={() => {
-                undoLastPoint();
-                marsAudio.playQuindarTone(false);
+                undo();
               }}
               className="py-2 px-3 rounded-xl bg-[#070A10]/70 hover:bg-amber-950/40 text-stone-300 hover:text-amber-400 border border-white/[0.08] hover:border-amber-500/40 transition-colors flex items-center gap-1.5 text-xs font-mono shrink-0 cursor-pointer backdrop-blur-md"
               title="Undo last placed point (Ctrl+Z)"

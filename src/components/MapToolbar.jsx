@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Globe, Crosshair, Grid, Shield, Ruler, Play, Pause, ChevronDown, ChevronUp, Check,
-  Layers, SlidersHorizontal, Volume2, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints, MapPin, Camera, Rocket,
+  RotateCcw, Layers, SlidersHorizontal, Volume2, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints, MapPin, Camera, Rocket,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../store/useMapStore';
@@ -92,6 +92,7 @@ const Divider = () => <span className="hidden sm:block w-px h-6 bg-white/10 mx-0
 export default function MapToolbar() {
   const s = useMapStore(useShallow((st) => ({
     viewMode: st.viewMode, setViewMode: st.setViewMode,
+    undo: st.undo, undoDepth: st.undoDepth,
     terrainOverlay: st.terrainOverlay, setTerrainOverlay: st.setTerrainOverlay,
     showRoverTraverses: st.showRoverTraverses, toggleRoverTraverses: st.toggleRoverTraverses,
     showGraticule: st.showGraticule, toggleGraticule: st.toggleGraticule,
@@ -195,6 +196,16 @@ export default function MapToolbar() {
 
             {is2d && (
               <>
+                <button
+                  onClick={s.undo}
+                  disabled={!s.undoDepth || s.isRoverDriving}
+                  title={s.isRoverDriving ? 'Stop the walk to undo' : 'Undo the last change on the map (Ctrl+Z)'}
+                  className={`${toolBtn} bg-white/[0.04] border-white/10 text-zinc-200 hover:bg-white/[0.09] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/[0.04]`}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span className="hidden md:inline">Undo</span>
+                </button>
+
                 <Divider />
                 {/* Survival checks: the heart of the app, so always one click away */}
                 <div className="flex items-center gap-0.5 bg-white/[0.05] rounded-lg p-0.5 shrink-0" role="group" aria-label="Survival checks">

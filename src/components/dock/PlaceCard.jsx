@@ -39,7 +39,7 @@ const Fact = ({ label, value }) => (
 
 /** What you tapped on the map: a place or a route stop, with the two actions that matter. */
 export default function PlaceCard() {
-  const { selectedPOI, selectedWaypointId, waypoints, clearSelection, setRouteDraft, setRouteEditing, setDockMin, hasRoute, driveTarget, setDriveTarget, setRoverProgress, setRoverDriving, removeWaypoint } = useMapStore(useShallow((s) => ({
+  const { selectedPOI, selectedWaypointId, waypoints, clearSelection, setRouteDraft, setRouteEditing, setDockMin, hasRoute, driveTarget, setDriveTarget, setRoverProgress, setRoverDriving, removeWaypoint, setRoutePlanOpen, openStreetView } = useMapStore(useShallow((s) => ({
     selectedPOI: s.selectedPOI, selectedWaypointId: s.selectedWaypointId, waypoints: s.waypoints, clearSelection: s.clearSelection,
     setRouteDraft: s.setRouteDraft, setRouteEditing: s.setRouteEditing, setDockMin: s.setDockMin, setRoutePlanOpen: s.setRoutePlanOpen, hasRoute: s.waypoints.length > 1,
     driveTarget: s.driveTargetWaypointId, setDriveTarget: s.setDriveTargetWaypointId, setRoverProgress: s.setRoverProgress,

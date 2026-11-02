@@ -6,7 +6,7 @@ import useMapStore from '../../store/useMapStore';
 /** A pill that says what the next click on the map will do, with a way out. */
 export default function MapHint() {
   const { pickTarget, setPickTarget, placing, setPlacing, count, undo } = useMapStore(useShallow((s) => ({
-    pickTarget: s.pickTarget, setPickTarget: s.setPickTarget, placing: s.isPlacingWaypoint, setPlacing: s.setPlacingWaypoint, count: s.waypoints.length, undo: s.undoLastPoint,
+    pickTarget: s.pickTarget, setPickTarget: s.setPickTarget, placing: s.isPlacingWaypoint, setPlacing: s.setPlacingWaypoint, count: s.waypoints.length, undo: s.undo,
   })));
   const text = pickTarget ? `Click the map to choose the ${pickTarget === 'start' ? 'start' : 'destination'}` : placing ? `Click the map to add stop ${count + 1}` : null;
 

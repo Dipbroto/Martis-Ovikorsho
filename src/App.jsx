@@ -227,7 +227,7 @@ function App() {
               </ErrorBoundary>
 
               {/* FIXED LEFT SIDEBAR */}
-              <div className={`fixed left-3 z-[400] pointer-events-none flex transition-[top,bottom] duration-300 ${toolbarCollapsed ? 'top-[132px]' : 'top-[172px] sm:top-[150px]'} ${bottomPanelOpen ? 'bottom-[318px] sm:bottom-24' : 'bottom-24'}`}>
+              <div className={`fixed left-3 z-[400] pointer-events-none flex items-start transition-[top,bottom] duration-300 ${toolbarCollapsed ? 'top-[132px]' : 'top-[172px] sm:top-[150px]'} ${bottomPanelOpen ? 'bottom-[318px] sm:bottom-24' : 'bottom-24'}`}>
                 <div className="pointer-events-auto flex flex-col min-h-0 max-h-full">
                   <ErrorBoundary>
                     <Suspense fallback={null}>

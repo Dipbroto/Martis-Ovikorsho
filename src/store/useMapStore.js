@@ -15,6 +15,22 @@ const normalizeWaypoint = (w) => {
   return { ...rest, lon: w.lon !== undefined ? w.lon : (lng !== undefined ? lng : 0) };
 };
 
+// Undo: what the map looked like before each change the user made. A change to any of these is one step.
+const UNDO_KEYS = [
+  'waypoints', 'selectedWaypointId', 'routeDraft', 'routePlanOpen', 'routeEditing', 'pickTarget',
+  'isPlacingWaypoint', 'isRulerActive', 'rulerPoints', 'isMarkingLocation', 'markedLocation',
+  'selectedPOI', 'terrainOverlay', 'activeLayers', 'showGraticule', 'showWalkbackLimits', 'showRoverTraverses',
+  'quakeMode', 'faultSelected',
+];
+// Move the camera, so they are a step too, but undoing flies back to where the map was really looking instead
+const UNDO_CAMERA_KEYS = ['mapCenter', 'mapZoom'];
+const UNDO_MAX_STEPS = 50;
+// One click often makes several store updates in a row (and a planned route arrives in two): keep them as one step
+const UNDO_GROUP_MS = 250;
+let undoHistory = [];
+let undoLastStepAt = 0;
+let undoRestoring = false;
+
 const useMapStore = create((set, get) => ({
   // ========================
   // NAVIGATION & TAB STATE
@@ -136,7 +152,12 @@ const useMapStore = create((set, get) => ({
   setMapCenter: (center) => set({ mapCenter: center }),
   // Where the 2D map is actually looking (updated on pan/zoom). mapCenter is only the fly-to target.
   viewCenter: null,
-  setViewCenter: (center) => set({ viewCenter: center }),
+  setViewCenter: (center, zoom) => set({ viewCenter: center, viewZoom: zoom }),
+  viewZoom: null,
+  // The last place picked on the 2D map, which the globe turns to in split view. dist is the camera
+  // distance to fly to; without one the globe keeps its current distance.
+  globeFocus: null,
+  setGlobeFocus: (lat, lon, dist) => set({ globeFocus: { lat, lon, dist } }),
   setMapZoom: (zoom) => set({ mapZoom: zoom }),
   // One-off request to frame an area (e.g. a freshly planned route): { bounds: [[s, w], [n, e]], at }
   mapFitBounds: null,
@@ -199,21 +220,25 @@ const useMapStore = create((set, get) => ({
       roverProgress: 0,
     };
   }),
-  undoLastPoint: () => set((state) => {
-    if (state.isRulerActive && state.rulerPoints.length > 0) {
-      return { rulerPoints: state.rulerPoints.slice(0, -1) };
+  undoDepth: 0, // how many steps Undo can go back
+  undo: () => {
+    const state = get();
+    const step = undoHistory.pop();
+    if (!step || state.isRoverDriving) {
+      if (step) undoHistory.push(step);
+      return;
     }
-    if (state.waypoints.length > 0) {
-      const nextWaypoints = state.waypoints.slice(0, -1);
-      return {
-        waypoints: nextWaypoints,
-        selectedWaypointId: nextWaypoints.length > 0 ? nextWaypoints[nextWaypoints.length - 1].id : null,
-        isRoverDriving: false,
-        roverProgress: 0,
-      };
-    }
-    return {};
-  }),
+    undoRestoring = true;
+    set({
+      ...step.values,
+      undoDepth: undoHistory.length,
+      // A walk in progress belongs to the route it was started on
+      ...(step.values.waypoints !== state.waypoints ? { roverProgress: 0, roverCurrentPosition: null, driveTargetWaypointId: null } : {}),
+      ...(step.camera ? { mapCenter: step.camera.center, mapZoom: step.camera.zoom } : {}),
+    });
+    undoRestoring = false;
+    marsAudio.playQuindarTone(false);
+  },
   updateWaypoint: (id, updates) => set((state) => ({
     waypoints: state.waypoints.map(w => w.id === id ? normalizeWaypoint({ ...w, ...updates }) : w)
   })),
@@ -824,6 +849,23 @@ const useMapStore = create((set, get) => ({
   setActiveCommsFriend: (friend) => set({ activeCommsFriend: friend }),
   setUnreadCommsCount: (count) => set({ unreadCommsCount: count }),
 }));
+
+useMapStore.subscribe((state, prev) => {
+  if (undoRestoring || state.isRoverDriving) return;
+  // By value: resetting the map writes fresh but identical arrays, and that is not something to undo
+  const changed = (key) => state[key] !== prev[key] && JSON.stringify(state[key]) !== JSON.stringify(prev[key]);
+  if (!UNDO_KEYS.some(changed) && !UNDO_CAMERA_KEYS.some(changed)) return;
+  const now = Date.now();
+  if (undoHistory.length && now - undoLastStepAt < UNDO_GROUP_MS) return;
+  undoLastStepAt = now;
+  const values = { routeGeometry: prev.routeGeometry };
+  UNDO_KEYS.forEach((key) => { values[key] = prev[key]; });
+  undoHistory = [...undoHistory, {
+    values,
+    camera: prev.viewCenter ? { center: prev.viewCenter, zoom: prev.viewZoom } : { center: prev.mapCenter, zoom: prev.mapZoom },
+  }].slice(-UNDO_MAX_STEPS);
+  useMapStore.setState({ undoDepth: undoHistory.length });
+});
 
 export const routeSignature = (waypoints) => (waypoints || []).map((w) => w.id).join('|');
 

@@ -511,9 +511,9 @@ const hm = (s) => {
 };
 
 export default function Mars3DViewer() {
-  const { waypoints, routeGeometry, selectedPOI, setSelectedPOI, setViewMode, flyToCoordinate, viewMode, mapCenter, mapZoom } = useMapStore(useShallow((s) => ({
+  const { waypoints, routeGeometry, selectedPOI, setSelectedPOI, setViewMode, flyToCoordinate, viewMode, mapCenter, mapZoom, globeFocus } = useMapStore(useShallow((s) => ({
     viewMode: s.viewMode, waypoints: s.waypoints, routeGeometry: s.routeGeometry, selectedPOI: s.selectedPOI, setSelectedPOI: s.setSelectedPOI,
-    setViewMode: s.setViewMode, flyToCoordinate: s.flyToCoordinate, mapCenter: s.mapCenter, mapZoom: s.mapZoom,
+    setViewMode: s.setViewMode, flyToCoordinate: s.flyToCoordinate, mapCenter: s.mapCenter, mapZoom: s.mapZoom, globeFocus: s.globeFocus,
   })));
   const [hasWebGL] = useState(() => {
     try {
@@ -581,16 +581,18 @@ export default function Mars3DViewer() {
     return { points, km, center: points[Math.floor(points.length / 2)] };
   }, [waypoints, routeGeometry]);
 
+  const prevCenterRef = useRef(null);
   const flyTo = (lat, lon, dist, id, mapZoom = 7) => {
     playUiClick();
     setAutoRotate(false);
     setActive(id);
     setTarget(dirFor(lat, lon).multiplyScalar(dist));
+    // This flight already has its own distance, so the map-center effect below must not replace it
+    prevCenterRef.current = [lat, lon];
     flyToCoordinate(lat, lon, mapZoom);
   };
 
   // Re-orient the 3D globe camera whenever the map center changes (e.g. from Eva navigation)
-  const prevCenterRef = useRef(null);
   useEffect(() => {
     if (!mapCenter) return;
     const [lat, lon] = mapCenter;
@@ -602,6 +604,18 @@ export default function Mars3DViewer() {
     const dist = match ? match.dist : Math.max(2.18, 2.5 - ((mapZoom || 4) - 3) * 0.1);
     setTarget(dirFor(lat, lon).multiplyScalar(dist));
   }, [mapCenter, mapZoom]);
+
+  // In split view, turn the globe to whatever was just picked on the 2D map
+  const prevFocusRef = useRef(globeFocus);
+  useEffect(() => {
+    if (!globeFocus || globeFocus === prevFocusRef.current) return;
+    prevFocusRef.current = globeFocus;
+    if (viewMode !== 'split') return;
+    const dist = globeFocus.dist ?? controls.current?.object.position.length() ?? HOME_DIST;
+    setAutoRotate(false);
+    setActive(null);
+    setTarget(dirFor(globeFocus.lat, globeFocus.lon).multiplyScalar(dist));
+  }, [globeFocus, viewMode]);
 
   // Start on the whole planet, turned towards the planned route if there is one
   const home = useMemo(() => {
@@ -618,7 +632,7 @@ export default function Mars3DViewer() {
     // Bring each new layer into view
     if (key === 'sun') {
       const s = subsolarPoint(new Date());
-      flyTo(s.lat * 0.5, s.lon + 70, 7.2, 'sun');
+      flyTo(s.lat * 0.5, s.lon + 70, 7.2, 'sun', 2);
     } else if (key === 'cosmos') {
       const cam = controls.current?.object;
       if (cam && cam.position.length() < 9) {
@@ -634,7 +648,7 @@ export default function Mars3DViewer() {
         setTarget(cam.position.clone().setLength(14));
       }
     } else if (key === 'storms') {
-      flyTo(-15, 40, 7.2, 'storms');
+      flyTo(-15, 40, 7.2, 'storms', 2);
     }
   };
 

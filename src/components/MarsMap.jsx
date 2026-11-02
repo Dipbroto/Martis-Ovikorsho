@@ -106,6 +106,7 @@ const MapEvents = () => {
   const addRulerPoint = useMapStore((s) => s.addRulerPoint);
   const clearSelection = useMapStore((s) => s.clearSelection);
   const setViewCenter = useMapStore((s) => s.setViewCenter);
+  const setGlobeFocus = useMapStore((s) => s.setGlobeFocus);
   const pickTarget = useMapStore((s) => s.pickTarget);
   const pickPoint = useMapStore((s) => s.pickPoint);
   const isMarkingLocation = useMapStore((s) => s.isMarkingLocation);
@@ -114,7 +115,7 @@ const MapEvents = () => {
   useMapEvents({
     moveend(e) {
       const c = e.target.getCenter();
-      setViewCenter([c.lat, c.lng]);
+      setViewCenter([c.lat, c.lng], e.target.getZoom());
     },
     mouseout() {
       setCursorPosition(null);
@@ -132,6 +133,7 @@ const MapEvents = () => {
       if (lon < 0) lon += 360;
       lon = lon - 180;
       const elevation = getElevation(lat, lon);
+      setGlobeFocus(lat, lon);
 
       if (isMarkingLocation) {
         const near = nearestPlace(lat, lon, 1.5);
@@ -694,6 +696,7 @@ const MarsMap = () => {
   const walkStarted = useMapStore((s) => s.roverProgress > 0.003);
   const selectedWaypointId = useMapStore((s) => s.selectedWaypointId);
   const setSelectedWaypoint = useMapStore((s) => s.setSelectedWaypoint);
+  const setGlobeFocus = useMapStore((s) => s.setGlobeFocus);
 
   // New interactive states
   const showWalkbackLimits = useMapStore((s) => s.showWalkbackLimits);
@@ -701,7 +704,7 @@ const MarsMap = () => {
   const isRulerActive = useMapStore((s) => s.isRulerActive);
   const rulerPoints = useMapStore((s) => s.rulerPoints);
   const activeContingency = useMapStore((s) => s.activeContingency);
-  const undoLastPoint = useMapStore((s) => s.undoLastPoint);
+  const undo = useMapStore((s) => s.undo);
   const removeWaypoint = useMapStore((s) => s.removeWaypoint);
   const showRoverTraverses = useMapStore((s) => s.showRoverTraverses);
   const routeGeometry = useMapStore((s) => s.routeGeometry);
@@ -727,8 +730,7 @@ const MarsMap = () => {
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        undoLastPoint();
-        marsAudio.playQuindarTone(false);
+        undo();
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
         if (selectedWaypointId) {
           removeWaypoint(selectedWaypointId);
@@ -738,7 +740,7 @@ const MarsMap = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undoLastPoint, selectedWaypointId, removeWaypoint]);
+  }, [undo, selectedWaypointId, removeWaypoint]);
 
   const activeLayerConfigs = activeLayers
     .map((id) => marsLayers.find((l) => l.id === id))
@@ -1002,6 +1004,7 @@ const MarsMap = () => {
             eventHandlers={{
               click: () => {
                 setSelectedWaypoint(wp.id);
+                setGlobeFocus(wp.lat, wp.lon);
                 marsAudio.playQuindarTone(true);
               },
             }}

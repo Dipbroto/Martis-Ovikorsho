@@ -48,9 +48,12 @@ const getFeatureColor = (type) => {
   }
 };
 
+const POI_GLOBE_DIST = 2.18; // how close the split-view globe flies to a selected place, as for a site picked on the globe
+
 const POIMarkers = () => {
   const poiFilters = useMapStore((s) => s.poiFilters);
   const setSelectedPOI = useMapStore((s) => s.setSelectedPOI);
+  const setGlobeFocus = useMapStore((s) => s.setGlobeFocus);
   const pickTarget = useMapStore((s) => s.pickTarget);
   const pickPoint = useMapStore((s) => s.pickPoint);
 
@@ -63,7 +66,11 @@ const POIMarkers = () => {
           icon={createSpacecraftIcon(site)}
           keyboard
           eventHandlers={{
-            click: () => (pickTarget ? pickPoint({ name: site.name, lat: site.lat, lon: site.lon, elevation: site.elevation }) : setSelectedPOI({ ...site, poiType: 'landingSite' })),
+            click: () => {
+              setGlobeFocus(site.lat, site.lon, POI_GLOBE_DIST);
+              if (pickTarget) pickPoint({ name: site.name, lat: site.lat, lon: site.lon, elevation: site.elevation });
+              else setSelectedPOI({ ...site, poiType: 'landingSite' });
+            },
           }}
         >
           <Tooltip direction="top" offset={[0, -18]} className="route-end-label">{site.name}</Tooltip>
@@ -75,6 +82,7 @@ const POIMarkers = () => {
           key={`feature-${feature.id}`}
           center={[feature.lat, feature.lon]}
           radius={7}
+          bubblingMouseEvents={false}
           pathOptions={{ 
             color: getFeatureColor(feature.type), 
             fillColor: getFeatureColor(feature.type), 
@@ -82,7 +90,11 @@ const POIMarkers = () => {
             weight: 2
           }}
           eventHandlers={{
-            click: () => (pickTarget ? pickPoint({ name: feature.name, lat: feature.lat, lon: feature.lon, elevation: feature.elevation }) : setSelectedPOI({ ...feature, poiType: 'feature' })),
+            click: () => {
+              setGlobeFocus(feature.lat, feature.lon, POI_GLOBE_DIST);
+              if (pickTarget) pickPoint({ name: feature.name, lat: feature.lat, lon: feature.lon, elevation: feature.elevation });
+              else setSelectedPOI({ ...feature, poiType: 'feature' });
+            },
           }}
         >
           <Tooltip direction="top" offset={[0, -8]} className="route-end-label">{feature.name}</Tooltip>
