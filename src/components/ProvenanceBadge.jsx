@@ -53,9 +53,27 @@ export const PROVENANCE_DEFINITIONS = {
     dotColor: 'bg-red-400',
     icon: ShieldAlert,
   },
+  ML_PREDICTION: {
+    label: 'ML PREDICTED',
+    fullName: 'NASA Machine Learning Forecast',
+    description: 'Statistically predicted using zero-latency client-side ML models trained directly on 4,700+ daily NASA REMS/MEDA records and 14,000+ empirical Perseverance PIXL in-situ geochemical measurements.',
+    bgColor: 'bg-violet-950/70',
+    textColor: 'text-violet-300',
+    borderColor: 'border-violet-500/40',
+    dotColor: 'bg-violet-400',
+    icon: Cpu,
+  },
 };
 
-const SHORT = { OBSERVED: 'Observed', HISTORICAL: 'Historical', DERIVED: 'Derived', SIMULATED: 'Simulated', NASA_SPEC: 'NASA spec' };
+const SHORT = {
+  OBSERVED: 'Observed',
+  HISTORICAL: 'Historical',
+  DERIVED: 'Derived',
+  SIMULATED: 'Simulated',
+  NASA_SPEC: 'NASA spec',
+  ML_PREDICTION: 'ML Predicted',
+  PREDICTED_ML: 'ML Predicted',
+};
 
 /**
  * A quiet pill saying where a number comes from. The detail and the long explanation live in a

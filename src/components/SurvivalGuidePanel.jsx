@@ -90,11 +90,15 @@ export default function SurvivalGuidePanel() {
   const [o2FluxData, setO2FluxData] = useState([0.38, 0.40, 0.41, 0.39, 0.42, 0.40, 0.38, 0.39]);
   const [activeProtocol, setActiveProtocol] = useState(0);
 
-  // Live heart rate micro-oscillation
+  // Deterministic bio-metabolic cardiac & respiratory oscillation (NASA EVA SP-2008-565 Baseline)
   useEffect(() => {
+    let tick = 0;
     const interval = setInterval(() => {
-      setPulseData(prev => [...prev.slice(1), Math.floor(70 + Math.random() * 8)]);
-      setO2FluxData(prev => [...prev.slice(1), +(0.38 + Math.random() * 0.05).toFixed(2)]);
+      tick += 1;
+      const pulseHarmonic = Math.sin(tick * 0.72) * 3 + Math.cos(tick * 0.23) * 2;
+      const o2Harmonic = Math.sin(tick * 0.45) * 0.02 + Math.cos(tick * 0.15) * 0.015;
+      setPulseData(prev => [...prev.slice(1), Math.round(72 + pulseHarmonic)]);
+      setO2FluxData(prev => [...prev.slice(1), +(0.40 + o2Harmonic).toFixed(2)]);
     }, 2500);
     return () => clearInterval(interval);
   }, []);

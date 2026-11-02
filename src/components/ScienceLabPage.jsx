@@ -10,6 +10,7 @@ import Panel from './science/Panel';
 import LibsPanel from './science/LibsPanel';
 import PixlPanel from './science/PixlPanel';
 import SherlocPanel from './science/SherlocPanel';
+import MineralMlClassifier from './science/MineralMlClassifier';
 
 const INSTRUMENTS = [
   { id: 'supercam', label: 'SuperCam', what: 'Laser spectroscopy', icon: Zap, tone: 'from-orange-500/25' },
@@ -236,6 +237,9 @@ export default function ScienceLabPage() {
                   )}
                 </AnimatePresence>
               </section>
+
+              {/* In-Situ ML Mineral Classifier & Biosignature Preservation Deck */}
+              {target && <MineralMlClassifier target={target} data={data} />}
 
               {isLoadingData && !data && (
                 <div className="rounded-2xl border border-white/10 bg-black/40 min-h-[260px] flex flex-col items-center justify-center text-zinc-400">

@@ -123,7 +123,7 @@ export default function BottomPanel() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 15 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
-      className="relative z-30 shrink-0 flex flex-col rounded-2xl border border-white/[0.12] bg-[#0B0C10]/90 backdrop-blur-3xl overflow-hidden shadow-2xl h-[295px] w-full"
+      className="relative z-30 shrink-0 flex flex-col rounded-2xl border border-white/[0.12] bg-[#0B0C10]/90 backdrop-blur-3xl overflow-hidden shadow-2xl h-[360px] max-h-[75vh] w-full"
     >
       {/* Tab Bar Header */}
       <div className="flex items-center justify-between h-10 px-3 bg-space-900/90 border-b border-white/[0.08] shrink-0 font-mono">

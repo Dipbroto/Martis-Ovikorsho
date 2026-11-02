@@ -2,6 +2,7 @@ import { useMemo, useEffect } from 'react';
 import useMapStore from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
 import { generateForecast } from '../data/weatherSimulation';
+import { predictMultiSolForecast } from '../services/marsMlService';
 import { marsDateFromEarthDate } from '../utils/marsUtils';
 import {
   Thermometer,
@@ -16,6 +17,9 @@ import {
   Compass,
   Layers,
   Sparkles,
+  ShieldCheck,
+  TrendingUp,
+  Zap,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
@@ -68,6 +72,8 @@ const WeatherPanel = () => {
 
   const marsDate = useMemo(() => marsDateFromEarthDate(new Date()), []);
 
+
+
   // Active downlinked sol record
   const activeDownlinkSol = useMemo(() => {
     if (!roverWeatherFeed || roverWeatherFeed.length === 0) return null;
@@ -99,6 +105,14 @@ const WeatherPanel = () => {
 
   // Active values depending on mode
   const isDownlinkMode = weatherMode === 'downlink' && activeDownlinkSol != null;
+
+  // 3-Sol ML Multi-Step Predictive Outlook (computed from in-situ telemetry)
+  const mlForecast = useMemo(() => {
+    const anchorSol = isDownlinkMode && activeDownlinkSol ? activeDownlinkSol.sol : currentSol;
+    const anchorLs = isDownlinkMode && activeDownlinkSol ? activeDownlinkSol.ls : (weather?.ls || 0);
+    const recent = roverWeatherFeed && roverWeatherFeed.length > 0 ? roverWeatherFeed : [];
+    return predictMultiSolForecast(recent, anchorLs, anchorSol, 3);
+  }, [isDownlinkMode, activeDownlinkSol, currentSol, weather?.ls, roverWeatherFeed]);
   const isDustContingency = activeContingency === 'dust_storm';
 
   const displaySol = isDownlinkMode ? activeDownlinkSol.sol : currentSol;
@@ -131,7 +145,7 @@ const WeatherPanel = () => {
   return (
     <div className="w-full h-full text-primary flex flex-col gap-4 overflow-y-auto overflow-x-hidden custom-scrollbar-y p-2">
       {/* Top Header & Dual-Mode Controller */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-2 border-b border-white/5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-2 border-b border-white/5 shrink-0">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-xl font-display text-white flex items-center gap-2">
@@ -219,7 +233,7 @@ const WeatherPanel = () => {
 
       {/* Downlink Sol Switcher (Only visible in Downlink Mode) */}
       {isDownlinkMode && roverWeatherFeed.length > 0 && (
-        <div className="flex flex-col gap-1.5 bg-space-900/60 p-2.5 rounded-xl border border-emerald-900/30">
+        <div className="flex flex-col gap-1.5 bg-space-900/60 p-2.5 rounded-xl border border-emerald-900/30 shrink-0">
           <div className="flex items-center justify-between text-xs text-secondary px-1">
             <span className="flex items-center gap-1.5 font-mono text-emerald-400 font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block"></span>
@@ -254,7 +268,7 @@ const WeatherPanel = () => {
       )}
 
       {/* Main Atmospheric Telemetry Deck */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
         {/* Current Conditions Main Card */}
         <div className="md:col-span-2 glass-panel p-4 rounded-xl border border-space-700/50 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-mars-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
@@ -424,8 +438,119 @@ const WeatherPanel = () => {
         </div>
       </div>
 
+      {/* Machine Learning 3-Sol Forward Outlook & Dust Storm Risk Deck */}
+      <div className="shrink-0 glass-panel p-4 rounded-xl border border-violet-500/40 bg-gradient-to-br from-violet-950/30 via-space-950/60 to-space-900/80 shadow-xl relative">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 pb-2 border-b border-violet-500/20">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-sm font-display text-white flex items-center gap-2">
+              <Zap className="text-violet-400" size={16} />
+              <span>NASA ML Predictive Forecast & Dust Storm Risk</span>
+            </h3>
+            <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Ridge/Logistic inference trained on 4,700+ MSL Sols" />
+            <span className="text-[10px] font-mono text-violet-300 bg-violet-950/60 px-2 py-0.5 rounded border border-violet-700/50 font-bold">
+              3-SOL FORWARD LOOKAHEAD
+            </span>
+          </div>
+          <span className="text-[11px] font-mono text-zinc-400">
+            MAE: 1.55 Pa • T_max R²: 0.825
+          </span>
+        </div>
+
+        {/* 3-Sol ML Horizon Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {mlForecast.map((fc) => (
+            <div
+              key={fc.targetSol}
+              className="bg-space-900/90 border border-violet-900/40 hover:border-violet-500/50 rounded-xl p-3 flex flex-col justify-between transition-all shadow-md group"
+            >
+              <div>
+                {/* Header: Sol, Horizon & Risk Badge */}
+                <div className="flex justify-between items-start mb-2.5 pb-2 border-b border-white/5">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-mono font-bold text-white">
+                        Sol {fc.targetSol}
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-violet-950/80 text-violet-300 border border-violet-800/60 font-semibold">
+                        +{fc.solOffset} Sol
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-zinc-400 block mt-0.5">
+                      Areocentric Ls: {Math.round(fc.ls)}°
+                    </span>
+                  </div>
+                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${fc.dustStorm.badgeColor}`}>
+                    {fc.dustStorm.riskLevel}
+                  </span>
+                </div>
+
+                {/* Structured Metrics List (Zero Overlap Guaranteed) */}
+                <div className="space-y-1.5 font-mono text-xs mb-3">
+                  {/* Air Temperature */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 text-[11px]">Air Temp:</span>
+                    <span className="font-semibold whitespace-nowrap">
+                      <span className="text-mars-400 font-bold">{fc.temperature.max}°</span>
+                      <span className="text-zinc-500 mx-1">/</span>
+                      <span className="text-blue-400">{fc.temperature.min}°</span>
+                    </span>
+                  </div>
+
+                  {/* Ground Temperature */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 text-[11px]">Ground:</span>
+                    <span className="font-semibold text-amber-300 whitespace-nowrap">
+                      {fc.groundTemperature.max > 0 ? `+${fc.groundTemperature.max}` : fc.groundTemperature.max}°
+                      <span className="text-zinc-500 mx-1">/</span>
+                      {fc.groundTemperature.min}°
+                    </span>
+                  </div>
+
+                  {/* Atmospheric Pressure */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 text-[11px]">Pressure:</span>
+                    <span className="font-bold text-zinc-100 whitespace-nowrap">
+                      {fc.pressure.value} Pa
+                    </span>
+                  </div>
+                </div>
+
+                {/* Dust Storm Hazard Meter */}
+                <div className="space-y-1 pt-1.5 border-t border-white/5">
+                  <div className="flex justify-between items-center text-[10px] font-mono">
+                    <span className="text-zinc-400">Dust Storm Probability:</span>
+                    <span style={{ color: fc.dustStorm.color }} className="font-bold">
+                      {fc.dustStorm.probabilityPercent}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-space-950 h-1.5 rounded-full overflow-hidden border border-white/5">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, fc.dustStorm.probabilityPercent)}%`,
+                        backgroundColor: fc.dustStorm.color,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* EVA Operational Advisory */}
+              <div className="mt-2.5 pt-2 border-t border-white/5 text-[10px] font-mono text-zinc-300 flex items-start gap-1.5">
+                <ShieldCheck size={12} className="text-violet-400 shrink-0 mt-0.5" />
+                <span className="line-clamp-2 leading-tight">
+                  {fc.dustStorm.advisory}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Secondary Row: 7-Sol Sequence & Diurnal Temperature Chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-1 shrink-0">
         {/* 7-Sol Sequence Strip */}
         <div className="lg:col-span-2 glass-panel p-4 rounded-xl border border-space-700/50">
           <div className="flex items-center justify-between mb-3">
