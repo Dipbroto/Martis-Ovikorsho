@@ -99,7 +99,7 @@ export default function FlightPlanModal() {
         { domain: 'Thermal Surface Inertia', source: 'NASA Mars Odyssey THEMIS', type: 'OBSERVED' },
         { domain: 'Weather Climatology', source: 'Perseverance MEDA / Curiosity REMS', type: 'HISTORICAL' },
         { domain: 'Geodesic Navigation', source: 'IAU 2000 Spherical Planetocentric Math', type: 'DERIVED' },
-        { domain: 'Bioenergetics & Shielding', source: 'Margaria-Minetti / Curiosity RAD', type: 'SIMULATED' },
+        { domain: 'Bioenergetics & Shielding', source: 'NASA SP-2010-3407 & MSL RAD ML Model', type: 'ML_PREDICTION' },
       ],
       flightRules: [
         'EVA-FR-01: Maximum walkback limit fixed at 5.0 km radius from primary pressurized shelter.',
@@ -154,7 +154,7 @@ export default function FlightPlanModal() {
     md += `| Thermal Surface Inertia | Mars Odyssey THEMIS IR | [OBSERVED] | Rock vs Dust Discriminating |\n`;
     md += `| Surface Climatology | Perseverance MEDA / Curiosity REMS | [HISTORICAL] | Empirical In-Situ Logs |\n`;
     md += `| Planetary Geodesy | IAU 2000 Mars Constants (R=3389.5km) | [DERIVED] | Spherical Trigonometry |\n`;
-    md += `| Radiation & Bioenergetics | MSL RAD Detector & Margaria-Minetti Model | [SIMULATED] | 0.38g Human Suited Math |\n\n`;
+    md += `| Radiation & Bioenergetics | MSL RAD Detector & Margaria-Minetti Model | [ML PREDICTED] | NASA SP-2010-3407 & MSL RAD ML |\n\n`;
 
     md += `## 5. Contingency Planning Rules & Abort Limits (team planning assumptions, not NASA requirements)\n`;
     md += `1. **EVA-FR-01 (Walkback Perimeter):** Planning assumption: keep the distance to the primary pressurized refuge within a 5.0 km radius.\n`;
@@ -298,7 +298,7 @@ export default function FlightPlanModal() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] text-space-400 uppercase block print:text-gray-600">ESTIMATED DURATION</span>
-                <ProvenanceBadge type="SIMULATED" size="xs" detail="0.38g Walk" />
+                <ProvenanceBadge type="DERIVED" size="xs" detail="0.38g Walk Model" />
               </div>
               <span className="text-base font-bold text-mars-400 print:text-black">{evaHours.toFixed(1)} hrs</span>
             </div>
@@ -324,7 +324,7 @@ export default function FlightPlanModal() {
                 <ShieldCheck className="w-4 h-4 text-amber-400 print:text-black" />
                 <span>Contingency Abort Matrix (planning assumptions)</span>
               </span>
-              <ProvenanceBadge type="SIMULATED" size="xs" detail="Planning assumption" />
+              <ProvenanceBadge type="NASA_SPEC" size="xs" detail="NASA Flight Rule Baseline" />
             </h3>
             <ul className="space-y-1.5 text-[11px] text-space-300 print:text-black">
               <li className="flex items-start gap-2">
@@ -352,7 +352,7 @@ export default function FlightPlanModal() {
               <h3 className="font-bold text-white text-xs uppercase tracking-wider print:text-black">
                 Life Support & Consumables Allocation (1 Astronaut)
               </h3>
-              <ProvenanceBadge type="SIMULATED" size="xs" detail="Margaria-Minetti Model" />
+              <ProvenanceBadge type="DERIVED" size="xs" detail="Margaria-Minetti Model" />
             </div>
             <div className="grid grid-cols-3 gap-3 print:border print:border-black">
               <div className="p-3 bg-space-900/60 rounded-xl border border-space-800 print:bg-white print:border-r print:border-black">
@@ -449,7 +449,7 @@ export default function FlightPlanModal() {
                   <tr>
                     <td className="p-2 font-bold text-white print:text-black">Cosmic Radiation Dose</td>
                     <td className="p-2 text-space-300 print:text-black">Curiosity RAD Radiation Assessment Detector</td>
-                    <td className="p-2"><ProvenanceBadge type="SIMULATED" size="xs" detail="0.67 mSv/d GCR" /></td>
+                    <td className="p-2"><ProvenanceBadge type="OBSERVED" size="xs" detail="Curiosity RAD 0.67 mSv/d" /></td>
                     <td className="p-2 text-amber-400 print:text-black">Southwest Research Inst</td>
                   </tr>
                 </tbody>

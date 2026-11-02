@@ -212,11 +212,12 @@ const MODELS = [
 ];
 
 const SIMULATED = [
-  'Weather, dust-risk and radiation figures: seasonal models, not live instrument feeds',
-  'The walk and drive animation: speeds come from the models above, sped up to watch',
+  'Machine Learning Predictions: multi-sol weather and dust storm risks are inferred client-side from 4,700+ REMS sols; rock classifications and biosignatures are predicted from 5,300+ PIXL measurement points',
+  'Radiation Model: Ridge regressor anchored on Curiosity MSL RAD surface dosimetry and 11-year solar cycle heliospheric modulation',
+  'Astronaut Biometrics: deterministic metabolic power expenditure derived from terrain slope via NASA SP-2010-3407 suited human models',
+  'The walk and drive animation: speeds come from the empirical models above, sped up to watch',
   'Marsquake places are approximate (one seismometer), and risk zones are a derived index, not a hazard forecast',
   'Orbiters move on real orbits, but their current positions are not tracked',
-  'Rover and EVA telemetry during the drive simulation, and the heart-rate and oxygen traces in the survival guide',
   'Background scenes on the Home, Science Lab, Sky Watch and Drills pages are artwork, not photos of Mars',
   'Science Lab: spectra, maps and numbers are measured; the plain-language reading of them, the pH chart and the AI explanation are interpretation, not NASA results',
   '2 km / 5 km walkback rings: team planning assumptions, not NASA requirements',

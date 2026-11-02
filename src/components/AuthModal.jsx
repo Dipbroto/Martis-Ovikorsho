@@ -29,7 +29,7 @@ export default function AuthModal() {
           email,
           password,
           options: {
-            data: { username: username || `Explorer-${Math.floor(Math.random()*9000)+1000}` }
+            data: { username: username || `Explorer-${(Date.now() % 9000) + 1000}` }
           }
         });
         if (signUpError) throw signUpError;

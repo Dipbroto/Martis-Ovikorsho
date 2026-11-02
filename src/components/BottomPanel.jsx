@@ -22,13 +22,13 @@ export default function BottomPanel() {
   const activeDownlinkWeather = (roverWeatherFeed && roverWeatherFeed.length > 0)
     ? (roverWeatherFeed.find(s => s.sol === roverWeatherSelectedSol) || roverWeatherFeed[0])
     : null;
-  const isDownlinkMode = weatherMode === 'downlink' && activeDownlinkWeather != null;
+  const isDownlinkMode = Boolean(weatherMode === 'downlink' && activeDownlinkWeather);
 
-  const currentTempDisplay = isDownlinkMode
+  const currentTempDisplay = isDownlinkMode && activeDownlinkWeather?.temperature?.avg != null
     ? `${activeDownlinkWeather.temperature.avg}°C`
     : (weather?.temperature?.avg !== undefined ? `${Math.round(weather.temperature.avg)}°C` : '-62°C');
 
-  const weatherBadgeText = isDownlinkMode
+  const weatherBadgeText = isDownlinkMode && activeDownlinkWeather?.temperature?.avg != null
     ? `${activeDownlinkWeather.temperature.avg}°C (REMS)`
     : (weather?.temperature?.avg !== undefined ? `${Math.round(weather.temperature.avg)}°C` : 'MEDA');
   const waypoints = useMapStore(s => s.waypoints);
@@ -123,7 +123,7 @@ export default function BottomPanel() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 15 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
-      className="relative z-30 shrink-0 flex flex-col rounded-2xl border border-white/[0.12] bg-[#0B0C10]/90 backdrop-blur-3xl overflow-hidden shadow-2xl h-[360px] max-h-[75vh] w-full"
+      className="relative z-30 shrink-0 flex flex-col rounded-2xl border border-white/[0.12] bg-[#0B0C10]/90 backdrop-blur-3xl overflow-hidden shadow-2xl h-[420px] max-h-[82vh] md:h-[440px] w-full"
     >
       {/* Tab Bar Header */}
       <div className="flex items-center justify-between h-10 px-3 bg-space-900/90 border-b border-white/[0.08] shrink-0 font-mono">

@@ -4,6 +4,7 @@ import { Droplets, Mountain, Radiation, Wind, Loader2, MapPin, MousePointerClick
 import { loadGrid, sampleGrid } from '../../terrain/dem';
 import { renderHillshade } from '../../terrain/hillshade';
 import { estimateRadiation, pressureAtElevation, marsDistance } from '../../utils/marsUtils';
+import { predictRadiationEnvironment } from '../../services/marsMlService';
 import { AUTONOMOUS_TARGET_PAIRS } from '../../utils/autonomousRouter';
 import useMapStore from '../../store/useMapStore';
 
@@ -77,7 +78,7 @@ export default function SurvivalAtlas() {
     if (!grid) return null;
     const elevation = sampleGrid(grid, pick.lat, pick.lon);
     if (elevation === null) return null;
-    const rad = estimateRadiation(24, elevation);
+    const rad = predictRadiationEnvironment(elevation);
     let nearest = null;
     if (caves) {
       for (const c of caves) {
@@ -177,7 +178,7 @@ export default function SurvivalAtlas() {
                 <dl className="mt-5 space-y-4">
                   <Row icon={Mountain} label="Elevation" value={`${fmt(report.elevation)} m`} note={report.elevation < -4000 ? 'Deep basin: thicker air, better shielding' : report.elevation > 6000 ? 'High ground: thin air, less shielding' : 'Mid elevation'} />
                   <Row icon={Wind} label="Air pressure" value={`${fmt(report.pressure)} Pa`} note="About 0.6% of Earth's. Not breathable anywhere." />
-                  <Row icon={Radiation} label="Radiation" value={`${report.daily.toFixed(2)} mSv/day`} note={`NASA's career limit is reached in about ${(report.daysToLimit / 365).toFixed(1)} years of living here (modelled).`} tone={report.daily > 0.9 ? 'warn' : 'ok'} />
+                  <Row icon={Radiation} label="Radiation" value={`${report.daily.toFixed(2)} mSv/day`} note={`NASA's career limit is reached in about ${(report.daysToLimit / 365).toFixed(1)} years of living here (MSL RAD ML Model).`} tone={report.daily > 0.9 ? 'warn' : 'ok'} />
                   <Row icon={Droplets} label="Water in the soil" value={report.water === null ? 'No data' : `${report.water.toFixed(1)}% by weight`} note={report.water === null ? 'The orbital instrument cannot see here (polar ice or too coarse).' : report.water > 5 ? 'Among the wettest ground on Mars.' : 'Regional average, not a site survey.'} tone={report.water !== null && report.water > 5 ? 'ok' : undefined} />
                   <Row icon={MapPin} label="Nearest cave candidate" value={report.nearest ? `${fmt(report.nearest.km)} km` : '…'} note={report.nearest ? `A ${report.nearest.cave.type.toUpperCase()} feature${report.nearest.cave.diameterM ? `, ~${report.nearest.cave.diameterM} m wide` : ''}. Unconfirmed from orbit.` : undefined} />
                 </dl>

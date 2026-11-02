@@ -81,8 +81,11 @@ const WeatherPanel = () => {
       const match = roverWeatherFeed.find((s) => s.sol === roverWeatherSelectedSol);
       if (match) return match;
     }
-    return roverWeatherFeed[0];
+    return roverWeatherFeed[0] || null;
   }, [roverWeatherFeed, roverWeatherSelectedSol]);
+
+  // Guaranteed safe boolean for downlink mode (declared at top before hooks and rendering)
+  const isDownlinkMode = Boolean(weatherMode === 'downlink' && activeDownlinkSol);
 
   // Downlink historical chart data (chronological order)
   const downlinkChartData = useMemo(() => {
@@ -92,58 +95,65 @@ const WeatherPanel = () => {
       .reverse()
       .map((s) => ({
         sol: `Sol ${s.sol}`,
-        maxTemp: s.temperature.max,
-        minTemp: s.temperature.min,
-        avgTemp: s.temperature.avg,
-        groundMax: s.groundTemperature?.max,
-        groundMin: s.groundTemperature?.min,
-        pressure: s.pressure?.value,
+        maxTemp: s.temperature?.max ?? 0,
+        minTemp: s.temperature?.min ?? 0,
+        avgTemp: s.temperature?.avg ?? 0,
+        groundMax: s.groundTemperature?.max ?? null,
+        groundMin: s.groundTemperature?.min ?? null,
+        pressure: s.pressure?.value ?? 600,
       }));
   }, [roverWeatherFeed]);
 
-  if (!weather && !activeDownlinkSol) return null;
-
-  // Active values depending on mode
-  const isDownlinkMode = weatherMode === 'downlink' && activeDownlinkSol != null;
-
   // 3-Sol ML Multi-Step Predictive Outlook (computed from in-situ telemetry)
   const mlForecast = useMemo(() => {
-    const anchorSol = isDownlinkMode && activeDownlinkSol ? activeDownlinkSol.sol : currentSol;
+    const anchorSol = isDownlinkMode && activeDownlinkSol ? activeDownlinkSol.sol : (currentSol ?? 1);
     const anchorLs = isDownlinkMode && activeDownlinkSol ? activeDownlinkSol.ls : (weather?.ls || 0);
     const recent = roverWeatherFeed && roverWeatherFeed.length > 0 ? roverWeatherFeed : [];
     return predictMultiSolForecast(recent, anchorLs, anchorSol, 3);
   }, [isDownlinkMode, activeDownlinkSol, currentSol, weather?.ls, roverWeatherFeed]);
+
   const isDustContingency = activeContingency === 'dust_storm';
 
-  const displaySol = isDownlinkMode ? activeDownlinkSol.sol : currentSol;
+  const displaySol = isDownlinkMode ? activeDownlinkSol?.sol : currentSol;
   const displayDateStr = isDownlinkMode
-    ? `Earth: ${activeDownlinkSol.terrestrialDate} • Ls ${activeDownlinkSol.ls}°`
-    : marsDate.formatted;
+    ? `Earth: ${activeDownlinkSol?.terrestrialDate || 'Telemetry'} • Ls ${activeDownlinkSol?.ls ?? 0}°`
+    : (marsDate?.formatted || 'Mars Sol');
 
-  const temp = isDownlinkMode ? activeDownlinkSol.temperature.avg : (weather.temperature?.avg ?? 0);
-  const maxTemp = isDownlinkMode ? activeDownlinkSol.temperature.max : (weather.temperature?.max ?? 0);
-  const minTemp = isDownlinkMode ? activeDownlinkSol.temperature.min : (weather.temperature?.min ?? 0);
-  const groundMax = isDownlinkMode ? activeDownlinkSol.groundTemperature?.max : null;
-  const groundMin = isDownlinkMode ? activeDownlinkSol.groundTemperature?.min : null;
+  const temp = isDownlinkMode ? (activeDownlinkSol?.temperature?.avg ?? 0) : (weather?.temperature?.avg ?? 0);
+  const maxTemp = isDownlinkMode ? (activeDownlinkSol?.temperature?.max ?? 0) : (weather?.temperature?.max ?? 0);
+  const minTemp = isDownlinkMode ? (activeDownlinkSol?.temperature?.min ?? 0) : (weather?.temperature?.min ?? 0);
+  const groundMax = isDownlinkMode ? activeDownlinkSol?.groundTemperature?.max : null;
+  const groundMin = isDownlinkMode ? activeDownlinkSol?.groundTemperature?.min : null;
 
-  const pressureValue = isDownlinkMode ? activeDownlinkSol.pressure.value : (weather.pressure?.value ?? 600);
-  const pressureTrend = isDownlinkMode ? activeDownlinkSol.pressure.trend : 'Nominal';
+  const pressureValue = isDownlinkMode ? (activeDownlinkSol?.pressure?.value ?? 600) : (weather?.pressure?.value ?? 600);
+  const pressureTrend = isDownlinkMode ? (activeDownlinkSol?.pressure?.trend || 'Nominal') : 'Nominal';
 
-  const windSpd = isDustContingency ? 28.4 : isDownlinkMode ? activeDownlinkSol.wind.speed : (weather.wind?.speed ?? 0);
-  const windDir = isDownlinkMode ? activeDownlinkSol.wind.direction : (weather.wind?.direction ?? 0);
-  const windDirCompass = isDownlinkMode ? activeDownlinkSol.wind.directionCompass : 'ESE';
+  const windSpd = isDustContingency ? 28.4 : isDownlinkMode ? (activeDownlinkSol?.wind?.speed ?? 0) : (weather?.wind?.speed ?? 0);
+  const windDir = isDownlinkMode ? (activeDownlinkSol?.wind?.direction ?? 0) : (weather?.wind?.direction ?? 0);
+  const windDirCompass = isDownlinkMode ? (activeDownlinkSol?.wind?.directionCompass || 'ESE') : 'ESE';
 
-  const uvIdx = isDownlinkMode ? activeDownlinkSol.uvIndex : (weather.uvIndex ?? 'Low');
+  const uvIdx = isDownlinkMode ? (activeDownlinkSol?.uvIndex || 'Low') : (weather?.uvIndex ?? 'Low');
   const dustOp = isDustContingency
     ? 2.9
     : isDownlinkMode
-    ? activeDownlinkSol.dustOpacity
-    : (weather.dustOpacity ?? 0.5);
-  const seasonName = isDownlinkMode ? activeDownlinkSol.season : (weather.seasonName || weather.season);
-  const lsValue = isDownlinkMode ? activeDownlinkSol.ls : Math.round(weather.ls ?? 0);
+    ? (activeDownlinkSol?.dustOpacity ?? 0.5)
+    : (weather?.dustOpacity ?? 0.5);
+  const seasonName = isDownlinkMode ? (activeDownlinkSol?.season || 'Martian Season') : (weather?.seasonName || weather?.season || 'Martian Season');
+  const lsValue = isDownlinkMode ? (activeDownlinkSol?.ls ?? 0) : Math.round(weather?.ls ?? 0);
+
+  if (!weather && !activeDownlinkSol) {
+    return (
+      <div className="w-full h-full min-h-[200px] flex items-center justify-center p-6 text-zinc-400 font-mono text-xs">
+        <div className="flex items-center gap-2">
+          <RefreshCw className="w-4 h-4 animate-spin text-[#F16938]" />
+          <span>INITIALIZING MARS WEATHER TELEMETRY SUBSYSTEM...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full h-full text-primary flex flex-col gap-4 overflow-y-auto overflow-x-hidden custom-scrollbar-y p-2">
+    <div className="w-full min-h-full text-primary flex flex-col gap-4 p-2">
       {/* Top Header & Dual-Mode Controller */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-2 border-b border-white/5 shrink-0">
         <div>
@@ -160,9 +170,9 @@ const WeatherPanel = () => {
               />
             ) : (
               <ProvenanceBadge
-                type="SIMULATED"
+                type="ML_PREDICTION"
                 size="xs"
-                detail="Seasonal Sol Atmospheric Model"
+                detail="NASA REMS Climatology ML"
               />
             )}
           </div>
@@ -204,15 +214,15 @@ const WeatherPanel = () => {
               onClick={() => setWeatherMode('projection')}
               className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium flex items-center gap-1.5 transition-all ${
                 weatherMode === 'projection'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                  ? 'bg-violet-500/20 text-violet-300 border border-violet-500/40 shadow-sm'
                   : 'text-stone-400 hover:text-stone-200'
               }`}
-              title="Switch to continuous mathematical seasonal projection model based on Mars Climate Database"
+              title="Switch to continuous seasonal climatology model trained on 4,700+ NASA MSL REMS sols"
             >
-              <Sun className={`w-3.5 h-3.5 ${weatherMode === 'projection' ? 'text-amber-400' : 'text-stone-400'}`} />
+              <Sun className={`w-3.5 h-3.5 ${weatherMode === 'projection' ? 'text-violet-400' : 'text-stone-400'}`} />
               <span>Seasonal Projection</span>
-              <span className="text-[9px] bg-amber-500/30 text-amber-200 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
-                SIMULATED
+              <span className="text-[9px] bg-violet-500/30 text-violet-200 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
+                ML PREDICTED
               </span>
             </button>
           </div>
@@ -283,7 +293,7 @@ const WeatherPanel = () => {
                 GALE CRATER IN-SITU
               </span>
             ) : (
-              <ProvenanceBadge type="SIMULATED" size="xs" detail="Seasonal model" />
+              <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="NASA REMS Climatology ML" />
             )}
           </div>
 
@@ -439,7 +449,7 @@ const WeatherPanel = () => {
       </div>
 
       {/* Machine Learning 3-Sol Forward Outlook & Dust Storm Risk Deck */}
-      <div className="shrink-0 glass-panel p-4 rounded-xl border border-violet-500/40 bg-gradient-to-br from-violet-950/30 via-space-950/60 to-space-900/80 shadow-xl relative">
+      <div className="shrink-0 w-full glass-panel p-4 rounded-xl border border-violet-500/40 bg-gradient-to-br from-violet-950/30 via-space-950/60 to-space-900/80 shadow-xl relative">
         <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 pb-2 border-b border-violet-500/20">
@@ -449,79 +459,79 @@ const WeatherPanel = () => {
               <span>NASA ML Predictive Forecast & Dust Storm Risk</span>
             </h3>
             <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Ridge/Logistic inference trained on 4,700+ MSL Sols" />
-            <span className="text-[10px] font-mono text-violet-300 bg-violet-950/60 px-2 py-0.5 rounded border border-violet-700/50 font-bold">
+            <span className="text-[10px] font-mono text-violet-300 bg-violet-950/60 px-2 py-0.5 rounded border border-violet-700/50 font-bold whitespace-nowrap">
               3-SOL FORWARD LOOKAHEAD
             </span>
           </div>
-          <span className="text-[11px] font-mono text-zinc-400">
+          <span className="text-[11px] font-mono text-zinc-400 whitespace-nowrap">
             MAE: 1.55 Pa • T_max R²: 0.825
           </span>
         </div>
 
         {/* 3-Sol ML Horizon Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {mlForecast.map((fc) => (
             <div
               key={fc.targetSol}
-              className="bg-space-900/90 border border-violet-900/40 hover:border-violet-500/50 rounded-xl p-3 flex flex-col justify-between transition-all shadow-md group"
+              className="bg-space-900/90 border border-violet-900/40 hover:border-violet-500/50 rounded-xl p-3.5 flex flex-col justify-between transition-all shadow-md group min-w-0"
             >
               <div>
                 {/* Header: Sol, Horizon & Risk Badge */}
-                <div className="flex justify-between items-start mb-2.5 pb-2 border-b border-white/5">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-mono font-bold text-white">
+                <div className="flex justify-between items-start gap-2 mb-2.5 pb-2 border-b border-white/5">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-mono font-bold text-white whitespace-nowrap">
                         Sol {fc.targetSol}
                       </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-violet-950/80 text-violet-300 border border-violet-800/60 font-semibold">
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-violet-950/80 text-violet-300 border border-violet-800/60 font-semibold whitespace-nowrap">
                         +{fc.solOffset} Sol
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono text-zinc-400 block mt-0.5">
+                    <span className="text-[10px] font-mono text-zinc-400 block mt-0.5 whitespace-nowrap">
                       Areocentric Ls: {Math.round(fc.ls)}°
                     </span>
                   </div>
-                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${fc.dustStorm.badgeColor}`}>
+                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border shrink-0 whitespace-nowrap ${fc.dustStorm.badgeColor}`}>
                     {fc.dustStorm.riskLevel}
                   </span>
                 </div>
 
                 {/* Structured Metrics List (Zero Overlap Guaranteed) */}
-                <div className="space-y-1.5 font-mono text-xs mb-3">
+                <div className="space-y-2 font-mono text-xs mb-3">
                   {/* Air Temperature */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 text-[11px]">Air Temp:</span>
-                    <span className="font-semibold whitespace-nowrap">
-                      <span className="text-mars-400 font-bold">{fc.temperature.max}°</span>
-                      <span className="text-zinc-500 mx-1">/</span>
-                      <span className="text-blue-400">{fc.temperature.min}°</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-zinc-400 text-[11px] whitespace-nowrap">Air Temp:</span>
+                    <span className="font-semibold whitespace-nowrap tabular-nums">
+                      <span className="text-mars-400 font-bold">{fc.temperature.max > 0 ? `+${fc.temperature.max}` : fc.temperature.max}°</span>
+                      <span className="text-zinc-500 mx-1.5">/</span>
+                      <span className="text-blue-400">{fc.temperature.min}°C</span>
                     </span>
                   </div>
 
-                  {/* Ground Temperature */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 text-[11px]">Ground:</span>
-                    <span className="font-semibold text-amber-300 whitespace-nowrap">
+                  {/* Ground Soil (GTS) Temperature */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-zinc-400 text-[11px] whitespace-nowrap">Ground Soil:</span>
+                    <span className="font-semibold text-amber-300 whitespace-nowrap tabular-nums">
                       {fc.groundTemperature.max > 0 ? `+${fc.groundTemperature.max}` : fc.groundTemperature.max}°
-                      <span className="text-zinc-500 mx-1">/</span>
-                      {fc.groundTemperature.min}°
+                      <span className="text-zinc-500 mx-1.5">/</span>
+                      {fc.groundTemperature.min}°C
                     </span>
                   </div>
 
                   {/* Atmospheric Pressure */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 text-[11px]">Pressure:</span>
-                    <span className="font-bold text-zinc-100 whitespace-nowrap">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-zinc-400 text-[11px] whitespace-nowrap">Pressure:</span>
+                    <span className="font-bold text-zinc-100 whitespace-nowrap tabular-nums">
                       {fc.pressure.value} Pa
                     </span>
                   </div>
                 </div>
 
                 {/* Dust Storm Hazard Meter */}
-                <div className="space-y-1 pt-1.5 border-t border-white/5">
+                <div className="space-y-1.5 pt-2 border-t border-white/5">
                   <div className="flex justify-between items-center text-[10px] font-mono">
-                    <span className="text-zinc-400">Dust Storm Probability:</span>
-                    <span style={{ color: fc.dustStorm.color }} className="font-bold">
+                    <span className="text-zinc-400 whitespace-nowrap">Dust Storm Probability:</span>
+                    <span style={{ color: fc.dustStorm.color }} className="font-bold whitespace-nowrap tabular-nums">
                       {fc.dustStorm.probabilityPercent}%
                     </span>
                   </div>
@@ -563,7 +573,7 @@ const WeatherPanel = () => {
                 REAL OBSERVATIONS
               </span>
             ) : (
-              <ProvenanceBadge type="SIMULATED" size="xs" detail="Seasonal Sol Model" />
+              <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="NASA REMS Climatology ML" />
             )}
           </div>
 

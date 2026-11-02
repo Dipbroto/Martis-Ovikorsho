@@ -73,7 +73,7 @@ export async function saveChatMessage({ userId, role, text, actionData = null })
   const localKey = `${STORAGE_PREFIX}${userId || 'guest'}`;
   const timestamp = new Date().toISOString();
   const newMsg = {
-    id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `msg-${Date.now()}-${performance.now().toFixed(0)}`),
     role,
     text,
     actionData,

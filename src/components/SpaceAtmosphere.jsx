@@ -16,27 +16,34 @@ export default function SpaceAtmosphere() {
     resize();
     window.addEventListener('resize', resize);
 
+    // Deterministic pseudo-random sequence for constant celestial background rendering
+    let prngSeed = 0x20261103;
+    const prng = () => {
+      prngSeed = (prngSeed * 1664525 + 1013904223) % 4294967296;
+      return prngSeed / 4294967296;
+    };
+
     const starCount = 200;
     const stars = Array.from({ length: starCount }, () => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      size: Math.random() * 1.6 + 0.4,
-      alpha: Math.random() * 0.7 + 0.2,
-      baseAlpha: Math.random() * 0.7 + 0.2,
-      blinkSpeed: 0.008 + Math.random() * 0.025,
-      phase: Math.random() * Math.PI*2,
-      color: Math.random() > 0.8 ? '#E27B58' : Math.random() > 0.6 ? '#00FFCC' : '#ffffff'
+      x: prng() * window.innerWidth,
+      y: prng() * window.innerHeight,
+      size: prng() * 1.6 + 0.4,
+      alpha: prng() * 0.7 + 0.2,
+      baseAlpha: prng() * 0.7 + 0.2,
+      blinkSpeed: 0.008 + prng() * 0.025,
+      phase: prng() * Math.PI * 2,
+      color: prng() > 0.8 ? '#E27B58' : prng() > 0.6 ? '#00FFCC' : '#ffffff'
     }));
 
     const dustCount = 50;
     const dust = Array.from({ length: dustCount }, () => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      vx: (Math.random() - 0.5) * 0.3,
-      vy: (Math.random() - 0.5) * 0.25 - 0.1,
-      radius: Math.random() * 2.2 + 0.6,
-      alpha: Math.random() * 0.35 + 0.1,
-      color: Math.random() > 0.5 ? '#E27B58' : '#FF4C29'
+      x: prng() * window.innerWidth,
+      y: prng() * window.innerHeight,
+      vx: (prng() - 0.5) * 0.3,
+      vy: (prng() - 0.5) * 0.25 - 0.1,
+      radius: prng() * 2.2 + 0.6,
+      alpha: prng() * 0.35 + 0.1,
+      color: prng() > 0.5 ? '#E27B58' : '#FF4C29'
     }));
 
     // Decorative layer: cap at ~30fps and stop entirely while the tab is hidden

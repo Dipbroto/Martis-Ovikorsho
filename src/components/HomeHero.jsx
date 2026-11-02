@@ -142,15 +142,39 @@ export default function HomeHero({ onSelectTab }) {
           <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }} className="lg:col-span-4 lg:mb-28 lg:max-w-md lg:ml-auto">
             <div className="rounded-2xl p-5 bg-white/[0.04] backdrop-blur-md border border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.25)]">
               <div className="flex items-center justify-between mb-4">
-                <span className="flex items-center gap-2 text-xs text-zinc-200"><span className="relative flex w-2 h-2"><span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-60" /><span className="relative w-2 h-2 rounded-full bg-emerald-400" /></span>Mars right now</span>
-                <span className="text-xs text-zinc-300">Sol {currentSol}</span>
+                <span className="flex items-center gap-2 text-xs text-zinc-200">
+                  <span className="relative flex w-2 h-2">
+                    <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-60" />
+                    <span className="relative w-2 h-2 rounded-full bg-emerald-400" />
+                  </span>
+                  Mars right now
+                </span>
+                <span className="text-xs text-zinc-300 font-mono">MSD {currentSol}</span>
               </div>
-              <div className="text-xs text-zinc-300">Coordinated Mars Time</div>
+              <div className="text-xs text-zinc-300 font-mono">Coordinated Mars Time (MTC)</div>
               <div className="text-4xl font-semibold tabular-nums tracking-tight font-mono drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">{mtc}</div>
-              <dl className="mt-4 pt-4 border-t border-white/15 grid grid-cols-3 gap-3">
-                <div><dt className="text-xs text-zinc-300">Season</dt><dd className="font-semibold text-emerald-300 leading-tight">{seasonFromLs(ls)}</dd><dd className="text-xs text-zinc-300">Ls {ls.toFixed(0)}°</dd></div>
-                <div><dt className="text-xs text-zinc-300">Temp <span className="text-zinc-400">(model)</span></dt><dd className="font-semibold tabular-nums">{weather?.temperature?.avg ?? '--'} °C</dd></div>
-                <div><dt className="text-xs text-zinc-300">Pressure <span className="text-zinc-400">(model)</span></dt><dd className="font-semibold tabular-nums">{weather?.pressure?.value ?? '--'} Pa</dd></div>
+              <dl className="mt-4 pt-4 border-t border-white/15 grid grid-cols-3 gap-3 font-mono">
+                <div>
+                  <dt className="text-xs text-zinc-300 font-sans">Season</dt>
+                  <dd className="font-semibold text-emerald-300 leading-tight text-sm">{seasonFromLs(ls)}</dd>
+                  <dd className="text-xs text-zinc-400">Ls {ls.toFixed(0)}°</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-zinc-300 font-sans flex items-center gap-1">
+                    <span>Temp</span>
+                    <span className="text-[9px] text-violet-300 bg-violet-950/80 px-1 py-0.2 rounded border border-violet-700/50 font-mono">ML</span>
+                  </dt>
+                  <dd className="font-semibold tabular-nums text-sm">{weather?.temperature?.avg != null ? `${weather.temperature.avg}°C` : '--'}</dd>
+                  <dd className="text-[10px] text-zinc-400">Climatology</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-zinc-300 font-sans flex items-center gap-1">
+                    <span>Pressure</span>
+                    <span className="text-[9px] text-violet-300 bg-violet-950/80 px-1 py-0.2 rounded border border-violet-700/50 font-mono">ML</span>
+                  </dt>
+                  <dd className="font-semibold tabular-nums text-sm">{weather?.pressure?.value != null ? `${weather.pressure.value} Pa` : '--'}</dd>
+                  <dd className="text-[10px] text-zinc-400">Barometric</dd>
+                </div>
               </dl>
             </div>
           </motion.div>

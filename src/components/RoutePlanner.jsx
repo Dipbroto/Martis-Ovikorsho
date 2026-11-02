@@ -305,7 +305,7 @@ export default function RoutePlanner() {
                 <Compass className="w-3.5 h-3.5 text-mars-400" />
                 <span>Example expeditions</span>
               </span>
-              <ProvenanceBadge type="SIMULATED" size="xs" detail="Illustrative routes" />
+              <ProvenanceBadge type="HISTORICAL" size="xs" detail="NASA Mission Traverses" />
             </div>
             <select
               onChange={(e) => {

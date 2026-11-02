@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import useMapStore from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
 import { dustStormSeasons, getSolarLongitude } from '../data/weatherSimulation';
-import { predictMultiSolForecast } from '../services/marsMlService';
+import { predictMultiSolForecast, predictClimatologicalWeather } from '../services/marsMlService';
 import { Zap, ShieldCheck } from 'lucide-react';
 import { CloudFog, AlertTriangle, Wind, Eye, ShieldAlert, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -25,13 +25,16 @@ const DustStormTracker = () => {
     
     const data = dustStormSeasons.map((season) => {
       const isCurrent = currentLs >= season.ls[0] && currentLs < season.ls[1];
+      const midLs = (season.ls[0] + season.ls[1]) / 2;
+      const mlRisk = predictClimatologicalWeather(currentSol, midLs).dustStorm;
+      const riskPercent = mlRisk.probabilityPercent;
       if (isCurrent) {
         currentSsn = season;
-        riskLvl = season.risk;
+        riskLvl = riskPercent / 100;
       }
       return {
         name: `${season.ls[0]}-${season.ls[1]}°`,
-        riskPercent: Math.round(season.risk * 100),
+        riskPercent,
         label: season.label,
         isCurrent
       };

@@ -76,16 +76,23 @@ export function generateWeatherForSol(sol, lat = -4.59, elevation = -4500) {
   const clim = predictClimatologicalWeather(sol, ls);
   const season = clim.season;
 
+  // The ML climatology model is trained directly on MSL Curiosity REMS in-situ logs
+  // recorded in Gale Crater (reference latitude: -4.59°, reference floor elevation: -4500m).
+  // Elevation lapse and barometric adjustments are anchored to Gale Crater datum:
+  const GALE_BASE_ELEVATION = -4500;
+  const deltaElev = elevation - GALE_BASE_ELEVATION;
+
   // Physical elevation lapse rate (~0.5°C per km) and insolation latitude factor
-  const latFactor = 1 - (Math.abs(lat) / 90) * 0.3;
-  const elevFactor = (elevation / 10000) * 5;
+  const latFactor = 1 - (Math.abs(lat - (-4.59)) / 90) * 0.3;
+  const elevFactor = (deltaElev / 10000) * 5;
 
-  const tempMin = clim.temperature.min + elevFactor;
-  const tempMax = clim.temperature.max * latFactor + elevFactor;
-  const tempAvg = (tempMin + tempMax) / 2;
+  const tempMin = Math.round(clim.temperature.min - elevFactor);
+  const tempMax = Math.round(clim.temperature.max * latFactor - elevFactor);
+  const tempAvg = Math.round((tempMin + tempMax) / 2);
 
-  // Barometric pressure adjusted for local elevation
-  const basePressure = clim.pressure.value * Math.exp(-elevation / 10800);
+  // Barometric pressure adjusted for local elevation relative to Gale Crater floor
+  // Scale height H_scale = 10,800 m (standard Martian scale height)
+  const basePressure = clim.pressure.value * Math.exp(-deltaElev / 10800);
   const pressure = Math.round(basePressure);
 
   // Physical wind speed: accelerated during perihelion dust season (Ls 180°-330°)

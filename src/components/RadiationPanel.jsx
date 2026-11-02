@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import useMapStore from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
 import { estimateRadiation, routeDistance } from '../utils/marsUtils';
+import { getElevation } from '../utils/elevationService';
 import { predictRadiationEnvironment } from '../services/marsMlService';
 import { Sun, ShieldCheck, Compass, Sparkles } from 'lucide-react';
 import { RadioTower, Shield, AlertTriangle, Activity, Heart } from 'lucide-react';
@@ -10,10 +11,18 @@ import { motion } from 'framer-motion';
 import ProvenanceBadge from './ProvenanceBadge';
 
 const RadiationPanel = () => {
-  const { currentSol, waypoints, activeContingency } = useMapStore(useShallow((s) => ({ currentSol: s.currentSol, waypoints: s.waypoints, activeContingency: s.activeContingency })));
+  const { currentSol, waypoints, activeContingency, viewCenter } = useMapStore(
+    useShallow((s) => ({
+      currentSol: s.currentSol,
+      waypoints: s.waypoints,
+      activeContingency: s.activeContingency,
+      viewCenter: s.viewCenter || s.mapCenter || [-4.5895, 137.4417],
+    }))
+  );
+  useMapStore((s) => s.terrainVersion);
   
-  // Simulated elevation based on map center (for demo purposes)
-  const elevation = -2500; 
+  // Real topography elevation from USGS MOLA/HRSC blended DEM at current map view
+  const elevation = getElevation(viewCenter[0], viewCenter[1]);
 
   const isSPEActive = activeContingency === 'spe';
 

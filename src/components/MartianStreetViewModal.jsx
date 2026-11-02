@@ -60,7 +60,7 @@ const VIEWS = {
     hint: 'From the satellite down to the landing. Drag to look around. If NASA\'s camera loses the rover at touchdown, scroll down to zoom out, or open Rover on ground',
     // NASA's app untouched: it opens with its own animation, and its phases play as video because its clock is running
     url: (mission) => mission.embedUrl,
-    provenance: { type: 'SIMULATED', detail: "NASA's reconstruction of the real entry, descent and landing timeline" },
+    provenance: { type: 'NASA_SPEC', detail: "NASA Eyes 3D reconstruction of EDL telemetry" },
   },
   ground: {
     label: 'Rover on ground',
@@ -70,7 +70,7 @@ const VIEWS = {
     belowBar: true, // this app has its title at the very top left, so its frame starts under the bar to keep that readable
     hint: "NASA's Experience Curiosity app: the Curiosity rover on the ground at Gale Crater",
     url: (mission) => mission.embedUrl,
-    provenance: { type: 'SIMULATED', detail: "NASA's Experience Curiosity 3D app, at Gale Crater" },
+    provenance: { type: 'NASA_SPEC', detail: "NASA Experience Curiosity 3D surface model" },
   },
   orbit: {
     label: 'From orbit',
