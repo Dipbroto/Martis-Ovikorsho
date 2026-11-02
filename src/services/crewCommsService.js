@@ -375,7 +375,9 @@ export function subscribeToCrewComms(currentUserId, onEvent) {
     return () => {
       try {
         supabase.removeChannel(channel);
-      } catch {}
+      } catch {
+        // The channel is already gone, so there is nothing left to clean up
+      }
     };
   } catch (err) {
     console.warn('CrewComms: subscribe exception:', err);
