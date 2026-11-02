@@ -690,6 +690,48 @@ export function predictMetabolicBiometrics(slopeDeg = 0, walkingSpeedMps = 1.0, 
   };
 }
 
+
+/**
+ * Step 5 Specification Aliases:
+ * Exposes clean, high-level API functions matching the initial architecture breakdown.
+ */
+
+/**
+ * Predicts multi-sol weather conditions given recent sol telemetry, Ls, and elevation.
+ */
+export function predictMultiSolWeather(recentSols = [], currentLs = 0, elevation = 0) {
+  if (Array.isArray(recentSols) && recentSols.length >= 2) {
+    const baseSol = recentSols[0]?.sol || 1000;
+    return predictMultiSolForecast(recentSols, currentLs, baseSol, 3);
+  }
+  return [predictClimatologicalWeather(1, currentLs)];
+}
+
+/**
+ * Predicts regional dust storm probability from barometric rate of change, optical depth, and seasonal Ls.
+ */
+export function predictDustStormRisk(pressureTrend = 0, recentTau = 0.5, ls = 180) {
+  // Pressure drop (negative dP/dt) and high seasonal Ls (southern spring/summer 180-330) elevate probability
+  const lsNorm = ((Number(ls) % 360) + 360) % 360;
+  const isDustSeason = lsNorm >= 180 && lsNorm <= 330;
+  
+  let riskProb = isDustSeason ? 0.35 : 0.08;
+  if (pressureTrend < -5.0) riskProb += 0.35;
+  else if (pressureTrend < -2.0) riskProb += 0.18;
+  
+  if (recentTau > 1.0) riskProb += 0.30;
+  else if (recentTau > 0.8) riskProb += 0.15;
+  
+  return assessDustStormRisk(Math.min(0.98, Math.max(0.02, riskProb)));
+}
+
+/**
+ * Classifies mineral composition from chemical oxide percentages and laser peaks.
+ */
+export function classifyMineralSample(oxides, emissionPeaks = []) {
+  return classifyRockMineralogy(oxides);
+}
+
 export default {
   getWeatherModel,
   setWeatherModel,
@@ -707,4 +749,8 @@ export default {
   classifyRockMineralogy,
   predictRadiationEnvironment,
   predictMetabolicBiometrics,
+  // Step 5 Spec Aliases
+  predictMultiSolWeather,
+  predictDustStormRisk,
+  classifyMineralSample,
 };

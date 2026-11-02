@@ -382,4 +382,41 @@ describe('marsMlService (Client ML Inference)', () => {
       expect(steepClimb.fatigueIndex).toBeGreaterThan(flat.fatigueIndex);
     });
   });
+
+  describe('Step 5 Spec API Aliases', () => {
+    it('runs predictMultiSolWeather with recent sols or fallback', async () => {
+      const { predictMultiSolWeather } = await import('./marsMlService');
+      const forecast = predictMultiSolWeather(sampleTelemetry, 341, -2500);
+      expect(forecast).toHaveLength(3);
+      expect(forecast[0].temperature.max).toBeDefined();
+
+      const fallback = predictMultiSolWeather([], 120, -2500);
+      expect(fallback).toHaveLength(1);
+      expect(fallback[0].season).toBe('summer');
+    });
+
+    it('runs predictDustStormRisk using pressure rate of change and optical depth', async () => {
+      const { predictDustStormRisk } = await import('./marsMlService');
+      const quiet = predictDustStormRisk(0.5, 0.4, 90);
+      expect(['LOW', 'MODERATE']).toContain(quiet.riskLevel);
+
+      const stormWarning = predictDustStormRisk(-8.0, 1.4, 210);
+      expect(['ELEVATED', 'CRITICAL']).toContain(stormWarning.riskLevel);
+      expect(stormWarning.probability).toBeGreaterThan(0.6);
+    });
+
+    it('runs classifyMineralSample on geochemical oxide abundances', async () => {
+      const { classifyMineralSample } = await import('./marsMlService');
+      const res = classifyMineralSample({
+        SiO2: 32.38,
+        SO3: 21.18,
+        MgO: 13.1,
+        'FeO-T': 17.36,
+        Al2O3: 4.97,
+        CaO: 1.46,
+      });
+      expect(res.predictedClass).toBe('Sulfate-Rich Evaporite');
+      expect(res.biosignatureScore).toBeGreaterThan(70);
+    });
+  });
 });
