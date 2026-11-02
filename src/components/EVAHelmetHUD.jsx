@@ -4,6 +4,7 @@ import useMapStore from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
 import { marsAudio } from '../utils/audioSynthesizer';
 import { marsDistance, calculateSlope, lonDelta } from '../utils/marsUtils';
+import { predictMetabolicBiometrics } from '../services/marsMlService';
 
 export default function EVAHelmetHUD() {
   const { 
@@ -56,9 +57,12 @@ export default function EVAHelmetHUD() {
     slopeDeg = calculateSlope(currentWP.elevation, nextWP.elevation, distToNextKm * 1000);
   }
 
-  // Astronaut Heart Rate (BPM dynamic with slope)
-  const baseHeartRate = 72;
-  const currentBPM = Math.round(baseHeartRate + Math.abs(slopeDeg) * 3.5 + (isPlaying ? 15 : 0));
+  // Astronaut Biometrics derived from terrain slope & walking velocity (NASA SP-2010-3407 model)
+  const biometrics = useMemo(() => {
+    const walkingSpeed = isPlaying ? 1.35 : 0.8;
+    return predictMetabolicBiometrics(slopeDeg, walkingSpeed);
+  }, [slopeDeg, isPlaying]);
+  const currentBPM = biometrics.heartRateBpm;
 
   // Compass Heading calculation
   const headingDeg = nextWP 

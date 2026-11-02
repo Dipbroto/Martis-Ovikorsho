@@ -8,10 +8,16 @@
 
 import defaultWeatherModel from '../data/marsWeatherModel.json';
 import defaultMineralModel from '../data/marsMineralModel.json';
+import defaultRadiationModel from '../data/marsRadiationModel.json';
 
 // In-memory model cache
 let activeModel = defaultWeatherModel;
 let activeMineralModel = defaultMineralModel;
+let activeRadiationModel = defaultRadiationModel;
+
+export function getRadiationModel() {
+  return activeRadiationModel;
+}
 
 /**
  * Returns the currently active ML weather model weights and metadata.
@@ -527,11 +533,169 @@ export function classifyRockMineralogy(pixlStatsOrOxides, modelOverride = null) 
   };
 }
 
+
+/**
+ * Predicts surface space radiation dosimetry and Solar Particle Event (SPE) hazard
+ * using the trained MSL RAD heliospheric modulation model.
+ */
+export function predictRadiationEnvironment(elevationM = -2500, currentSol = 1000, ls = 180, isSPEActive = false) {
+  const model = activeRadiationModel;
+  const elev = Number.isFinite(elevationM) ? elevationM : -2500;
+  const sol = Number(currentSol) || 1;
+  const lsNorm = ((Number(ls) % 360) + 360) % 360;
+
+  // Seasonal atmospheric pressure breathing & column depth
+  const seasonalFactor = 1.0 + 0.12 * Math.sin((lsNorm - 160) * (Math.PI / 180));
+  const surfacePressure = Math.max(50, 610.0 * Math.exp(-elev / 10800.0) * seasonalFactor);
+  const columnDepth = surfacePressure * 0.02687; // g/cm^2
+
+  // 11-year solar cycle phase (approx 3,920 sols per 11 Earth years)
+  const solarCyclePhase = ((sol % 3920) / 3920) * 2 * Math.PI;
+  const phiMv = Math.max(350, Math.min(1150, 700 + 350 * Math.sin(solarCyclePhase)));
+
+  let solarCycleDesc = 'Intermediate Phase';
+  if (phiMv >= 950) solarCycleDesc = 'Solar Maximum (Elevated SPE Hazard / Reduced GCR)';
+  else if (phiMv <= 450) solarCycleDesc = 'Solar Minimum (Peak GCR Deep-Space Flux)';
+
+  // Feature vector: [elevation, pressure, column_depth, phi, sin(phase), cos(phase), sin(ls), cos(ls)]
+  const featureVector = [
+    elev,
+    surfacePressure,
+    columnDepth,
+    phiMv,
+    Math.sin(solarCyclePhase),
+    Math.cos(solarCyclePhase),
+    Math.sin(lsNorm * (Math.PI / 180)),
+    Math.cos(lsNorm * (Math.PI / 180)),
+  ];
+
+  // Scale features
+  const { mean, scale } = model.scaler;
+  const scaledFeatures = featureVector.map((val, idx) => (val - (mean[idx] || 0)) / (scale[idx] || 1));
+
+  // GCR Daily Dose (mSv/day) from Ridge model
+  let gcrDaily = model.gcr_model.intercept;
+  for (let i = 0; i < scaledFeatures.length; i += 1) {
+    gcrDaily += (model.gcr_model.coefficients[i] || 0) * scaledFeatures[i];
+  }
+  gcrDaily = Math.max(0.35, Math.min(1.80, gcrDaily));
+
+  // SPE Event Probability from Logistic model
+  let speLogit = model.spe_model.intercept;
+  for (let i = 0; i < scaledFeatures.length; i += 1) {
+    speLogit += (model.spe_model.coefficients[i] || 0) * scaledFeatures[i];
+  }
+  const speProb = 1.0 / (1.0 + Math.exp(-speLogit));
+
+  // If prompt SPE contingency is active, dose spikes to prompt coronal proton storm levels
+  const hourly = isSPEActive ? 14.52 : gcrDaily / 24.0;
+  const daily = isSPEActive ? 14.52 * 24.0 : gcrDaily;
+  const annual = daily * 365.25;
+
+  const speRisk = isSPEActive ? 0.99 : Math.max(0.01, Math.min(0.95, speProb));
+  const speRiskPercent = Math.round(speRisk * 100);
+
+  // Maximum safe EVA duration before hitting 0.50 mSv nominal single-EVA ceiling
+  const safeEvaHours = isSPEActive ? 0.0 : Math.min(48.0, Math.round((0.50 / hourly) * 10) / 10);
+
+  // Days before hitting NASA career effective dose ceiling (600 mSv)
+  const daysToLimit = Math.max(1, Math.floor(600.0 / daily));
+
+  let speAdvisory = 'NOMINAL: Solar proton background quiet. Standard EVA flight rules apply.';
+  let speBadgeColor = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+  let speLevel = 'NOMINAL';
+
+  if (isSPEActive) {
+    speAdvisory = 'CRITICAL SPE WARNING: Prompt coronal proton flux exceeding 100 MeV threshold! All EVAs suspended; shelter in regolith habitat.';
+    speBadgeColor = 'bg-red-500/25 text-red-200 border-red-500/50 animate-pulse';
+    speLevel = 'CRITICAL';
+  } else if (speRisk >= 0.70) {
+    speAdvisory = 'HIGH SPE RISK: Coronal active regions facing Mars. Limit EVAs to under 4 hours and maintain orbital telemetry monitor.';
+    speBadgeColor = 'bg-red-500/20 text-red-300 border-red-500/40';
+    speLevel = 'HIGH';
+  } else if (speRisk >= 0.40) {
+    speAdvisory = 'MODERATE SPE RISK: Solar modulation increasing. Maintain emergency shelter readiness.';
+    speBadgeColor = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+    speLevel = 'MODERATE';
+  }
+
+  return {
+    elevationM: elev,
+    sol,
+    ls: lsNorm,
+    hourly: Math.round(hourly * 1000) / 1000,
+    daily: Math.round(daily * 100) / 100,
+    annual: Math.round(annual * 10) / 10,
+    surfacePressure: Math.round(surfacePressure),
+    columnDepth: Math.round(columnDepth * 10) / 10,
+    solarModulationMv: Math.round(phiMv),
+    solarCycleDesc,
+    speRisk,
+    speRiskPercent,
+    speLevel,
+    speAdvisory,
+    speBadgeColor,
+    safeEvaHours,
+    daysToLimit,
+    nasaCareerLimit: 600,
+    provenance: 'ML_PREDICTION',
+  };
+}
+
+/**
+ * Predicts astronaut metabolic rate, heart rate (BPM), and oxygen consumption
+ * based on terrain slope, walking velocity, and suit mass (NASA SP-2010-3407 standard).
+ */
+export function predictMetabolicBiometrics(slopeDeg = 0, walkingSpeedMps = 1.0, astronautMassKg = 80, suitMassKg = 45) {
+  const slope = Math.max(-45, Math.min(45, Number(slopeDeg) || 0));
+  const v = Math.max(0.1, Math.min(2.5, Number(walkingSpeedMps) || 1.0));
+  const totalMass = (astronautMassKg || 80) + (suitMassKg || 45); // kg (typically ~125 kg)
+  const gMars = 3.721; // m/s^2
+
+  const slopeRad = (slope * Math.PI) / 180;
+  
+  // Gravitational climbing work (Watts)
+  const verticalWork = totalMass * gMars * v * Math.sin(slopeRad);
+  
+  // Locomotion kinetic power on Martian regolith (Pandolf-Santee formulation adapted to 0.38g)
+  const locomotionPower = totalMass * (0.16 * (v ** 2) + 0.38 * v);
+  
+  // Basal metabolism inside pressurized life-support suit
+  const basalPower = 85.0; // Watts
+  
+  // Total metabolic expenditure (Watts)
+  const totalMetabolicWatts = Math.max(90.0, basalPower + locomotionPower + (verticalWork > 0 ? verticalWork : verticalWork * 0.35));
+  
+  // Cardiac response: resting 68 bpm + slope/speed demand
+  const heartRateBpm = Math.round(Math.min(170, Math.max(62, 65 + (totalMetabolicWatts - 85) * 0.23)));
+  
+  // Oxygen consumption rate: 1 Watt ~ 0.0143 L/min of O2
+  const o2FluxLpm = +(totalMetabolicWatts * 0.00143).toFixed(3);
+  const o2FluxKgPerHour = +(o2FluxLpm * 60 * 0.001429).toFixed(3); // Density of O2 ~ 1.429 g/L
+  
+  // Carbon dioxide production
+  const co2FluxKgPerHour = +(o2FluxKgPerHour * 0.85).toFixed(3); // Respiratory quotient RQ ~ 0.85
+  
+  return {
+    slopeDeg: slope,
+    walkingSpeedMps: v,
+    totalMassKg: totalMass,
+    metabolicWatts: Math.round(totalMetabolicWatts),
+    heartRateBpm,
+    o2FluxLpm,
+    o2FluxKgPerHour,
+    co2FluxKgPerHour,
+    fatigueIndex: Math.min(100, Math.round((totalMetabolicWatts / 450) * 100)),
+    provenance: 'DERIVED_PHYSICS',
+  };
+}
+
 export default {
   getWeatherModel,
   setWeatherModel,
   getMineralModel,
   setMineralModel,
+  getRadiationModel,
   getLsSeason,
   assessDustStormRisk,
   buildWeatherFeatureVector,
@@ -541,4 +705,6 @@ export default {
   predictClimatologicalWeather,
   calculateGeochemicalIndices,
   classifyRockMineralogy,
+  predictRadiationEnvironment,
+  predictMetabolicBiometrics,
 };

@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import useMapStore from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
 import { estimateRadiation, routeDistance } from '../utils/marsUtils';
+import { predictRadiationEnvironment } from '../services/marsMlService';
+import { Sun, ShieldCheck, Compass, Sparkles } from 'lucide-react';
 import { RadioTower, Shield, AlertTriangle, Activity, Heart } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { motion } from 'framer-motion';
@@ -16,36 +18,9 @@ const RadiationPanel = () => {
   const isSPEActive = activeContingency === 'spe';
 
   const radiation = useMemo(() => {
-    // 24 hours to get daily dose
-    const dailyDoseInfo = estimateRadiation(24, elevation);
-    let hourlyDoseRate = dailyDoseInfo.doseRate || dailyDoseInfo.totalDose / 24; 
-    
-    // Fallback if doseRate isn't returned directly by estimateRadiation
-    let hourly = typeof hourlyDoseRate === 'number' ? hourlyDoseRate : (0.67 / 24);
-
-    // If Solar Particle Event is active, dose spikes to ~14.5 mSv/hr
-    if (isSPEActive) {
-      hourly = 14.52;
-    }
-    
-    const daily = hourly * 24;
-    const annual = daily * 365.25; // Earth days for standardized mSv/year
-    
-    // SPE Risk based on a pseudo-random cycle (11-year solar cycle simulated via sol)
-    const speRisk = isSPEActive ? 0.99 : (Math.sin(currentSol / 200) + 1) / 2; // 0 to 1
-    
-    // Career limit calculation
-    const careerLimit = 600; // mSv (NASA career limit)
-    const daysToLimit = Math.max(1, Math.floor(careerLimit / daily));
-    
-    return {
-      hourly,
-      daily,
-      annual,
-      speRisk,
-      daysToLimit,
-      careerLimit
-    };
+    // Planetary areocentric solar longitude (Ls)
+    const ls = (Number(currentSol || 1) * 0.524) % 360;
+    return predictRadiationEnvironment(elevation, currentSol, ls, isSPEActive);
   }, [currentSol, elevation, isSPEActive]);
 
   const evaExposure = useMemo(() => {
@@ -82,7 +57,7 @@ const RadiationPanel = () => {
               <RadioTower className={isSPEActive ? "text-red-400 animate-pulse" : "text-yellow-400"} size={24} />
               Radiation Environment
             </h2>
-            <ProvenanceBadge type="SIMULATED" size="xs" detail="Model scaled to MSL RAD means" />
+            <ProvenanceBadge type="ML_PREDICTION" size="xs" label="NASA RAD ML" />
           </div>
           <div className="text-sm text-secondary flex items-center gap-2 mt-1 font-mono">
             <Activity size={14} />
@@ -106,6 +81,27 @@ const RadiationPanel = () => {
         </div>
       </div>
 
+      {/* ML Heliomagnetic & Solar Cycle Advisory Banner */}
+      <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs ${radiation.speBadgeColor}`}>
+        <div className="flex items-center gap-2.5">
+          <Sparkles className="w-4 h-4 shrink-0 text-violet-300" />
+          <div>
+            <span className="font-bold tracking-tight block text-white/95">{radiation.speAdvisory}</span>
+            <span className="text-[11px] text-zinc-300">
+              Solar Cycle: {radiation.solarCycleDesc} • Helio-Modulation Φ: {radiation.solarModulationMv} MV
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="px-2.5 py-1 rounded-md bg-black/40 border border-white/10 font-mono text-[11px] text-zinc-200">
+            Shielding: {radiation.columnDepth} g/cm²
+          </span>
+          <span className="px-2.5 py-1 rounded-md bg-black/40 border border-white/10 font-mono text-[11px] text-emerald-300">
+            Max EVA: {radiation.safeEvaHours}h
+          </span>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Main Metrics */}
         <div className="md:col-span-2 glass-panel p-4 rounded-xl border border-space-700/50 relative overflow-hidden">
@@ -115,7 +111,7 @@ const RadiationPanel = () => {
             <span className="text-xs uppercase font-mono tracking-wider text-space-400">
               In-Situ Dosimetry Metrics
             </span>
-            <ProvenanceBadge type="SIMULATED" size="xs" detail="Model scaled to MSL RAD means" />
+            <ProvenanceBadge type="ML_PREDICTION" size="xs" label="NASA RAD ML" />
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">

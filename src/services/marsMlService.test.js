@@ -315,4 +315,71 @@ describe('marsMlService (Client ML Inference)', () => {
       expect(classification.indices.cia).toBeGreaterThan(60);
     });
   });
+
+  describe('Radiation & Heliospheric ML Forecaster', () => {
+    it('loads trained NASA MSL RAD radiation model weights', async () => {
+      const { getRadiationModel } = await import('./marsMlService');
+      const model = getRadiationModel();
+      expect(model).toBeDefined();
+      expect(model.algorithm).toContain('Ridge Regressor (GCR)');
+      expect(model.gcr_model).toBeDefined();
+      expect(model.spe_model).toBeDefined();
+      expect(model.feature_names).toHaveLength(8);
+    });
+
+    it('predicts realistic Gale Crater background GCR dose matching MSL RAD anchor (~0.67 mSv/day)', async () => {
+      const { predictRadiationEnvironment } = await import('./marsMlService');
+      // Gale Crater floor ~ -4500 m, Sol 1500, Ls 250
+      const galeRad = predictRadiationEnvironment(-4500, 1500, 250);
+      expect(galeRad.daily).toBeGreaterThan(0.45);
+      expect(galeRad.daily).toBeLessThan(0.85);
+      expect(galeRad.hourly).toBeCloseTo(galeRad.daily / 24.0, 2);
+      expect(galeRad.columnDepth).toBeGreaterThan(15); // >15 g/cm2 atmospheric shielding
+      expect(galeRad.safeEvaHours).toBeGreaterThan(10);
+      expect(galeRad.provenance).toBe('ML_PREDICTION');
+    });
+
+    it('demonstrates increased radiation at high altitudes due to atmospheric column depletion', async () => {
+      const { predictRadiationEnvironment } = await import('./marsMlService');
+      const craterFloor = predictRadiationEnvironment(-4500, 1500, 250);
+      const highPlateau = predictRadiationEnvironment(6000, 1500, 250);
+
+      expect(highPlateau.daily).toBeGreaterThan(craterFloor.daily);
+      expect(highPlateau.columnDepth).toBeLessThan(craterFloor.columnDepth);
+      expect(highPlateau.safeEvaHours).toBeLessThan(craterFloor.safeEvaHours);
+    });
+
+    it('triggers critical emergency protocols during prompt Solar Particle Events (SPE)', async () => {
+      const { predictRadiationEnvironment } = await import('./marsMlService');
+      const speEnv = predictRadiationEnvironment(-2500, 1000, 180, true);
+      expect(speEnv.hourly).toBe(14.52);
+      expect(speEnv.speLevel).toBe('CRITICAL');
+      expect(speEnv.speRisk).toBe(0.99);
+      expect(speEnv.safeEvaHours).toBe(0.0);
+      expect(speEnv.speAdvisory).toContain('CRITICAL SPE WARNING');
+    });
+  });
+
+  describe('Astronaut EVA Biometric & Metabolic Model', () => {
+    it('predicts nominal resting/flat locomotion heart rate and oxygen flux', async () => {
+      const { predictMetabolicBiometrics } = await import('./marsMlService');
+      const flat = predictMetabolicBiometrics(0, 1.0); // 0 deg slope, 1 m/s
+      expect(flat.heartRateBpm).toBeGreaterThanOrEqual(65);
+      expect(flat.heartRateBpm).toBeLessThanOrEqual(85);
+      expect(flat.metabolicWatts).toBeGreaterThan(100);
+      expect(flat.o2FluxLpm).toBeGreaterThan(0.15);
+      expect(flat.o2FluxLpm).toBeLessThan(0.35);
+    });
+
+    it('elevates cardiac output and O2 consumption realistically on steep slopes', async () => {
+      const { predictMetabolicBiometrics } = await import('./marsMlService');
+      const flat = predictMetabolicBiometrics(0, 1.0);
+      const steepClimb = predictMetabolicBiometrics(18, 1.0); // 18 deg incline
+
+      expect(steepClimb.metabolicWatts).toBeGreaterThan(flat.metabolicWatts);
+      expect(steepClimb.heartRateBpm).toBeGreaterThan(flat.heartRateBpm);
+      expect(steepClimb.o2FluxLpm).toBeGreaterThan(flat.o2FluxLpm);
+      expect(steepClimb.fatigueIndex).toBeGreaterThan(flat.fatigueIndex);
+    });
+  });
 });
