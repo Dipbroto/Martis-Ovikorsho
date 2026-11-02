@@ -12,6 +12,7 @@ import defaultRadiationModel from '../data/marsRadiationModel.json';
 import defaultTerramechanicsModel from '../data/marsTerramechanicsModel.json';
 import defaultLibsModel from '../data/marsLibsModel.json';
 import defaultQuakeModel from '../data/marsQuakeModel.json';
+import defaultSolarDustModel from '../data/marsSolarDustModel.json';
 import { marsDistance } from '../utils/marsUtils';
 
 // In-memory model cache
@@ -21,6 +22,17 @@ let activeRadiationModel = defaultRadiationModel;
 let activeTerramechanicsModel = defaultTerramechanicsModel;
 let activeLibsModel = defaultLibsModel;
 let activeQuakeModel = defaultQuakeModel;
+let activeSolarDustModel = defaultSolarDustModel;
+
+export function getSolarDustModel() {
+  return activeSolarDustModel;
+}
+
+export function setSolarDustModel(model) {
+  if (model && model.insolation_model && model.dust_rate_model) {
+    activeSolarDustModel = model;
+  }
+}
 
 export function getQuakeModel() {
   return activeQuakeModel;
@@ -1302,7 +1314,169 @@ export function calculateGroundShakingAtLocation({
   };
 }
 
+
+/**
+ * Predicts solar array dust accumulation decay, clear-array insolation, actual generation (kWh/sol),
+ * and sols remaining to habitat ECLSS power starvation based on 5,000 sols of MER Opportunity & InSight data.
+ */
+export function predictSolarArrayDegradation({
+  currentSol = 1000,
+  ls = 120.0,
+  tau = 0.65,
+  latitude = 18.44,
+  initialDf = 0.85,
+  solsElapsed = 30,
+  arrayAreaM2 = 120.0,
+  arrayEfficiency = 0.295,
+  baseLoadKwhSol = 12.5,
+  windSpeed = 5.0,
+} = {}) {
+  const model = activeSolarDustModel;
+  const inModel = model?.insolation_model;
+  const drModel = model?.dust_rate_model;
+
+  const lsNum = Number(ls) || 0;
+  const tauNum = Math.max(0.1, Number(tau) || 0.5);
+  const latNum = Number(latitude) || 0;
+  const windNum = Math.max(1.0, Number(windSpeed) || 4.5);
+
+  const lsRad = (lsNum * Math.PI) / 180;
+  const sinLs = Math.sin(lsRad);
+  const cosLs = Math.cos(lsRad);
+  const lnTau = Math.log(tauNum);
+
+  // Solar declination & day length
+  const latRad = (latNum * Math.PI) / 180;
+  const declRad = (25.19 * Math.sin(lsRad) * Math.PI) / 180;
+  let cosH0 = -Math.tan(latRad) * Math.tan(declRad);
+  cosH0 = Math.max(-1.0, Math.min(1.0, cosH0));
+  const h0 = Math.acos(cosH0);
+  const dayHours = (h0 / Math.PI) * 24.66;
+
+  // 1. Predict Daily Clear-Array Surface Insolation (Wh/m²/sol)
+  let insolationWhM2 = 2800.0;
+  if (inModel && inModel.coefficients) {
+    const c = inModel.coefficients;
+    insolationWhM2 = inModel.intercept +
+      c.ls * lsNum +
+      c.sin_ls * sinLs +
+      c.cos_ls * cosLs +
+      c.tau * tauNum +
+      c.ln_tau * lnTau +
+      c.lat * latNum +
+      c.wind * windNum +
+      c.day_hours * dayHours;
+  }
+  insolationWhM2 = Math.max(300.0, Math.min(6500.0, insolationWhM2));
+
+  // 2. Predict Daily Dust Deposition Rate (ΔDf/sol)
+  let deltaDfPerSol = -0.0018;
+  if (drModel && drModel.coefficients) {
+    const c = drModel.coefficients;
+    deltaDfPerSol = drModel.intercept +
+      c.ls * lsNum +
+      c.sin_ls * sinLs +
+      c.cos_ls * cosLs +
+      c.tau * tauNum +
+      c.ln_tau * lnTau +
+      c.lat * latNum +
+      c.wind * windNum +
+      c.day_hours * dayHours;
+  }
+  deltaDfPerSol = Math.min(-0.0001, deltaDfPerSol);
+
+  // Project current Dust Factor after solsElapsed
+  const currentDf = Math.max(0.12, Math.min(1.0, Number(initialDf) + deltaDfPerSol * Number(solsElapsed)));
+
+  // Clean vs Actual Generation (kWh/sol)
+  const area = Math.max(0.5, Number(arrayAreaM2));
+  const eff = Math.max(0.05, Math.min(0.40, Number(arrayEfficiency)));
+  const cleanDailyKwh = (area * eff * insolationWhM2) / 1000.0;
+  const actualDailyKwh = cleanDailyKwh * currentDf;
+
+  // ECLSS Power Margin
+  const baseLoad = Number(baseLoadKwhSol) || 12.5;
+  const netMarginKwh = actualDailyKwh - baseLoad;
+  const marginPct = (netMarginKwh / baseLoad) * 100.0;
+
+  // Sols to Power Starvation
+  let solsToStarvation = null;
+  if (actualDailyKwh <= baseLoad) {
+    solsToStarvation = 0;
+  } else if (deltaDfPerSol < 0) {
+    const criticalDf = baseLoad / cleanDailyKwh;
+    if (criticalDf >= currentDf) {
+      solsToStarvation = 0;
+    } else {
+      solsToStarvation = Math.round((criticalDf - currentDf) / deltaDfPerSol);
+    }
+  }
+
+  // Convective Vortex (Dust Devil) Cleaning Probability
+  const season = getLsSeason(lsNum);
+  const cleaningConfig = model?.cleaning_vortex || { spring: 0.04, summer: 0.12, autumn: 0.38, winter: 0.28 };
+  const cleaningProb30Sols = cleaningConfig[season] || 0.15;
+
+  // 30-sol Projection Trajectory
+  const forecast30Sols = [5, 10, 15, 20, 25, 30].map((step) => {
+    const futureDf = Math.max(0.12, currentDf + deltaDfPerSol * step);
+    const futureKwh = cleanDailyKwh * futureDf;
+    return {
+      solOffset: step,
+      sol: currentSol + step,
+      dustFactor: +(futureDf.toFixed(3)),
+      generationKwh: +(futureKwh.toFixed(2)),
+      marginKwh: +(futureKwh - baseLoad).toFixed(2),
+    };
+  });
+
+  // Status & Advisory
+  let status = 'NOMINAL';
+  let statusColor = '#10b981';
+  let advisory = 'Solar array power output is nominal. Adequate margin above ECLSS life-support floor.';
+
+  if (currentDf <= 0.25 || actualDailyKwh <= baseLoad) {
+    status = 'CRITICAL_STARVATION';
+    statusColor = '#ef4444';
+    advisory = 'CRITICAL ECLSS POWER DEFICIT: Arrays severely obscured by dust. Deploy mechanical wiper or electrostatic tilt actuation immediately.';
+  } else if (currentDf <= 0.45 || netMarginKwh < baseLoad * 0.2) {
+    status = 'WARNING';
+    statusColor = '#f97316';
+    advisory = 'POWER WARNING: Array output approaching baseline reserve limits. Non-essential scientific instruments should be throttled.';
+  } else if (currentDf <= 0.70) {
+    status = 'DEGRADED';
+    statusColor = '#eab308';
+    advisory = `Array moderately dusted (${(currentDf * 100).toFixed(0)}% transmission). Convective vortex cleaning probability is ${(cleaningProb30Sols * 100).toFixed(0)}% this season.`;
+  }
+
+  return {
+    currentSol,
+    ls: +(lsNum.toFixed(1)),
+    season,
+    tau: +(tauNum.toFixed(2)),
+    insolationWhM2: Math.round(insolationWhM2),
+    dustFactor: +(currentDf.toFixed(3)),
+    dustFactorPct: Math.round(currentDf * 100),
+    dustDepositionRatePerSol: +(deltaDfPerSol.toFixed(6)),
+    cleanDailyKwh: +(cleanDailyKwh.toFixed(2)),
+    actualDailyKwh: +(actualDailyKwh.toFixed(2)),
+    baseLoadKwhSol: +(baseLoad.toFixed(2)),
+    netMarginKwh: +(netMarginKwh.toFixed(2)),
+    marginPct: Math.round(marginPct),
+    solsToStarvation: solsToStarvation !== null ? Math.max(0, solsToStarvation) : '>999',
+    cleaningProb30Sols: Math.round(cleaningProb30Sols * 100),
+    status,
+    statusColor,
+    advisory,
+    forecast30Sols,
+    provenance: 'ML_PREDICTION (OPPORTUNITY & INSIGHT EMPIRICAL)',
+  };
+}
+
 export default {
+  getSolarDustModel,
+  setSolarDustModel,
+  predictSolarArrayDegradation,
   getQuakeModel,
   setQuakeModel,
   invertMarsquakeHypocenter,

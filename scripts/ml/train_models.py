@@ -43,6 +43,10 @@ def train_all_models():
     print("\n[Step 3: Model 7] Training InSight Marsquake Hypocentral & Shaking Intensity Regressor...")
     subprocess.run([sys.executable, 'scripts/ml/train_quake_attenuation_model.py'], check=True)
     
+    # Model 8: Solar Array Dust Deposition & Power Degradation Forecaster
+    print("\n[Step 3: Model 8] Training Solar Array Dust Deposition & Power Degradation Forecaster...")
+    subprocess.run([sys.executable, 'scripts/ml/train_solar_dust_model.py'], check=True)
+    
     # Step 4: Export to unified lightweight bundle (mars_models.json) under 150 KB
     print("\n[Step 4] Assembling unified browser bundle: public/data/ml/mars_models.json...")
     
@@ -58,9 +62,11 @@ def train_all_models():
         libs_model = json.load(f)
     with open('public/data/ml/mars_quake_model.json', 'r') as f:
         quake_model = json.load(f)
+    with open('public/data/ml/mars_solar_dust_model.json', 'r') as f:
+        solar_dust_model = json.load(f)
         
     unified_bundle = {
-        'version': '2.3.0',
+        'version': '2.4.0',
         'generated_at': '2026-11-03',
         'weather': weather_model,
         'mineralogy': mineral_model,
@@ -68,6 +74,7 @@ def train_all_models():
         'terramechanics': terramechanics_model,
         'libs_chemometrics': libs_model,
         'marsquake_seismology': quake_model,
+        'solar_dust_degradation': solar_dust_model,
     }
     
     out_unified = os.path.abspath('public/data/ml/mars_models.json')

@@ -24,6 +24,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
 import ProvenanceBadge from './ProvenanceBadge';
+import SolarArrayPowerPanel from './SolarArrayPowerPanel';
 
 const WeatherPanel = () => {
   const {
@@ -710,6 +711,9 @@ const WeatherPanel = () => {
             </ResponsiveContainer>
           </div>
         </div>
+
+        {/* Solar Array Dust Deposition & Power Degradation Card */}
+        <SolarArrayPowerPanel />
       </div>
     </div>
   );

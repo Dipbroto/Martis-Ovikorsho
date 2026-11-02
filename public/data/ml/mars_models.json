@@ -1,5 +1,5 @@
 {
-  "version": "2.3.0",
+  "version": "2.4.0",
   "generated_at": "2026-11-03",
   "weather": {
     "metadata": {
@@ -1648,6 +1648,84 @@
         "lat": 35.12,
         "lon": -170.21,
         "description": "Hypervelocity meteorite strike creating a 150m wide impact crater and exposing boulder-sized chunks of pure water ice."
+      }
+    ]
+  },
+  "solar_dust_degradation": {
+    "version": "1.0.0",
+    "generated_at": "2026-11-03",
+    "metadata": {
+      "dataset": "MER-B Opportunity (5000 Sols) + InSight PDS Solar Telemetry",
+      "r2_insolation": 0.7905,
+      "r2_dust_rate": 0.9935,
+      "solar_constant_1au": 1361.0,
+      "mars_semi_major_au": 1.52368,
+      "mars_eccentricity": 0.0934
+    },
+    "insolation_model": {
+      "intercept": -2466.891,
+      "coefficients": {
+        "ls": -0.048,
+        "sin_ls": -303.135,
+        "cos_ls": -100.388,
+        "tau": 443.189,
+        "ln_tau": -1305.665,
+        "lat": -2.6,
+        "wind": -6.739,
+        "day_hours": 297.991
+      }
+    },
+    "dust_rate_model": {
+      "intercept": -0.000722,
+      "coefficients": {
+        "ls": -1e-07,
+        "sin_ls": -2e-06,
+        "cos_ls": -7e-06,
+        "tau": -0.00181,
+        "ln_tau": -0.000855,
+        "lat": 0.0,
+        "wind": -0.000183,
+        "day_hours": -3e-06
+      }
+    },
+    "cleaning_vortex": {
+      "spring": 0.04,
+      "summer": 0.12,
+      "autumn": 0.38,
+      "winter": 0.28,
+      "typical_cleaning_boost_df": 0.25
+    },
+    "benchmarks": [
+      {
+        "name": "InSight (Elysium Planitia)",
+        "lat": 4.5024,
+        "lon": 135.6234,
+        "array_area_m2": 4.5,
+        "nominal_efficiency": 0.295,
+        "sol1_wh": 5000,
+        "sol1400_wh": 420,
+        "starvation_threshold_wh": 400,
+        "notes": "No dust cleaning events occurred; array died on Sol 1440 at Df = 0.15."
+      },
+      {
+        "name": "Opportunity MER-B (Meridiani Planum)",
+        "lat": -1.9462,
+        "lon": 354.4734,
+        "array_area_m2": 1.3,
+        "nominal_efficiency": 0.28,
+        "sol1_wh": 900,
+        "sol1140_jump": "0.55 -> 0.88 (+60% cleaning vortex event)",
+        "starvation_threshold_wh": 180,
+        "notes": "Survived 5,000 sols due to 20+ convective vortex cleaning events, died in global dust storm (tau 10.8)."
+      },
+      {
+        "name": "Jezero Crater Habitat Base (Perseverance Array)",
+        "lat": 18.4447,
+        "lon": 77.4508,
+        "array_area_m2": 120.0,
+        "nominal_efficiency": 0.3,
+        "eclss_minimum_kwh_sol": 12.5,
+        "notes": "Pressurized habitat life support baseline requires min 12.5 kWh/sol uninterrupted power."
       }
     ]
   }

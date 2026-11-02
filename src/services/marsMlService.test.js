@@ -615,5 +615,63 @@ describe('marsMlService (Client ML Inference)', () => {
       expect(shaking.hazard).toBeDefined();
     });
   });
+  describe('Solar Array Dust Deposition & Power Degradation Model (Model 4)', () => {
+    it('loads active solar array model with insolation and dust decay weights', async () => {
+      const { getSolarDustModel } = await import('./marsMlService');
+      const model = getSolarDustModel();
+      expect(model).toBeDefined();
+      expect(model.version).toBe('1.0.0');
+      expect(model.insolation_model).toBeDefined();
+      expect(model.dust_rate_model).toBeDefined();
+      expect(model.cleaning_vortex.autumn).toBeGreaterThan(0.2);
+    });
+
+    it('predicts clean array vs degraded solar generation and dust factor', async () => {
+      const { predictSolarArrayDegradation } = await import('./marsMlService');
+
+      // Nominal Jezero habitat (120 m² array, Ls 120, tau 0.65, after 30 sols)
+      const res = predictSolarArrayDegradation({
+        currentSol: 1000,
+        ls: 120.0,
+        tau: 0.65,
+        latitude: 18.44,
+        initialDf: 0.90,
+        solsElapsed: 30,
+        arrayAreaM2: 120.0,
+        arrayEfficiency: 0.295,
+        baseLoadKwhSol: 12.5,
+      });
+
+      expect(res.insolationWhM2).toBeGreaterThan(1500);
+      expect(res.dustFactor).toBeLessThan(0.90);
+      expect(res.dustFactor).toBeGreaterThan(0.70);
+      expect(res.cleanDailyKwh).toBeGreaterThan(res.actualDailyKwh);
+      expect(res.actualDailyKwh).toBeGreaterThan(12.5);
+      expect(res.status).toBe('NOMINAL');
+      expect(res.forecast30Sols).toHaveLength(6);
+    });
+
+    it('triggers critical starvation advisory when dust factor drops near InSight end-of-life levels', async () => {
+      const { predictSolarArrayDegradation } = await import('./marsMlService');
+
+      // Severely dusted lander array (InSight-like: 4.5 m² array, tau 2.5, initial Df 0.22)
+      const starved = predictSolarArrayDegradation({
+        currentSol: 1400,
+        ls: 220.0,
+        tau: 2.5,
+        latitude: 4.5,
+        initialDf: 0.20,
+        solsElapsed: 10,
+        arrayAreaM2: 4.5,
+        arrayEfficiency: 0.295,
+        baseLoadKwhSol: 0.5,
+      });
+
+      expect(starved.dustFactor).toBeLessThanOrEqual(0.20);
+      expect(starved.status).toBe('CRITICAL_STARVATION');
+      expect(starved.solsToStarvation).toBe(0);
+      expect(starved.advisory).toContain('CRITICAL');
+    });
+  });
 
 });
