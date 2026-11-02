@@ -419,4 +419,71 @@ describe('marsMlService (Client ML Inference)', () => {
       expect(res.biosignatureScore).toBeGreaterThan(70);
     });
   });
+
+  describe('Model 1: Rover Terramechanics & Dynamic Battery Discharge', () => {
+    it('loads active terramechanics model with Bekker-Wong coefficients', async () => {
+      const { getTerramechanicsModel } = await import('./marsMlService');
+      const model = getTerramechanicsModel();
+      expect(model.version).toBeDefined();
+      expect(model.slip_model.coefficients).toHaveLength(9);
+      expect(model.energy_model.coefficients).toHaveLength(9);
+      expect(model.trap_classifier.coefficients).toHaveLength(9);
+    });
+
+    it('predicts nominal wheel slip and baseline energy on flat bedrock', async () => {
+      const { predictRoverTerramechanics } = await import('./marsMlService');
+      const res = predictRoverTerramechanics({
+        slopeDeg: 0,
+        thermalInertia: 500, // Bedrock
+        roughnessM: 0.05,
+        speedCommandedKmh: 10,
+        roverMassKg: 3000,
+      });
+
+      expect(res.slipRatioPct).toBeLessThan(15);
+      expect(res.whPerKm).toBeLessThan(1000); expect(res.whPerKm).toBeGreaterThan(400);
+      expect(res.hazardLevel).toBe('NOMINAL');
+      expect(res.provenance).toBe('ML_PREDICTION');
+    });
+
+    it('identifies Opportunity Purgatory Dune trap scenario with high slip and critical risk', async () => {
+      const { predictRoverTerramechanics } = await import('./marsMlService');
+      const res = predictRoverTerramechanics({
+        slopeDeg: 14,
+        thermalInertia: 90, // Unconsolidated drift sand
+        roughnessM: 0.05,
+        speedCommandedKmh: 10,
+        roverMassKg: 3000,
+      });
+
+      expect(res.slipRatioPct).toBeGreaterThan(60);
+      expect(res.whPerKm).toBeGreaterThan(2000);
+      expect(res.trapRiskPercent).toBeGreaterThan(80);
+      expect(res.hazardLevel).toBe('CRITICAL_TRAP');
+    });
+
+    it('evaluates multi-segment traverse battery discharge profile', async () => {
+      const { predictTraverseTerramechanics } = await import('./marsMlService');
+      const waypoints = [
+        { lat: -4.5895, lon: 137.4417, elevation: -4500 },
+        { lat: -4.5950, lon: 137.4450, elevation: -4480 },
+        { lat: -4.6000, lon: 137.4500, elevation: -4450 },
+      ];
+
+      const res = predictTraverseTerramechanics(waypoints, {
+        nominalSpeedKmh: 10,
+        roverMassKg: 3000,
+        batteryCapacityWh: 60000,
+      });
+
+      expect(res.totalDistanceKm).toBeGreaterThan(0);
+      expect(res.totalHours).toBeGreaterThan(0);
+      expect(res.totalEnergyKwh).toBeGreaterThan(0);
+      expect(res.batterySoCPct).toBeLessThan(100);
+      expect(res.batterySoCPct).toBeGreaterThan(50);
+      expect(res.segments).toHaveLength(2);
+      expect(res.provenance).toBe('ML_PREDICTION');
+    });
+  });
+
 });

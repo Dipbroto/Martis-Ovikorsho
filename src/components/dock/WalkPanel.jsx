@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Play, Pause, RotateCcw, LocateFixed, Radar, Glasses, FileText, ShieldAlert, Pencil, Trash2, Footprints, Sun, Moon, Thermometer, Gauge, Wind, CloudFog, Radiation, Sparkles } from 'lucide-react';
+import { Loader2, Play, Pause, RotateCcw, LocateFixed, Radar, Glasses, FileText, ShieldAlert, Pencil, Trash2, Footprints, Sun, Moon, Thermometer, Gauge, Wind, CloudFog, Radiation, Sparkles, Zap, AlertTriangle } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore, { routeSignature } from '../../store/useMapStore';
 import { planAndApplyRoute } from '../../services/routePlanningService';
 import { routeDistance } from '../../utils/marsUtils';
 import { roverRouteHours, ROVER } from '../../terrain/roverModel';
+import { predictTraverseTerramechanics } from '../../services/marsMlService';
 import DockCard from './DockCard';
 import ElevationScrubber from './ElevationScrubber';
 import ProvenanceBadge from '../ProvenanceBadge';
@@ -50,6 +51,15 @@ export default function WalkPanel() {
   const rover = s.mode === 'rover';
   const driveHours = useMemo(() => roverRouteHours(points), [points]);
   const tripHours = rover ? driveHours : metrics?.walkingHours;
+
+  const terraSummary = useMemo(() => {
+    if (!rover || !points || points.length < 2) return null;
+    return predictTraverseTerramechanics(points.map((p) => ({
+      lat: p[0],
+      lon: p[1],
+      elevation: p[2] || 0,
+    })));
+  }, [rover, points]);
 
   // The clock the walk is set against: a chosen local time at the start, or the real time right now
   const nowRef = useRef(new Date());
@@ -127,7 +137,9 @@ export default function WalkPanel() {
           {[
             ['Distance', `${km.toFixed(1)} km`],
             ['Steepest', `${maxSlope}°`],
-            ['Climb', `${metrics.totalAscentMeters} m`],
+            rover && terraSummary
+              ? ['Battery Est.', `${terraSummary.totalEnergyKwh} kWh`]
+              : ['Climb', `${metrics.totalAscentMeters} m`],
             rover ? ['Drive time', fmtDuration(driveHours)] : ['Life support', `${metrics.budgetSharePct}%`],
           ].map(([k, v]) => (
             <div key={k} className="rounded-xl bg-white/[0.04] px-1 py-1.5">
@@ -138,6 +150,12 @@ export default function WalkPanel() {
         </div>
       )}
       {metrics?.budgetSharePct > 50 && !started && !rover && <p className="mt-2 text-xs text-rose-300 leading-snug">One way uses over half the usable life support, so walking back would not fit.</p>}
+      {terraSummary?.criticalTrapRisk && !started && rover && (
+        <div className="mt-2 text-xs text-amber-300 bg-amber-950/40 border border-amber-500/40 rounded-xl p-2.5 leading-snug flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>Terrain Hazard: Route crosses high-slip drift sand ({terraSummary.criticalSegmentCount} segments). Wheel slip may reach {terraSummary.maxSlipPct}%. Drive with caution.</span>
+        </div>
+      )}
 
       <div className="mt-3">
         <ElevationScrubber
@@ -215,18 +233,74 @@ export default function WalkPanel() {
               <Tile icon={Gauge} label={rover ? 'Speed' : 'Pace'} value={`${s.tel.paceKmh.toFixed(1)} km/h`} sub={`slope ${s.tel.slope.toFixed(0)}°`} />
               <Tile icon={Thermometer} label="Height" value={`${Math.round(s.pos?.elevation ?? 0).toLocaleString()} m`} />
             </div>
-            {!rover && <div className="mt-2 rounded-xl bg-white/[0.04] px-3 py-2.5">
-              <div className="flex items-baseline justify-between text-xs">
-                <span className="text-zinc-300">Life support left</span>
-                <span className="font-semibold text-white tabular-nums">{Math.round(s.life)}%</span>
+            {!rover ? (
+              <div className="mt-2 rounded-xl bg-white/[0.04] px-3 py-2.5">
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="text-zinc-300">Life support left</span>
+                  <span className="font-semibold text-white tabular-nums">{Math.round(s.life)}%</span>
+                </div>
+                <div className="relative mt-1.5 h-2 rounded-full bg-white/10 overflow-hidden">
+                  <motion.div className={`h-full rounded-full ${s.life > 50 ? 'bg-emerald-400' : s.life > 25 ? 'bg-amber-400' : 'bg-rose-500'}`} animate={{ width: `${Math.max(0, s.life)}%` }} transition={{ duration: 0.3 }} />
+                </div>
+                <div className={`mt-1.5 text-xs ${spareTone}`}>
+                  {spare < 0 ? 'Past the point of no return: not enough left to walk back.' : `Spare to walk back from here: ${Math.round(spare)}%`}
+                </div>
               </div>
-              <div className="relative mt-1.5 h-2 rounded-full bg-white/10 overflow-hidden">
-                <motion.div className={`h-full rounded-full ${s.life > 50 ? 'bg-emerald-400' : s.life > 25 ? 'bg-amber-400' : 'bg-rose-500'}`} animate={{ width: `${Math.max(0, s.life)}%` }} transition={{ duration: 0.3 }} />
+            ) : (
+              /* Rover Battery SoC & Terramechanics Traction Dashboard */
+              <div className="mt-2 rounded-xl bg-violet-950/20 border border-violet-800/40 p-3 space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5 text-zinc-300 font-medium">
+                    <Zap size={13} className="text-amber-400" />
+                    Rover Battery SoC (60 kWh)
+                  </span>
+                  <span className="font-mono font-bold text-white tabular-nums">
+                    {Math.round(s.life)}% <span className="text-zinc-400 font-normal">({(s.tel?.batteryRemainingKwh ?? +(60 * (s.life / 100)).toFixed(1))} kWh)</span>
+                  </span>
+                </div>
+                <div className="relative h-2 rounded-full bg-space-900 overflow-hidden border border-white/5">
+                  <motion.div
+                    className={`h-full rounded-full transition-all duration-300 ${s.life > 40 ? 'bg-emerald-400' : s.life > 20 ? 'bg-amber-400' : 'bg-rose-500'}`}
+                    animate={{ width: `${Math.max(0, s.life)}%` }}
+                  />
+                </div>
+
+                {/* Terramechanics Telemetry Grid */}
+                <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
+                  <div className="bg-black/30 rounded-lg p-2 border border-white/5">
+                    <div className="text-zinc-400 text-[10px]">Wheel Slip (Bekker ML)</div>
+                    <div className="flex items-baseline justify-between mt-0.5">
+                      <span className={`font-bold ${((s.tel?.slipPct ?? 2) > 30) ? 'text-red-400' : ((s.tel?.slipPct ?? 2) > 15) ? 'text-amber-300' : 'text-emerald-300'}`}>
+                        {(s.tel?.slipPct ?? 2.0).toFixed(1)}%
+                      </span>
+                      <span className="text-[9px] text-zinc-400">
+                        {(s.tel?.slipPct ?? 2) > 30 ? 'High Sinkage' : 'Nominal'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-black/30 rounded-lg p-2 border border-white/5">
+                    <div className="text-zinc-400 text-[10px]">Traction Drain</div>
+                    <div className="flex items-baseline justify-between mt-0.5">
+                      <span className="font-bold text-amber-300">
+                        {Math.round(s.tel?.whPerKm ?? 210)} <span className="text-[10px] text-zinc-400 font-normal">Wh/km</span>
+                      </span>
+                      <span className="text-[9px] text-zinc-400">
+                        {((s.tel?.electricalPowerWatts ?? 2100) / 1000).toFixed(1)} kW
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sand Trap Hazard Alert if Critical */}
+                {s.tel?.hazardLevel === 'CRITICAL_TRAP' && (
+                  <div className="bg-red-950/80 border border-red-500/60 rounded-lg p-2 text-[10px] text-red-200 flex items-start gap-1.5 animate-pulse">
+                    <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                    <span>SAND TRAP HAZARD: Wheel slip exceeds 40% on unconsolidated drift sand! Downshift motors or steer detour.</span>
+                  </div>
+                )}
               </div>
-              <div className={`mt-1.5 text-xs ${spareTone}`}>
-                {spare < 0 ? 'Past the point of no return: not enough left to walk back.' : `Spare to walk back from here: ${Math.round(spare)}%`}
-              </div>
-            </div>}
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -257,7 +331,7 @@ export default function WalkPanel() {
         <div className="mt-3">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-medium text-zinc-300">{started ? 'Conditions right here' : 'Conditions at the start'}</span>
-            <ProvenanceBadge type="SIMULATED" size="xs" detail="Seasonal weather model with the real Sun position and Mars time" />
+            <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Bekker-Wong Terramechanics & Seasonal Weather ML" />
           </div>
           <div className="grid grid-cols-3 gap-1.5">
             <Tile icon={env.sunEl > 0 ? Sun : Moon} label="Local time" value={fmtLtst(env.ltst)} sub={`${env.phase} · Sun ${Math.round(env.sunEl)}°`} />

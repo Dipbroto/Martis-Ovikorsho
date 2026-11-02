@@ -3,6 +3,7 @@ import useMapStore, { routeSignature } from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
 import { routeDistance, marsDistance, lerpLon } from '../utils/marsUtils';
 import { estimateRouteEVA } from '../terrain/routeEnergy';
+import { predictTraverseTerramechanics } from '../services/marsMlService';
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
 import { expeditionPresets } from '../data/expeditionPresets';
 import { 
@@ -64,6 +65,11 @@ export default function RoutePlanner() {
   // Autonomous Router State
   const [selectedPairId, setSelectedPairId] = useState('jezero-delta');
   const [routingMode, setRoutingMode] = useState('safety'); // 'safety' | 'energy' | 'fastest'
+
+  const roverBatteryEst = useMemo(() => {
+    if (!waypoints || waypoints.length < 2) return null;
+    return predictTraverseTerramechanics(waypoints);
+  }, [waypoints]);
   const [generatedRouteResult, setGeneratedRouteResult] = useState(null);
   const [isRouting, setIsRouting] = useState(false);
   const [routingError, setRoutingError] = useState(null);
@@ -370,7 +376,26 @@ export default function RoutePlanner() {
                 </div>
               </>
             )}
+            {roverBatteryEst && (
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                </div>
+                <div>
+                  <div className="text-stone-400 font-mono text-[9px] uppercase tracking-wider font-medium">Rover Battery [ML]</div>
+                  <div className="font-mono text-xs font-bold tabular-nums text-amber-300">
+                    {roverBatteryEst.totalEnergyKwh} kWh ({100 - roverBatteryEst.batterySoCPct}% used)
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+          {roverBatteryEst?.criticalTrapRisk && (
+            <div className="mt-2 text-[11px] font-mono text-amber-300 bg-amber-950/40 border border-amber-500/40 rounded-lg p-2.5 flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Dune Warning: Route crosses high-slip drift sand. Peak slip ~{roverBatteryEst.maxSlipPct}%. Drive in low gear.</span>
+            </div>
+          )}
 
           {/* Daylight / EVA window at the base for today's Mars date */}
           {waypoints && waypoints.length > 0 && <DaylightCard lat={waypoints[0].lat} />}

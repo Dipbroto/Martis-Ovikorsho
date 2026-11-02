@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Footprints, CloudFog, Mountain, Sunset, Sunrise, Moon, AlertTriangle, Flag, MapPin, Thermometer } from 'lucide-react';
+import { Footprints, CloudFog, Mountain, Sunset, Sunrise, Moon, AlertTriangle, Flag, MapPin, Thermometer, Zap } from 'lucide-react';
 import { fmtLtst, fmtDuration } from './walkEnvironment';
 import { nearestPlace } from '../../data/places';
 
@@ -51,6 +51,27 @@ export default function useWalkFeed({ active, progress, telemetry, position, env
     const spare = lifeLeft * 2 - 100;
     if (!rover && spare < 25 && spare >= 0 && progress < 0.99) once('spare-low', { icon: AlertTriangle, tone: 'warn', title: 'Spare life support is running low', text: `Walking back from here would use almost everything that is left (${Math.round(spare)}% spare).` });
     if (!rover && spare < 0 && progress < 0.99) once('no-return', { icon: AlertTriangle, tone: 'bad', title: 'Past the point of no return', text: 'There is not enough life support left to walk all the way back on foot from here.' });
+
+    // Rover Terramechanics & Battery alerts
+    if (rover && (telemetry.slipPct || 0) >= 30 && progress < 0.99) {
+      once('rover-high-slip', {
+        icon: AlertTriangle,
+        tone: (telemetry.slipPct || 0) >= 45 ? 'bad' : 'warn',
+        title: (telemetry.slipPct || 0) >= 45 ? 'Critical Sand Trap Warning' : 'High Wheel Slip Detected',
+        text: (telemetry.slipPct || 0) >= 45
+          ? `Wheel slip has spiked to ${(telemetry.slipPct || 0).toFixed(0)}% in unconsolidated drift sand. Immediate motor torque limitation active.`
+          : `Wheel slip reached ${(telemetry.slipPct || 0).toFixed(0)}% on loose slope. Traversal pace reduced to maintain traction.`,
+      });
+    }
+
+    if (rover && lifeLeft <= 25 && progress < 0.99) {
+      once('rover-battery-low', {
+        icon: Zap,
+        tone: lifeLeft <= 15 ? 'bad' : 'warn',
+        title: `Rover battery ${Math.round(lifeLeft)}%`,
+        text: `Traverse energy and life-support hotel draw have lowered battery reserve to ${Math.round(lifeLeft)}% (${(telemetry.batteryRemainingKwh ?? +(60 * (lifeLeft / 100)).toFixed(1))} kWh).`,
+      });
+    }
 
     if (progress >= 0.99) once('arrive', { icon: Flag, tone: 'good', title: `Arrived at ${names.end}`, text: rover ? `${dist} in ${fmtDuration(telemetry.hours)} by rover.` : `${dist} in ${fmtDuration(telemetry.hours)} on foot, with ${Math.round(lifeLeft)}% of the life support left.` });
 

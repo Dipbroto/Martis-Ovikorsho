@@ -9,11 +9,24 @@
 import defaultWeatherModel from '../data/marsWeatherModel.json';
 import defaultMineralModel from '../data/marsMineralModel.json';
 import defaultRadiationModel from '../data/marsRadiationModel.json';
+import defaultTerramechanicsModel from '../data/marsTerramechanicsModel.json';
+import { marsDistance } from '../utils/marsUtils';
 
 // In-memory model cache
 let activeModel = defaultWeatherModel;
 let activeMineralModel = defaultMineralModel;
 let activeRadiationModel = defaultRadiationModel;
+let activeTerramechanicsModel = defaultTerramechanicsModel;
+
+export function getTerramechanicsModel() {
+  return activeTerramechanicsModel;
+}
+
+export function setTerramechanicsModel(model) {
+  if (model && model.slip_model && model.energy_model) {
+    activeTerramechanicsModel = model;
+  }
+}
 
 export function getRadiationModel() {
   return activeRadiationModel;
@@ -732,7 +745,223 @@ export function classifyMineralSample(oxides, emissionPeaks = []) {
   return classifyRockMineralogy(oxides);
 }
 
+
+/**
+ * Model 1: Planetary Terramechanics & Dynamic Battery Discharge Regressor
+ * 
+ * Predicts wheel slip ratio (%) and dynamic battery traction energy drain (Wh/km)
+ * based on Bekker-Wong terramechanics calibrated to Curiosity, Perseverance,
+ * and Opportunity rover telemetry.
+ */
+export function predictRoverTerramechanics({
+  slopeDeg = 0,
+  thermalInertia = 320,
+  roughnessM = 0.08,
+  speedCommandedKmh = 10,
+  roverMassKg = 3000,
+  batteryCapacityWh = 60000,
+} = {}) {
+  const model = getTerramechanicsModel();
+  const slope = Math.max(-25, Math.min(25, Number(slopeDeg) || 0));
+  const ti = Math.max(50, Math.min(850, Number(thermalInertia) || 320));
+  const rough = Math.max(0.01, Math.min(1.2, Number(roughnessM) || 0.08));
+  const vCmd = Math.max(2, Math.min(12, Number(speedCommandedKmh) || 10));
+  const mass = Math.max(2000, Math.min(4000, Number(roverMassKg) || 3000));
+
+  const slopeRad = (slope * Math.PI) / 180;
+  const slopeSin = Math.sin(slopeRad);
+  const invTi = 100.0 / (ti + 10.0);
+  const slopeXInvTi = Math.max(0, slopeSin) * invTi;
+  const roughnessXSlope = rough * Math.abs(slopeSin);
+
+  const rawFeatures = [
+    slope,
+    ti,
+    rough,
+    vCmd,
+    mass,
+    slopeSin,
+    invTi,
+    slopeXInvTi,
+    roughnessXSlope,
+  ];
+
+  const scaled = rawFeatures.map((val, idx) => {
+    const mean = model.scaler.mean[idx];
+    const scale = model.scaler.scale[idx] || 1;
+    return (val - mean) / scale;
+  });
+
+  // Predict Wheel Slip %
+  const slipIntercept = model.slip_model.intercept;
+  const slipRaw = scaled.reduce((acc, val, idx) => acc + val * model.slip_model.coefficients[idx], slipIntercept);
+  const slipPct = Math.max(1.5, Math.min(99.8, Math.round(slipRaw * 10) / 10));
+
+  // Predict Energy Drain (Wh/km)
+  const energyIntercept = model.energy_model.intercept;
+  const energyRaw = scaled.reduce((acc, val, idx) => acc + val * model.energy_model.coefficients[idx], energyIntercept);
+  const whPerKm = Math.max(140, Math.min(3500, Math.round(energyRaw)));
+
+  // Predict Sand Trap / Entrapment Probability
+  const trapIntercept = model.trap_classifier.intercept;
+  const trapLogit = scaled.reduce((acc, val, idx) => acc + val * model.trap_classifier.coefficients[idx], trapIntercept);
+  const trapProb = 1.0 / (1.0 + Math.exp(-trapLogit));
+  const trapRiskPercent = Math.round(trapProb * 100);
+
+  // Compute actual forward speed over ground accounting for wheel slip
+  const actualSpeedKmh = +(vCmd * Math.max(0.05, 1 - slipPct / 100)).toFixed(1);
+  const electricalPowerWatts = Math.round(whPerKm * actualSpeedKmh);
+
+  // Categorize hazard level and operational guidance
+  let hazardLevel = 'NOMINAL';
+  let badgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+  let advisory = 'OPTIMAL TRACTION: Firm regolith or bedrock pavement. Baseline energy consumption.';
+
+  if (trapProb >= 0.65 || slipPct >= 45) {
+    hazardLevel = 'CRITICAL_TRAP';
+    badgeColor = 'bg-red-500/25 text-red-200 border-red-500/50 animate-pulse';
+    advisory = 'SAND TRAP WARNING: High wheel sinkage on unconsolidated drift sand (Opportunity Purgatory scenario). Entrapment imminent; steer detour immediately!';
+  } else if (slipPct >= 25) {
+    hazardLevel = 'HIGH_SLIP';
+    badgeColor = 'bg-orange-500/20 text-orange-300 border-orange-500/40';
+    advisory = 'HIGH WHEEL SLIP: Steep dune flank or loose ripple field. Downshift speed and monitor motor torque.';
+  } else if (slipPct >= 12) {
+    hazardLevel = 'ELEVATED_SLIP';
+    badgeColor = 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40';
+    advisory = 'MODERATE SLIP: Soft regolith detected. Energy consumption elevated above flat cruising baseline.';
+  }
+
+  return {
+    slopeDeg: slope,
+    thermalInertia: ti,
+    roughnessM: rough,
+    commandedSpeedKmh: vCmd,
+    actualSpeedKmh,
+    roverMassKg: mass,
+    slipRatioPct: slipPct,
+    whPerKm,
+    electricalPowerWatts,
+    trapRiskPercent,
+    hazardLevel,
+    badgeColor,
+    advisory,
+    provenance: 'ML_PREDICTION',
+  };
+}
+
+/**
+ * Evaluates the full traverse route energy and battery state of charge (SoC %)
+ * using segment-by-segment terramechanics inference.
+ */
+export function predictTraverseTerramechanics(waypoints = [], options = {}) {
+  const {
+    nominalSpeedKmh = 10,
+    roverMassKg = 3000,
+    batteryCapacityWh = 60000,
+    defaultThermalInertia = 320,
+    defaultRoughnessM = 0.08,
+  } = options;
+
+  if (!Array.isArray(waypoints) || waypoints.length < 2) {
+    return {
+      totalDistanceKm: 0,
+      totalHours: 0,
+      totalEnergyKwh: 0,
+      batteryCapacityKwh: +(batteryCapacityWh / 1000).toFixed(1),
+      batterySoCPct: 100,
+      batteryRemainingKwh: +(batteryCapacityWh / 1000).toFixed(1),
+      avgSlipPct: 2.0,
+      maxSlipPct: 2.0,
+      criticalTrapRisk: false,
+      criticalSegmentCount: 0,
+      segments: [],
+      provenance: 'ML_PREDICTION',
+    };
+  }
+
+  let totalDistM = 0;
+  let totalTimeS = 0;
+  let totalEnergyWh = 0;
+  let maxSlip = 0;
+  let slipSum = 0;
+  let criticalCount = 0;
+  const segments = [];
+
+  for (let i = 1; i < waypoints.length; i++) {
+    const a = waypoints[i - 1];
+    const b = waypoints[i];
+    const distM = (marsDistance(a.lat, a.lon, b.lat, b.lon) || 0) * 1000;
+    if (distM <= 0) continue;
+
+    const elevA = a.elevation ?? 0;
+    const elevB = b.elevation ?? 0;
+    const riseM = elevB - elevA;
+    const slopeDeg = (Math.atan(riseM / distM) * 180) / Math.PI;
+
+    const ti = a.thermalInertia || options.thermalInertia || defaultThermalInertia;
+    const rough = a.roughness || options.roughnessM || defaultRoughnessM;
+
+    const terra = predictRoverTerramechanics({
+      slopeDeg,
+      thermalInertia: ti,
+      roughnessM: rough,
+      speedCommandedKmh: nominalSpeedKmh,
+      roverMassKg,
+      batteryCapacityWh,
+    });
+
+    const distKm = distM / 1000;
+    const legHours = distKm / Math.max(0.1, terra.actualSpeedKmh);
+    const legEnergyWh = distKm * terra.whPerKm;
+
+    totalDistM += distM;
+    totalTimeS += legHours * 3600;
+    totalEnergyWh += legEnergyWh;
+    slipSum += terra.slipRatioPct;
+    if (terra.slipRatioPct > maxSlip) maxSlip = terra.slipRatioPct;
+    if (terra.hazardLevel === 'CRITICAL_TRAP') criticalCount++;
+
+    segments.push({
+      fromIndex: i - 1,
+      toIndex: i,
+      distKm: +distKm.toFixed(2),
+      slopeDeg: +slopeDeg.toFixed(1),
+      slipPct: terra.slipRatioPct,
+      whPerKm: terra.whPerKm,
+      legEnergyWh: Math.round(legEnergyWh),
+      hazardLevel: terra.hazardLevel,
+      advisory: terra.advisory,
+    });
+  }
+
+  const totalDistKm = +(totalDistM / 1000).toFixed(2);
+  const totalHours = +(totalTimeS / 3600).toFixed(2);
+  const totalEnergyKwh = +(totalEnergyWh / 1000).toFixed(2);
+  const batterySoCPct = Math.max(0, Math.min(100, Math.round(((batteryCapacityWh - totalEnergyWh) / batteryCapacityWh) * 100)));
+  const batteryRemainingKwh = +Math.max(0, (batteryCapacityWh - totalEnergyWh) / 1000).toFixed(2);
+  const avgSlipPct = segments.length > 0 ? +(slipSum / segments.length).toFixed(1) : 2.0;
+
+  return {
+    totalDistanceKm: totalDistKm,
+    totalHours,
+    totalEnergyKwh,
+    batteryCapacityKwh: +(batteryCapacityWh / 1000).toFixed(1),
+    batterySoCPct,
+    batteryRemainingKwh,
+    avgSlipPct,
+    maxSlipPct: +maxSlip.toFixed(1),
+    criticalTrapRisk: criticalCount > 0,
+    criticalSegmentCount: criticalCount,
+    segments,
+    provenance: 'ML_PREDICTION',
+  };
+}
+
 export default {
+  getTerramechanicsModel,
+  setTerramechanicsModel,
+  predictRoverTerramechanics,
+  predictTraverseTerramechanics,
   getWeatherModel,
   setWeatherModel,
   getMineralModel,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ROVER, roverLeg, roverRouteHours, roverSpeedKmh } from './roverModel';
+import { ROVER, roverLeg, roverRouteHours, roverSpeedKmh, roverTerramechanicsLeg } from './roverModel';
 import { legCost } from './evaModel';
 
 describe('rover model', () => {
@@ -20,5 +20,20 @@ describe('rover model', () => {
 
   it('takes longer uphill than level', () => {
     expect(roverLeg(1000, 200).timeS).toBeGreaterThan(roverLeg(1000, 0).timeS);
+  });
+
+  it('calculates ML terramechanics traction and dynamic battery drain', () => {
+    // 1 km on flat bedrock
+    const flatBedrock = roverTerramechanicsLeg(1000, 0, { thermalInertia: 500, slopeDeg: 0 });
+    expect(flatBedrock.timeS).toBeGreaterThan(0);
+    expect(flatBedrock.slipRatioPct).toBeLessThan(15);
+    expect(flatBedrock.hazardLevel).toBe('NOMINAL');
+    expect(flatBedrock.energyWh).toBeGreaterThan(100);
+
+    // 1 km on loose drift sand dune (Opportunity Purgatory scenario)
+    const sandDune = roverTerramechanicsLeg(1000, 250, { thermalInertia: 90, slopeDeg: 14 });
+    expect(sandDune.slipRatioPct).toBeGreaterThan(flatBedrock.slipRatioPct);
+    expect(sandDune.energyWh).toBeGreaterThan(flatBedrock.energyWh);
+    expect(['WARNING', 'CRITICAL_TRAP']).toContain(sandDune.hazardLevel);
   });
 });

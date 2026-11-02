@@ -31,6 +31,10 @@ def train_all_models():
     print("\n[Step 3: Model 4] Training MSL RAD Radiation & SPE Hazard Model...")
     subprocess.run([sys.executable, 'scripts/ml/train_radiation_model.py'], check=True)
     
+    # Model 5: Rover Terramechanics & Dynamic Battery Discharge Model
+    print("\n[Step 3: Model 5] Training Rover Terramechanics & Dynamic Battery Discharge Model...")
+    subprocess.run([sys.executable, 'scripts/ml/train_terramechanics_model.py'], check=True)
+    
     # Step 4: Export to unified lightweight bundle (mars_models.json) under 150 KB
     print("\n[Step 4] Assembling unified browser bundle: public/data/ml/mars_models.json...")
     
@@ -40,13 +44,16 @@ def train_all_models():
         mineral_model = json.load(f)
     with open('public/data/ml/mars_radiation_model.json', 'r') as f:
         radiation_model = json.load(f)
+    with open('public/data/ml/mars_terramechanics_model.json', 'r') as f:
+        terramechanics_model = json.load(f)
         
     unified_bundle = {
-        'version': '2.0.0',
+        'version': '2.1.0',
         'generated_at': '2026-11-03',
         'weather': weather_model,
         'mineralogy': mineral_model,
         'radiation': radiation_model,
+        'terramechanics': terramechanics_model,
     }
     
     out_unified = os.path.abspath('public/data/ml/mars_models.json')

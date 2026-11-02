@@ -5,10 +5,14 @@
 // Electric Rover, both with six wheels), which cruise at about 10 km/h on flat ground. Speed falls on
 // slopes, and the vehicle stops at its design limit of about 20 degrees.
 
+import { predictRoverTerramechanics } from '../services/marsMlService';
+
 export const ROVER = {
   cruiseKmh: 10,
   maxSlopeDeg: 20,
   minKmh: 2, // crawling up a steep grade
+  batteryCapacityWh: 60000, // 60 kWh aerospace lithium-ion pack
+  massKg: 3000,
 };
 
 /** Speed (km/h) on a slope of the given angle. */
@@ -23,6 +27,56 @@ export function roverLeg(distanceM, riseM, r = ROVER) {
   const slopeDeg = (Math.atan(Math.abs(riseM / distanceM)) * 180) / Math.PI;
   const speedKmh = roverSpeedKmh(slopeDeg, r);
   return { timeS: distanceM / (speedKmh / 3.6), slopeDeg, speedKmh };
+}
+
+/**
+ * Advanced Rover Terramechanics Leg:
+ * Computes drive time, wheel slip %, dynamic battery energy (Wh), and entrapment hazard
+ * based on Bekker-Wong planetary soil mechanics.
+ */
+export function roverTerramechanicsLeg(distanceM, riseM, options = {}) {
+  if (distanceM <= 0) {
+    return {
+      timeS: 0,
+      slopeDeg: 0,
+      speedKmh: ROVER.cruiseKmh,
+      slipRatioPct: 2.0,
+      whPerKm: 180,
+      energyWh: 0,
+      electricalPowerWatts: 1800,
+      hazardLevel: 'NOMINAL',
+      advisory: 'Optimal traction on flat ground.',
+      trapRiskPercent: 0,
+    };
+  }
+  const slopeDeg = (Math.atan((riseM || 0) / distanceM) * 180) / Math.PI;
+  const terra = predictRoverTerramechanics({
+    slopeDeg,
+    thermalInertia: options.thermalInertia ?? 320,
+    roughnessM: options.roughnessM ?? 0.08,
+    speedCommandedKmh: options.speedKmh ?? ROVER.cruiseKmh,
+    roverMassKg: options.roverMassKg ?? ROVER.massKg,
+    batteryCapacityWh: options.batteryCapacityWh ?? ROVER.batteryCapacityWh,
+  });
+
+  const distKm = distanceM / 1000;
+  const speedKmh = Math.max(ROVER.minKmh, terra.actualSpeedKmh);
+  const timeS = distanceM / (speedKmh / 3.6);
+  const energyWh = distKm * terra.whPerKm;
+
+  return {
+    timeS,
+    slopeDeg,
+    speedKmh,
+    slipRatioPct: terra.slipRatioPct,
+    whPerKm: terra.whPerKm,
+    energyWh,
+    electricalPowerWatts: terra.electricalPowerWatts,
+    hazardLevel: terra.hazardLevel,
+    badgeColor: terra.badgeColor,
+    advisory: terra.advisory,
+    trapRiskPercent: terra.trapRiskPercent,
+  };
 }
 
 const haversineKm = (a, b) => {

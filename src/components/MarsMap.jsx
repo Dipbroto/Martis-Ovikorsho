@@ -22,7 +22,7 @@ import RouteDraftLayer from './dock/RouteDraftLayer';
 import QuakeLayer from './quakes/QuakeLayer';
 import { nearestPlace } from '../data/places';
 import { legCost, usableBudgetJ } from '../terrain/evaModel';
-import { roverLeg } from '../terrain/roverModel';
+import { roverLeg, roverTerramechanicsLeg, ROVER } from '../terrain/roverModel';
 
 // Leaflet's geodesic <Circle> converts metres to degrees with Earth's radius when using EPSG:4326,
 // so real Martian distances have to be scaled up to render at the correct size on this map.
@@ -379,19 +379,22 @@ const RoverSimulator = ({ waypoints }) => {
   }, [track]);
 
   // Travel time along the track (rover speeds, or the planner's walking model on foot) and the metabolic
-  // energy a person would use on foot
+  // energy a person would use on foot, plus ML rover battery discharge (Wh)
   const trackCost = useMemo(() => {
     const cumT = [0];
     const cumE = [0];
+    const cumWh = [0];
     for (let i = 0; i < track.pts.length - 1; i++) {
       const a = track.pts[i], b = track.pts[i + 1];
       const m = (routeDistances.cumDists[i + 1] - routeDistances.cumDists[i]) * 1000;
       const dz = (b.elevation || 0) - (a.elevation || 0);
       const foot = legCost(m, dz);
-      cumT.push(cumT[i] + (rover ? roverLeg(m, dz) : foot).timeS);
+      const roverTerra = roverTerramechanicsLeg(m, dz);
+      cumT.push(cumT[i] + (rover ? roverTerra.timeS : foot.timeS));
       cumE.push(cumE[i] + foot.energyJ);
+      cumWh.push(cumWh[i] + roverTerra.energyWh);
     }
-    return { cumT, cumE, budgetJ: usableBudgetJ() };
+    return { cumT, cumE, cumWh, budgetJ: usableBudgetJ(), roverBatteryWh: ROVER.batteryCapacityWh };
   }, [track, routeDistances, rover]);
 
   const targetIndex = (driveTargetWaypointId && waypoints) ? waypoints.findIndex((w) => w.id === driveTargetWaypointId) : -1;
@@ -418,15 +421,35 @@ const RoverSimulator = ({ waypoints }) => {
   const publish = (sm, distKm) => {
     const dz = (sm.b.elevation || 0) - (sm.a.elevation || 0);
     const foot = legCost(sm.segM, dz);
-    const leg = rover ? roverLeg(sm.segM, dz) : foot;
+    const roverTerra = roverTerramechanicsLeg(sm.segM, dz);
+    const leg = rover ? roverTerra : foot;
     const hours = (trackCost.cumT[sm.seg] + leg.timeS * sm.f) / 3600;
-    const lifeLeft = Math.max(0, 100 * (1 - (trackCost.cumE[sm.seg] + foot.energyJ * sm.f) / trackCost.budgetJ));
+
+    // Battery calculation: Rover battery pack (60 kWh) vs Astronaut metabolic budget
+    const currentRoverWh = trackCost.cumWh ? (trackCost.cumWh[sm.seg] + roverTerra.energyWh * sm.f) : 0;
+    const roverSoC = Math.max(0, 100 * (1 - currentRoverWh / (trackCost.roverBatteryWh || 60000)));
+    const footLifeLeft = Math.max(0, 100 * (1 - (trackCost.cumE[sm.seg] + foot.energyJ * sm.f) / trackCost.budgetJ));
+    const lifeLeft = rover ? roverSoC : footLifeLeft;
+
     const heading = ((Math.atan2(lonDelta(sm.a.lon, sm.b.lon), sm.b.lat - sm.a.lat) * 180) / Math.PI + 360) % 360;
     // turn by the shortest way round, so the vehicle never spins the long way at north
     const diff = ((heading - (headingRef.current % 360) + 540) % 360) - 180;
     headingRef.current += diff;
     markerRef.current?.getElement()?.style.setProperty('--hd', `${headingRef.current}deg`);
-    setWalkTelemetry({ slope: leg.slopeDeg, paceKmh: leg.timeS > 0 ? (sm.segM / leg.timeS) * 3.6 : 0, hours, distKm, totalKm: routeDistances.totalDistKm });
+    setWalkTelemetry({
+      slope: leg.slopeDeg,
+      paceKmh: leg.timeS > 0 ? (sm.segM / leg.timeS) * 3.6 : 0,
+      hours,
+      distKm,
+      totalKm: routeDistances.totalDistKm,
+      // Rover Terramechanics ML outputs
+      slipPct: roverTerra.slipRatioPct,
+      whPerKm: roverTerra.whPerKm,
+      electricalPowerWatts: roverTerra.electricalPowerWatts,
+      hazardLevel: roverTerra.hazardLevel,
+      advisory: roverTerra.advisory,
+      batteryRemainingKwh: +Math.max(0, ((trackCost.roverBatteryWh || 60000) - currentRoverWh) / 1000).toFixed(1),
+    });
     setRoverBatterySoC(Math.round(lifeLeft));
     setRoverCurrentPosition({ lat: sm.lat, lon: sm.lon, bearing: Math.round(heading), elevation: Math.round((sm.a.elevation || 0) + ((sm.b.elevation || 0) - (sm.a.elevation || 0)) * sm.f) });
   };

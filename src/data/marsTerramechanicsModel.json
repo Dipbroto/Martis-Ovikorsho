@@ -1,0 +1,106 @@
+{
+  "version": "1.0.0",
+  "algorithm": "Ridge Regressor (Slip & Energy) + Logistic Classifier (Entrapment Hazard)",
+  "trained_at": "2026-11-03",
+  "specs": {
+    "g_mars_m_s2": 3.721,
+    "default_rover_mass_kg": 3000.0,
+    "hotel_load_watts": 1200.0,
+    "drivetrain_efficiency": 0.88,
+    "battery_capacity_kwh": 60.0,
+    "battery_capacity_wh": 60000.0
+  },
+  "metrics": {
+    "slip_r2": 0.8449,
+    "slip_mae_pct": 8.2,
+    "wh_r2": 0.8489,
+    "wh_mae": 375.91,
+    "trap_auc": 0.9993,
+    "trap_accuracy": 0.9833,
+    "samples_count": 12000
+  },
+  "feature_names": [
+    "slope_deg",
+    "thermal_inertia",
+    "roughness_m",
+    "speed_cmd_kmh",
+    "rover_mass_kg",
+    "slope_sin",
+    "inv_ti",
+    "slope_x_inv_ti",
+    "roughness_x_slope"
+  ],
+  "scaler": {
+    "mean": [
+      -0.28646,
+      239.6165,
+      0.1179,
+      6.97484,
+      3000.69483,
+      -0.00491,
+      0.54467,
+      0.05653,
+      0.02505
+    ],
+    "scale": [
+      14.38037,
+      148.917,
+      0.11774,
+      2.90665,
+      287.43424,
+      0.24625,
+      0.30925,
+      0.09016,
+      0.03198
+    ]
+  },
+  "slip_model": {
+    "intercept": 28.67109,
+    "coefficients": [
+      -11.15786,
+      -3.74097,
+      -0.6259,
+      -0.06011,
+      0.18196,
+      17.87108,
+      1.29078,
+      22.12901,
+      2.61559
+    ]
+  },
+  "energy_model": {
+    "intercept": 1705.88953,
+    "coefficients": [
+      -210.10692,
+      -163.69136,
+      -205.41222,
+      -93.71795,
+      69.68674,
+      1084.71698,
+      226.52845,
+      156.1583,
+      320.05549
+    ]
+  },
+  "trap_classifier": {
+    "intercept": -3.79324,
+    "coefficients": [
+      1.50181,
+      1.51777,
+      0.51427,
+      0.08908,
+      0.04759,
+      1.43388,
+      7.82357,
+      11.21469,
+      0.3439
+    ]
+  },
+  "typical_thermal_inertia": {
+    "drift_sand_ripple": 90,
+    "loose_soil_dune": 130,
+    "sand_sheet_duricrust": 240,
+    "compact_regolith_pavement": 380,
+    "cemented_bedrock_basalt": 550
+  }
+}
