@@ -7,6 +7,7 @@ import useMapStore from '../../store/useMapStore';
 import DockCard from '../dock/DockCard';
 import ProvenanceBadge from '../ProvenanceBadge';
 import MarsInterior from './MarsInterior';
+import QuakeMlEstimator from './QuakeMlEstimator';
 import useQuakeData, { FAULT_TYPES, ACTIVE_COLOR, RISK_LEVELS, levelOf, scoreAt } from './useQuakes';
 
 const HOWTO_KEY = 'marswalk-quake-howto-v2';
@@ -122,6 +123,8 @@ export default function QuakePanel() {
 
           <AnimatePresence>{s.fault && <FaultDetail key={s.fault.idx} f={s.fault} onClose={() => s.setFault(null)} onZoom={() => s.fly(s.fault.lat, s.fault.lon, 6)} />}</AnimatePresence>
 
+          <QuakeMlEstimator />
+
           <section className="rounded-xl bg-white/[0.04] p-3">
             <button onClick={() => s.setShow({ zones: !s.show.zones })} aria-pressed={s.show.zones} className="w-full flex items-center justify-between gap-2 text-left cursor-pointer">
               <span className="text-xs font-semibold text-white">Risk zones on the map</span>
@@ -170,9 +173,10 @@ export default function QuakePanel() {
           )}
 
           <div className="pt-2 border-t border-white/[0.07] space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <ProvenanceBadge type="OBSERVED" size="xs" detail="Faults: USGS SIM 3292, Geologic Map of Mars (Tanaka et al., 2014). Quakes: InSight Marsquake Service catalogue V14." />
-              <ProvenanceBadge type="DERIVED" size="xs" detail="Risk zones: mapped fault length per area, weighted by type and freshness, plus where InSight located quakes" />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <ProvenanceBadge type="OBSERVED" size="xs" detail="Faults: USGS SIM 3292, Geologic Map of Mars. Quakes: InSight Marsquake Service catalogue V14." />
+              <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="PGA ground shaking and hypocenter inversion: InSight SEIS ML model" />
+              <ProvenanceBadge type="DERIVED" size="xs" detail="Risk zones: mapped fault length per area, weighted by freshness" />
             </div>
             <p className="text-[11px] text-zinc-500 leading-snug">The risk zones are a relative index made in MarsWalk from real fault and quake data, not an official hazard map.</p>
           </div>

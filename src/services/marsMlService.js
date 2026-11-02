@@ -11,6 +11,7 @@ import defaultMineralModel from '../data/marsMineralModel.json';
 import defaultRadiationModel from '../data/marsRadiationModel.json';
 import defaultTerramechanicsModel from '../data/marsTerramechanicsModel.json';
 import defaultLibsModel from '../data/marsLibsModel.json';
+import defaultQuakeModel from '../data/marsQuakeModel.json';
 import { marsDistance } from '../utils/marsUtils';
 
 // In-memory model cache
@@ -19,6 +20,17 @@ let activeMineralModel = defaultMineralModel;
 let activeRadiationModel = defaultRadiationModel;
 let activeTerramechanicsModel = defaultTerramechanicsModel;
 let activeLibsModel = defaultLibsModel;
+let activeQuakeModel = defaultQuakeModel;
+
+export function getQuakeModel() {
+  return activeQuakeModel;
+}
+
+export function setQuakeModel(model) {
+  if (model && model.attenuation_pga && model.travel_time_inversion) {
+    activeQuakeModel = model;
+  }
+}
 
 export function getLibsModel() {
   return activeLibsModel;
@@ -1078,7 +1090,225 @@ export function predictLibsChemometrics(pointOrLines) {
   };
 }
 
+
+/**
+ * Inverts hypocentral parameters (epicentral distance, depth, latitude, longitude, energy)
+ * from single-station differential P/S travel time (deltaT_Sp in seconds) and back-azimuth.
+ */
+export function invertMarsquakeHypocenter({
+  deltaT_Sp = 265.0,
+  backAzimuthDeg = 88.0,
+  stationLat = 4.5024,
+  stationLon = 135.6234,
+  magnitude = 3.7,
+  kind = 'Low Frequency',
+} = {}) {
+  const model = activeQuakeModel;
+  const gradient = model?.travel_time_inversion?.gradient_s_per_deg || 8.84;
+  const kmPerDeg = model?.metadata?.km_per_degree || 59.16;
+
+  // Epicentral distance in degrees and kilometers
+  const distDeg = Math.max(0.1, Number(deltaT_Sp) / gradient);
+  const distKm = distDeg * kmPerDeg;
+
+  // Focal depth based on frequency class
+  let depthKm = 30.0;
+  if (/high|very/i.test(kind)) depthKm = 6.0;
+  else if (/impact/i.test(kind)) depthKm = 1.0;
+  else if (/broad/i.test(kind)) depthKm = 22.0;
+
+  // Spherical forward geodesy on Mars sphere
+  const rad = Math.PI / 180;
+  const phi1 = stationLat * rad;
+  const lam1 = stationLon * rad;
+  const brng = backAzimuthDeg * rad;
+  const deltaRad = distDeg * rad;
+
+  const sinPhi1 = Math.sin(phi1);
+  const cosPhi1 = Math.cos(phi1);
+  const sinDelta = Math.sin(deltaRad);
+  const cosDelta = Math.cos(deltaRad);
+
+  const phi2 = Math.asin(sinPhi1 * cosDelta + cosPhi1 * sinDelta * Math.cos(brng));
+  const lam2 = lam1 + Math.atan2(
+    Math.sin(brng) * sinDelta * cosPhi1,
+    cosDelta - sinPhi1 * Math.sin(phi2)
+  );
+
+  const quakeLat = +((phi2 / rad).toFixed(3));
+  let quakeLon = +((lam2 / rad).toFixed(3));
+  quakeLon = ((quakeLon + 540) % 360) - 180;
+
+  // Radiated Seismic Energy (ES) & Moment (M0)
+  const m = Number(magnitude) || 3.0;
+  const logM0 = 1.5 * m + 9.1;
+  const logEs = 1.5 * m + 4.8;
+
+  return {
+    distDeg: +(distDeg.toFixed(2)),
+    distKm: +(distKm.toFixed(1)),
+    depthKm: +(depthKm.toFixed(1)),
+    epicenter: { lat: quakeLat, lon: quakeLon },
+    seismicMomentNm: Math.pow(10, Math.min(logM0, 25)),
+    radiatedEnergyJoules: Math.pow(10, Math.min(logEs, 20)),
+    energyExponent: +(logEs.toFixed(1)),
+    provenance: 'ML_INVERSION (INSIGHT SEIS)',
+  };
+}
+
+/**
+ * Predicts Peak Ground Acceleration (PGA) in m/s² and %g, Peak Ground Velocity (PGV) in cm/s,
+ * and assesses NASA structural habitat safety thresholds.
+ */
+export function predictMarsquakePGA({
+  magnitude = 3.7,
+  distanceKm = 100.0,
+  depthKm = 30.0,
+  siteCondition = 'duricrust',
+  kind = 'Low Frequency',
+} = {}) {
+  const model = activeQuakeModel;
+  const pgaModel = model?.attenuation_pga;
+  const pgvModel = model?.attenuation_pgv;
+
+  const m = Number(magnitude) || 3.0;
+  const d = Math.max(0.1, Number(distanceKm) || 1.0);
+  const z = Math.max(0.5, Number(depthKm) || 10.0);
+
+  const rHypo = Math.sqrt(d * d + z * z);
+  const r0 = pgaModel?.r0_near_source_km || 6.2;
+  const effR = Math.sqrt(rHypo * rHypo + r0 * r0);
+  const lnEffR = Math.log(effR);
+
+  // Site factor lookup
+  const siteConfig = model?.site_conditions?.[siteCondition] || { factor: 1.0, name: 'Indurated Regolith' };
+  const siteFactor = siteConfig.factor || 1.0;
+  const lnSite = Math.log(siteFactor);
+
+  // Kind code: LF = 0, HF = 1, Impact = 2
+  let kindCode = 0.0;
+  if (/high|very/i.test(kind)) kindCode = 1.0;
+  else if (/impact/i.test(kind)) kindCode = 2.0;
+
+  // Evaluate PGA: ln(PGA) = c0 + c1*M + c2*ln(eff_r) + c3*r_hypo + c4*depth + c5*ln(site) + c6*kind
+  let lnPga = -2.85 + 1.22 * m - 1.05 * lnEffR - 0.00065 * rHypo + lnSite;
+  if (pgaModel && pgaModel.coefficients) {
+    const c = pgaModel.coefficients;
+    lnPga = pgaModel.intercept +
+      c.mag * m +
+      c.ln_eff_r * lnEffR +
+      c.r_hypo * rHypo +
+      c.depth_km * z +
+      c.ln_site * lnSite +
+      c.kind_code * kindCode;
+  }
+
+  const pgaMps2 = Math.exp(lnPga);
+  const gMars = model?.metadata?.g_mars_mps2 || 3.721;
+  const pgaPctG = (pgaMps2 / gMars) * 100.0;
+
+  // Evaluate PGV
+  let lnPgv = lnPga + 4.15 - 0.15 * m;
+  if (pgvModel && pgvModel.coefficients) {
+    const c = pgvModel.coefficients;
+    lnPgv = pgvModel.intercept +
+      c.mag * m +
+      c.ln_eff_r * lnEffR +
+      c.r_hypo * rHypo +
+      c.depth_km * z +
+      c.ln_site * lnSite +
+      c.kind_code * kindCode;
+  }
+  const pgvCmS = Math.exp(lnPgv);
+
+  // Spectral acceleration estimates at 0.3s and 1.0s
+  const sa03 = +(pgaMps2 * 1.85).toFixed(5);
+  const sa10 = +(pgaMps2 * 0.95).toFixed(5);
+
+  // Assess Structural Hazard
+  const hazard = assessStructuralHazard(pgaMps2, model);
+
+  return {
+    magnitude: m,
+    distanceKm: +(d.toFixed(1)),
+    depthKm: +(z.toFixed(1)),
+    hypocentralDistanceKm: +(rHypo.toFixed(1)),
+    pgaMps2: +(pgaMps2.toFixed(6)),
+    pgaDisplay: pgaMps2 < 0.0001 ? pgaMps2.toExponential(2) : pgaMps2.toFixed(4),
+    pgaPctG: +(pgaPctG.toFixed(4)),
+    pgvCmS: +(pgvCmS.toFixed(4)),
+    sa03,
+    sa10,
+    siteCondition: siteConfig.name,
+    hazard,
+    provenance: 'ML_PREDICTION (GMPE REGRESSION)',
+  };
+}
+
+export function assessStructuralHazard(pgaMps2, model = activeQuakeModel) {
+  const pga = Number(pgaMps2) || 0;
+  const thresholds = model?.hazard_thresholds_pga || [
+    { level: 'SAFE', max_pga: 0.005, color: '#10b981', label: 'Safe / Instrumental', advisory: 'No structural risk. Nominal habitat operations.' },
+    { level: 'ADVISORY', max_pga: 0.03, color: '#38bdf8', label: 'Minor Shaking', advisory: 'Slight vibration felt. Check solar array tracking gimbals.' },
+    { level: 'CAUTION', max_pga: 0.15, color: '#eab308', label: 'Moderate Shaking', advisory: 'Airlock seal strain possible. Secure loose cabin gear. Slopes >15° unstable.' },
+    { level: 'WARNING', max_pga: 0.60, color: '#f97316', label: 'Severe Shaking', advisory: 'Structural hazard! Foundation settlement risk. Immediate hull integrity scan required.' },
+    { level: 'CRITICAL', max_pga: 999.0, color: '#ef4444', label: 'Critical Damage', advisory: 'EMERGENCY: Exceeds habitat design limits. Pressure hull rupture hazard!' },
+  ];
+
+  for (const t of thresholds) {
+    if (pga < t.max_pga) {
+      return {
+        level: t.level,
+        label: t.label,
+        color: t.color,
+        advisory: t.advisory,
+      };
+    }
+  }
+
+  const last = thresholds[thresholds.length - 1];
+  return {
+    level: last.level,
+    label: last.label,
+    color: last.color,
+    advisory: last.advisory,
+  };
+}
+
+export function calculateGroundShakingAtLocation({
+  quakeLat,
+  quakeLon,
+  magnitude = 3.7,
+  depthKm = 30.0,
+  targetLat = 18.44,
+  targetLon = 77.45,
+  siteCondition = 'duricrust',
+  kind = 'Low Frequency',
+} = {}) {
+  const distKm = marsDistance(quakeLat, quakeLon, targetLat, targetLon);
+  const pgaResult = predictMarsquakePGA({
+    magnitude,
+    distanceKm: distKm,
+    depthKm,
+    siteCondition,
+    kind,
+  });
+
+  return {
+    target: { lat: targetLat, lon: targetLon },
+    epicenter: { lat: quakeLat, lon: quakeLon },
+    distanceKm: +(distKm.toFixed(1)),
+    ...pgaResult,
+  };
+}
+
 export default {
+  getQuakeModel,
+  setQuakeModel,
+  invertMarsquakeHypocenter,
+  predictMarsquakePGA,
+  calculateGroundShakingAtLocation,
+  assessStructuralHazard,
   getLibsModel,
   setLibsModel,
   extractLibsSpectralFeatures,

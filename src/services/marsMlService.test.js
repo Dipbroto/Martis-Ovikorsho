@@ -536,5 +536,84 @@ describe('marsMlService (Client ML Inference)', () => {
       expect(res.maficRatio).toBeGreaterThan(0.5);
     });
   });
+  describe('InSight Marsquake Hypocentral & Ground Shaking Model (Model 3)', () => {
+    it('loads active Marsquake SEIS model with attenuation parameters', async () => {
+      const { getQuakeModel } = await import('./marsMlService');
+      const model = getQuakeModel();
+      expect(model).toBeDefined();
+      expect(model.version).toBe('1.0.0');
+      expect(model.attenuation_pga).toBeDefined();
+      expect(model.attenuation_pga.coefficients.mag).toBeGreaterThan(0.5);
+      expect(model.travel_time_inversion.gradient_s_per_deg).toBeCloseTo(8.84, 1);
+    });
+
+    it('inverts hypocentral coordinates from differential S-P arrival time and back-azimuth', async () => {
+      const { invertMarsquakeHypocenter } = await import('./marsMlService');
+      // S0173a Cerberus Fossae benchmark (deltaT_Sp = 265s, baz = 88.0 deg from InSight)
+      const res = invertMarsquakeHypocenter({
+        deltaT_Sp: 265.2,
+        backAzimuthDeg: 88.0,
+        stationLat: 4.5024,
+        stationLon: 135.6234,
+        magnitude: 3.7,
+        kind: 'Low Frequency',
+      });
+
+      expect(res.distDeg).toBeCloseTo(30.0, 0);
+      expect(res.distKm).toBeGreaterThan(1700);
+      expect(res.distKm).toBeLessThan(1850);
+      expect(res.depthKm).toBeCloseTo(30.0, 1);
+      // Cerberus Fossae is roughly ~4.9°N, 165.7°E
+      expect(res.epicenter.lat).toBeGreaterThan(0);
+      expect(res.epicenter.lat).toBeLessThan(10);
+      expect(res.epicenter.lon).toBeGreaterThan(160);
+      expect(res.epicenter.lon).toBeLessThan(175);
+      expect(res.energyExponent).toBeGreaterThan(9.0);
+    });
+
+    it('predicts PGA, PGV and NASA structural hazard at near vs far distances', async () => {
+      const { predictMarsquakePGA } = await import('./marsMlService');
+
+      // Near-source moderate quake (Mw 4.0, 15 km from habitat)
+      const nearQuake = predictMarsquakePGA({
+        magnitude: 4.0,
+        distanceKm: 15.0,
+        depthKm: 10.0,
+        siteCondition: 'duricrust',
+      });
+
+      expect(nearQuake.pgaMps2).toBeGreaterThan(0.01);
+      expect(nearQuake.pgaPctG).toBeGreaterThan(0.2);
+      expect(nearQuake.hazard.level).not.toBe('SAFE');
+
+      // Far-source small quake (Mw 2.5, 1200 km away)
+      const farQuake = predictMarsquakePGA({
+        magnitude: 2.5,
+        distanceKm: 1200.0,
+        depthKm: 25.0,
+      });
+
+      expect(farQuake.pgaMps2).toBeLessThan(0.005);
+      expect(farQuake.hazard.level).toBe('SAFE');
+    });
+
+    it('calculates ground shaking at designated Martian habitat coordinates', async () => {
+      const { calculateGroundShakingAtLocation } = await import('./marsMlService');
+
+      // Monster Quake S1222a (Mw 4.7) at (-2.14°N, 172.45°E) felt at Jezero Crater (18.44°N, 77.45°E)
+      const shaking = calculateGroundShakingAtLocation({
+        quakeLat: -2.14,
+        quakeLon: 172.45,
+        magnitude: 4.7,
+        depthKm: 35.0,
+        targetLat: 18.44,
+        targetLon: 77.45,
+      });
+
+      expect(shaking.distanceKm).toBeGreaterThan(3000);
+      expect(shaking.pgaMps2).toBeGreaterThan(0);
+      expect(shaking.hazard).toBeDefined();
+    });
+  });
 
 });

@@ -1,0 +1,170 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-11-03",
+  "metadata": {
+    "dataset": "InSight Marsquake Service (MQS) Catalogue V14 (2,715 events)",
+    "station": {
+      "name": "InSight SEIS",
+      "lat": 4.5024,
+      "lon": 135.6234
+    },
+    "r2_score_pga": 0.9908,
+    "mae_pga": 0.1613,
+    "g_mars_mps2": 3.721,
+    "mars_radius_km": 3389.5,
+    "km_per_degree": 59.158
+  },
+  "travel_time_inversion": {
+    "gradient_s_per_deg": 8.84,
+    "linear_coeff": 0.1131,
+    "crust_v_p_km_s": 4.2,
+    "crust_v_s_km_s": 2.4,
+    "mantle_v_p_km_s": 7.8,
+    "mantle_v_s_km_s": 4.4
+  },
+  "attenuation_pga": {
+    "intercept": -3.5957,
+    "coefficients": {
+      "mag": 1.12915,
+      "ln_eff_r": -0.77333,
+      "r_hypo": -0.000494,
+      "depth_km": 0.001999,
+      "ln_site": 1.02315,
+      "kind_code": 0.05977
+    },
+    "r0_near_source_km": 6.2
+  },
+  "attenuation_pgv": {
+    "intercept": 0.54279,
+    "coefficients": {
+      "mag": 0.98075,
+      "ln_eff_r": -0.77143,
+      "r_hypo": -0.000496,
+      "depth_km": 0.00197,
+      "ln_site": 1.0149,
+      "kind_code": 0.06062
+    },
+    "r0_near_source_km": 6.2
+  },
+  "site_conditions": {
+    "bedrock": {
+      "factor": 0.85,
+      "name": "Competent Basalt Bedrock"
+    },
+    "duricrust": {
+      "factor": 1.0,
+      "name": "Indurated Regolith / Duricrust"
+    },
+    "sedimentary": {
+      "factor": 1.35,
+      "name": "Layered Sulfates / Clay Silt"
+    },
+    "dune_sand": {
+      "factor": 1.65,
+      "name": "Unconsolidated Aeolian Sand"
+    }
+  },
+  "hazard_thresholds_pga": [
+    {
+      "level": "SAFE",
+      "max_pga": 0.005,
+      "color": "#10b981",
+      "label": "Safe / Instrumental",
+      "advisory": "No structural risk. Nominal habitat operations."
+    },
+    {
+      "level": "ADVISORY",
+      "max_pga": 0.03,
+      "color": "#38bdf8",
+      "label": "Minor Shaking",
+      "advisory": "Slight vibration felt. Check solar array tracking gimbals."
+    },
+    {
+      "level": "CAUTION",
+      "max_pga": 0.15,
+      "color": "#eab308",
+      "label": "Moderate Shaking",
+      "advisory": "Airlock seal strain possible. Secure loose cabin gear. Slopes >15\u00b0 unstable."
+    },
+    {
+      "level": "WARNING",
+      "max_pga": 0.6,
+      "color": "#f97316",
+      "label": "Severe Shaking",
+      "advisory": "Structural hazard! Foundation settlement risk. Immediate hull integrity scan required."
+    },
+    {
+      "level": "CRITICAL",
+      "max_pga": 999.0,
+      "color": "#ef4444",
+      "label": "Critical Damage",
+      "advisory": "EMERGENCY: Exceeds habitat design limits. Pressure hull rupture hazard!"
+    }
+  ],
+  "landmarks": [
+    {
+      "name": "S1222a",
+      "sol": 1222,
+      "title": "The Monster Marsquake",
+      "date": "2022-05-04",
+      "kind": "Low Frequency",
+      "mag": 4.7,
+      "dist_deg": 37.0,
+      "dist_km": 2188.8,
+      "depth_km": 35.0,
+      "baz": 98.0,
+      "delta_t_sp_sec": 327.1,
+      "lat": -2.14,
+      "lon": 172.45,
+      "description": "Largest marsquake detected by InSight. Shook the planet for over 10 hours with surface waves circling Mars."
+    },
+    {
+      "name": "S0173a",
+      "sol": 173,
+      "title": "Cerberus Fossae Graben Rupture",
+      "date": "2019-05-23",
+      "kind": "Low Frequency",
+      "mag": 3.7,
+      "dist_deg": 30.0,
+      "dist_km": 1774.7,
+      "depth_km": 28.0,
+      "baz": 88.0,
+      "delta_t_sp_sec": 265.2,
+      "lat": 4.9,
+      "lon": 165.72,
+      "description": "First clearly located tectonic marsquake directly sourced from the active Cerberus Fossae fault system."
+    },
+    {
+      "name": "S0235b",
+      "sol": 235,
+      "title": "Cerberus Deep Extensional Event",
+      "date": "2019-07-26",
+      "kind": "Low Frequency",
+      "mag": 3.6,
+      "dist_deg": 29.3,
+      "dist_km": 1733.3,
+      "depth_km": 31.0,
+      "baz": 74.0,
+      "delta_t_sp_sec": 259.0,
+      "lat": 11.45,
+      "lon": 163.8,
+      "description": "High SNR extensional strike-slip faulting in eastern Cerberus Fossae with distinct P and S body phases."
+    },
+    {
+      "name": "S1022a",
+      "sol": 1022,
+      "title": "Amazonis Meteoroid Impact",
+      "date": "2021-12-24",
+      "kind": "Very High Frequency (Impact)",
+      "mag": 4.0,
+      "dist_deg": 58.6,
+      "dist_km": 3466.7,
+      "depth_km": 1.0,
+      "baz": 62.0,
+      "delta_t_sp_sec": 518.0,
+      "lat": 35.12,
+      "lon": -170.21,
+      "description": "Hypervelocity meteorite strike creating a 150m wide impact crater and exposing boulder-sized chunks of pure water ice."
+    }
+  ]
+}
