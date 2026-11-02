@@ -6,7 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import useMapStore from '../store/useMapStore';
 import { marsLayers, RELIEF_SHADE_URL } from '../data/marsLayers';
 import { getElevation } from '../utils/elevationService';
-import { marsDistance, MARS } from '../utils/marsUtils';
+import { marsDistance, MARS, lerpLon, lonDelta, splitAtAntimeridian } from '../utils/marsUtils';
 import CoordinateDisplay, { formatCoord } from './CoordinateDisplay';
 import POIMarkers from './POIMarkers';
 import RoverTraverses from './RoverTraverses';
@@ -390,7 +390,7 @@ const RoverSimulator = ({ waypoints }) => {
 
   const traveledPositions = useMemo(() => {
     const done = trackLatLngs.slice(0, currentSegIdx + 1);
-    return [...done, coordRef.current || anchorCoord || done[done.length - 1]].filter(Boolean);
+    return splitAtAntimeridian([...done, coordRef.current || anchorCoord || done[done.length - 1]].filter(Boolean));
   }, [trackLatLngs, currentSegIdx, anchorCoord]);
 
   // Where the track is at a distance, and what the crew reads there
@@ -402,7 +402,7 @@ const RoverSimulator = ({ waypoints }) => {
     const b = track.pts[seg + 1];
     const len = Math.max(1e-4, cum[seg + 1] - cum[seg]);
     const f = Math.max(0, Math.min(1, (distKm - cum[seg]) / len));
-    return { seg, f, a, b, segM: len * 1000, lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f };
+    return { seg, f, a, b, segM: len * 1000, lat: a.lat + (b.lat - a.lat) * f, lon: lerpLon(a.lon, b.lon, f) };
   };
 
   const publish = (sm, distKm) => {
@@ -411,7 +411,7 @@ const RoverSimulator = ({ waypoints }) => {
     const leg = rover ? roverLeg(sm.segM, dz) : foot;
     const hours = (trackCost.cumT[sm.seg] + leg.timeS * sm.f) / 3600;
     const lifeLeft = Math.max(0, 100 * (1 - (trackCost.cumE[sm.seg] + foot.energyJ * sm.f) / trackCost.budgetJ));
-    const heading = ((Math.atan2(sm.b.lon - sm.a.lon, sm.b.lat - sm.a.lat) * 180) / Math.PI + 360) % 360;
+    const heading = ((Math.atan2(lonDelta(sm.a.lon, sm.b.lon), sm.b.lat - sm.a.lat) * 180) / Math.PI + 360) % 360;
     // turn by the shortest way round, so the vehicle never spins the long way at north
     const diff = ((heading - (headingRef.current % 360) + 540) % 360) - 180;
     headingRef.current += diff;
@@ -425,10 +425,27 @@ const RoverSimulator = ({ waypoints }) => {
     const latlng = [sm.lat, sm.lon];
     coordRef.current = latlng;
     markerRef.current?.setLatLng(latlng);
-    const trail = [...trackLatLngs.slice(0, sm.seg + 1), latlng];
+    const trail = splitAtAntimeridian([...trackLatLngs.slice(0, sm.seg + 1), latlng]);
     trailGlowRef.current?.setLatLngs(trail);
     trailCoreRef.current?.setLatLngs(trail);
   };
+
+  // A route across the 180 degree line ends up at the edges of the flat map, where the crew would stay under the
+  // side panels. Let the map slide a panel's width past its edges for as long as such a route is on it.
+  const crossesEdge = useMemo(() => track.pts.some((p, i) => i > 0 && Math.abs(p.lon - track.pts[i - 1].lon) > 180), [track]);
+  useEffect(() => {
+    if (!crossesEdge) return undefined;
+    const widen = () => {
+      const deg = (EDGE_ROOM_PX * 360) / (512 * 2 ** map.getZoom());
+      map.setMaxBounds([[-90, -180 - deg], [90, 180 + deg]]);
+    };
+    widen();
+    map.on('zoomend', widen);
+    return () => {
+      map.off('zoomend', widen);
+      map.setMaxBounds([[-90, -180], [90, 180]]);
+    };
+  }, [crossesEdge, map]);
 
   // Not walking (start, pause, finished, or the progress bar was dragged): put the crew where progress says
   useEffect(() => {
@@ -532,9 +549,23 @@ const RoverSimulator = ({ waypoints }) => {
           const dx = (cur.x - tx) * k;
           const dy = (cur.y - ty) * k;
           if (Math.abs(dx) + Math.abs(dy) > 0.2) map.panBy([dx, dy], { animate: false });
-        } else if (now - lastFreePan.current > 1200 && !map.getBounds().contains([sm.lat, sm.lon])) {
-          lastFreePan.current = now;
-          map.panTo([sm.lat, sm.lon], { animate: true, duration: 0.6 });
+        } else if (now - lastFreePan.current > 1200) {
+          // Keep the crew out from under the side panels, as far as the edge of the map allows
+          const pad = followPad();
+          const cur = map.latLngToContainerPoint([sm.lat, sm.lon]);
+          if (cur.x < pad.left || cur.x > size.x - pad.right || cur.y < pad.top || cur.y > size.y - pad.bottom) {
+            const nw = map.latLngToContainerPoint([90, -180]);
+            const se = map.latLngToContainerPoint([-90, 180]);
+            const dx = cur.x - (pad.left + (size.x - pad.left - pad.right) / 2);
+            const dy = cur.y - (pad.top + (size.y - pad.top - pad.bottom) / 2);
+            const room = crossesEdge ? EDGE_ROOM_PX : 0;
+            const panX = dx < 0 ? Math.max(dx, Math.min(0, nw.x - room)) : Math.min(dx, Math.max(0, se.x - size.x + room));
+            const panY = dy < 0 ? Math.max(dy, Math.min(0, nw.y)) : Math.min(dy, Math.max(0, se.y - size.y));
+            if (Math.abs(panX) + Math.abs(panY) > 2) {
+              lastFreePan.current = now;
+              map.panBy([panX, panY], { animate: true, duration: 0.6 });
+            }
+          }
         }
       } catch (e) {
         // the map was removed mid-frame
@@ -550,7 +581,7 @@ const RoverSimulator = ({ waypoints }) => {
     };
     // sample/publish/stationAt only read `track` and the cost tables, which are dependencies
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRoverDriving, waypoints, track, trackLatLngs, targetDistKm, targetTrackIndex, routeDistances, trackCost, map]);
+  }, [isRoverDriving, waypoints, track, trackLatLngs, targetDistKm, targetTrackIndex, routeDistances, trackCost, map, crossesEdge]);
 
   const walkerLabel = isRoverDriving ? `T+${fmtClock(hoursOnFoot)}` : null;
   const walkerIcon = useMemo(() => createWalkerIcon(isRoverDriving, walkerLabel, rover), [isRoverDriving, walkerLabel, rover]);
@@ -583,6 +614,8 @@ const RoverSimulator = ({ waypoints }) => {
   );
 };
 
+const EDGE_ROOM_PX = 420; // about the width of the dock
+
 // Distance markers along a route: a round step that gives at most ~8 labels
 const TICK_STEPS = [0.5, 1, 2, 5, 10, 20, 50];
 const tickIcons = new Map();
@@ -611,7 +644,7 @@ function routeKmTicks(line) {
     const f = (km - cum[seg - 1]) / Math.max(1e-9, cum[seg] - cum[seg - 1]);
     const a = line[seg - 1], b = line[seg];
     const label = `${Number.isInteger(km) ? km : km.toFixed(1)} km`;
-    ticks.push({ km, at: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], icon: tickIcon(label) });
+    ticks.push({ km, at: [a[0] + (b[0] - a[0]) * f, lerpLon(a[1], b[1], f)], icon: tickIcon(label) });
   }
   return ticks;
 }
@@ -758,6 +791,7 @@ const MarsMap = () => {
   );
   const routeColor = activeContingency ? '#ef4444' : '#F26A3D';
   const kmTicks = useMemo(() => routeKmTicks(routeLine), [routeLine]);
+  const routeLineParts = useMemo(() => splitAtAntimeridian(routeLine), [routeLine]);
 
 
   // Base waypoint for the walkback planning rings (2 km / 5 km; team planning assumptions)
@@ -950,13 +984,13 @@ const MarsMap = () => {
             along straight dashed legs. */}
         {routeLine.length > 1 && (
           <>
-            <Polyline positions={routeLine} pathOptions={{ color: '#000000', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', interactive: false }} />
-            <Polyline positions={routeLine} pathOptions={{ color: routeColor, weight: 8, opacity: 0.35, lineCap: 'round', lineJoin: 'round', interactive: false }} />
-            <Polyline positions={routeLine} pathOptions={{ color: routeColor, weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round', dashArray: plannedPath ? undefined : '10, 8', interactive: false }} />
+            <Polyline positions={routeLineParts} pathOptions={{ color: '#000000', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', interactive: false }} />
+            <Polyline positions={routeLineParts} pathOptions={{ color: routeColor, weight: 8, opacity: 0.35, lineCap: 'round', lineJoin: 'round', interactive: false }} />
+            <Polyline positions={routeLineParts} pathOptions={{ color: routeColor, weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round', dashArray: plannedPath ? undefined : '10, 8', interactive: false }} />
             {plannedPath && (
-              <Polyline positions={routeLine} pathOptions={{ color: '#fff7f2', weight: 2, opacity: 0.9, dashArray: '2, 14', lineCap: 'round', className: 'route-flow', interactive: false }} />
+              <Polyline positions={routeLineParts} pathOptions={{ color: '#fff7f2', weight: 2, opacity: 0.9, dashArray: '2, 14', lineCap: 'round', className: 'route-flow', interactive: false }} />
             )}
-            {plannedPath && <RouteDrawIn key={routeGeometry.signature} positions={routeLine} />}
+            {plannedPath && <RouteDrawIn key={routeGeometry.signature} positions={routeLineParts} />}
             {!walkStarted && kmTicks.map((t) => (
               <Marker key={t.km} position={t.at} icon={t.icon} interactive={false} />
             ))}
@@ -1052,7 +1086,7 @@ const MarsMap = () => {
         ))}
         {rulerPoints.length === 2 && (
           <Polyline
-            positions={rulerPoints.map(p => [p.lat, p.lon])}
+            positions={splitAtAntimeridian(rulerPoints.map(p => [p.lat, p.lon]))}
             pathOptions={{ color: '#eab308', weight: 2.5, dashArray: '4, 4' }}
           />
         )}

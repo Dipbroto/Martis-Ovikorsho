@@ -21,12 +21,12 @@ const NEIGHBORS = [
 function knightMoveBlocked(data, nodata, W, r, c, dr, dc, dist, a) {
   if (Math.abs(dr) + Math.abs(dc) !== 3) return false;
   const from = data[r * W + c];
-  const to = data[(r + dr) * W + (c + dc)];
+  const to = data[(r + dr) * W + (c + dc + W) % W];
   const crossed = Math.abs(dc) === 2
     ? [[r, c + dc / 2], [r + dr, c + dc / 2]]
     : [[r + dr / 2, c], [r + dr / 2, c + dc]];
   for (const [mr, mc] of crossed) {
-    const mid = data[mr * W + mc];
+    const mid = data[mr * W + (mc + W) % W];
     if (mid === nodata) return true;
     if (!legCost(dist / 2, mid - from, a).passable || !legCost(dist / 2, to - mid, a).passable) return true;
   }
@@ -95,6 +95,9 @@ function rowGeometry(grid) {
   }
   return { dx, dy };
 }
+
+/** A grid that covers all of Mars has no east or west edge: its last column is next to its first. */
+const wrapsLongitude = (grid) => grid.east - grid.west >= 360 - 1e-6;
 
 function onGrid(grid, lat, lon) {
   const { x, y } = latLonToPixel(grid, lat, lon);
@@ -208,10 +211,18 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
   const closedOff = blockedMask(grid, blocked, dx, dy);
   if (closedOff) { closedOff[s] = 0; closedOff[t] = 0; }
 
+  const wraps = wrapsLongitude(grid);
+  // Columns from one cell to another, the short way round on a grid that wraps
+  const colDelta = (from, to) => {
+    const d = to - from;
+    if (!wraps || Math.abs(d) <= W / 2) return d;
+    return d > 0 ? d - W : d + W;
+  };
+
   const tRow = Math.floor(t / W), tCol = t % W;
   const heuristic = (n) => {
     const r = Math.floor(n / W), c = n % W;
-    return Math.hypot((c - tCol) * dxMin, (r - tRow) * dy) * hScale;
+    return Math.hypot(colDelta(c, tCol) * dxMin, (r - tRow) * dy) * hScale;
   };
 
   const gScore = new Float64Array(N).fill(Infinity);
@@ -228,7 +239,7 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
     closed[u] = 1;
     const r = Math.floor(u / W), c = u % W;
     for (const [dc, dr] of NEIGHBORS) {
-      const nr = r + dr, nc = c + dc;
+      const nr = r + dr, nc = wraps ? (c + dc + W) % W : c + dc;
       if (nr < 0 || nr >= H || nc < 0 || nc >= W) continue;
       const v = nr * W + nc;
       if (closed[v] || data[v] === nodata || (closedOff && closedOff[v])) continue;
@@ -258,12 +269,15 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
   const midDx = dx[Math.floor(H / 2)];
   const path = [];
   let distanceM = 0, energyJ = 0, timeS = 0, ascentM = 0, descentM = 0, maxSlopeDeg = 0;
+  let unwrappedCol = s % W; // keeps counting past the edge, so simplifying sees one continuous line
   cells.forEach((n, i) => {
     const r = Math.floor(n / W), c = n % W;
     if (i > 0) {
       const p = cells[i - 1];
       const pr = Math.floor(p / W), pc = p % W;
-      const dist = Math.hypot((c - pc) * (dx[r] + dx[pr]) / 2, (r - pr) * dy);
+      const dCol = colDelta(pc, c);
+      unwrappedCol += dCol;
+      const dist = Math.hypot(dCol * (dx[r] + dx[pr]) / 2, (r - pr) * dy);
       const rise = data[n] - data[p];
       const leg = legCost(dist, rise, assumptions);
       distanceM += dist;
@@ -273,7 +287,7 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
       maxSlopeDeg = Math.max(maxSlopeDeg, leg.slopeDeg);
     }
     const { lat, lon } = cellCenterLatLon(grid, c, r);
-    path.push({ lat, lon, elevation: data[n], distanceM, energyJ, timeS, x: c * midDx, y: r * dy });
+    path.push({ lat, lon, elevation: data[n], distanceM, energyJ, timeS, x: unwrappedCol * midDx, y: r * dy });
   });
 
   const keyIndices = simplifyIndices(path, Math.max(dy, midDx) * 2);
@@ -284,7 +298,7 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
     metrics: {
       mode,
       distanceM,
-      straightLineM: Math.hypot((t % W - s % W) * midDx, (Math.floor(t / W) - Math.floor(s / W)) * dy),
+      straightLineM: Math.hypot(colDelta(s % W, t % W) * midDx, (Math.floor(t / W) - Math.floor(s / W)) * dy),
       energyJ,
       timeS,
       ascentM,

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import useMapStore, { routeSignature } from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
-import { routeDistance, marsDistance } from '../utils/marsUtils';
+import { routeDistance, marsDistance, lerpLon } from '../utils/marsUtils';
 import { estimateRouteEVA } from '../terrain/routeEnergy';
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
 import { expeditionPresets } from '../data/expeditionPresets';
@@ -157,7 +157,7 @@ export default function RoutePlanner() {
         const startWp = activeWps[0];
         const startLon = startWp.lon;
         const midLat = (startWp.lat + wp.lat) / 2;
-        const midLon = (startLon + displayLon) / 2;
+        const midLon = lerpLon(startLon, displayLon, 0.5);
         const distKm = marsDistance(startWp.lat, startLon, wp.lat, displayLon);
         const dynamicZoom = distKm < 4 ? 9 : (distKm < 15 ? 8 : (distKm < 50 ? 7 : 6));
         setMapCenter([midLat, midLon]);

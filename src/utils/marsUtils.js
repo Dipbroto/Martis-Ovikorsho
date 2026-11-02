@@ -16,6 +16,46 @@ export const MARS = {
 };
 
 // Distance calculation using Haversine formula with Mars radius
+/** Signed degrees of longitude from one point to another, the short way round (crosses 180 when that is shorter). */
+export function lonDelta(from, to) {
+  const d = (to - from) % 360;
+  if (d > 180) return d - 360;
+  return d < -180 ? d + 360 : d;
+}
+
+/** Longitude brought back into -180 to 180. */
+export function wrapLon(lon) {
+  return lon > 180 ? lon - 360 : lon < -180 ? lon + 360 : lon;
+}
+
+/** The longitude a fraction of the way from one point to another, going the short way round. */
+export function lerpLon(from, to, f) {
+  return wrapLon(from + lonDelta(from, to) * f);
+}
+
+/**
+ * A [[lat, lon], ...] line as parts that stop at the 180 degree line and carry on from the other edge of
+ * the map, ready for a Leaflet polyline. Without this, a leg across that line is drawn over the whole map.
+ */
+export function splitAtAntimeridian(line) {
+  if (line.length < 2) return [line];
+  const parts = [];
+  let part = [line[0]];
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1], b = line[i];
+    if (Math.abs(b[1] - a[1]) > 180) {
+      const edge = b[1] < a[1] ? 180 : -180;
+      const lat = a[0] + (b[0] - a[0]) * ((edge - a[1]) / lonDelta(a[1], b[1]));
+      part.push([lat, edge]);
+      parts.push(part);
+      part = [[lat, -edge]];
+    }
+    part.push(b);
+  }
+  parts.push(part);
+  return parts;
+}
+
 export function marsDistance(lat1, lon1, lat2, lon2) {
   const R = MARS.RADIUS_KM;
   const dLat = toRad(lat2 - lat1);

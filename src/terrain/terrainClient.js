@@ -50,7 +50,9 @@ export async function gridForPoints(points) {
   if (points.length > 1) {
     const far = Math.max(...points.map((p) => marsDistance(first.lat, first.lon, p.lat, p.lon)));
     // Further apart than any 200 m window can cover: plan on the coarse global terrain instead of refusing
-    if (far > MAX_ROUTE_KM) return fallbackGlobal();
+    // So are points on either side of the 180 degree line, since a window can't wrap around it
+    const lons = points.map((p) => p.lon);
+    if (far > MAX_ROUTE_KM || Math.max(...lons) - Math.min(...lons) > 180) return fallbackGlobal();
   }
   try {
     return await ensureRemoteGrid(points);

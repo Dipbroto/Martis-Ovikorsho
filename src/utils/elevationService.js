@@ -3,7 +3,7 @@
 // Before the grids arrive (or if they fail to load) it falls back to a coarse interpolation of
 // known landmark elevations, which callers can detect through getElevationInfo().
 
-import { marsDistance } from './marsUtils';
+import { marsDistance, lerpLon } from './marsUtils';
 import { getDemElevation } from '../terrain/dem';
 import { MARS_LANDMARKS } from '../data/marsLandmarks';
 
@@ -98,7 +98,7 @@ export function getElevationProfile(waypoints, numSamples = 100) {
     const clampedT = Math.max(0, Math.min(1, t));
 
     const sampleLat = seg.from.lat + (seg.to.lat - seg.from.lat) * clampedT;
-    const sampleLon = seg.from.lon + (seg.to.lon - seg.from.lon) * clampedT;
+    const sampleLon = lerpLon(seg.from.lon, seg.to.lon, clampedT);
     const elevation = getElevation(sampleLat, sampleLon);
 
     profile.push({

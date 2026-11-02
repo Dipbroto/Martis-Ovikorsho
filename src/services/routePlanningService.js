@@ -3,7 +3,7 @@
 import useMapStore, { routeSignature } from '../store/useMapStore';
 import { AUTONOMOUS_TARGET_PAIRS, generateAutonomousTraverse } from '../utils/autonomousRouter';
 import { loadDemIndex, gridContains } from '../terrain/dem';
-import { marsDistance } from '../utils/marsUtils';
+import { marsDistance, splitAtAntimeridian } from '../utils/marsUtils';
 
 const MAX_ORIGIN_SEARCH_KM = 60;
 
@@ -64,7 +64,21 @@ export function applyPlannedRoute(result, { fit = true } = {}) {
     source: result.grid.source,
     metrics: result.metrics,
   });
-  if (fit) fitMapTo(pathBounds(result.path));
+  if (fit) fitMapTo(routeFitBounds(result.path));
+}
+
+const MIN_FIT_LON = 60; // degrees of map to show around the start of a route that crosses the 180 degree line
+
+/**
+ * What to frame for a new route. One that crosses the 180 degree line reaches both edges of the flat map and
+ * can't be seen whole, so frame the part it starts on; the map moves to the other part as the walk gets there.
+ */
+export function routeFitBounds(path) {
+  const parts = splitAtAntimeridian(path);
+  if (parts.length === 1) return pathBounds(path);
+  const [[s, w], [n, e]] = pathBounds(parts[0]);
+  const grow = Math.max(0, MIN_FIT_LON - (e - w)) / 2;
+  return [[s, Math.max(-180, w - grow)], [n, Math.min(180, e + grow)]];
 }
 
 export function pathBounds(path) {

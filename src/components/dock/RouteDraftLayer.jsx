@@ -3,6 +3,7 @@ import { Marker, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../../store/useMapStore';
+import { splitAtAntimeridian } from '../../utils/marsUtils';
 
 const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const FLAG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>';
@@ -29,7 +30,7 @@ export default function RouteDraftLayer() {
 
   return (
     <>
-      {start && end && <Polyline positions={[[start.lat, start.lon], [end.lat, end.lon]]} pathOptions={{ color: '#ffffff', weight: 2, opacity: 0.55, dashArray: '2 9', lineCap: 'round', interactive: false }} />}
+      {start && end && <Polyline positions={splitAtAntimeridian([[start.lat, start.lon], [end.lat, end.lon]])} pathOptions={{ color: '#ffffff', weight: 2, opacity: 0.55, dashArray: '2 9', lineCap: 'round', interactive: false }} />}
       {start && <Marker position={[start.lat, start.lon]} icon={startIcon} interactive={false} zIndexOffset={900} />}
       {end && <Marker position={[end.lat, end.lon]} icon={endIcon} interactive={false} zIndexOffset={900} />}
     </>

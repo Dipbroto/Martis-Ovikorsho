@@ -1,6 +1,6 @@
 // Metabolic energy along a waypoint route, sampled on the real terrain grids.
 import { getElevation } from '../utils/elevationService';
-import { marsDistance } from '../utils/marsUtils';
+import { marsDistance, lerpLon } from '../utils/marsUtils';
 import { legCost, EVA_ASSUMPTIONS, energyToHours, usableBudgetJ } from './evaModel';
 
 /** Cumulative walking energy along straight legs between waypoints, sampled every ~stepM metres. */
@@ -17,7 +17,7 @@ export function routeEnergyProfile(waypoints, { stepM = 100, assumptions = EVA_A
     let prevElev = getElevation(a.lat, a.lon);
     for (let k = 1; k <= steps; k++) {
       const t = k / steps;
-      const elev = getElevation(a.lat + (b.lat - a.lat) * t, a.lon + (b.lon - a.lon) * t);
+      const elev = getElevation(a.lat + (b.lat - a.lat) * t, lerpLon(a.lon, b.lon, t));
       const leg = legCost(legM / steps, elev - prevElev, assumptions);
       prevElev = elev;
       distanceM += legM / steps;

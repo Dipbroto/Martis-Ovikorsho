@@ -143,3 +143,36 @@ describe('planner and terrain vs real rover traverses', () => {
     console.log(JSON.stringify(results, null, 2));
   });
 });
+
+describe('long routes on the global grid', () => {
+  const grid = loadGrid('global');
+  const olympus = { lat: 18.65, lon: -133.8 };
+  const route = (goal) => {
+    const r = planRoute(grid, olympus, goal, { mode: 'safety' });
+    return {
+      km: r.metrics.distanceM / 1000,
+      shortestKm: distM([olympus.lat, olympus.lon], [goal.lat, goal.lon]) / 1000,
+      maxLat: Math.max(...r.path.map((p) => p.lat)),
+      crosses: r.path.some((p, i) => i && Math.abs(p.lon - r.path[i - 1].lon) > 180),
+    };
+  };
+
+  it('crosses the 180 degree line instead of going round by the pole', () => {
+    const r = route({ lat: 5, lon: 135 });
+    expect(r.crosses).toBe(true);
+    expect(r.maxLat).toBeLessThan(45);
+    expect(r.km).toBeLessThan(r.shortestKm * 1.2);
+  });
+
+  it('takes the short way round when that crosses the line further from the start', () => {
+    const r = route({ lat: 10, lon: 70 });
+    expect(r.crosses).toBe(true);
+    expect(r.km).toBeLessThan(r.shortestKm * 1.2);
+  });
+
+  it('stays on the map when the direct way does not need the line', () => {
+    const r = route({ lat: 0, lon: -60 });
+    expect(r.crosses).toBe(false);
+    expect(r.km).toBeLessThan(r.shortestKm * 1.2);
+  });
+});

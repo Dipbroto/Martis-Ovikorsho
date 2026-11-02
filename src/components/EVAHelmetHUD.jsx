@@ -3,7 +3,7 @@ import { X, Compass, Heart, Navigation, ChevronRight, ChevronLeft, Play, Pause, 
 import useMapStore from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
 import { marsAudio } from '../utils/audioSynthesizer';
-import { marsDistance, calculateSlope } from '../utils/marsUtils';
+import { marsDistance, calculateSlope, lonDelta } from '../utils/marsUtils';
 
 export default function EVAHelmetHUD() {
   const { 
@@ -62,7 +62,7 @@ export default function EVAHelmetHUD() {
 
   // Compass Heading calculation
   const headingDeg = nextWP 
-    ? Math.round(((Math.atan2(nextWP.lon - currentWP.lon, nextWP.lat - currentWP.lat) * 180 / Math.PI) + 360) % 360)
+    ? Math.round(((Math.atan2(lonDelta(currentWP.lon, nextWP.lon), nextWP.lat - currentWP.lat) * 180 / Math.PI) + 360) % 360)
     : 45;
 
   // Toggle Auto-Marswalk with Rover vehicle synchronization
