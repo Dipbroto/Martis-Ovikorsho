@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Compass, ChevronDown, FlaskConical, Sparkles, ShieldAlert, Image as ImageIcon } from 'lucide-react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 import useMapStore from '../store/useMapStore';
 import { lsFromMsd, seasonFromLs } from '../utils/marsSolar';
 import { AUTONOMOUS_TARGET_PAIRS } from '../utils/autonomousRouter';
@@ -84,7 +84,25 @@ export default function HomeHero({ onSelectTab }) {
     io.observe(el);
     return () => { io.disconnect(); setHomeHeroVisible(false); };
   }, [setHomeHeroVisible]);
-  const { scrollYProgress } = useScroll({ container: scrollRef, target: heroRef, offset: ['start start', 'end start'] });
+  // How far the hero has scrolled away, 0 to 1. Measured here because this page is display:none on the other tabs:
+  // framer's useScroll measures a zero-sized hero there and keeps that, which leaves the hero text at opacity 0.
+  const scrollYProgress = useMotionValue(0);
+  useEffect(() => {
+    const container = scrollRef.current;
+    const hero = heroRef.current;
+    if (!container || !hero) return undefined;
+    const measure = () => {
+      if (hero.offsetHeight) scrollYProgress.set(Math.min(1, Math.max(0, container.scrollTop / hero.offsetHeight)));
+    };
+    measure();
+    container.addEventListener('scroll', measure, { passive: true });
+    const ro = window.ResizeObserver ? new ResizeObserver(measure) : null;
+    ro?.observe(container);
+    return () => {
+      container.removeEventListener('scroll', measure);
+      ro?.disconnect();
+    };
+  }, [scrollYProgress]);
   const bgScale = useTransform(scrollYProgress, [0, 1], [1.04, 1.18]);
   const bgY = useTransform(scrollYProgress, [0, 1], ['0%', '12%']);
   const contentY = useTransform(scrollYProgress, [0, 1], [0, -60]);

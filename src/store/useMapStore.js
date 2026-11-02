@@ -500,7 +500,8 @@ const useMapStore = create((set, get) => ({
   isStreetViewOpen: false,
   streetViewLocation: null,
   openStreetView: (loc) => {
-    set({ isStreetViewOpen: true, streetViewLocation: loc });
+    // The walk would otherwise keep running unseen behind the full-screen view
+    set({ isStreetViewOpen: true, streetViewLocation: loc, isRoverDriving: false });
     marsAudio.playQuindarTone?.(true);
   },
   closeStreetView: () => set({ isStreetViewOpen: false }),

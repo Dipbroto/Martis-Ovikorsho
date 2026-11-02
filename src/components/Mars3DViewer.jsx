@@ -515,6 +515,7 @@ export default function Mars3DViewer() {
     viewMode: s.viewMode, waypoints: s.waypoints, routeGeometry: s.routeGeometry, selectedPOI: s.selectedPOI, setSelectedPOI: s.setSelectedPOI,
     setViewMode: s.setViewMode, flyToCoordinate: s.flyToCoordinate, mapCenter: s.mapCenter, mapZoom: s.mapZoom, globeFocus: s.globeFocus,
   })));
+  const covered = useMapStore((s) => s.isStreetViewOpen); // nothing here is visible behind the surface view
   const [hasWebGL] = useState(() => {
     try {
       const canvas = document.createElement('canvas');
@@ -686,7 +687,7 @@ export default function Mars3DViewer() {
           <span className="text-xs text-zinc-400">Loading Mars…</span>
         </div>
       </div>
-      <Canvas camera={{ position: home.clone().multiplyScalar(INTRO_DIST).toArray(), fov: 40, near: 0.05, far: 400 }} dpr={[1, 1.75]} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+      <Canvas camera={{ position: home.clone().multiplyScalar(INTRO_DIST).toArray(), fov: 40, near: 0.05, far: 400 }} dpr={[1, 1.75]} frameloop={covered ? 'never' : 'always'} gl={{ antialias: true, powerPreference: 'high-performance' }}>
         <color attach="background" args={['#020306']} />
         <ambientLight intensity={layers.sun ? 0.04 : 0.35} />
         {layers.sun ? <SunLight sub={sub} dirOut={lightDir} /> : <CameraLight dirOut={lightDir} />}

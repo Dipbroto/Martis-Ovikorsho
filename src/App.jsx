@@ -146,6 +146,12 @@ function App() {
     const id = idle(() => {
       import('./components/Mars3DViewer').catch(() => {});
       new Image().src = '/textures/mars-viking-mdim21-4k.jpg';
+      // The same for Surface 3D: NASA's landing app is a 3 MB script that takes a while on first load
+      import('./components/MartianStreetViewModal').catch(() => {});
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.href = 'https://eyes.nasa.gov/apps/mars2020/script.js';
+      document.head.appendChild(link);
     });
     return () => cancel(id);
   }, [activeTab]);
@@ -178,7 +184,8 @@ function App() {
       {/* ======================================================== */}
       {/* DEDICATED SCREEN VIEWS                                   */}
       {/* ======================================================== */}
-      <main className="w-full h-full relative">
+      {/* Nothing behind the full-screen surface view needs painting while NASA's app is running */}
+      <main className={`w-full h-full relative ${isStreetViewOpen ? 'invisible' : ''}`}>
         {/* TAB 1: MISSION HUB & OVERVIEW */}
         <div
           key={`tab-home-${tabRefreshKeys.home}`}

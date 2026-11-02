@@ -364,6 +364,7 @@ function MascotBot({ isHovered, mouseRef, alertType = 'nominal', isSpeaking = fa
 // EVA Floating Mascot & Autonomous Copilot Card
 export default function AresFloatingButton() {
   const isAresCopilotOpen = useMapStore(s => s.isAresCopilotOpen);
+  const covered = useMapStore(s => s.isStreetViewOpen); // hidden behind the surface view
   const setAresCopilotOpen = useMapStore(s => s.setAresCopilotOpen);
   const large = useMapStore(s => s.homeHeroVisible);
   const evaCallout = useMapStore(s => s.evaCallout);
@@ -624,6 +625,7 @@ export default function AresFloatingButton() {
             gl={{ alpha: true, antialias: true }}
             style={{ width: '100%', height: '100%', background: 'transparent' }}
             dpr={[1, 1.5]}
+            frameloop={covered ? 'never' : 'always'}
           >
             <Suspense fallback={null}>
               <MascotBot

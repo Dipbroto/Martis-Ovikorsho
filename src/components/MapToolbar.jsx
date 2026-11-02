@@ -156,8 +156,22 @@ export default function MapToolbar() {
       {label}
     </button>
   );
+  const openSurface = () => {
+    const { viewCenter, mapCenter } = useMapStore.getState();
+    const lat = (viewCenter && viewCenter[0]) || mapCenter[0] || 18.4447;
+    const lon = (viewCenter && viewCenter[1]) || mapCenter[1] || 77.4508;
+    s.openStreetView(s.markedLocation || { name: 'Martian Surface Station', lat, lon, elevation: getElevation(lat, lon) });
+  };
   const viewGroup = (
     <div className="flex items-center gap-0.5 bg-white/[0.05] rounded-lg p-0.5 shrink-0" role="group" aria-label="Map view">
+      <button
+        onClick={openSurface}
+        title="Martian surface in 3D with NASA's Eyes: the rover on the ground, the landing, and the view from orbit"
+        className="h-8 px-2.5 rounded-md flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer text-[#ffb08f] hover:text-white hover:bg-[#F26A3D]/25"
+      >
+        <Rocket className="w-4 h-4" />
+        <span>Surface 3D</span>
+      </button>
       {viewBtn('2d', '2D')}
       {viewBtn('3d', '3D')}
       {viewBtn('split', 'Split')}
@@ -260,23 +274,6 @@ export default function MapToolbar() {
                 hint="Real Perseverance microphone wind, SuperCam laser & InSight marsquake recordings"
                 active={s.isAudioRackOpen}
                 onSelect={() => s.setAudioRackOpen(true)}
-              />
-              <Item
-                icon={Rocket}
-                label="Martian surface 3D (NASA JPL Engine)"
-                hint="Explore Mars surface in 3D: official NASA JPL Perseverance & Curiosity rover simulation"
-                active={s.isStreetViewOpen}
-                onSelect={() => {
-                  ensure2d();
-                  const lat = (s.viewCenter && s.viewCenter[0]) || s.mapCenter[0] || 18.4447;
-                  const lon = (s.viewCenter && s.viewCenter[1]) || s.mapCenter[1] || 77.4508;
-                  s.openStreetView(s.markedLocation || {
-                    name: 'Martian Surface Station',
-                    lat,
-                    lon,
-                    elevation: getElevation(lat, lon),
-                  });
-                }}
               />
               <Item
                 icon={MapPin}
