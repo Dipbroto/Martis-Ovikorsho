@@ -12,7 +12,7 @@ import urllib.request
 import numpy as np
 from sklearn.linear_model import Ridge, LogisticRegression
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import r2_score, mean_absolute_error, accuracy_score, roc_auc_score
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, accuracy_score, roc_auc_score
 
 API_URL = "https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json"
 CACHE_PATH = os.path.join("public", "data", "weather", "mars_msl_full_feed.json")
@@ -214,14 +214,19 @@ def train_models():
 
             r2 = r2_score(y_te, preds)
             mae = mean_absolute_error(y_te, preds)
+            rmse = np.sqrt(mean_squared_error(y_te, preds))
+            ci90 = 1.645 * rmse
 
             model_export["horizons"][f"sol_plus_{h}"]["regression"][k] = {
                 "intercept": round(float(reg.intercept_), 5),
                 "coefficients": [round(float(c), 5) for c in reg.coef_],
+                "uncertainty_ci90": round(float(ci90), 2),
             }
             model_export["evaluation"][f"sol_plus_{h}"][k] = {
                 "r2_score": round(float(r2), 4),
                 "mae": round(float(mae), 3),
+                "rmse": round(float(rmse), 3),
+                "ci90_half_width": round(float(ci90), 2),
             }
 
             if h == 1:

@@ -154,7 +154,7 @@ const WeatherPanel = () => {
   }
 
   return (
-    <div className="w-full min-h-full text-primary flex flex-col gap-4 p-2">
+    <div className="w-full min-h-full text-primary flex flex-col gap-4 p-2 max-w-full overflow-x-hidden">
       {/* Top Header & Dual-Mode Controller */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-2 border-b border-white/5 shrink-0">
         <div>
@@ -245,12 +245,12 @@ const WeatherPanel = () => {
       {/* Downlink Sol Switcher (Only visible in Downlink Mode) */}
       {isDownlinkMode && roverWeatherFeed.length > 0 && (
         <div className="flex flex-col gap-1.5 bg-space-900/60 p-2.5 rounded-xl border border-emerald-900/30 shrink-0">
-          <div className="flex items-center justify-between text-xs text-secondary px-1">
-            <span className="flex items-center gap-1.5 font-mono text-emerald-400 font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block"></span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-secondary px-1">
+            <span className="flex items-center gap-1.5 font-mono text-emerald-400 font-semibold truncate">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block shrink-0"></span>
               NASA MSL CURIOSITY REMS TELEMETRY LOGS (GALE CRATER)
             </span>
-            <span className="font-mono text-[11px] text-stone-400">
+            <span className="font-mono text-[11px] text-stone-400 shrink-0">
               Select Sol to inspect historical daily downlink
             </span>
           </div>
@@ -474,7 +474,7 @@ const WeatherPanel = () => {
           {mlForecast.map((fc) => (
             <div
               key={fc.targetSol}
-              className="bg-space-900/90 border border-violet-900/40 hover:border-violet-500/50 rounded-xl p-3.5 flex flex-col justify-between transition-all shadow-md group min-w-0"
+              className="bg-space-900/90 border border-violet-900/40 hover:border-violet-500/50 rounded-xl p-3.5 flex flex-col justify-between transition-all shadow-md group min-w-0 overflow-hidden"
             >
               <div>
                 {/* Header: Sol, Horizon & Risk Badge */}
@@ -497,42 +497,78 @@ const WeatherPanel = () => {
                   </span>
                 </div>
 
-                {/* Structured Metrics List (Zero Overlap Guaranteed) */}
+                {/* Structured Metrics Tiles (Guaranteed Clean & Responsive - No Overlap) */}
                 <div className="space-y-2 font-mono text-xs mb-3">
-                  {/* Air Temperature */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-zinc-400 text-[11px] whitespace-nowrap">Air Temp:</span>
-                    <span className="font-semibold whitespace-nowrap tabular-nums">
-                      <span className="text-mars-400 font-bold">{fc.temperature.max > 0 ? `+${fc.temperature.max}` : fc.temperature.max}°</span>
-                      <span className="text-zinc-500 mx-1.5">/</span>
-                      <span className="text-blue-400">{fc.temperature.min}°C</span>
-                    </span>
+                  {/* Air Temperature Tile */}
+                  <div className="bg-black/40 rounded-lg p-2 border border-white/5 space-y-1 min-w-0 overflow-hidden">
+                    <div className="flex items-center justify-between text-[10px] text-zinc-400 font-sans uppercase tracking-wider">
+                      <span className="flex items-center gap-1 truncate">
+                        <Thermometer size={12} className="text-mars-400 shrink-0" />
+                        <span>Air Temp</span>
+                      </span>
+                      {fc.temperature.ci90Max && (
+                        <span className="text-[10px] text-violet-400 font-mono font-semibold shrink-0" title="90% Confidence Interval (±1.645σ RMSE)">
+                          ±{fc.temperature.ci90Max}°
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between font-mono text-xs">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-[9px] text-zinc-500 font-sans uppercase">High</span>
+                        <span className="text-xs font-bold text-mars-400">
+                          {fc.temperature.max > 0 ? `+${fc.temperature.max}` : fc.temperature.max}°C
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-[9px] text-zinc-500 font-sans uppercase">Low</span>
+                        <span className="text-xs font-semibold text-blue-400">
+                          {fc.temperature.min}°C
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Ground Soil (GTS) Temperature */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-zinc-400 text-[11px] whitespace-nowrap">Ground Soil:</span>
-                    <span className="font-semibold text-amber-300 whitespace-nowrap tabular-nums">
-                      {fc.groundTemperature.max > 0 ? `+${fc.groundTemperature.max}` : fc.groundTemperature.max}°
-                      <span className="text-zinc-500 mx-1.5">/</span>
-                      {fc.groundTemperature.min}°C
-                    </span>
+                  {/* Ground Soil (GTS) Temperature Tile */}
+                  <div className="bg-black/40 rounded-lg p-2 border border-white/5 space-y-1 min-w-0 overflow-hidden">
+                    <div className="flex items-center justify-between text-[10px] text-zinc-400 font-sans uppercase tracking-wider">
+                      <span className="truncate">Ground Soil (GTS)</span>
+                      <span className="text-[9px] text-zinc-500 font-mono shrink-0">Infrared</span>
+                    </div>
+                    <div className="flex items-center justify-between font-mono text-xs text-amber-300">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-[9px] text-zinc-500 font-sans uppercase">Max</span>
+                        <span className="text-xs font-bold">
+                          {fc.groundTemperature.max > 0 ? `+${fc.groundTemperature.max}` : fc.groundTemperature.max}°C
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-[9px] text-zinc-500 font-sans uppercase">Min</span>
+                        <span className="text-xs text-amber-400/80">
+                          {fc.groundTemperature.min}°C
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Atmospheric Pressure */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-zinc-400 text-[11px] whitespace-nowrap">Pressure:</span>
-                    <span className="font-bold text-zinc-100 whitespace-nowrap tabular-nums">
-                      {fc.pressure.value} Pa
-                    </span>
+                  {/* Atmospheric Pressure Tile */}
+                  <div className="bg-black/40 rounded-lg p-2 border border-white/5 flex items-center justify-between gap-1.5 min-w-0 overflow-hidden">
+                    <span className="text-[10px] text-zinc-400 font-sans uppercase tracking-wider truncate">Pressure</span>
+                    <div className="flex items-center gap-1 font-mono text-xs shrink-0">
+                      <span className="font-bold text-zinc-100">{fc.pressure.value} Pa</span>
+                      {fc.pressure.ci90 && (
+                        <span className="text-[10px] text-violet-400 font-semibold" title="90% Confidence Interval (±1.645σ RMSE)">
+                          (±{fc.pressure.ci90} Pa)
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* Dust Storm Hazard Meter */}
-                <div className="space-y-1.5 pt-2 border-t border-white/5">
+                <div className="space-y-1.5 pt-2 border-t border-white/5 min-w-0">
                   <div className="flex justify-between items-center text-[10px] font-mono">
-                    <span className="text-zinc-400 whitespace-nowrap">Dust Storm Probability:</span>
-                    <span style={{ color: fc.dustStorm.color }} className="font-bold whitespace-nowrap tabular-nums">
+                    <span className="text-zinc-400 uppercase font-sans tracking-wider truncate">Dust Storm Risk</span>
+                    <span style={{ color: fc.dustStorm.color }} className="font-bold tabular-nums shrink-0 ml-1">
                       {fc.dustStorm.probabilityPercent}%
                     </span>
                   </div>
@@ -549,7 +585,7 @@ const WeatherPanel = () => {
               </div>
 
               {/* EVA Operational Advisory */}
-              <div className="mt-2.5 pt-2 border-t border-white/5 text-[10px] font-mono text-zinc-300 flex items-start gap-1.5">
+              <div className="mt-2.5 pt-2 border-t border-white/5 text-[10px] font-mono text-zinc-300 flex items-start gap-1.5 min-w-0">
                 <ShieldCheck size={12} className="text-violet-400 shrink-0 mt-0.5" />
                 <span className="line-clamp-2 leading-tight">
                   {fc.dustStorm.advisory}
@@ -628,7 +664,7 @@ const WeatherPanel = () => {
               : seasonalForecast.map((day) => (
                   <div
                     key={day.sol}
-                    className="flex-1 min-w-[70px] shrink-0 bg-space-800/40 border border-space-700/50 rounded-lg p-2 flex flex-col items-center justify-between"
+                    className="flex-1 min-w-[80px] shrink-0 bg-space-800/40 border border-space-700/50 rounded-lg p-2 flex flex-col items-center justify-between"
                   >
                     <div className="text-xs text-secondary font-mono mb-2">Sol {day.sol}</div>
                     <CloudFog
@@ -660,7 +696,7 @@ const WeatherPanel = () => {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={isDownlinkMode ? downlinkChartData : seasonalForecast}
-                margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
+                margin={{ top: 5, right: 10, left: -15, bottom: 0 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a334a" vertical={false} />
                 <XAxis
@@ -712,7 +748,10 @@ const WeatherPanel = () => {
           </div>
         </div>
 
-        {/* Solar Array Dust Deposition & Power Degradation Card */}
+      </div>
+
+      {/* Solar Array Dust Deposition & Power Degradation Card (Full Width) */}
+      <div className="w-full shrink-0">
         <SolarArrayPowerPanel />
       </div>
     </div>

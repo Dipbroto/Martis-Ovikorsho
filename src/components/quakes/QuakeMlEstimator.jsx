@@ -259,6 +259,11 @@ export default function QuakeMlEstimator() {
             <div className="text-base font-bold text-white mt-0.5">
               {shaking.pgaDisplay} <span className="text-xs text-zinc-400 font-normal">m/s²</span>
             </div>
+            {shaking.pgaCi90Range && (
+              <div className="text-[9px] text-violet-300 font-mono" title="90% Confidence Interval (±1.645σ InSight GMPE error)">
+                90% CI: [{shaking.pgaCi90Range[0] < 0.0001 ? shaking.pgaCi90Range[0].toExponential(1) : shaking.pgaCi90Range[0].toFixed(4)} - {shaking.pgaCi90Range[1] < 0.0001 ? shaking.pgaCi90Range[1].toExponential(1) : shaking.pgaCi90Range[1].toFixed(4)} m/s²]
+              </div>
+            )}
             <div className="text-[10px] text-zinc-500 font-sans mt-0.5">
               Distance: <span className="text-zinc-300">{shaking.distanceKm} km</span>
             </div>
@@ -272,6 +277,11 @@ export default function QuakeMlEstimator() {
             <div className="text-base font-bold text-sky-200 mt-0.5">
               {shaking.pgvCmS.toFixed(3)} <span className="text-xs text-zinc-400 font-normal">cm/s</span>
             </div>
+            {shaking.pgvCi90Range && (
+              <div className="text-[9px] text-violet-300 font-mono" title="90% Confidence Interval">
+                90% CI: [{shaking.pgvCi90Range[0].toFixed(3)} - {shaking.pgvCi90Range[1].toFixed(3)} cm/s]
+              </div>
+            )}
             <div className="text-[10px] text-zinc-500 font-sans mt-0.5">
               Spectral: <span className="text-zinc-300">{shaking.sa10} m/s²</span>
             </div>

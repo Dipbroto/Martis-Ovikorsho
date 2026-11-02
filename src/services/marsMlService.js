@@ -272,6 +272,13 @@ export function predictSingleHorizon(horizonNum = 1, scaledFeatures = [], model 
   const gtsMax = predictTarget('gts_max', 0);
   const gtsMin = predictTarget('gts_min', -85);
 
+  // Aerospace Uncertainty Quantification (90% Confidence Bounds = ±1.645 * RMSE)
+  const tMaxCi90 = hData.regression?.t_max?.uncertainty_ci90 ?? 7.04;
+  const tMinCi90 = hData.regression?.t_min?.uncertainty_ci90 ?? 9.06;
+  const pressureCi90 = hData.regression?.pressure?.uncertainty_ci90 ?? 4.11;
+  const gtsMaxCi90 = hData.regression?.gts_max?.uncertainty_ci90 ?? 6.32;
+  const gtsMinCi90 = hData.regression?.gts_min?.uncertainty_ci90 ?? 9.22;
+
   // Logistic classifier prediction for dust storm risk:
   // p = 1 / (1 + exp(-(intercept + sum(w_i * x_i))))
   const dustClf = hData.dust_classifier;
@@ -291,17 +298,32 @@ export function predictSingleHorizon(horizonNum = 1, scaledFeatures = [], model 
       min: Math.round(tMin * 10) / 10,
       max: Math.round(tMax * 10) / 10,
       avg: Math.round(((tMin + tMax) / 2.0) * 10) / 10,
+      ci90: Math.round(Math.max(tMaxCi90, tMinCi90) * 10) / 10,
+      ci90Max: Math.round(tMaxCi90 * 10) / 10,
+      ci90Min: Math.round(tMinCi90 * 10) / 10,
       unit: '°C',
     },
     groundTemperature: {
       min: Math.round(gtsMin * 10) / 10,
       max: Math.round(gtsMax * 10) / 10,
       avg: Math.round(((gtsMin + gtsMax) / 2.0) * 10) / 10,
+      ci90: Math.round(Math.max(gtsMaxCi90, gtsMinCi90) * 10) / 10,
       unit: '°C',
     },
     pressure: {
       value: Math.round(pressure * 10) / 10,
+      ci90: Math.round(pressureCi90 * 10) / 10,
       unit: 'Pa',
+    },
+    uncertaintyCi90: {
+      tMaxHalfWidth: Math.round(tMaxCi90 * 10) / 10,
+      tMinHalfWidth: Math.round(tMinCi90 * 10) / 10,
+      pressureHalfWidth: Math.round(pressureCi90 * 10) / 10,
+      gtsMaxHalfWidth: Math.round(gtsMaxCi90 * 10) / 10,
+      gtsMinHalfWidth: Math.round(gtsMinCi90 * 10) / 10,
+      tMaxRange: [Math.round((tMax - tMaxCi90) * 10) / 10, Math.round((tMax + tMaxCi90) * 10) / 10],
+      tMinRange: [Math.round((tMin - tMinCi90) * 10) / 10, Math.round((tMin + tMinCi90) * 10) / 10],
+      pressureRange: [Math.round((pressure - pressureCi90) * 10) / 10, Math.round((pressure + pressureCi90) * 10) / 10],
     },
     dustStorm: assessDustStormRisk(dustProbability),
     provenance: 'PREDICTED BY ML',
@@ -1064,6 +1086,7 @@ export function predictLibsChemometrics(pointOrLines) {
   });
 
   const predictedOxides = {};
+  const oxideUncertainties = {};
   let totalWt = 0;
 
   for (const ox of model.oxide_targets) {
@@ -1071,6 +1094,7 @@ export function predictLibsChemometrics(pointOrLines) {
     const val = scaled.reduce((acc, feat, idx) => acc + feat * oxModel.coefficients[idx], oxModel.intercept);
     const clamped = +Math.max(0.1, val).toFixed(2);
     predictedOxides[ox] = clamped;
+    oxideUncertainties[ox] = model.uncertainties_ci90?.[ox] ?? 2.0;
     totalWt += clamped;
   }
 
@@ -1093,6 +1117,8 @@ export function predictLibsChemometrics(pointOrLines) {
 
   return {
     oxides: predictedOxides,
+    oxideUncertainties,
+    uncertaintyCi90: oxideUncertainties,
     totalWtPercent: +totalWt.toFixed(1),
     cia,
     maficRatio,
@@ -1240,6 +1266,21 @@ export function predictMarsquakePGA({
   // Assess Structural Hazard
   const hazard = assessStructuralHazard(pgaMps2, model);
 
+  // 90% Confidence Interval Attenuation Bounds (NASA / InSight standard)
+  const uncert = model?.uncertainty_ci90 || {
+    ci90_factor_pga: 1.47,
+    ci90_pga_lower_ratio: 0.68,
+    ci90_pga_upper_ratio: 1.47,
+    ci90_factor_pgv: 1.48,
+  };
+  const pgaLower = +(pgaMps2 * (uncert.ci90_pga_lower_ratio || (1.0 / uncert.ci90_factor_pga))).toFixed(6);
+  const pgaUpper = +(pgaMps2 * uncert.ci90_factor_pga).toFixed(6);
+  const pgaPctGLower = +((pgaLower / gMars) * 100.0).toFixed(4);
+  const pgaPctGUpper = +((pgaUpper / gMars) * 100.0).toFixed(4);
+  const pgvFactor = uncert.ci90_factor_pgv || 1.48;
+  const pgvLower = +(pgvCmS / pgvFactor).toFixed(4);
+  const pgvUpper = +(pgvCmS * pgvFactor).toFixed(4);
+
   return {
     magnitude: m,
     distanceKm: +(d.toFixed(1)),
@@ -1248,7 +1289,16 @@ export function predictMarsquakePGA({
     pgaMps2: +(pgaMps2.toFixed(6)),
     pgaDisplay: pgaMps2 < 0.0001 ? pgaMps2.toExponential(2) : pgaMps2.toFixed(4),
     pgaPctG: +(pgaPctG.toFixed(4)),
+    pgaCi90Range: [pgaLower, pgaUpper],
+    pgaPctGCi90Range: [pgaPctGLower, pgaPctGUpper],
     pgvCmS: +(pgvCmS.toFixed(4)),
+    pgvCi90Range: [pgvLower, pgvUpper],
+    uncertaintyCi90: {
+      factorPga: uncert.ci90_factor_pga || 1.47,
+      pgaRange: [pgaLower, pgaUpper],
+      pgaPctGRange: [pgaPctGLower, pgaPctGUpper],
+      pgvRange: [pgvLower, pgvUpper],
+    },
     sa03,
     sa10,
     siteCondition: siteConfig.name,
@@ -1353,19 +1403,40 @@ export function predictSolarArrayDegradation({
   const h0 = Math.acos(cosH0);
   const dayHours = (h0 / Math.PI) * 24.66;
 
+  // Top-of-Atmosphere orbital flux & analytical Beer-Lambert transmittance
+  const PERIHELION_LS = 250.0;
+  const MARS_SEMI_MAJOR_AU = 1.524;
+  const MARS_ECCENTRICITY = 0.0934;
+  const SOLAR_CONSTANT_1AU = 1361.0;
+
+  const nuRad = ((lsNum - PERIHELION_LS) * Math.PI) / 180;
+  const rAu = MARS_SEMI_MAJOR_AU * (1 - MARS_ECCENTRICITY ** 2) / (1 + MARS_ECCENTRICITY * Math.cos(nuRad));
+  const sToa = SOLAR_CONSTANT_1AU / (rAu ** 2);
+
+  const cosZenithEff = Math.max(0.15, Math.cos(latRad - declRad) * 0.68);
+  const tDirect = Math.exp(-tauNum / cosZenithEff);
+  const tDiffuse = 0.28 * (1.0 - Math.exp(-0.85 * tauNum));
+  const tTotal = tDirect + tDiffuse;
+  const physInsolation = sToa * cosZenithEff * tTotal * dayHours;
+  const expNegTau = Math.exp(-tauNum);
+
   // 1. Predict Daily Clear-Array Surface Insolation (Wh/m²/sol)
-  let insolationWhM2 = 2800.0;
+  let insolationWhM2 = physInsolation;
   if (inModel && inModel.coefficients) {
     const c = inModel.coefficients;
-    insolationWhM2 = inModel.intercept +
-      c.ls * lsNum +
-      c.sin_ls * sinLs +
-      c.cos_ls * cosLs +
-      c.tau * tauNum +
-      c.ln_tau * lnTau +
-      c.lat * latNum +
-      c.wind * windNum +
-      c.day_hours * dayHours;
+    insolationWhM2 = (inModel.intercept || 0) +
+      (c.ls || 0) * lsNum +
+      (c.sin_ls || 0) * sinLs +
+      (c.cos_ls || 0) * cosLs +
+      (c.tau || 0) * tauNum +
+      (c.ln_tau || 0) * lnTau +
+      (c.lat || 0) * latNum +
+      (c.wind || 0) * windNum +
+      (c.day_hours || 0) * dayHours +
+      (c.cos_zenith || 0) * cosZenithEff +
+      (c.transmittance || 0) * tTotal +
+      (c.exp_neg_tau || 0) * expNegTau +
+      (c.phys_insolation !== undefined ? c.phys_insolation * physInsolation : physInsolation);
   }
   insolationWhM2 = Math.max(300.0, Math.min(6500.0, insolationWhM2));
 
@@ -1449,22 +1520,61 @@ export function predictSolarArrayDegradation({
     advisory = `Array moderately dusted (${(currentDf * 100).toFixed(0)}% transmission). Convective vortex cleaning probability is ${(cleaningProb30Sols * 100).toFixed(0)}% this season.`;
   }
 
+  // 90% Confidence Interval Uncertainty Quantification
+  const uncert = model?.uncertainty_ci90 || {
+    insolation_ci90_half_width: 0.0,
+    dust_rate_ci90_half_width: 0.000429,
+    dust_factor_ci90_30sols: 0.0129,
+  };
+  const inHalfWidth = uncert.insolation_ci90_half_width || 0.0;
+  const drHalfWidth = uncert.dust_rate_ci90_half_width || 0.00043;
+  const currentDfMin = Math.max(0.1, +(currentDf - drHalfWidth * Number(solsElapsed)).toFixed(3));
+  const currentDfMax = Math.min(1.0, +(currentDf + drHalfWidth * Number(solsElapsed)).toFixed(3));
+  const actualKwhMin = Math.max(0, +(cleanDailyKwh * currentDfMin).toFixed(2));
+  const actualKwhMax = +(cleanDailyKwh * currentDfMax).toFixed(2);
+
+  let solsStarvationMin = solsToStarvation;
+  let solsStarvationMax = solsToStarvation;
+  if (solsToStarvation !== null && solsToStarvation > 0) {
+    const criticalDf = baseLoad / cleanDailyKwh;
+    const fastRate = deltaDfPerSol - drHalfWidth;
+    const slowRate = deltaDfPerSol + drHalfWidth;
+    if (fastRate < 0 && criticalDf < currentDf) {
+      solsStarvationMin = Math.max(0, Math.round((criticalDf - currentDf) / fastRate));
+    }
+    if (slowRate < 0 && criticalDf < currentDf) {
+      solsStarvationMax = Math.max(0, Math.round((criticalDf - currentDf) / slowRate));
+    }
+  }
+
   return {
     currentSol,
     ls: +(lsNum.toFixed(1)),
     season,
     tau: +(tauNum.toFixed(2)),
     insolationWhM2: Math.round(insolationWhM2),
+    insolationRange: [Math.round(insolationWhM2 - inHalfWidth), Math.round(insolationWhM2 + inHalfWidth)],
     dustFactor: +(currentDf.toFixed(3)),
+    dustFactorRange: [currentDfMin, currentDfMax],
     dustFactorPct: Math.round(currentDf * 100),
     dustDepositionRatePerSol: +(deltaDfPerSol.toFixed(6)),
     cleanDailyKwh: +(cleanDailyKwh.toFixed(2)),
     actualDailyKwh: +(actualDailyKwh.toFixed(2)),
+    actualDailyKwhRange: [actualKwhMin, actualKwhMax],
     baseLoadKwhSol: +(baseLoad.toFixed(2)),
     netMarginKwh: +(netMarginKwh.toFixed(2)),
     marginPct: Math.round(marginPct),
     solsToStarvation: solsToStarvation !== null ? Math.max(0, solsToStarvation) : '>999',
+    solsToStarvationRange: solsToStarvation !== null ? [solsStarvationMin, solsStarvationMax] : null,
     cleaningProb30Sols: Math.round(cleaningProb30Sols * 100),
+    uncertaintyCi90: {
+      insolationHalfWidth: inHalfWidth,
+      insolationRange: [Math.round(insolationWhM2 - inHalfWidth), Math.round(insolationWhM2 + inHalfWidth)],
+      dustRateHalfWidth: drHalfWidth,
+      dustFactorRange: [currentDfMin, currentDfMax],
+      actualDailyKwhRange: [actualKwhMin, actualKwhMax],
+      solsToStarvationRange: solsToStarvation !== null ? [solsStarvationMin, solsStarvationMax] : null,
+    },
     status,
     statusColor,
     advisory,

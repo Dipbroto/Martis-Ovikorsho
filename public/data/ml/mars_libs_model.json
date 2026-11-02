@@ -1,5 +1,16 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "uncertainties_ci90": {
+    "SiO2": 8.06,
+    "FeO-T": 9.11,
+    "MgO": 4.1,
+    "Al2O3": 2.61,
+    "CaO": 3.39,
+    "Na2O": 1.22,
+    "K2O": 0.41,
+    "TiO2": 0.7,
+    "SO3": 6.39
+  },
   "algorithm": "SuperCam LIBS Chemometrics (Ridge Regressor)",
   "trained_at": "2026-11-03",
   "feature_names": [
@@ -119,7 +130,9 @@
         0.58527
       ],
       "r2_score": 0.5896,
-      "mae_wt_pct": 3.588
+      "mae_wt_pct": 3.588,
+      "rmse_wt_pct": 4.9,
+      "ci90_wt_pct": 8.06
     },
     "FeO-T": {
       "intercept": 22.9105,
@@ -149,7 +162,9 @@
         0.93316
       ],
       "r2_score": 0.5941,
-      "mae_wt_pct": 4.113
+      "mae_wt_pct": 4.113,
+      "rmse_wt_pct": 5.541,
+      "ci90_wt_pct": 9.11
     },
     "MgO": {
       "intercept": 10.42454,
@@ -179,7 +194,9 @@
         0.08938
       ],
       "r2_score": 0.8726,
-      "mae_wt_pct": 1.77
+      "mae_wt_pct": 1.77,
+      "rmse_wt_pct": 2.493,
+      "ci90_wt_pct": 4.1
     },
     "Al2O3": {
       "intercept": 5.61821,
@@ -209,7 +226,9 @@
         -0.13991
       ],
       "r2_score": 0.8813,
-      "mae_wt_pct": 1.201
+      "mae_wt_pct": 1.201,
+      "rmse_wt_pct": 1.584,
+      "ci90_wt_pct": 2.61
     },
     "CaO": {
       "intercept": 5.00746,
@@ -239,7 +258,9 @@
         -0.12401
       ],
       "r2_score": 0.7481,
-      "mae_wt_pct": 1.479
+      "mae_wt_pct": 1.479,
+      "rmse_wt_pct": 2.06,
+      "ci90_wt_pct": 3.39
     },
     "Na2O": {
       "intercept": 2.80553,
@@ -269,7 +290,9 @@
         0.10073
       ],
       "r2_score": 0.6736,
-      "mae_wt_pct": 0.542
+      "mae_wt_pct": 0.542,
+      "rmse_wt_pct": 0.744,
+      "ci90_wt_pct": 1.22
     },
     "K2O": {
       "intercept": 0.73585,
@@ -299,7 +322,9 @@
         0.07834
       ],
       "r2_score": 0.773,
-      "mae_wt_pct": 0.19
+      "mae_wt_pct": 0.19,
+      "rmse_wt_pct": 0.25,
+      "ci90_wt_pct": 0.41
     },
     "TiO2": {
       "intercept": 0.65686,
@@ -329,7 +354,9 @@
         -0.16823
       ],
       "r2_score": 0.5681,
-      "mae_wt_pct": 0.236
+      "mae_wt_pct": 0.236,
+      "rmse_wt_pct": 0.425,
+      "ci90_wt_pct": 0.7
     },
     "SO3": {
       "intercept": 5.09143,
@@ -359,7 +386,9 @@
         -2.95516
       ],
       "r2_score": 0.7663,
-      "mae_wt_pct": 2.95
+      "mae_wt_pct": 2.95,
+      "rmse_wt_pct": 3.882,
+      "ci90_wt_pct": 6.39
     }
   },
   "diagnostic_lines": {

@@ -185,12 +185,22 @@ export default function LibsPanel({ target, data, lab }) {
 
             {/* Major Oxides wt% Table / Grid */}
             <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-1.5 font-mono text-center">
-              {Object.entries(chemometrics.oxides).map(([ox, val]) => (
-                <div key={ox} className="bg-black/40 border border-white/5 rounded-lg p-1.5">
-                  <div className="text-[9px] text-zinc-400 font-sans">{ox}</div>
-                  <div className="text-xs font-bold text-white mt-0.5">{val}<span className="text-[9px] font-normal text-zinc-500">%</span></div>
-                </div>
-              ))}
+              {Object.entries(chemometrics.oxides).map(([ox, val]) => {
+                const uncert = chemometrics.oxideUncertainties?.[ox];
+                return (
+                  <div key={ox} className="bg-black/40 border border-white/5 rounded-lg p-1.5">
+                    <div className="text-[9px] text-zinc-400 font-sans">{ox}</div>
+                    <div className="text-xs font-bold text-white mt-0.5">
+                      {val}<span className="text-[9px] font-normal text-zinc-500">%</span>
+                    </div>
+                    {uncert !== undefined && (
+                      <div className="text-[8px] text-violet-400/90 font-mono tracking-tighter" title="90% Confidence Interval (±1.645σ RMSE)">
+                        ±{uncert}%
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Inferred Lithology Banner */}

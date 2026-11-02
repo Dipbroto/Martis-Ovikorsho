@@ -92,9 +92,9 @@ export default function SolarArrayPowerPanel() {
   };
 
   return (
-    <div className="glass-panel p-4 rounded-xl border border-space-700/50 space-y-3.5">
+    <div className="w-full glass-panel p-4 rounded-xl border border-space-700/50 space-y-3.5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300">
             <Sun className="w-4 h-4" />
@@ -124,15 +124,15 @@ export default function SolarArrayPowerPanel() {
               setPresetId(preset.id);
               setSimulatedCleanBoost(0);
             }}
-            className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+            className={`p-2 rounded-lg border text-left transition-all cursor-pointer min-w-0 overflow-hidden ${
               presetId === preset.id
                 ? 'border-amber-400/80 bg-amber-500/15 text-white'
                 : 'border-white/10 bg-black/20 text-zinc-300 hover:bg-white/[0.05]'
             }`}
           >
             <div className="text-[11px] font-semibold truncate">{preset.name}</div>
-            <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
-              {preset.areaM2} m² · {preset.baseLoadKwh} kWh floor
+            <div className="text-[10px] font-mono text-zinc-400 mt-0.5 truncate">
+              {preset.areaM2} m² · {preset.baseLoadKwh} kWh
             </div>
           </button>
         ))}
@@ -141,58 +141,63 @@ export default function SolarArrayPowerPanel() {
       {/* Primary Telemetry Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
         {/* Dust Factor */}
-        <div className="p-2.5 rounded-lg bg-black/30 border border-white/10">
+        <div className="p-2.5 rounded-lg bg-black/30 border border-white/10 min-w-0 overflow-hidden">
           <div className="text-[10px] text-zinc-400 font-sans flex items-center justify-between">
-            <span>Dust Factor (D<sub>f</sub>)</span>
-            <span className="text-amber-300 font-bold">{powerForecast.dustFactorPct}%</span>
+            <span className="truncate">Dust Factor (D<sub>f</sub>)</span>
+            <span className="text-amber-300 font-bold ml-1">{powerForecast.dustFactorPct}%</span>
           </div>
-          <div className="text-xl font-bold text-white mt-1">
+          <div className="text-lg sm:text-xl font-bold text-white mt-1 truncate">
             {powerForecast.dustFactor.toFixed(3)}
           </div>
-          <div className="text-[10px] text-zinc-500 mt-0.5">
-            Decay: <span className="text-zinc-300">{(powerForecast.dustDepositionRatePerSol * 1000).toFixed(2)}‰ / sol</span>
+          <div className="text-[10px] text-zinc-500 mt-0.5 truncate">
+            Decay: <span className="text-zinc-300">{(powerForecast.dustDepositionRatePerSol * 1000).toFixed(2)}‰/sol</span>
           </div>
         </div>
 
         {/* Daily Generation */}
-        <div className="p-2.5 rounded-lg bg-black/30 border border-white/10">
+        <div className="p-2.5 rounded-lg bg-black/30 border border-white/10 min-w-0 overflow-hidden">
           <div className="text-[10px] text-zinc-400 font-sans flex items-center justify-between">
-            <span>Actual Generation</span>
-            <span className="text-emerald-400 font-bold">
+            <span className="truncate">Actual Gen</span>
+            <span className="text-emerald-400 font-bold ml-1">
               {powerForecast.marginPct > 0 ? `+${powerForecast.marginPct}%` : `${powerForecast.marginPct}%`}
             </span>
           </div>
-          <div className="text-xl font-bold text-white mt-1">
+          <div className="text-lg sm:text-xl font-bold text-white mt-1 truncate">
             {powerForecast.actualDailyKwh}{' '}
             <span className="text-xs text-zinc-400 font-normal">kWh/sol</span>
           </div>
-          <div className="text-[10px] text-zinc-500 mt-0.5">
+          {powerForecast.actualDailyKwhRange && (
+            <div className="text-[9px] text-violet-300 font-mono truncate" title="90% Confidence Interval (±1.645σ dust rate uncertainty)">
+              90% CI: [{powerForecast.actualDailyKwhRange[0]} - {powerForecast.actualDailyKwhRange[1]}]
+            </div>
+          )}
+          <div className="text-[10px] text-zinc-500 mt-0.5 truncate">
             Clean cap: <span className="text-zinc-300">{powerForecast.cleanDailyKwh} kWh</span>
           </div>
         </div>
 
         {/* ECLSS Margin */}
-        <div className="p-2.5 rounded-lg bg-black/30 border border-white/10">
+        <div className="p-2.5 rounded-lg bg-black/30 border border-white/10 min-w-0 overflow-hidden">
           <div className="text-[10px] text-zinc-400 font-sans flex items-center justify-between">
-            <span>ECLSS Reserve Margin</span>
-            <Zap className="w-3 h-3 text-sky-400" />
+            <span className="truncate">ECLSS Margin</span>
+            <Zap className="w-3 h-3 text-sky-400 shrink-0 ml-1" />
           </div>
-          <div className={`text-xl font-bold mt-1 ${powerForecast.netMarginKwh >= 0 ? 'text-sky-300' : 'text-rose-400'}`}>
+          <div className={`text-lg sm:text-xl font-bold mt-1 truncate ${powerForecast.netMarginKwh >= 0 ? 'text-sky-300' : 'text-rose-400'}`}>
             {powerForecast.netMarginKwh >= 0 ? `+${powerForecast.netMarginKwh}` : powerForecast.netMarginKwh}{' '}
             <span className="text-xs text-zinc-400 font-normal">kWh</span>
           </div>
-          <div className="text-[10px] text-zinc-500 mt-0.5">
+          <div className="text-[10px] text-zinc-500 mt-0.5 truncate">
             Baseline: <span className="text-zinc-300">{powerForecast.baseLoadKwhSol} kWh/sol</span>
           </div>
         </div>
 
         {/* Sols to Starvation */}
-        <div className="p-2.5 rounded-lg bg-black/30 border border-white/10">
+        <div className="p-2.5 rounded-lg bg-black/30 border border-white/10 min-w-0 overflow-hidden">
           <div className="text-[10px] text-zinc-400 font-sans flex items-center justify-between">
-            <span>Starvation Margin</span>
-            <Wind className="w-3 h-3 text-teal-400" />
+            <span className="truncate">Starvation Margin</span>
+            <Wind className="w-3 h-3 text-teal-400 shrink-0 ml-1" />
           </div>
-          <div className={`text-xl font-bold mt-1 ${
+          <div className={`text-lg sm:text-xl font-bold mt-1 truncate ${
             powerForecast.solsToStarvation === 0
               ? 'text-rose-400 animate-pulse'
               : powerForecast.solsToStarvation < 60
@@ -201,38 +206,51 @@ export default function SolarArrayPowerPanel() {
           }`}>
             {powerForecast.solsToStarvation === 0 ? 'DEFICIT' : `${powerForecast.solsToStarvation} sols`}
           </div>
-          <div className="text-[10px] text-zinc-500 mt-0.5">
+          {powerForecast.solsToStarvationRange && powerForecast.solsToStarvation > 0 && (
+            <div className="text-[9px] text-violet-300 font-mono truncate" title="90% Confidence Interval">
+              90% CI: [{powerForecast.solsToStarvationRange[0]} - {powerForecast.solsToStarvationRange[1]} sols]
+            </div>
+          )}
+          <div className="text-[10px] text-zinc-500 mt-0.5 truncate">
             Vortex clean P: <span className="text-teal-300 font-semibold">{powerForecast.cleaningProb30Sols}%</span>
           </div>
         </div>
       </div>
 
       {/* 30-Sol Projection Trajectory */}
-      <div className="p-3 rounded-lg bg-black/25 border border-white/10 space-y-2">
-        <div className="flex items-center justify-between text-[11px]">
-          <span className="text-zinc-300 font-medium">30-Sol Photovoltaic Trajectory Forecast</span>
-          <span className="text-[10px] text-zinc-400 font-mono">
-            Optical Depth τ: <strong className="text-white">{powerForecast.tau}</strong> · Insolation:{' '}
-            <strong className="text-white">{powerForecast.insolationWhM2} Wh/m²</strong>
+      <div className="p-3 rounded-lg bg-black/25 border border-white/10 space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] pb-1 border-b border-white/5">
+          <span className="text-zinc-200 font-medium text-xs flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>30-Sol Photovoltaic Trajectory</span>
           </span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-zinc-400 font-mono">
+            <span>τ: <strong className="text-white">{powerForecast.tau}</strong></span>
+            <span className="text-zinc-600">·</span>
+            <span>Insolation: <strong className="text-white">{powerForecast.insolationWhM2} Wh/m²</strong></span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-6 gap-1.5 font-mono text-center">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 font-mono text-center">
           {powerForecast.forecast30Sols.map((step) => {
             const isDeficit = step.generationKwh < powerForecast.baseLoadKwhSol;
             return (
               <div
                 key={step.solOffset}
-                className={`p-1.5 rounded-lg border text-[10px] ${
+                className={`p-2 rounded-lg border text-center transition-all min-w-0 overflow-hidden ${
                   isDeficit
                     ? 'border-rose-500/40 bg-rose-500/10'
                     : 'border-white/5 bg-white/[0.03]'
                 }`}
+                title={`Sol +${step.solOffset} (Sol ${step.sol}): ${step.generationKwh} kWh/sol (${step.marginKwh >= 0 ? '+' : ''}${step.marginKwh} kWh margin)`}
               >
-                <div className="text-zinc-400">+{step.solOffset}s</div>
-                <div className="font-bold text-white mt-0.5">{step.generationKwh}k</div>
-                <div className={`text-[9px] mt-0.5 ${isDeficit ? 'text-rose-400 font-semibold' : 'text-zinc-500'}`}>
-                  {(step.dustFactor * 100).toFixed(0)}%
+                <div className="text-[10px] text-zinc-400 font-sans truncate">+{step.solOffset} Sols</div>
+                <div className="font-bold text-white mt-0.5 text-xs truncate">
+                  {Math.round(step.generationKwh)}
+                  <span className="text-[9px] font-normal text-zinc-400 ml-0.5">kWh</span>
+                </div>
+                <div className={`text-[9px] mt-0.5 font-mono truncate ${isDeficit ? 'text-rose-400 font-semibold' : 'text-zinc-500'}`}>
+                  {(step.dustFactor * 100).toFixed(0)}% <span className="text-[8px] text-zinc-600 font-sans">Df</span>
                 </div>
               </div>
             );

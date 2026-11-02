@@ -161,7 +161,21 @@ def train_quake_models():
     pgv_model.fit(X_train_phys, Y_pgv_train)
     pgv_pred = pgv_model.predict(X_test_phys)
     pgv_r2 = r2_score(Y_pgv_test, pgv_pred)
-    print(f"[PGV Model] R² = {pgv_r2:.4f}, MAE = {mean_absolute_error(Y_pgv_test, pgv_pred):.4f} ln-units")
+    pgv_mae = mean_absolute_error(Y_pgv_test, pgv_pred)
+    pgv_rmse = math.sqrt(mean_squared_error(Y_pgv_test, pgv_pred))
+    print(f"[PGV Model] R² = {pgv_r2:.4f}, MAE = {pgv_mae:.4f} ln-units, RMSE = {pgv_rmse:.4f}")
+
+    # Aerospace Uncertainty Quantification (90% Confidence Interval Multipliers)
+    pga_ci90_multiplier = math.exp(1.645 * pga_rmse)
+    pgv_ci90_multiplier = math.exp(1.645 * pgv_rmse)
+    uncertainty = {
+        'rmse_ln_pga': round(float(pga_rmse), 4),
+        'ci90_factor_pga': round(float(pga_ci90_multiplier), 3),
+        'ci90_pga_lower_ratio': round(float(1.0 / pga_ci90_multiplier), 3),
+        'ci90_pga_upper_ratio': round(float(pga_ci90_multiplier), 3),
+        'rmse_ln_pgv': round(float(pgv_rmse), 4),
+        'ci90_factor_pgv': round(float(pgv_ci90_multiplier), 3),
+    }
     
     # 3. Hypocentral Inversion Coefficients
     # InSight travel-time inversion: Δ (deg) = f(Δt_S-P)
@@ -258,6 +272,7 @@ def train_quake_models():
             'km_per_degree': round(KM_PER_DEGREE, 3),
         },
         'travel_time_inversion': travel_time_inv,
+        'uncertainty_ci90': uncertainty,
         'attenuation_pga': {
             'intercept': round(float(pga_model.intercept_), 5),
             'coefficients': {

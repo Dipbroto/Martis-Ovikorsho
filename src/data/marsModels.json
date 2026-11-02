@@ -109,7 +109,8 @@
               1.28799,
               0.15029,
               0.04808
-            ]
+            ],
+            "uncertainty_ci90": 7.04
           },
           "t_min": {
             "intercept": -74.58167,
@@ -135,7 +136,8 @@
               0.09557,
               0.8751,
               -0.26887
-            ]
+            ],
+            "uncertainty_ci90": 9.06
           },
           "pressure": {
             "intercept": 823.11588,
@@ -161,7 +163,8 @@
               0.06848,
               0.08972,
               14.19859
-            ]
+            ],
+            "uncertainty_ci90": 4.11
           },
           "gts_max": {
             "intercept": 2.61988,
@@ -187,7 +190,8 @@
               0.30194,
               -0.2071,
               -0.1835
-            ]
+            ],
+            "uncertainty_ci90": 6.32
           },
           "gts_min": {
             "intercept": -80.72927,
@@ -213,7 +217,8 @@
               -0.11838,
               0.53117,
               0.60225
-            ]
+            ],
+            "uncertainty_ci90": 9.22
           }
         },
         "dust_classifier": {
@@ -269,7 +274,8 @@
               1.3284,
               0.05438,
               0.05188
-            ]
+            ],
+            "uncertainty_ci90": 7.1
           },
           "t_min": {
             "intercept": -74.58117,
@@ -295,7 +301,8 @@
               0.04581,
               0.87288,
               -0.30177
-            ]
+            ],
+            "uncertainty_ci90": 9.25
           },
           "pressure": {
             "intercept": 823.13437,
@@ -321,7 +328,8 @@
               0.06103,
               0.1117,
               14.21141
-            ]
+            ],
+            "uncertainty_ci90": 4.44
           },
           "gts_max": {
             "intercept": 2.62038,
@@ -347,7 +355,8 @@
               0.41583,
               -0.25608,
               -0.22961
-            ]
+            ],
+            "uncertainty_ci90": 6.48
           },
           "gts_min": {
             "intercept": -80.73152,
@@ -373,7 +382,8 @@
               -0.15409,
               0.47785,
               0.61115
-            ]
+            ],
+            "uncertainty_ci90": 9.18
           }
         },
         "dust_classifier": {
@@ -429,7 +439,8 @@
               1.29013,
               0.04209,
               0.0448
-            ]
+            ],
+            "uncertainty_ci90": 7.17
           },
           "t_min": {
             "intercept": -74.57942,
@@ -455,7 +466,8 @@
               0.06739,
               0.86278,
               -0.29023
-            ]
+            ],
+            "uncertainty_ci90": 9.3
           },
           "pressure": {
             "intercept": 823.15235,
@@ -481,7 +493,8 @@
               0.0666,
               0.09368,
               14.20125
-            ]
+            ],
+            "uncertainty_ci90": 4.58
           },
           "gts_max": {
             "intercept": 2.62088,
@@ -507,7 +520,8 @@
               0.38685,
               -0.24041,
               -0.24323
-            ]
+            ],
+            "uncertainty_ci90": 6.69
           },
           "gts_min": {
             "intercept": -80.73177,
@@ -533,7 +547,8 @@
               -0.1245,
               0.45179,
               0.63595
-            ]
+            ],
+            "uncertainty_ci90": 9.25
           }
         },
         "dust_classifier": {
@@ -602,23 +617,33 @@
       "sol_plus_1": {
         "t_max": {
           "r2_score": 0.8251,
-          "mae": 2.756
+          "mae": 2.756,
+          "rmse": 4.279,
+          "ci90_half_width": 7.04
         },
         "t_min": {
           "r2_score": 0.1895,
-          "mae": 2.324
+          "mae": 2.324,
+          "rmse": 5.506,
+          "ci90_half_width": 9.06
         },
         "pressure": {
           "r2_score": 0.9976,
-          "mae": 1.55
+          "mae": 1.55,
+          "rmse": 2.5,
+          "ci90_half_width": 4.11
         },
         "gts_max": {
           "r2_score": 0.8095,
-          "mae": 2.088
+          "mae": 2.088,
+          "rmse": 3.844,
+          "ci90_half_width": 6.32
         },
         "gts_min": {
           "r2_score": 0.189,
-          "mae": 4.261
+          "mae": 4.261,
+          "rmse": 5.602,
+          "ci90_half_width": 9.22
         },
         "dust_storm": {
           "roc_auc": 0.9972,
@@ -628,23 +653,33 @@
       "sol_plus_2": {
         "t_max": {
           "r2_score": 0.8221,
-          "mae": 2.855
+          "mae": 2.855,
+          "rmse": 4.316,
+          "ci90_half_width": 7.1
         },
         "t_min": {
           "r2_score": 0.1549,
-          "mae": 2.312
+          "mae": 2.312,
+          "rmse": 5.624,
+          "ci90_half_width": 9.25
         },
         "pressure": {
           "r2_score": 0.9972,
-          "mae": 1.675
+          "mae": 1.675,
+          "rmse": 2.701,
+          "ci90_half_width": 4.44
         },
         "gts_max": {
           "r2_score": 0.7998,
-          "mae": 2.35
+          "mae": 2.35,
+          "rmse": 3.938,
+          "ci90_half_width": 6.48
         },
         "gts_min": {
           "r2_score": 0.1956,
-          "mae": 4.294
+          "mae": 4.294,
+          "rmse": 5.578,
+          "ci90_half_width": 9.18
         },
         "dust_storm": {
           "roc_auc": 0.9972,
@@ -654,23 +689,33 @@
       "sol_plus_3": {
         "t_max": {
           "r2_score": 0.8189,
-          "mae": 2.886
+          "mae": 2.886,
+          "rmse": 4.356,
+          "ci90_half_width": 7.17
         },
         "t_min": {
           "r2_score": 0.146,
-          "mae": 2.33
+          "mae": 2.33,
+          "rmse": 5.653,
+          "ci90_half_width": 9.3
         },
         "pressure": {
           "r2_score": 0.997,
-          "mae": 1.705
+          "mae": 1.705,
+          "rmse": 2.783,
+          "ci90_half_width": 4.58
         },
         "gts_max": {
           "r2_score": 0.7863,
-          "mae": 2.417
+          "mae": 2.417,
+          "rmse": 4.067,
+          "ci90_half_width": 6.69
         },
         "gts_min": {
           "r2_score": 0.1832,
-          "mae": 4.296
+          "mae": 4.296,
+          "rmse": 5.62,
+          "ci90_half_width": 9.25
         },
         "dust_storm": {
           "roc_auc": 0.9561,
@@ -1068,7 +1113,18 @@
     }
   },
   "libs_chemometrics": {
-    "version": "1.0.0",
+    "version": "2.0.0",
+    "uncertainties_ci90": {
+      "SiO2": 8.06,
+      "FeO-T": 9.11,
+      "MgO": 4.1,
+      "Al2O3": 2.61,
+      "CaO": 3.39,
+      "Na2O": 1.22,
+      "K2O": 0.41,
+      "TiO2": 0.7,
+      "SO3": 6.39
+    },
     "algorithm": "SuperCam LIBS Chemometrics (Ridge Regressor)",
     "trained_at": "2026-11-03",
     "feature_names": [
@@ -1188,7 +1244,9 @@
           0.58527
         ],
         "r2_score": 0.5896,
-        "mae_wt_pct": 3.588
+        "mae_wt_pct": 3.588,
+        "rmse_wt_pct": 4.9,
+        "ci90_wt_pct": 8.06
       },
       "FeO-T": {
         "intercept": 22.9105,
@@ -1218,7 +1276,9 @@
           0.93316
         ],
         "r2_score": 0.5941,
-        "mae_wt_pct": 4.113
+        "mae_wt_pct": 4.113,
+        "rmse_wt_pct": 5.541,
+        "ci90_wt_pct": 9.11
       },
       "MgO": {
         "intercept": 10.42454,
@@ -1248,7 +1308,9 @@
           0.08938
         ],
         "r2_score": 0.8726,
-        "mae_wt_pct": 1.77
+        "mae_wt_pct": 1.77,
+        "rmse_wt_pct": 2.493,
+        "ci90_wt_pct": 4.1
       },
       "Al2O3": {
         "intercept": 5.61821,
@@ -1278,7 +1340,9 @@
           -0.13991
         ],
         "r2_score": 0.8813,
-        "mae_wt_pct": 1.201
+        "mae_wt_pct": 1.201,
+        "rmse_wt_pct": 1.584,
+        "ci90_wt_pct": 2.61
       },
       "CaO": {
         "intercept": 5.00746,
@@ -1308,7 +1372,9 @@
           -0.12401
         ],
         "r2_score": 0.7481,
-        "mae_wt_pct": 1.479
+        "mae_wt_pct": 1.479,
+        "rmse_wt_pct": 2.06,
+        "ci90_wt_pct": 3.39
       },
       "Na2O": {
         "intercept": 2.80553,
@@ -1338,7 +1404,9 @@
           0.10073
         ],
         "r2_score": 0.6736,
-        "mae_wt_pct": 0.542
+        "mae_wt_pct": 0.542,
+        "rmse_wt_pct": 0.744,
+        "ci90_wt_pct": 1.22
       },
       "K2O": {
         "intercept": 0.73585,
@@ -1368,7 +1436,9 @@
           0.07834
         ],
         "r2_score": 0.773,
-        "mae_wt_pct": 0.19
+        "mae_wt_pct": 0.19,
+        "rmse_wt_pct": 0.25,
+        "ci90_wt_pct": 0.41
       },
       "TiO2": {
         "intercept": 0.65686,
@@ -1398,7 +1468,9 @@
           -0.16823
         ],
         "r2_score": 0.5681,
-        "mae_wt_pct": 0.236
+        "mae_wt_pct": 0.236,
+        "rmse_wt_pct": 0.425,
+        "ci90_wt_pct": 0.7
       },
       "SO3": {
         "intercept": 5.09143,
@@ -1428,7 +1500,9 @@
           -2.95516
         ],
         "r2_score": 0.7663,
-        "mae_wt_pct": 2.95
+        "mae_wt_pct": 2.95,
+        "rmse_wt_pct": 3.882,
+        "ci90_wt_pct": 6.39
       }
     },
     "diagnostic_lines": {
@@ -1504,6 +1578,14 @@
       "crust_v_s_km_s": 2.4,
       "mantle_v_p_km_s": 7.8,
       "mantle_v_s_km_s": 4.4
+    },
+    "uncertainty_ci90": {
+      "rmse_ln_pga": 0.2342,
+      "ci90_factor_pga": 1.47,
+      "ci90_pga_lower_ratio": 0.68,
+      "ci90_pga_upper_ratio": 1.47,
+      "rmse_ln_pgv": 0.2382,
+      "ci90_factor_pgv": 1.48
     },
     "attenuation_pga": {
       "intercept": -3.5957,
@@ -1652,41 +1734,52 @@
     ]
   },
   "solar_dust_degradation": {
-    "version": "1.0.0",
+    "version": "2.0.0",
     "generated_at": "2026-11-03",
     "metadata": {
       "dataset": "MER-B Opportunity (5000 Sols) + InSight PDS Solar Telemetry",
-      "r2_insolation": 0.7905,
-      "r2_dust_rate": 0.9935,
+      "r2_insolation": 1.0,
+      "r2_dust_rate": 0.9949,
       "solar_constant_1au": 1361.0,
       "mars_semi_major_au": 1.52368,
       "mars_eccentricity": 0.0934
     },
     "insolation_model": {
-      "intercept": -2466.891,
+      "intercept": -0.0,
       "coefficients": {
-        "ls": -0.048,
-        "sin_ls": -303.135,
-        "cos_ls": -100.388,
-        "tau": 443.189,
-        "ln_tau": -1305.665,
-        "lat": -2.6,
-        "wind": -6.739,
-        "day_hours": 297.991
+        "ls": -0.0,
+        "sin_ls": -0.0,
+        "cos_ls": -0.0,
+        "tau": -0.0,
+        "ln_tau": 0.0,
+        "lat": -0.0,
+        "wind": 0.0,
+        "day_hours": 0.0,
+        "cos_zenith": 0.0,
+        "transmittance": 0.0,
+        "exp_neg_tau": 0.0,
+        "phys_insolation": 1.0
       }
     },
     "dust_rate_model": {
-      "intercept": -0.000722,
+      "intercept": -0.000422,
       "coefficients": {
         "ls": -1e-07,
-        "sin_ls": -2e-06,
-        "cos_ls": -7e-06,
-        "tau": -0.00181,
-        "ln_tau": -0.000855,
-        "lat": 0.0,
-        "wind": -0.000183,
-        "day_hours": -3e-06
+        "sin_ls": 0.000104,
+        "cos_ls": 3.1e-05,
+        "tau": -0.001892,
+        "ln_tau": -0.000152,
+        "lat": 1e-06,
+        "wind": -0.000186,
+        "day_hours": -4.8e-05
       }
+    },
+    "uncertainty_ci90": {
+      "insolation_rmse_wh_m2": 0.0,
+      "insolation_ci90_half_width": 0.0,
+      "dust_rate_rmse_per_sol": 0.000261,
+      "dust_rate_ci90_half_width": 0.000429,
+      "dust_factor_ci90_30sols": 0.0129
     },
     "cleaning_vortex": {
       "spring": 0.04,

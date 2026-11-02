@@ -25,7 +25,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import Ridge, ElasticNet
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import r2_score, mean_absolute_error
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT_PUBLIC = os.path.join(ROOT_DIR, "public", "data", "ml", "mars_libs_model.json")
@@ -242,15 +242,19 @@ def train_and_export():
 
         r2 = r2_score(y_te, preds)
         mae = mean_absolute_error(y_te, preds)
+        rmse = np.sqrt(mean_squared_error(y_te, preds))
+        ci90 = 1.645 * rmse
 
         oxide_models[ox] = {
             "intercept": round(float(reg.intercept_), 5),
             "coefficients": [round(float(c), 5) for c in reg.coef_],
             "r2_score": round(float(r2), 4),
-            "mae_wt_pct": round(float(mae), 3)
+            "mae_wt_pct": round(float(mae), 3),
+            "rmse_wt_pct": round(float(rmse), 3),
+            "ci90_wt_pct": round(float(ci90), 2),
         }
-        evaluation_metrics[ox] = {"r2": r2, "mae": mae}
-        print(f"  Target [{ox:<6}]: R² = {r2:.4f} | MAE = {mae:.2f} wt%")
+        evaluation_metrics[ox] = {"r2": r2, "mae": mae, "rmse": rmse, "ci90": ci90}
+        print(f"  Target [{ox:<6}]: R² = {r2:.4f} | MAE = {mae:.2f} wt% (±{ci90:.1f}%)")
 
     # Benchmark test on known targets:
     print("\n--- Mission Ground-Truth Verification ---")
@@ -270,8 +274,10 @@ def train_and_export():
     print(f"    Expected:  SiO2 ~39%, FeO ~19%, Al2O3 ~7%, MgO ~3%, CaO ~7%")
 
     # Assemble Model Export Object
+    uncertainties = {ox: oxide_models[ox]["ci90_wt_pct"] for ox in OXIDE_TARGETS}
     model_export = {
-        "version": "1.0.0",
+        "version": "2.0.0",
+        "uncertainties_ci90": uncertainties,
         "algorithm": "SuperCam LIBS Chemometrics (Ridge Regressor)",
         "trained_at": "2026-11-03",
         "feature_names": FEATURE_NAMES,

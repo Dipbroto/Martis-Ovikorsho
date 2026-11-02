@@ -22,6 +22,14 @@
     "mantle_v_p_km_s": 7.8,
     "mantle_v_s_km_s": 4.4
   },
+  "uncertainty_ci90": {
+    "rmse_ln_pga": 0.2342,
+    "ci90_factor_pga": 1.47,
+    "ci90_pga_lower_ratio": 0.68,
+    "ci90_pga_upper_ratio": 1.47,
+    "rmse_ln_pgv": 0.2382,
+    "ci90_factor_pgv": 1.48
+  },
   "attenuation_pga": {
     "intercept": -3.5957,
     "coefficients": {

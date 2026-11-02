@@ -620,9 +620,10 @@ describe('marsMlService (Client ML Inference)', () => {
       const { getSolarDustModel } = await import('./marsMlService');
       const model = getSolarDustModel();
       expect(model).toBeDefined();
-      expect(model.version).toBe('1.0.0');
+      expect(model.version).toMatch(/^[12]\.0\.0$/);
       expect(model.insolation_model).toBeDefined();
       expect(model.dust_rate_model).toBeDefined();
+      expect(model.uncertainty_ci90).toBeDefined();
       expect(model.cleaning_vortex.autumn).toBeGreaterThan(0.2);
     });
 
@@ -649,6 +650,10 @@ describe('marsMlService (Client ML Inference)', () => {
       expect(res.actualDailyKwh).toBeGreaterThan(12.5);
       expect(res.status).toBe('NOMINAL');
       expect(res.forecast30Sols).toHaveLength(6);
+      expect(res.uncertaintyCi90).toBeDefined();
+      expect(res.actualDailyKwhRange).toHaveLength(2);
+      expect(res.actualDailyKwhRange[0]).toBeLessThanOrEqual(res.actualDailyKwh);
+      expect(res.actualDailyKwhRange[1]).toBeGreaterThanOrEqual(res.actualDailyKwh);
     });
 
     it('triggers critical starvation advisory when dust factor drops near InSight end-of-life levels', async () => {
