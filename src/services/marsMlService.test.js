@@ -486,4 +486,55 @@ describe('marsMlService (Client ML Inference)', () => {
     });
   });
 
+  describe('Model 2: SuperCam Quantitative LIBS Chemometrics Regressor', () => {
+    it('loads active LIBS model with all 9 major oxide targets', async () => {
+      const { getLibsModel } = await import('./marsMlService');
+      const model = getLibsModel();
+      expect(model.version).toBeDefined();
+      expect(model.oxide_targets).toHaveLength(9);
+      expect(model.feature_names).toHaveLength(23);
+      expect(model.oxide_models.SiO2).toBeDefined();
+      expect(model.oxide_models['FeO-T']).toBeDefined();
+    });
+
+    it('regresses quantitative oxide abundances from atomic emission lines', async () => {
+      const { predictLibsChemometrics } = await import('./marsMlService');
+      // Basaltic rock emission spectrum (Guillaumes)
+      const lines = [
+        { el: 'Ca', nm: 393.49, h: 100.0 },
+        { el: 'Mg', nm: 279.64, h: 69.6 },
+        { el: 'Al', nm: 394.40, h: 56.9 },
+        { el: 'Si', nm: 288.16, h: 54.0 },
+        { el: 'Fe', nm: 274.93, h: 29.1 },
+      ];
+
+      const res = predictLibsChemometrics(lines);
+
+      expect(res.oxides.SiO2).toBeGreaterThan(30);
+      expect(res.oxides['FeO-T']).toBeGreaterThan(5);
+      expect(res.oxides.Al2O3).toBeGreaterThan(3);
+      expect(res.totalWtPercent).toBeGreaterThan(70);
+      expect(res.cia).toBeGreaterThan(20);
+      expect(res.provenance).toBe('ML_PREDICTION');
+      expect(res.mineralClassification).toBeDefined();
+    });
+
+    it('predicts distinct olivine signature with high MgO and low Al2O3', async () => {
+      const { predictLibsChemometrics } = await import('./marsMlService');
+      // Olivine cumulate spectrum (Dourbes): strong Mg, weak Al
+      const lines = [
+        { el: 'Mg', nm: 279.55, h: 100.0 },
+        { el: 'Fe', nm: 274.93, h: 25.0 },
+        { el: 'Si', nm: 288.16, h: 20.0 },
+        { el: 'Ca', nm: 393.37, h: 5.0 },
+        { el: 'Al', nm: 394.40, h: 1.0 },
+      ];
+
+      const res = predictLibsChemometrics(lines);
+
+      expect(res.oxides.MgO).toBeGreaterThan(res.oxides.Al2O3);
+      expect(res.maficRatio).toBeGreaterThan(0.5);
+    });
+  });
+
 });

@@ -10,6 +10,7 @@ import defaultWeatherModel from '../data/marsWeatherModel.json';
 import defaultMineralModel from '../data/marsMineralModel.json';
 import defaultRadiationModel from '../data/marsRadiationModel.json';
 import defaultTerramechanicsModel from '../data/marsTerramechanicsModel.json';
+import defaultLibsModel from '../data/marsLibsModel.json';
 import { marsDistance } from '../utils/marsUtils';
 
 // In-memory model cache
@@ -17,6 +18,17 @@ let activeModel = defaultWeatherModel;
 let activeMineralModel = defaultMineralModel;
 let activeRadiationModel = defaultRadiationModel;
 let activeTerramechanicsModel = defaultTerramechanicsModel;
+let activeLibsModel = defaultLibsModel;
+
+export function getLibsModel() {
+  return activeLibsModel;
+}
+
+export function setLibsModel(model) {
+  if (model && model.oxide_models && model.scaler) {
+    activeLibsModel = model;
+  }
+}
 
 export function getTerramechanicsModel() {
   return activeTerramechanicsModel;
@@ -957,7 +969,120 @@ export function predictTraverseTerramechanics(waypoints = [], options = {}) {
   };
 }
 
+
+/**
+ * Model 2: SuperCam Quantitative LIBS Chemometrics Regressor
+ * 
+ * Maps 2048-channel laser spark plasma emission lines and atomic transition heights
+ * directly to quantitative elemental weight percentages (wt% SiO2, FeO, Al2O3, MgO, CaO, Na2O, K2O, TiO2, SO3).
+ * Trained on empirical SuperCam spectra and co-located NASA PIXL micro-XRF ground truth.
+ */
+export function extractLibsSpectralFeatures(lines = []) {
+  const lineArray = Array.isArray(lines) ? lines : [];
+  const byEl = {};
+  let sumH = 0.0;
+  for (const l of lineArray) {
+    const el = l?.el;
+    const h = Number(l?.h) || 0.0;
+    if (el) {
+      byEl[el] = Math.max(byEl[el] || 0.0, h);
+      sumH += h;
+    }
+  }
+  sumH = Math.max(1.0, sumH);
+
+  const hSi = byEl.Si || 0.0;
+  const hFe = byEl.Fe || 0.0;
+  const hMg = byEl.Mg || 0.0;
+  const hAl = byEl.Al || 0.0;
+  const hCa = byEl.Ca || 0.0;
+  const hTi = byEl.Ti || 0.0;
+  const hNa = byEl.Na || 0.0;
+  const hK  = byEl.K  || 0.0;
+  const hS  = byEl.S  || 0.0;
+
+  const rSi = hSi / sumH;
+  const rFe = hFe / sumH;
+  const rMg = hMg / sumH;
+  const rAl = hAl / sumH;
+  const rCa = hCa / sumH;
+  const rTi = hTi / sumH;
+  const rNa = hNa / sumH;
+  const rK  = hK  / sumH;
+  const rS  = hS  / sumH;
+
+  const mgFeRatio = hMg / (hFe + 1e-2);
+  const alSiRatio = hAl / (hSi + 1e-2);
+  const caMgRatio = hCa / (hMg + 1e-2);
+  const maficIndex = (hMg + hFe) / (hSi + 1e-2);
+  const felsicIndex = (hAl + hCa) / (hSi + 1e-2);
+
+  return [
+    hSi, hFe, hMg, hAl, hCa, hTi, hNa, hK, hS,
+    rSi, rFe, rMg, rAl, rCa, rTi, rNa, rK, rS,
+    mgFeRatio, alSiRatio, caMgRatio, maficIndex, felsicIndex,
+  ];
+}
+
+export function predictLibsChemometrics(pointOrLines) {
+  const model = getLibsModel();
+  const lines = Array.isArray(pointOrLines)
+    ? pointOrLines
+    : Array.isArray(pointOrLines?.lines)
+      ? pointOrLines.lines
+      : [];
+
+  const rawFeatures = extractLibsSpectralFeatures(lines);
+  const scaled = rawFeatures.map((val, idx) => {
+    const mean = model.scaler.mean[idx];
+    const scale = model.scaler.scale[idx] || 1;
+    return (val - mean) / scale;
+  });
+
+  const predictedOxides = {};
+  let totalWt = 0;
+
+  for (const ox of model.oxide_targets) {
+    const oxModel = model.oxide_models[ox];
+    const val = scaled.reduce((acc, feat, idx) => acc + feat * oxModel.coefficients[idx], oxModel.intercept);
+    const clamped = +Math.max(0.1, val).toFixed(2);
+    predictedOxides[ox] = clamped;
+    totalWt += clamped;
+  }
+
+  // Derived geochemical indices
+  const al2o3 = predictedOxides.Al2O3 || 0;
+  const cao = predictedOxides.CaO || 0;
+  const na2o = predictedOxides.Na2O || 0;
+  const k2o = predictedOxides.K2O || 0;
+  const cia = +((al2o3 / Math.max(0.1, al2o3 + cao + na2o + k2o)) * 100).toFixed(1);
+
+  const sio2 = predictedOxides.SiO2 || 0;
+  const feo = predictedOxides['FeO-T'] || 0;
+  const mgo = predictedOxides.MgO || 0;
+  const maficRatio = +(sio2 > 0 ? (feo + mgo) / sio2 : 0).toFixed(2);
+
+  const silicaClass = sio2 < 38 ? 'Ultramafic' : sio2 <= 52 ? 'Sub-alkaline Basaltic' : 'Intermediate/Felsic';
+
+  // Run mineral classification directly from the laser-inferred oxides
+  const mineralClassification = classifyRockMineralogy(predictedOxides);
+
+  return {
+    oxides: predictedOxides,
+    totalWtPercent: +totalWt.toFixed(1),
+    cia,
+    maficRatio,
+    silicaClass,
+    mineralClassification,
+    provenance: 'ML_PREDICTION',
+  };
+}
+
 export default {
+  getLibsModel,
+  setLibsModel,
+  extractLibsSpectralFeatures,
+  predictLibsChemometrics,
   getTerramechanicsModel,
   setTerramechanicsModel,
   predictRoverTerramechanics,

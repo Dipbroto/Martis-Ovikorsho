@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Sparkles, Dna, ShieldCheck, AlertCircle, Compass, Layers, CheckCircle2 } from 'lucide-react';
-import { classifyRockMineralogy } from '../../services/marsMlService';
+import { classifyRockMineralogy, predictLibsChemometrics } from '../../services/marsMlService';
 import ProvenanceBadge from '../ProvenanceBadge';
 
 /**
@@ -11,17 +11,28 @@ import ProvenanceBadge from '../ProvenanceBadge';
  * and score astrobiological organic preservation potential.
  */
 export default function MineralMlClassifier({ target, data, className = '' }) {
-  // Use either detailed empirical PIXL raster stats or target medians
+  const [instrumentSource, setInstrumentSource] = React.useState('pixl'); // 'pixl' | 'libs'
+
+  const libsChemometrics = useMemo(() => {
+    const point = data?.libs?.points?.[0];
+    if (!point) return null;
+    return predictLibsChemometrics(point);
+  }, [data]);
+
+  // Use either detailed empirical PIXL raster stats or SuperCam LIBS ML inversion
   const mlResult = useMemo(() => {
     if (!target) return null;
     try {
+      if (instrumentSource === 'libs' && libsChemometrics?.oxides) {
+        return classifyRockMineralogy(libsChemometrics.oxides);
+      }
       const stats = data?.pixl?.stats || target.pixlMedian;
       return classifyRockMineralogy(stats);
     } catch (err) {
       console.error('Failed to run mineral ML classifier:', err);
       return null;
     }
-  }, [target, data]);
+  }, [target, data, instrumentSource, libsChemometrics]);
 
   if (!mlResult) return null;
 
@@ -65,13 +76,29 @@ export default function MineralMlClassifier({ target, data, className = '' }) {
               <ProvenanceBadge type="ML_PREDICTION" label="NASA PIXL In-Situ ML" />
             </div>
             <p className="text-xs text-zinc-400">
-              Multinomial Softmax inference trained on 14,000+ empirical NASA PIXL micro-XRF measurement points
+              {instrumentSource === 'libs'
+                ? 'Derived directly from SuperCam LIBS 2048-channel laser spark spectrum via PLSR chemometrics inversion'
+                : 'Multinomial Softmax inference trained on 14,000+ empirical NASA PIXL micro-XRF measurement points'}
             </p>
           </div>
         </div>
 
-        {/* Confidence Badge */}
-        <div className="flex items-center gap-2">
+        {/* Source Toggle & Confidence Badge */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center rounded-lg bg-black/40 border border-white/10 p-0.5 text-xs font-mono">
+            <button
+              onClick={() => setInstrumentSource('pixl')}
+              className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${instrumentSource === 'pixl' ? 'bg-violet-600 text-white font-semibold shadow-sm' : 'text-zinc-400 hover:text-white'}`}
+            >
+              PIXL X-Ray
+            </button>
+            <button
+              onClick={() => setInstrumentSource('libs')}
+              className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${instrumentSource === 'libs' ? 'bg-violet-600 text-white font-semibold shadow-sm' : 'text-zinc-400 hover:text-white'}`}
+            >
+              SuperCam LIBS [ML]
+            </button>
+          </div>
           <span className="px-3 py-1 rounded-full text-xs font-semibold bg-violet-500/20 text-violet-200 border border-violet-400/30 tabular-nums">
             {confidencePercent}% ML Confidence
           </span>

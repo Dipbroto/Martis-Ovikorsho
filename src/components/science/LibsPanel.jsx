@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
-import { Activity, Target, Zap, Info, Loader2, Trash2 } from 'lucide-react';
+import { Activity, Target, Zap, Info, Loader2, Trash2, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { playUiHover } from '../../utils/audioSynthesizer';
 import { libsElements, imageUrl, ELEMENT_COLORS } from '../../data/scienceLab';
 import { coverageGaps, elementMarkers, runningMean, segmentsFromGaps, splitSegments, topMarkers } from '../../utils/libsSpectrum';
 import Panel, { Provenance } from './Panel';
+import ProvenanceBadge from '../ProvenanceBadge';
+import { predictLibsChemometrics } from '../../services/marsMlService';
 import SpectrumChart from './SpectrumChart';
 
 const DUST_SHOTS = 5;
@@ -39,6 +41,11 @@ export default function LibsPanel({ target, data, lab }) {
     if (focus) return elementMarkers(point, focus.el, ELEMENT_COLORS[focus.el] || '#fff');
     return topMarkers(point, 7, ELEMENT_COLORS);
   }, [point, focus]);
+
+  const chemometrics = useMemo(() => {
+    if (!point) return null;
+    return predictLibsChemometrics(point);
+  }, [point]);
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
@@ -145,6 +152,61 @@ export default function LibsPanel({ target, data, lab }) {
             <span>Real measurement. Each peak is named by the nearest known atomic emission line (NIST). The bar shows peak height compared with this spectrum's strongest peak. It is not an amount: elements glow with different strength, which is why PIXL measures the amounts. Hatched bands are wavelengths SuperCam cannot see.</span>
           </p>
         </div>
+        {/* SuperCam In-Situ Chemometrics (wt% Quantification) Deck */}
+        {chemometrics && (
+          <div className="mt-5 rounded-xl border border-violet-500/30 bg-violet-950/20 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-violet-500/20 text-violet-300 border border-violet-500/40">
+                  <Sparkles size={14} className="animate-pulse" />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      SuperCam In-Situ Chemometrics Regressor
+                    </span>
+                    <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="LANL/IRAP PLSR Model" />
+                  </div>
+                  <span className="text-[10px] text-zinc-400">
+                    Quantitative elemental oxide inversion from {point.lines?.length || 0} NIST atomic emission lines
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-zinc-300">
+                  Total Oxides: <strong className="text-white">{chemometrics.totalWtPercent}%</strong>
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-violet-900/40 border border-violet-700/60 text-violet-200">
+                  CIA: <strong>{chemometrics.cia}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Major Oxides wt% Table / Grid */}
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-1.5 font-mono text-center">
+              {Object.entries(chemometrics.oxides).map(([ox, val]) => (
+                <div key={ox} className="bg-black/40 border border-white/5 rounded-lg p-1.5">
+                  <div className="text-[9px] text-zinc-400 font-sans">{ox}</div>
+                  <div className="text-xs font-bold text-white mt-0.5">{val}<span className="text-[9px] font-normal text-zinc-500">%</span></div>
+                </div>
+              ))}
+            </div>
+
+            {/* Inferred Lithology Banner */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-zinc-300">
+              <div className="flex items-center gap-1.5">
+                <span className="text-zinc-400">Laser Inferred Lithology:</span>
+                <span className="font-bold text-emerald-300">{chemometrics.mineralClassification.predictedClass}</span>
+                <span className="text-zinc-500">({chemometrics.silicaClass})</span>
+              </div>
+              <div className="text-[10px] text-zinc-400">
+                Preservation Score: <strong className="text-amber-300">{chemometrics.mineralClassification.biosignatureScore}%</strong>
+              </div>
+            </div>
+          </div>
+        )}
+
         <Provenance>SuperCam LIBS, Mars 2020 · sol {libs.sol} · {point.product} (calibrated spectra) · NASA PDS Geosciences Node</Provenance>
       </Panel>
     </div>
