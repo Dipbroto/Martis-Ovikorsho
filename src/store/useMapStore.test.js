@@ -145,4 +145,37 @@ describe('sample tube management in science lab', () => {
     store().clearSamples();
     expect(store().collectedSamples).toEqual([]);
   });
+
+  it('manages ISRU plasma materials inventory synthesis and consumption', () => {
+    store().resetIsruInventory();
+    expect(store().isruInventory.tiFeAlloyKg).toBe(0);
+    expect(store().isruInventory.quartzGlassUnits).toBe(0);
+
+    // Synthesize Ti-Fe Alloy
+    store().synthesizeMaterial('TI_FE_AEROSPACE_ALLOY', 1);
+    expect(store().isruInventory.tiFeAlloyKg).toBe(12.5);
+
+    // Synthesize Quartz Glass
+    store().synthesizeMaterial('PHOTOVOLTAIC_QUARTZ_GLASS', 2);
+    expect(store().isruInventory.quartzGlassUnits).toBe(2);
+
+    // Synthesize Methalox Fuel
+    store().synthesizeMaterial('CRYOGENIC_METHALOX_PROPELLANT', 1);
+    expect(store().isruInventory.methaloxFuelKg).toBe(25.0);
+
+    // Synthesize Deuterium Pellets
+    store().synthesizeMaterial('DEUTERIUM_FUSION_FUEL', 1);
+    expect(store().isruInventory.deuteriumPellets).toBe(2);
+
+    // Consume materials
+    store().consumeMaterial('quartzGlassUnits', 1);
+    expect(store().isruInventory.quartzGlassUnits).toBe(1);
+
+    store().consumeMaterial('tiFeAlloyKg', 5.0);
+    expect(store().isruInventory.tiFeAlloyKg).toBe(7.5);
+
+    // Cannot consume below zero
+    store().consumeMaterial('tiFeAlloyKg', 50.0);
+    expect(store().isruInventory.tiFeAlloyKg).toBe(0);
+  });
 });

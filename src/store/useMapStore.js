@@ -541,6 +541,45 @@ const useMapStore = create((set, get) => ({
   })),
   clearSamples: () => set({ collectedSamples: [] }),
 
+  // ISRU Plasma Materials Forge Inventory
+  isruInventory: {
+    tiFeAlloyKg: 0,
+    quartzGlassUnits: 0,
+    methaloxFuelKg: 0,
+    deuteriumPellets: 0,
+  },
+  synthesizeMaterial: (recipeId, multiplier = 1) => set((state) => {
+    const inv = state.isruInventory || { tiFeAlloyKg: 0, quartzGlassUnits: 0, methaloxFuelKg: 0, deuteriumPellets: 0 };
+    const next = { ...inv };
+    if (recipeId === 'TI_FE_AEROSPACE_ALLOY') {
+      next.tiFeAlloyKg = +(next.tiFeAlloyKg + multiplier * 12.5).toFixed(1);
+    } else if (recipeId === 'PHOTOVOLTAIC_QUARTZ_GLASS') {
+      next.quartzGlassUnits += multiplier * 1;
+    } else if (recipeId === 'CRYOGENIC_METHALOX_PROPELLANT') {
+      next.methaloxFuelKg = +(next.methaloxFuelKg + multiplier * 25.0).toFixed(1);
+    } else if (recipeId === 'DEUTERIUM_FUSION_FUEL') {
+      next.deuteriumPellets += multiplier * 2;
+    }
+    return { isruInventory: next };
+  }),
+  consumeMaterial: (materialKey, amount = 1) => set((state) => {
+    const inv = state.isruInventory || { tiFeAlloyKg: 0, quartzGlassUnits: 0, methaloxFuelKg: 0, deuteriumPellets: 0 };
+    const next = { ...inv };
+    if (materialKey === 'tiFeAlloyKg') {
+      next.tiFeAlloyKg = Math.max(0, +(next.tiFeAlloyKg - amount).toFixed(1));
+    } else if (materialKey === 'quartzGlassUnits') {
+      next.quartzGlassUnits = Math.max(0, next.quartzGlassUnits - amount);
+    } else if (materialKey === 'methaloxFuelKg') {
+      next.methaloxFuelKg = Math.max(0, +(next.methaloxFuelKg - amount).toFixed(1));
+    } else if (materialKey === 'deuteriumPellets') {
+      next.deuteriumPellets = Math.max(0, next.deuteriumPellets - amount);
+    }
+    return { isruInventory: next };
+  }),
+  resetIsruInventory: () => set({
+    isruInventory: { tiFeAlloyKg: 0, quartzGlassUnits: 0, methaloxFuelKg: 0, deuteriumPellets: 0 }
+  }),
+
   // ========================
   // FLIGHT PLAN & CHECKLIST
   // ========================

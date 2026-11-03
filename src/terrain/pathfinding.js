@@ -148,13 +148,17 @@ function makeWeight(mode, a, options = {}) {
       });
 
       // Sand trap hazard rejection: if critical entrapment or extreme slip, strictly impassable
-      if (terra.hazardLevel === 'CRITICAL_TRAP' || terra.slipRatioPct >= 45.0) {
+      // If Ti-Fe alloy wheels are equipped (tiFeAlloyKg >= 10), grousers yield 25% traction slip discount
+      const tractionDiscount = (options.tiFeAlloyKg >= 10) ? 0.75 : 1.0;
+      const effectiveSlip = terra.slipRatioPct * tractionDiscount;
+
+      if (terra.hazardLevel === 'CRITICAL_TRAP' || effectiveSlip >= 45.0) {
         return Infinity;
       }
 
       // Cost function in battery Joules (Wh * 3600), plus non-linear slip loss penalty
       // High wheel slip wastes energy spinning wheels in loose regolith
-      const slipFactor = 1.0 + 4.0 * Math.pow(terra.slipRatioPct / 100.0, 2);
+      const slipFactor = 1.0 + 4.0 * Math.pow(effectiveSlip / 100.0, 2);
       return terra.energyWh * 3600 * slipFactor;
     }
 
@@ -340,10 +344,12 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
 
       if (isTerra) {
         const terra = roverTerramechanicsLeg(dist, rise, roverOptions);
+        const tractionDiscount = (roverOptions.tiFeAlloyKg >= 10) ? 0.75 : 1.0;
+        const effectiveSlip = +(terra.slipRatioPct * tractionDiscount).toFixed(1);
         totalBatteryWh += terra.energyWh;
         totalDriveTimeS += terra.timeS;
-        slipSum += terra.slipRatioPct;
-        if (terra.slipRatioPct > maxSlip) maxSlip = terra.slipRatioPct;
+        slipSum += effectiveSlip;
+        if (effectiveSlip > maxSlip) maxSlip = effectiveSlip;
         if (terra.hazardLevel === 'CRITICAL_TRAP') trapCount++;
       }
     }
@@ -379,6 +385,7 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
       maxSlipPct: +maxSlip.toFixed(1),
       sandTrapsAvoided: trapCount,
       batterySoCUsedPct,
+      tiFeAlloyReinforced: (roverOptions.tiFeAlloyKg >= 10),
     },
   };
 }

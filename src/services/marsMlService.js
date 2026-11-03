@@ -2658,6 +2658,162 @@ export function evaluateRockNoveltyAndTriage(pixlStatsOrOxides, targetMeta = nul
 }
 
 
+// ============================================================================
+// STEP 3: HIGH-ENERGY PLASMA & ISRU MATERIALS FORGE
+// ============================================================================
+
+/**
+ * 4 NASA-Grounded Chemical & Isotopic Synthesis Recipes
+ * Calibrated against thermochemical carbothermal reduction, high-fluence vitreous sintering,
+ * plasma Sabatier kinetics, and cryogenic D/H isotope enrichment.
+ */
+export const ISRU_RECIPES = {
+  TI_FE_AEROSPACE_ALLOY: {
+    id: 'TI_FE_AEROSPACE_ALLOY',
+    name: 'Titanium-Iron Aerospace Structural Alloy',
+    shortName: 'Ti-Fe Alloy',
+    category: 'METALLURGY',
+    formula: 'FeTiO3 + CO (carbothermal plasma) -> Ti-Fe (alloy) + CO2',
+    temperatureK: 16500,
+    energyKjPerKg: 1850,
+    yieldPerRun: { key: 'tiFeAlloyKg', amount: 12.5, unit: 'kg' },
+    requirements: {
+      minFeo: 17.0,
+      minTio2: 1.0,
+    },
+    description: 'Continuous high-energy laser carbothermal plasma reduction of ilmenite (FeTiO3) and titanomagnetite grains at >16,500 K. Yields lightweight, ultra-high-tensile structural alloy (~950 MPa yield strength) resistant to corrosive perchlorate salts.',
+    survivalBenefit: 'Reinforces rover wheel treads & structural joints, mitigating wheel slip on steep dunes and rocky terrain.',
+    checkEligibility: (oxides) => {
+      const feo = (oxides?.['FeO-T']?.med ?? oxides?.['FeO-T']) || 0;
+      const tio2 = (oxides?.TiO2?.med ?? oxides?.TiO2) || 0;
+      const meetsFeo = feo >= 17.0;
+      const meetsTio2 = tio2 >= 1.0;
+      return {
+        isEligible: meetsFeo && meetsTio2,
+        metrics: [
+          { label: 'FeO-T', value: +feo.toFixed(1), required: 17.0, met: meetsFeo, unit: '%' },
+          { label: 'TiO2', value: +tio2.toFixed(2), required: 1.0, met: meetsTio2, unit: '%' },
+        ],
+      };
+    },
+  },
+
+  PHOTOVOLTAIC_QUARTZ_GLASS: {
+    id: 'PHOTOVOLTAIC_QUARTZ_GLASS',
+    name: 'High-Transmittance Photovoltaic Quartz Glass',
+    shortName: 'Quartz Glass',
+    category: 'VITRIFICATION',
+    formula: 'SiO2 (siliceous sediment) -> Vitreous Fused Silica Cover Slip',
+    temperatureK: 12800,
+    energyKjPerKg: 1420,
+    yieldPerRun: { key: 'quartzGlassUnits', amount: 1, unit: 'unit' },
+    requirements: {
+      minSio2: 45.0,
+    },
+    description: 'High-fluence laser thermal vitrification and fractional vapor-phase purification of silica-rich sand/sediment at >12,800 K. Produces optical-grade fused silica (>93% spectral transmission across 350-1100 nm).',
+    survivalBenefit: 'Replaces dust-abraded photovoltaic protective glass, restoring solar panel Dust Factor (Df -> 1.0) and peak electrical generation.',
+    checkEligibility: (oxides) => {
+      const sio2 = (oxides?.SiO2?.med ?? oxides?.SiO2) || 0;
+      const meetsSio2 = sio2 >= 45.0;
+      return {
+        isEligible: meetsSio2,
+        metrics: [
+          { label: 'SiO2', value: +sio2.toFixed(1), required: 45.0, met: meetsSio2, unit: '%' },
+        ],
+      };
+    },
+  },
+
+  CRYOGENIC_METHALOX_PROPELLANT: {
+    id: 'CRYOGENIC_METHALOX_PROPELLANT',
+    name: 'Cryogenic Methalox Rocket Propellant (CH4 / LOX)',
+    shortName: 'Cryo Propellant',
+    category: 'PROPULSION',
+    formula: 'CO2 (atm) + 4H2 (extracted hydroxyls) -> CH4 + 2O2 (cryogenic)',
+    temperatureK: 14200,
+    energyKjPerKg: 2400,
+    yieldPerRun: { key: 'methaloxFuelKg', amount: 25.0, unit: 'kg' },
+    requirements: {
+      minVolatiles: 4.0,
+    },
+    description: 'Continuous laser plasma Sabatier conversion and high-temperature electrolysis extracting structural hydroxyls (OH-) from clays and sulfate salts, combined with atmospheric CO2. Liquefies stoichiometric CH4 and LOX at 90-111 K.',
+    survivalBenefit: 'Replenishes the Mars Ascent Vehicle (MAV) propellant tanks, meeting critical mass requirements for orbital ascent and long-range return flight plans.',
+    checkEligibility: (oxides) => {
+      const so3 = (oxides?.SO3?.med ?? oxides?.SO3) || 0;
+      const cl = (oxides?.Cl?.med ?? oxides?.Cl) || 0;
+      const al2o3 = (oxides?.Al2O3?.med ?? oxides?.Al2O3) || 0;
+      const meetsVolatiles = so3 >= 4.0 || cl >= 1.0 || al2o3 >= 8.0;
+      return {
+        isEligible: meetsVolatiles,
+        metrics: [
+          { label: 'SO3', value: +so3.toFixed(1), required: 4.0, met: so3 >= 4.0, unit: '%' },
+          { label: 'Cl', value: +cl.toFixed(2), required: 1.0, met: cl >= 1.0, unit: '%' },
+          { label: 'Al2O3', value: +al2o3.toFixed(1), required: 8.0, met: al2o3 >= 8.0, unit: '%' },
+        ],
+      };
+    },
+  },
+
+  DEUTERIUM_FUSION_FUEL: {
+    id: 'DEUTERIUM_FUSION_FUEL',
+    name: 'Deuterium & Helium-3 Fusion Isotope Pellets',
+    shortName: 'Fusion Fuel',
+    category: 'ISOTOPE_ENRICHMENT',
+    formula: 'HDO (Martian clay hydration) -> D2O -> D2 (dense fuel pellets, 2H)',
+    temperatureK: 18900,
+    energyKjPerKg: 4800,
+    yieldPerRun: { key: 'deuteriumPellets', amount: 2, unit: 'pellets' },
+    requirements: {
+      minHydrationOrBpp: 65,
+    },
+    description: 'High-temperature thermal plasma mass fractionation of Martian clay hydration water (naturally 5.5x enriched in Deuterium relative to Earth VSMOW due to preferential 1H atmospheric escape) coupled with implanted regolith 3He. Produces aneutronic fusion fuel pellets.',
+    survivalBenefit: 'Fuels the habitat aneutronic fusion reactor, delivering gigawatt-scale thermal power with zero radioactive neutron damage.',
+    checkEligibility: (oxides, biosignatureScore = 50) => {
+      const so3 = (oxides?.SO3?.med ?? oxides?.SO3) || 0;
+      const al2o3 = (oxides?.Al2O3?.med ?? oxides?.Al2O3) || 0;
+      const hydrationSum = so3 + al2o3;
+      const meetsHydration = hydrationSum >= 12.0 || biosignatureScore >= 65;
+      return {
+        isEligible: meetsHydration,
+        metrics: [
+          { label: 'Volatile Hydration (SO3+Al2O3)', value: +hydrationSum.toFixed(1), required: 12.0, met: hydrationSum >= 12.0, unit: '%' },
+          { label: 'Astrobiology BPP', value: biosignatureScore, required: 65, met: biosignatureScore >= 65, unit: '%' },
+        ],
+      };
+    },
+  },
+};
+
+/**
+ * Validates and simulates the high-energy plasma smelting run for a given rock sample.
+ */
+export function executeIsruSynthesis(recipeId, oxides, biosignatureScore = 50) {
+  const recipe = ISRU_RECIPES[recipeId];
+  if (!recipe) {
+    throw new Error(`Unknown ISRU recipe: ${recipeId}`);
+  }
+
+  const eligibility = recipe.checkEligibility(oxides, biosignatureScore);
+  const totalKj = recipe.energyKjPerKg * (recipe.yieldPerRun.amount || 1);
+
+  return {
+    recipeId,
+    recipeName: recipe.name,
+    category: recipe.category,
+    isEligible: eligibility.isEligible,
+    metrics: eligibility.metrics,
+    temperatureK: recipe.temperatureK,
+    totalEnergyKj: totalKj,
+    yield: recipe.yieldPerRun,
+    byproducts: [
+      { gas: 'O2 (pure oxygen)', amountKg: +(recipe.yieldPerRun.amount * 0.45).toFixed(1) },
+      { gas: 'CO (recycled reductant)', amountKg: +(recipe.yieldPerRun.amount * 0.2).toFixed(1) },
+    ],
+    timestamp: Date.now(),
+  };
+}
+
+
 export default {
   getSolarDustModel,
   setSolarDustModel,
@@ -2707,4 +2863,7 @@ export default {
   chi2Cdf,
   calculateMahalanobisDistance,
   evaluateRockNoveltyAndTriage,
+  // Step 3: High-Energy Plasma & ISRU Forge
+  ISRU_RECIPES,
+  executeIsruSynthesis,
 };

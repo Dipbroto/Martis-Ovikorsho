@@ -568,6 +568,43 @@ class MarsAudioSynthesizer {
     } catch (e) { /* ignore */ }
   }
 
+  playPlasmaForge() {
+    if (!this.ctx) this.init();
+    if (!this.ctx || this.isMuted) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc1 = this.ctx.createOscillator();
+      const gain1 = this.ctx.createGain();
+      osc1.type = 'sawtooth';
+      osc1.frequency.setValueAtTime(60, now);
+      osc1.frequency.exponentialRampToValueAtTime(140, now + 0.35);
+      osc1.frequency.exponentialRampToValueAtTime(80, now + 0.7);
+      gain1.gain.setValueAtTime(0.08, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+      osc1.connect(gain1);
+      gain1.connect(this.masterGain);
+      osc1.start(now);
+      osc1.stop(now + 0.7);
+
+      const osc2 = this.ctx.createOscillator();
+      const gain2 = this.ctx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(2400, now);
+      osc2.frequency.linearRampToValueAtTime(4200, now + 0.2);
+      osc2.frequency.exponentialRampToValueAtTime(800, now + 0.5);
+      gain2.gain.setValueAtTime(0.04, now);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+      osc2.connect(gain2);
+      gain2.connect(this.masterGain);
+      osc2.start(now);
+      osc2.stop(now + 0.5);
+
+      setTimeout(() => {
+        this.playSuccessChime();
+      }, 500);
+    } catch (e) { /* ignore */ }
+  }
+
   getFrequencyData(array) {
     if (this.analyser) {
       this.analyser.getByteFrequencyData(array);
@@ -584,3 +621,4 @@ export const playSuccessChime = () => marsAudio.playSuccessChime();
 export const playLaserZap = () => marsAudio.playLaserZap();
 export const playMarsquakeAudio = () => marsAudio.playMarsquakeAudio();
 export const playSampleSeal = () => marsAudio.playSampleSeal();
+export const playPlasmaForge = () => marsAudio.playPlasmaForge();

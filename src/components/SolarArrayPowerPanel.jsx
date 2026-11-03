@@ -45,10 +45,12 @@ const MISSION_PRESETS = [
 ];
 
 export default function SolarArrayPowerPanel() {
-  const { currentSol, weather } = useMapStore(
+  const { currentSol, weather, isruInventory, consumeMaterial } = useMapStore(
     useShallow((s) => ({
       currentSol: s.currentSol,
       weather: s.weather,
+      isruInventory: s.isruInventory,
+      consumeMaterial: s.consumeMaterial,
     }))
   );
 
@@ -293,6 +295,21 @@ export default function SolarArrayPowerPanel() {
 
       {/* Interactive Controls & Mitigations */}
       <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-white/10">
+        {isruInventory?.quartzGlassUnits > 0 && (
+          <button
+            onClick={() => {
+              const ok = consumeMaterial('quartzGlassUnits', 1);
+              if (ok) {
+                handleElectrostaticClean();
+              }
+            }}
+            className="w-full sm:w-auto h-8 px-3 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
+            title="Install pristine forged quartz cover slip from ISRU inventory to restore optical transmission to 100%"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+            <span>Install Forged Quartz Cover Slip ({isruInventory.quartzGlassUnits} available in depot)</span>
+          </button>
+        )}
         <button
           onClick={handleElectrostaticClean}
           className="flex-1 h-8 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"

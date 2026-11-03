@@ -8,7 +8,7 @@ import { routeDistance, estimateO2Consumption, estimateWaterConsumption, estimat
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
 import ProvenanceBadge from './ProvenanceBadge';
 import { generateFlightBrief } from '../services/aiService';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles, Flame } from 'lucide-react';
 
 export default function FlightPlanModal() {
   const { 
@@ -18,7 +18,8 @@ export default function FlightPlanModal() {
     collectedSamples,
     weather,
     currentSol,
-  } = useMapStore(useShallow((s) => ({ isFlightPlanOpen: s.isFlightPlanOpen, setFlightPlanOpen: s.setFlightPlanOpen, waypoints: s.waypoints, collectedSamples: s.collectedSamples, weather: s.weather, currentSol: s.currentSol })));
+    isruInventory,
+  } = useMapStore(useShallow((s) => ({ isFlightPlanOpen: s.isFlightPlanOpen, setFlightPlanOpen: s.setFlightPlanOpen, waypoints: s.waypoints, collectedSamples: s.collectedSamples, weather: s.weather, currentSol: s.currentSol, isruInventory: s.isruInventory })));
 
   const [copied, setCopied] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -457,6 +458,67 @@ export default function FlightPlanModal() {
             </div>
           </div>
 
+          {/* In-Situ Resource Utilization (ISRU) Surface Forge & MAV Propellant Depot */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-white text-xs uppercase tracking-wider flex items-center gap-1.5 print:text-black">
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
+                <span>ISRU Surface Forge & MAV Ascent Propellant Depot</span>
+              </h3>
+              <ProvenanceBadge type="DERIVED" size="xs" detail="SuperCam In-Situ Smelting Synthesis" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 print:border print:border-black">
+              {/* Methalox Fuel */}
+              <div className="p-3 bg-space-900/60 rounded-xl border border-space-800 print:bg-white">
+                <span className="text-space-400 text-[10px] block print:text-gray-600 uppercase font-mono">MAV METHALOX FUEL</span>
+                <span className="text-base font-bold text-amber-300 font-mono print:text-black">
+                  {isruInventory?.methaloxFuelKg?.toFixed(1) || '0.0'} kg
+                </span>
+                <span className="text-[10px] block mt-0.5 font-sans">
+                  {isruInventory?.methaloxFuelKg >= 50 ? (
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1">✓ MAV Launch Fuel Ready</span>
+                  ) : (
+                    <span className="text-zinc-500 font-mono">Target: 50.0 kg for Ascent</span>
+                  )}
+                </span>
+              </div>
+              {/* Ti-Fe Alloy */}
+              <div className="p-3 bg-space-900/60 rounded-xl border border-space-800 print:bg-white">
+                <span className="text-space-400 text-[10px] block print:text-gray-600 uppercase font-mono">TI-FE AEROSPACE ALLOY</span>
+                <span className="text-base font-bold text-sky-300 font-mono print:text-black">
+                  {isruInventory?.tiFeAlloyKg?.toFixed(1) || '0.0'} kg
+                </span>
+                <span className="text-[10px] block mt-0.5 font-sans">
+                  {isruInventory?.tiFeAlloyKg >= 10 ? (
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1">✓ Wheel Traction +25%</span>
+                  ) : (
+                    <span className="text-zinc-500 font-mono">10 kg for chassis reinforcement</span>
+                  )}
+                </span>
+              </div>
+              {/* Quartz Glass */}
+              <div className="p-3 bg-space-900/60 rounded-xl border border-space-800 print:bg-white">
+                <span className="text-space-400 text-[10px] block print:text-gray-600 uppercase font-mono">PHOTOVOLTAIC QUARTZ</span>
+                <span className="text-base font-bold text-cyan-300 font-mono print:text-black">
+                  {isruInventory?.quartzGlassUnits || 0} Units
+                </span>
+                <span className="text-[10px] block mt-0.5 font-sans text-zinc-500 font-mono">
+                  Solar Array optical restoration
+                </span>
+              </div>
+              {/* Deuterium */}
+              <div className="p-3 bg-space-900/60 rounded-xl border border-space-800 print:bg-white">
+                <span className="text-space-400 text-[10px] block print:text-gray-600 uppercase font-mono">DEUTERIUM FUSION PELLETS</span>
+                <span className="text-base font-bold text-violet-300 font-mono print:text-black">
+                  {isruInventory?.deuteriumPellets || 0} Pellets
+                </span>
+                <span className="text-[10px] block mt-0.5 font-sans text-zinc-500 font-mono">
+                  Base habitat micro-fusion
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Sample Cache Inventory */}
           <div className="space-y-2">
             <h3 className="font-bold text-white text-xs uppercase tracking-wider flex items-center justify-between print:text-black">
@@ -489,7 +551,7 @@ export default function FlightPlanModal() {
             <h4 className="font-bold text-xs uppercase tracking-wider mb-3 text-white print:text-black">
               Official NASA Mission Clearance & Sign-Off
             </h4>
-            <div className="grid grid-cols-3 gap-6 text-[10px]">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[10px]">
               <div className="border-t border-space-700 pt-2 print:border-black">
                 <span className="text-space-400 block uppercase print:text-gray-600">LEAD ASTRONAUT (EVA-1)</span>
                 <span className="font-bold text-white font-sans text-xs print:text-black">Cmdr. A. Vance</span>
@@ -504,6 +566,13 @@ export default function FlightPlanModal() {
                 <span className="text-space-400 block uppercase print:text-gray-600">FLIGHT DIRECTOR</span>
                 <span className="font-bold text-white font-sans text-xs print:text-black">J. R. Holloway</span>
                 <span className="text-cyan-400 block font-mono print:text-black">✓ DISPATCH AUTHORIZED</span>
+              </div>
+              <div className="border-t border-space-700 pt-2 print:border-black">
+                <span className="text-space-400 block uppercase print:text-gray-600">MAV ASCENT OFFICER</span>
+                <span className="font-bold text-white font-sans text-xs print:text-black">ISRU Depot</span>
+                <span className="${isruInventory?.methaloxFuelKg >= 50 ? 'text-emerald-400' : 'text-amber-400'} block font-mono print:text-black">
+                  {isruInventory?.methaloxFuelKg >= 50 ? '✓ MAV PROPELLANT LOADED' : '⏳ PENDING FUEL SYNTHESIS'}
+                </span>
               </div>
             </div>
           </div>

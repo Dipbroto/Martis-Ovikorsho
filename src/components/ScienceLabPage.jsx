@@ -1,23 +1,26 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, Droplets, ExternalLink, RotateCcw, ShieldCheck, Trash2,
+  Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, Droplets, ExternalLink, RotateCcw, ShieldCheck, Trash2, Flame,
 } from 'lucide-react';
 import { playUiClick, playLaserZap } from '../utils/audioSynthesizer';
 import useScienceLab from '../hooks/useScienceLab';
 import useMapStore from '../store/useMapStore';
 import { imageUrl, paleoEnvironment, PDS_HOME } from '../data/scienceLab';
+import { MARTIAN_PROVINCES } from '../services/marsMlService';
 import Panel from './science/Panel';
 import LibsPanel from './science/LibsPanel';
 import PixlPanel from './science/PixlPanel';
 import SherlocPanel from './science/SherlocPanel';
 import MineralMlClassifier from './science/MineralMlClassifier';
 import ActiveLearningTriageDeck from './science/ActiveLearningTriageDeck';
+import IsruPlasmaForgeDeck from './science/IsruPlasmaForgeDeck';
 import PlanetaryDiscoveryScanner from './science/PlanetaryDiscoveryScanner';
 
 const INSTRUMENTS = [
   { id: 'supercam', label: 'SuperCam', what: 'Laser spectroscopy', icon: Zap, tone: 'from-orange-500/25' },
   { id: 'pixl', label: 'PIXL', what: 'X-ray chemistry', icon: Atom, tone: 'from-sky-500/25' },
   { id: 'sherloc', label: 'SHERLOC', what: 'UV Raman and glow', icon: Sparkles, tone: 'from-violet-500/25' },
+  { id: 'isru', label: 'ISRU Forge', what: 'Plasma synthesis', icon: Flame, tone: 'from-amber-500/25' },
   { id: 'msr', label: 'Sample cache', what: 'Seal and store', icon: Database, tone: 'from-emerald-500/25' },
 ];
 
@@ -45,12 +48,12 @@ function RockPhoto({ campaign, className = '' }) {
 }
 
 export default function ScienceLabPage() {
-  const lab = useScienceLab();
+  const lab = useScienceLab() || {};
   const {
-    campaigns, target, data, analysis, isLoadingTargets, isLoadingData, loadError, retry, selectTarget,
+    campaigns = [], target, data, analysis, isLoadingTargets, isLoadingData, loadError, retry, selectTarget,
     activeInstrument, setActiveInstrument, isAiAnalyzing, aiReport, runAiAnalysis,
-    cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample, handleRemoveSample, handleClearAllSamples, safeSamples, paleoPh, setPaleoPh,
-    famousSites = [], discoverRockAt, removeDiscoveredRock, isDiscovering,
+    cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample, handleRemoveSample, handleClearAllSamples, safeSamples = [], paleoPh, setPaleoPh,
+    famousSites = Object.values(MARTIAN_PROVINCES || {}), discoverRockAt, removeDiscoveredRock, isDiscovering,
   } = lab;
   const flyToCoordinate = useMapStore((s) => s.flyToCoordinate);
   const setActiveTab = useMapStore((s) => s.setActiveTab);
@@ -93,7 +96,7 @@ export default function ScienceLabPage() {
         </header>
 
         {/* Instrument picker */}
-        <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-3" role="tablist" aria-label="Instruments">
+        <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" role="tablist" aria-label="Instruments">
           {INSTRUMENTS.map(({ id, label, what, icon: Icon, tone }) => {
             const on = activeInstrument === id;
             return (
@@ -304,6 +307,7 @@ export default function ScienceLabPage() {
               {data && activeInstrument === 'supercam' && <LibsPanel target={target} data={data} lab={lab} />}
               {data && activeInstrument === 'pixl' && <PixlPanel target={target} data={data} lab={lab} />}
               {data && activeInstrument === 'sherloc' && <SherlocPanel target={target} data={data} lab={lab} />}
+              {target && activeInstrument === 'isru' && <IsruPlasmaForgeDeck target={target} data={data} lab={lab} />}
 
               {/* SAMPLE CACHE */}
               {activeInstrument === 'msr' && (

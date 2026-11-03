@@ -164,4 +164,13 @@ describe('planRoute with ML terramechanics mode', () => {
     const g = makeGrid((r, c) => (c === 20 ? 5000 : 0));
     expect(() => planRoute(g, at(g, 20, 5), at(g, 20, 35), { mode: 'terramechanics' })).toThrow(/rover-passable route/);
   });
+
+  it('applies Ti-Fe aerospace alloy traction discount when reinforced wheels are equipped', () => {
+    const g = makeGrid(() => 0);
+    const standard = planRoute(g, at(g, 20, 2), at(g, 20, 38), { mode: 'terramechanics', tiFeAlloyKg: 0 });
+    const reinforced = planRoute(g, at(g, 20, 2), at(g, 20, 38), { mode: 'terramechanics', tiFeAlloyKg: 12.5 });
+    expect(reinforced.metrics.tiFeAlloyReinforced).toBe(true);
+    expect(standard.metrics.tiFeAlloyReinforced).toBe(false);
+    expect(reinforced.metrics.avgSlipPct).toBeLessThan(standard.metrics.avgSlipPct);
+  });
 });
