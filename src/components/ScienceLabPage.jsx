@@ -11,6 +11,7 @@ import LibsPanel from './science/LibsPanel';
 import PixlPanel from './science/PixlPanel';
 import SherlocPanel from './science/SherlocPanel';
 import MineralMlClassifier from './science/MineralMlClassifier';
+import ActiveLearningTriageDeck from './science/ActiveLearningTriageDeck';
 import PlanetaryDiscoveryScanner from './science/PlanetaryDiscoveryScanner';
 
 const INSTRUMENTS = [
@@ -284,6 +285,9 @@ export default function ScienceLabPage() {
 
               {/* In-Situ ML Mineral Classifier & Biosignature Preservation Deck */}
               {target && <MineralMlClassifier target={target} data={data} />}
+
+              {/* Bayesian Active Learning Novelty & Triage Radar Deck */}
+              {target && <ActiveLearningTriageDeck target={target} data={data} lab={lab} />}
 
               {isLoadingData && !data && (
                 <div className="rounded-2xl border border-white/10 bg-black/40 min-h-[260px] flex flex-col items-center justify-center text-zinc-400">

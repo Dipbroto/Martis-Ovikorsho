@@ -865,4 +865,74 @@ describe('marsMlService (Client ML Inference)', () => {
     });
   });
 
+
+  describe('Step 2: Bayesian Active Learning Novelty & Triage Engine', () => {
+    it('calculates accurate Abramowitz-Stegun normal CDF and Wilson-Hilferty chi-square CDF', async () => {
+      const { normalCdf, chi2Cdf } = await import('./marsMlService');
+
+      // Standard normal quantiles
+      expect(normalCdf(0)).toBeCloseTo(0.5, 4);
+      expect(normalCdf(1.96)).toBeCloseTo(0.975, 2);
+      expect(normalCdf(-1.96)).toBeCloseTo(0.025, 2);
+
+      // Chi2 CDF with k = 11 degrees of freedom
+      // Expected median of Chi2(11) is approx 10.34
+      const pMedian = chi2Cdf(10.34, 11);
+      expect(pMedian).toBeGreaterThan(0.45);
+      expect(pMedian).toBeLessThan(0.55);
+
+      // Chi2 extreme tail (99th percentile of Chi2(11) is ~24.7)
+      const pTail = chi2Cdf(24.7, 11);
+      expect(pTail).toBeGreaterThanOrEqual(0.98);
+    });
+
+    it('calculates Mahalanobis distance D_M and detects elemental anomalies vs NASA PDS baseline', async () => {
+      const { calculateMahalanobisDistance, PDS_GEOCHEMICAL_BASELINE } = await import('./marsMlService');
+
+      // Test with exact baseline average: should yield dM ~ 0, novelty ~ 1%
+      const baselineSample = { ...PDS_GEOCHEMICAL_BASELINE.mean };
+      const baseResult = calculateMahalanobisDistance(baselineSample);
+      expect(baseResult.mahalanobisDistance).toBeCloseTo(0, 1);
+      expect(baseResult.chiSquare).toBeCloseTo(0, 1);
+      expect(baseResult.noveltyPercent).toBeLessThan(10);
+
+      // Test with extreme sulfate evaporite (Berry Hollow analog)
+      const sulfateEvaporite = {
+        SiO2: 32.38,
+        SO3: 21.18,
+        MgO: 13.1,
+        'FeO-T': 17.36,
+        Al2O3: 4.97,
+        CaO: 1.46,
+      };
+      const evapResult = calculateMahalanobisDistance(sulfateEvaporite);
+      expect(evapResult.mahalanobisDistance).toBeGreaterThan(5.0);
+      expect(evapResult.noveltyPercent).toBeGreaterThan(95.0);
+      expect(evapResult.topEnrichments.some(a => a.element === 'SO3')).toBe(true);
+      expect(evapResult.topDepletions.some(a => a.element === 'CaO')).toBe(true);
+    });
+
+    it('evaluates comprehensive active learning triage and acquisition score', async () => {
+      const { evaluateRockNoveltyAndTriage, generateProceduralRockSample } = await import('./marsMlService');
+
+      // Test 1: Olympus Mons high-Ti Basalt -> High Novelty & Ti-Fe Alloy ISRU
+      const olympus = generateProceduralRockSample({ regionId: 'olympus_mons' });
+      const triageOly = evaluateRockNoveltyAndTriage(olympus.target.pixlMedian, olympus.target);
+
+      expect(triageOly).toBeDefined();
+      expect(triageOly.acquisitionScore).toBeGreaterThan(40);
+      expect(triageOly.shannonEntropyBits).toBeGreaterThan(0);
+      expect(triageOly.rationale).toBeDefined();
+      expect(triageOly.isruPotentials.some(p => p.recipe === 'TI_FE_STRUCTURAL_ALLOY')).toBe(true);
+
+      // Test 2: Jezero Delta front lake siltstone -> Astrobiology Gold Standard
+      const deltaSample = generateProceduralRockSample({ regionId: 'jezero_delta' });
+      const triageDelta = evaluateRockNoveltyAndTriage(deltaSample.target.pixlMedian, deltaSample.target);
+
+      expect(triageDelta.biosignatureScore).toBeGreaterThan(70);
+      expect(['ASTROBIOLOGY_GOLD_STANDARD', 'HIGH_NOVELTY_ANOMALY']).toContain(triageDelta.triageTier);
+      expect(triageDelta.cachingAction).toBeDefined();
+    });
+  });
+
 });
