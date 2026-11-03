@@ -34,4 +34,14 @@ describe('crewCommsService', () => {
     expect(typeof unsub).toBe('function');
     unsub();
   });
+
+  it('handles null friendship id safely in removeFriend', async () => {
+    const result = await crewCommsService.removeFriend(null);
+    expect(result.error).toBeDefined();
+  });
+
+  it('handles null friendship id safely in respondToFriendRequest', async () => {
+    const result = await crewCommsService.respondToFriendRequest(null, false);
+    expect(result.error).toBeDefined();
+  });
 });

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, ShieldCheck, X, LogOut, Route, FlaskConical, Settings, Clock, MapPin, Lock, Key, Loader2, Play, Users, Radio, Copy, Check } from 'lucide-react';
+import { User, ShieldCheck, X, LogOut, Route, FlaskConical, Settings, Clock, MapPin, Lock, Key, Loader2, Play, Users, Radio, Copy, Check, Trash2, UserMinus } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { supabase } from '../lib/supabase';
-import { getFriendships } from '../services/crewCommsService';
+import { getFriendships, removeFriend } from '../services/crewCommsService';
+import { fetchProfile } from '../services/profileService';
 import { marsAudio } from '../utils/audioSynthesizer';
 
 export default function UserProfileDashboard() {
@@ -16,6 +17,7 @@ export default function UserProfileDashboard() {
   const setWaypoints = useMapStore(s => s.setWaypoints);
   const setCrewCommsOpen = useMapStore(s => s.setCrewCommsOpen);
   const setActiveCommsFriend = useMapStore(s => s.setActiveCommsFriend);
+  const removeSample = useMapStore(s => s.removeSample);
 
   const [friendsList, setFriendsList] = useState([]);
   const [copiedCallsign, setCopiedCallsign] = useState(false);
@@ -28,6 +30,9 @@ export default function UserProfileDashboard() {
   const [loadError, setLoadError] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [passwordStatus, setPasswordStatus] = useState('');
+  const [deletingMissionId, setDeletingMissionId] = useState(null);
+  const [deletingLogId, setDeletingLogId] = useState(null);
+  const [unfriendingId, setUnfriendingId] = useState(null);
 
   // Fetch Crew Friendships on profile open
   useEffect(() => {
@@ -96,6 +101,70 @@ export default function UserProfileDashboard() {
     marsAudio.playQuindarTone?.(true);
     setWaypoints(mission.waypoints);
     setProfileModalOpen(false);
+  };
+
+  const handleDeleteMission = async (missionId, title) => {
+    if (!window.confirm(`Delete saved flight log "${title || 'Route'}" from your profile?`)) return;
+    marsAudio.playUiClick?.();
+    setDeletingMissionId(missionId);
+    try {
+      const { error } = await supabase
+        .from('missions')
+        .delete()
+        .eq('id', missionId)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setMissions((prev) => prev.filter((m) => m.id !== missionId));
+    } catch (err) {
+      console.error('Failed to delete mission:', err);
+      alert('Could not delete flight log: ' + err.message);
+    } finally {
+      setDeletingMissionId(null);
+    }
+  };
+
+  const handleDeleteScienceLog = async (logId, targetName) => {
+    if (!window.confirm(`Delete specimen log for "${targetName || 'Specimen'}" from your science records?`)) return;
+    marsAudio.playUiClick?.();
+    setDeletingLogId(logId);
+    try {
+      const { error } = await supabase
+        .from('science_logs')
+        .delete()
+        .eq('id', logId)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setScienceLogs((prev) => prev.filter((l) => l.id !== logId));
+      fetchProfile(user.id);
+
+      // Clean up corresponding sample in local store if present
+      const currentSamples = useMapStore.getState().collectedSamples || [];
+      const match = currentSamples.find((s) => s.id === logId || s.name === targetName);
+      if (match) {
+        removeSample(match.id);
+      }
+    } catch (err) {
+      console.error('Failed to delete science log:', err);
+      alert('Could not delete science log: ' + err.message);
+    } finally {
+      setDeletingLogId(null);
+    }
+  };
+
+  const handleUnfriend = async (friendshipId, username) => {
+    if (!window.confirm(`Disconnect astronaut ${username || 'crewmate'} from your direct communications relay?`)) return;
+    marsAudio.playUiClick?.();
+    setUnfriendingId(friendshipId);
+    try {
+      const { error } = await removeFriend(friendshipId);
+      if (error) throw error;
+      setFriendsList((prev) => prev.filter((f) => f.friendshipId !== friendshipId));
+    } catch (err) {
+      console.error('Failed to unfriend crewmate:', err);
+      alert('Could not disconnect crewmate: ' + err.message);
+    } finally {
+      setUnfriendingId(null);
+    }
   };
 
   return (
@@ -307,12 +376,27 @@ export default function UserProfileDashboard() {
                             <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {new Date(mission.created_at).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <button 
-                          onClick={() => handleLoadMission(mission)}
-                          className="px-4 py-2 bg-mars-500/10 hover:bg-mars-500/20 text-mars-400 border border-mars-500/30 hover:border-mars-500 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center justify-center gap-2 transition-all shrink-0"
-                        >
-                          <Play className="w-3.5 h-3.5 fill-current" /> Launch Route
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button 
+                            onClick={() => handleLoadMission(mission)}
+                            className="px-4 py-2 bg-mars-500/10 hover:bg-mars-500/20 text-mars-400 border border-mars-500/30 hover:border-mars-500 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" /> Launch Route
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMission(mission.id, mission.title)}
+                            disabled={deletingMissionId === mission.id}
+                            className="p-2 bg-space-800/80 hover:bg-rose-950/60 text-space-400 hover:text-rose-300 border border-white/10 hover:border-rose-500/40 rounded-xl text-xs transition-all cursor-pointer disabled:opacity-50"
+                            title="Delete this flight log"
+                            aria-label={`Delete flight log ${mission.title}`}
+                          >
+                            {deletingMissionId === mission.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-rose-400" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -346,22 +430,39 @@ export default function UserProfileDashboard() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {scienceLogs.map((log) => (
-                      <div key={log.id} className="bg-space-900/60 border border-white/10 rounded-2xl p-5 hover:border-cyan-500/50 transition-colors group flex flex-col gap-3">
-                        <div className="flex justify-between items-start">
-                          <h4 className="text-white font-bold text-lg font-display flex items-center gap-2">
-                            <FlaskConical className="w-4 h-4 text-cyan-400" />
-                            {log.target_name}
-                          </h4>
-                          <span className="text-[10px] font-mono bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full border border-cyan-500/30">
-                            {new Date(log.discovered_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-[10px] text-space-400 font-mono uppercase tracking-wider">Formation & Spectrometry</div>
-                          <div className="text-xs text-amber-400 font-mono">{log.mineralogy}</div>
+                      <div key={log.id} className="bg-space-900/60 border border-white/10 rounded-2xl p-5 hover:border-cyan-500/50 transition-colors group flex flex-col justify-between gap-3">
+                        <div>
+                          <div className="flex justify-between items-start gap-2">
+                            <h4 className="text-white font-bold text-lg font-display flex items-center gap-2 truncate">
+                              <FlaskConical className="w-4 h-4 text-cyan-400 shrink-0" />
+                              <span className="truncate">{log.target_name}</span>
+                            </h4>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[10px] font-mono bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full border border-cyan-500/30">
+                                {new Date(log.discovered_at).toLocaleDateString()}
+                              </span>
+                              <button
+                                onClick={() => handleDeleteScienceLog(log.id, log.target_name)}
+                                disabled={deletingLogId === log.id}
+                                className="p-1.5 rounded-lg text-space-400 hover:text-rose-300 hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all cursor-pointer disabled:opacity-50"
+                                title="Delete this specimen log"
+                                aria-label={`Delete specimen log ${log.target_name}`}
+                              >
+                                {deletingLogId === log.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-400" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="space-y-1 mt-2">
+                            <div className="text-[10px] text-space-400 font-mono uppercase tracking-wider">Formation & Spectrometry</div>
+                            <div className="text-xs text-amber-400 font-mono">{log.mineralogy || 'Analyzed Specimen'}</div>
+                          </div>
                         </div>
                         {log.notes && (
-                          <div className="mt-2 p-2 bg-black/40 rounded border border-white/5 text-[10px] text-space-400 italic">
+                          <div className="mt-1 p-2 bg-black/40 rounded-lg border border-white/5 text-[10px] text-space-400 italic">
                             "{log.notes}"
                           </div>
                         )}
@@ -402,7 +503,7 @@ export default function UserProfileDashboard() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono">
                     {friendsList.map((f) => (
-                      <div key={f.friendshipId} className="bg-space-900/50 border border-white/10 rounded-2xl p-4 flex items-center justify-between">
+                      <div key={f.friendshipId} className="bg-space-900/50 border border-white/10 rounded-2xl p-4 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 rounded-full bg-space-800 border border-cyan-500/40 flex items-center justify-center font-display font-bold text-cyan-300 text-xs shrink-0">
                             {f.user.username?.slice(0, 2).toUpperCase() || 'EX'}
@@ -415,16 +516,31 @@ export default function UserProfileDashboard() {
                             <div className="text-xs text-space-400 truncate">{f.user.rank || 'Active Explorer'}</div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => {
-                            setActiveCommsFriend(f.user);
-                            setProfileModalOpen(false);
-                            setCrewCommsOpen(true);
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-xs font-mono transition-all flex items-center gap-1.5 shrink-0"
-                        >
-                          <Radio size={12} /> Radio
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => {
+                              setActiveCommsFriend(f.user);
+                              setProfileModalOpen(false);
+                              setCrewCommsOpen(true);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-xs font-mono transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                          >
+                            <Radio size={12} /> Radio
+                          </button>
+                          <button
+                            onClick={() => handleUnfriend(f.friendshipId, f.user.username)}
+                            disabled={unfriendingId === f.friendshipId}
+                            className="p-1.5 rounded-lg text-space-400 hover:text-rose-300 hover:bg-rose-500/20 border border-white/5 hover:border-rose-500/30 transition-all cursor-pointer disabled:opacity-50"
+                            title={`Disconnect ${f.user.username} (Unfriend)`}
+                            aria-label={`Disconnect ${f.user.username}`}
+                          >
+                            {unfriendingId === f.friendshipId ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-400" />
+                            ) : (
+                              <UserMinus className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
