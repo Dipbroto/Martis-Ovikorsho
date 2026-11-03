@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MapPin, ShieldCheck, Zap, Timer, Loader2, Mountain, Undo2, Radio, AlertTriangle, ChevronLeft } from 'lucide-react';
+import { X, MapPin, ShieldCheck, Zap, Timer, Loader2, Mountain, Undo2, Radio, AlertTriangle, ChevronLeft, Cpu } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { AUTONOMOUS_TARGET_PAIRS, ROUTING_MODES } from '../utils/autonomousRouter';
 import { planAndApplyRoute } from '../services/routePlanningService';
 import { marsAudio } from '../utils/audioSynthesizer';
 
-const MODE_ICONS = { safety: ShieldCheck, energy: Zap, fastest: Timer };
+const MODE_ICONS = { terramechanics: Cpu, safety: ShieldCheck, energy: Zap, fastest: Timer };
 
 const OVERLAY_ACTIONS = [
   { key: 'slope', label: 'Show slope hazard', icon: Mountain },
@@ -125,7 +125,7 @@ export default function GuidedPlannerModal() {
                   {pair && (
                     <section>
                       <h3 className="text-sm font-semibold text-white mb-2.5">2. What matters most on this walk?</h3>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {Object.entries(ROUTING_MODES).map(([key, m]) => {
                           const Icon = MODE_ICONS[key];
                           return (

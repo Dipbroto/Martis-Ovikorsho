@@ -277,6 +277,13 @@ The ground-truth simulation integrates Bekker-Wong soil mechanics:
 - **5C: Sand-Trap Hazard Classifier**:
   - Metrics: $\text{ROC-AUC} = 0.9993$, Accuracy = $98.33\%$.
 
+#### Coupled Autonomous Pathfinding Integration
+Rather than running purely as a post-hoc analysis, Model Family 5 is directly embedded into the terrain A* pathfinding search engine (`src/terrain/pathfinding.js`):
+- **Admissible Heuristic Scaling**: Minimum level-ground traction cost per meter ensures A* convergence optimality without overestimation.
+- **Dynamic Energy & Slip Penalty Weight**:
+  $$\\text{Cost} = E_{\\text{Wh}} \\times 3600 \\times \\left(1 + 4 \\cdot \\left(\\frac{s}{100}\\right)^2\\right)$$
+- **Strict Hazard Barrier**: Critical sand-trap hazard states ($P(\\text{trap}) \\ge 0.65$ or $s \\ge 45\\%$) return infinite cost, forcing the autonomous router to dynamically steer around treacherous aeolian dunes (preventing Opportunity/Spirit Purgatory-style entrapment).
+
 ---
 
 ### 3.6 Model Family 6: SuperCam Quantitative LIBS Chemometrics Regressor

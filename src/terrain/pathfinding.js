@@ -3,6 +3,7 @@
 // Pure functions so they can run in the terrain worker and in unit tests.
 import { cellMeters, cellCenterLatLon, latLonToPixel } from './dem';
 import { EVA_ASSUMPTIONS, legCost } from './evaModel';
+import { ROVER, roverTerramechanicsLeg } from './roverModel';
 
 const MARS_RADIUS_M = 3389500;
 // 16-connected moves (including knight moves) keep routes from zig-zagging along grid axes
@@ -118,8 +119,45 @@ function toCell(grid, lat, lon) {
  *  - 'fastest': walking time (s)
  * Returns Infinity for impassable steps.
  */
-function makeWeight(mode, a) {
+/**
+ * Objective weight of one step for a planning mode:
+ *  - 'energy':         metabolic energy (J)
+ *  - 'safety':         energy with a penalty that grows with slope, so gentle grades are preferred
+ *  - 'fastest':        walking time (s)
+ *  - 'terramechanics': dynamic rover battery energy (Wh converted to J), non-linear slip loss,
+ *                      and complete avoidance of critical sand traps (e.g. Purgatory Dune traps)
+ * Returns Infinity for impassable steps.
+ */
+function makeWeight(mode, a, options = {}) {
+  const isTerra = mode === 'terramechanics';
+  const roverMaxSlope = options.roverMaxSlope || ROVER.maxSlopeDeg;
+  const ti = options.thermalInertia ?? 320;
+  const rough = options.roughnessM ?? 0.08;
+
   return (distanceM, riseM) => {
+    if (isTerra) {
+      if (distanceM <= 0) return 0;
+      const slopeDeg = (Math.atan(Math.abs(riseM / distanceM)) * 180) / Math.PI;
+      if (slopeDeg > roverMaxSlope) return Infinity;
+
+      const terra = roverTerramechanicsLeg(distanceM, riseM, {
+        thermalInertia: ti,
+        roughnessM: rough,
+        roverMassKg: options.roverMassKg ?? ROVER.massKg,
+        speedKmh: options.speedKmh ?? ROVER.cruiseKmh,
+      });
+
+      // Sand trap hazard rejection: if critical entrapment or extreme slip, strictly impassable
+      if (terra.hazardLevel === 'CRITICAL_TRAP' || terra.slipRatioPct >= 45.0) {
+        return Infinity;
+      }
+
+      // Cost function in battery Joules (Wh * 3600), plus non-linear slip loss penalty
+      // High wheel slip wastes energy spinning wheels in loose regolith
+      const slipFactor = 1.0 + 4.0 * Math.pow(terra.slipRatioPct / 100.0, 2);
+      return terra.energyWh * 3600 * slipFactor;
+    }
+
     const leg = legCost(distanceM, riseM, a);
     if (!leg.passable) return Infinity;
     if (mode === 'fastest') return leg.timeS;
@@ -135,8 +173,13 @@ function makeWeight(mode, a) {
 function minWeightPerMeter(weight, a) {
   const maxGrade = Math.tan((a.maxSlopeDeg * Math.PI) / 180);
   let best = Infinity;
-  for (let g = -maxGrade; g <= maxGrade; g += 0.002) best = Math.min(best, weight(100, g * 100) / 100);
-  return best;
+  for (let g = -maxGrade; g <= maxGrade; g += 0.002) {
+    const w = weight(100, g * 100);
+    if (w < Infinity) {
+      best = Math.min(best, w / 100);
+    }
+  }
+  return best === Infinity ? 1 : best;
 }
 
 /** Ramer-Douglas-Peucker on points with x/y in metres; returns indices to keep. */
@@ -192,12 +235,17 @@ function blockedMask(grid, blocked, dx, dy) {
  * Returns { path: [{lat, lon, elevation, distanceM, energyJ, timeS}], keyIndices, metrics } or
  * throws when the goal can't be reached within the slope limit.
  */
-export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EVA_ASSUMPTIONS, blocked = [] } = {}) {
+export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EVA_ASSUMPTIONS, blocked = [], ...roverOptions } = {}) {
+  const isTerra = mode === 'terramechanics';
+  const effectiveAssumptions = isTerra
+    ? { ...assumptions, maxSlopeDeg: Math.min(assumptions.maxSlopeDeg, roverOptions.roverMaxSlope || ROVER.maxSlopeDeg) }
+    : assumptions;
+
   const { width: W, height: H, data, nodata } = grid;
   const N = W * H;
   const { dx, dy } = rowGeometry(grid);
-  const weight = makeWeight(mode, assumptions);
-  const hScale = minWeightPerMeter(weight, assumptions);
+  const weight = makeWeight(mode, effectiveAssumptions, roverOptions);
+  const hScale = minWeightPerMeter(weight, effectiveAssumptions);
   const dxMin = Math.min(...dx);
 
   // toCell clamps to the grid, which would quietly plan a route to its edge instead of to the point asked for
@@ -245,7 +293,7 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
       if (closed[v] || data[v] === nodata || (closedOff && closedOff[v])) continue;
       const stepDx = dc * (dx[r] + dx[nr]) / 2;
       const dist = Math.hypot(stepDx, dr * dy);
-      if (knightMoveBlocked(data, nodata, W, r, c, dr, dc, dist, assumptions)) continue;
+      if (knightMoveBlocked(data, nodata, W, r, c, dr, dc, dist, effectiveAssumptions)) continue;
       const w = weight(dist, data[v] - data[u]);
       if (w === Infinity) continue;
       const g = gScore[u] + w;
@@ -258,6 +306,9 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
   }
 
   if (gScore[t] === Infinity) {
+    if (isTerra) {
+      throw new Error(`No rover-passable route: every path exceeds the ${effectiveAssumptions.maxSlopeDeg}° slope limit or triggers critical sand-trap entrapment`);
+    }
     throw new Error(`No walkable route: every path needs slopes steeper than ${assumptions.maxSlopeDeg}°`);
   }
 
@@ -269,6 +320,7 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
   const midDx = dx[Math.floor(H / 2)];
   const path = [];
   let distanceM = 0, energyJ = 0, timeS = 0, ascentM = 0, descentM = 0, maxSlopeDeg = 0;
+  let totalBatteryWh = 0, totalDriveTimeS = 0, slipSum = 0, maxSlip = 0, trapCount = 0;
   let unwrappedCol = s % W; // keeps counting past the edge, so simplifying sees one continuous line
   cells.forEach((n, i) => {
     const r = Math.floor(n / W), c = n % W;
@@ -279,18 +331,30 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
       unwrappedCol += dCol;
       const dist = Math.hypot(dCol * (dx[r] + dx[pr]) / 2, (r - pr) * dy);
       const rise = data[n] - data[p];
-      const leg = legCost(dist, rise, assumptions);
+      const leg = legCost(dist, rise, effectiveAssumptions);
       distanceM += dist;
       energyJ += leg.energyJ;
       timeS += leg.timeS;
       if (rise > 0) ascentM += rise; else descentM -= rise;
       maxSlopeDeg = Math.max(maxSlopeDeg, leg.slopeDeg);
+
+      if (isTerra) {
+        const terra = roverTerramechanicsLeg(dist, rise, roverOptions);
+        totalBatteryWh += terra.energyWh;
+        totalDriveTimeS += terra.timeS;
+        slipSum += terra.slipRatioPct;
+        if (terra.slipRatioPct > maxSlip) maxSlip = terra.slipRatioPct;
+        if (terra.hazardLevel === 'CRITICAL_TRAP') trapCount++;
+      }
     }
     const { lat, lon } = cellCenterLatLon(grid, c, r);
     path.push({ lat, lon, elevation: data[n], distanceM, energyJ, timeS, x: unwrappedCol * midDx, y: r * dy });
   });
 
   const keyIndices = simplifyIndices(path, Math.max(dy, midDx) * 2);
+  const cellCount = cells.length - 1 || 1;
+  const batteryKwh = +(totalBatteryWh / 1000).toFixed(2);
+  const batterySoCUsedPct = Math.min(100, Math.round((totalBatteryWh / (roverOptions.batteryCapacityWh || ROVER.batteryCapacityWh)) * 100));
 
   return {
     path: path.map(({ x: _x, y: _y, ...p }) => p),
@@ -306,6 +370,15 @@ export function planRoute(grid, start, goal, { mode = 'safety', assumptions = EV
       maxSlopeDeg,
       cellsExplored: closed.reduce((a, b) => a + b, 0),
       metersPerPixel: grid.metersPerPixel,
+      // Rover terramechanics metrics
+      isTerramechanics: isTerra,
+      batteryWh: Math.round(totalBatteryWh),
+      batteryKwh,
+      driveTimeHours: +(totalDriveTimeS / 3600).toFixed(2),
+      avgSlipPct: +(slipSum / cellCount).toFixed(1),
+      maxSlipPct: +maxSlip.toFixed(1),
+      sandTrapsAvoided: trapCount,
+      batterySoCUsedPct,
     },
   };
 }

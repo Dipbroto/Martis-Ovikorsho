@@ -146,3 +146,22 @@ describe('returnCostField with blocked zones', () => {
     expect(shut[idx(mid)]).toBe(Infinity);
   });
 });
+
+describe('planRoute with ML terramechanics mode', () => {
+  it('plans an energy-optimal route and computes battery and slip metrics', () => {
+    const g = makeGrid(() => 0); // flat terrain
+    const res = planRoute(g, at(g, 20, 2), at(g, 20, 38), { mode: 'terramechanics' });
+    expect(res.metrics.isTerramechanics).toBe(true);
+    expect(res.metrics.batteryWh).toBeGreaterThan(0);
+    expect(res.metrics.batteryKwh).toBeGreaterThan(0);
+    expect(res.metrics.avgSlipPct).toBeGreaterThan(0);
+    expect(res.metrics.avgSlipPct).toBeLessThan(15);
+    expect(res.metrics.maxSlopeDeg).toBe(0);
+    expect(res.metrics.driveTimeHours).toBeGreaterThan(0);
+  });
+
+  it('reports when no rover-passable route exists within slope limit', () => {
+    const g = makeGrid((r, c) => (c === 20 ? 5000 : 0));
+    expect(() => planRoute(g, at(g, 20, 5), at(g, 20, 35), { mode: 'terramechanics' })).toThrow(/rover-passable route/);
+  });
+});

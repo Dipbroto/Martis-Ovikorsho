@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Flag, Crosshair, ArrowUpDown, Loader2, ShieldCheck, Zap, Timer, AlertTriangle, Sparkles, PenLine } from 'lucide-react';
+import { MapPin, Flag, Crosshair, ArrowUpDown, Loader2, ShieldCheck, Zap, Timer, AlertTriangle, Sparkles, PenLine, Cpu } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../../store/useMapStore';
 import { AUTONOMOUS_TARGET_PAIRS, ROUTING_MODES } from '../../utils/autonomousRouter';
@@ -11,7 +11,7 @@ import { toPoint } from '../../data/places';
 import { marsAudio } from '../../utils/audioSynthesizer';
 import PlacePicker from './PlacePicker';
 
-const MODE_ICON = { safety: ShieldCheck, energy: Zap, fastest: Timer };
+const MODE_ICON = { terramechanics: Cpu, safety: ShieldCheck, energy: Zap, fastest: Timer };
 
 function Field({ kind, point, picking, active, onOpen, onPickOnMap, justSet }) {
   const isStart = kind === 'start';
@@ -159,7 +159,7 @@ export default function RouteBuilder() {
 
       <div>
         <div className="text-xs font-medium text-zinc-300 mb-1.5">What matters most?</div>
-        <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Planning style">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5" role="radiogroup" aria-label="Planning style">
           {Object.entries(ROUTING_MODES).map(([key, m]) => {
             const Icon = MODE_ICON[key];
             const on = mode === key;
