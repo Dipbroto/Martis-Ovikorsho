@@ -111,3 +111,38 @@ describe('map undo', () => {
     expect(store().isRoverDriving).toBe(false);
   });
 });
+
+
+describe('sample tube management in science lab', () => {
+  beforeEach(() => {
+    store().clearSamples();
+  });
+
+  it('starts with an empty sample list by default', () => {
+    expect(store().collectedSamples).toEqual([]);
+  });
+
+  it('adds sample tubes in chronological order', () => {
+    store().addSample({ id: 'sample-1', name: 'Máaz Core', tubeNumber: 1 });
+    store().addSample({ id: 'sample-2', name: 'Yeehgo Core', tubeNumber: 2 });
+    expect(store().collectedSamples).toHaveLength(2);
+    expect(store().collectedSamples[0].id).toBe('sample-1');
+    expect(store().collectedSamples[1].id).toBe('sample-2');
+  });
+
+  it('removes a specific sample tube by id', () => {
+    store().addSample({ id: 'sample-1', name: 'Máaz Core' });
+    store().addSample({ id: 'sample-2', name: 'Yeehgo Core' });
+    store().removeSample('sample-1');
+    expect(store().collectedSamples).toHaveLength(1);
+    expect(store().collectedSamples[0].id).toBe('sample-2');
+  });
+
+  it('clears all sample tubes in one operation', () => {
+    store().addSample({ id: 'sample-1', name: 'Máaz Core' });
+    store().addSample({ id: 'sample-2', name: 'Yeehgo Core' });
+    expect(store().collectedSamples).toHaveLength(2);
+    store().clearSamples();
+    expect(store().collectedSamples).toEqual([]);
+  });
+});

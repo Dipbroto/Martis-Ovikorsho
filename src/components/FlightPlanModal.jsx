@@ -463,19 +463,25 @@ export default function FlightPlanModal() {
               <span>Sealed Sample Tubes In Custody</span>
               <span className="text-mars-400 font-mono text-[10px] print:text-black">{collectedSamples?.length || 0} Tubes</span>
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {(collectedSamples || []).map((s) => (
-                <div key={s.id} className="p-2.5 bg-space-900/50 rounded-lg border border-space-800 flex items-center justify-between print:bg-white print:border-gray-400 print:text-black">
-                  <div>
-                    <span className="font-bold text-white text-[11px] block print:text-black">{s.name}</span>
-                    <span className="text-[10px] text-space-400 print:text-gray-600">{s.rockType} • Sol {s.sol}</span>
+            {(collectedSamples || []).length === 0 ? (
+              <div className="text-[11px] text-space-400 italic p-3 bg-space-900/30 rounded-lg border border-space-800/60 text-center">
+                No sealed sample tubes currently in custody. Use the In-Situ Science Lab to core and cache samples.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {(collectedSamples || []).map((s) => (
+                  <div key={s.id} className="p-2.5 bg-space-900/50 rounded-lg border border-space-800 flex items-center justify-between print:bg-white print:border-gray-400 print:text-black">
+                    <div>
+                      <span className="font-bold text-white text-[11px] block print:text-black">{s.name}</span>
+                      <span className="text-[10px] text-space-400 print:text-gray-600">{s.rockType} • Sol {s.sol}</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-green-400 bg-green-950/60 px-2 py-0.5 rounded border border-green-500/30 print:text-black print:border-black">
+                      {s.status}
+                    </span>
                   </div>
-                  <span className="text-[10px] font-bold text-green-400 bg-green-950/60 px-2 py-0.5 rounded border border-green-500/30 print:text-black print:border-black">
-                    {s.status}
-                  </span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Official Sign-Off Authorization (Visible in UI and Print) */}

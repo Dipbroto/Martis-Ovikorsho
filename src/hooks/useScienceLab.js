@@ -16,6 +16,8 @@ const SHOT_MS = 110;
 export default function useScienceLab() {
   const collectedSamples = useMapStore((s) => s.collectedSamples);
   const addSample = useMapStore((s) => s.addSample);
+  const removeSample = useMapStore((s) => s.removeSample);
+  const clearSamples = useMapStore((s) => s.clearSamples);
 
   const [campaigns, setCampaigns] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -173,6 +175,27 @@ export default function useScienceLab() {
     setIsAiAnalyzing(false);
   };
 
+  const handleRemoveSample = useCallback((sampleId) => {
+    if (!sampleId && sampleId !== 0) return;
+    removeSample(sampleId);
+
+    // If signed-in crew has science_logs, sync deletion
+    const user = useMapStore.getState().user;
+    if (user && supabase) {
+      supabase.from('science_logs').delete().match({ user_id: user.id, id: sampleId }).then(({ error }) => {
+        if (!error) fetchProfile(user.id);
+      }).catch((e) => console.warn('Could not sync sample deletion with profile:', e));
+    }
+  }, [removeSample]);
+
+  const handleClearAllSamples = useCallback(() => {
+    if (clearSamples) {
+      clearSamples();
+    } else {
+      useMapStore.setState({ collectedSamples: [] });
+    }
+  }, [clearSamples]);
+
   const handleCacheSample = () => {
     if (!target) return;
     setIsSealingTube(true);
@@ -180,12 +203,15 @@ export default function useScienceLab() {
     playSampleSeal?.();
 
     const notes = customTubeNotes || `${target.name}, Jezero crater (${target.lat.toFixed(3)}°N, ${target.lon.toFixed(3)}°E)`;
+    const tubeNumber = (collectedSamples?.length || 0) + 1;
     setTimeout(async () => {
       addSample({
         id: Date.now().toString(),
+        tubeNumber,
         name: target.name,
         rockType: target.rockType,
         status: 'SEALED IN CACHE',
+        sol: data?.libs?.sol || target.sols?.supercam || 1,
         notes,
       });
 
@@ -224,6 +250,7 @@ export default function useScienceLab() {
     oxide, setOxide, pixlPick, setPixlPick, sherlocMetric, setSherlocMetric, sherlocSpot, setSherlocSpot,
     isAiAnalyzing, aiReport, setAiReport, runAiAnalysis,
     cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample,
+    handleRemoveSample, handleClearAllSamples,
     collectedSamples, safeSamples, paleoPh, setPaleoPh,
   };
 }

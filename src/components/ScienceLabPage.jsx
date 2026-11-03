@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, Droplets, ExternalLink, RotateCcw, ShieldCheck,
+  Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, Droplets, ExternalLink, RotateCcw, ShieldCheck, Trash2,
 } from 'lucide-react';
 import { playUiClick, playLaserZap } from '../utils/audioSynthesizer';
 import useScienceLab from '../hooks/useScienceLab';
@@ -47,7 +47,7 @@ export default function ScienceLabPage() {
   const {
     campaigns, target, data, analysis, isLoadingTargets, isLoadingData, loadError, retry, selectTarget,
     activeInstrument, setActiveInstrument, isAiAnalyzing, aiReport, runAiAnalysis,
-    cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample, safeSamples, paleoPh, setPaleoPh,
+    cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample, handleRemoveSample, handleClearAllSamples, safeSamples, paleoPh, setPaleoPh,
   } = lab;
   const flyToCoordinate = useMapStore((s) => s.flyToCoordinate);
   const setActiveTab = useMapStore((s) => s.setActiveTab);
@@ -269,24 +269,84 @@ export default function ScienceLabPage() {
                     </button>
                     {cacheError && <p className="mt-2 text-xs text-amber-300">{cacheError}</p>}
                   </Panel>
-                  <Panel title="Tube rack" icon={CheckCircle2} className="xl:col-span-3" right={<span className="text-xs text-zinc-500">{tubesUsed} / {TOTAL_TUBES} used</span>}>
+                  <Panel
+                    title="Tube rack"
+                    icon={CheckCircle2}
+                    className="xl:col-span-3"
+                    right={
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-zinc-500 font-mono">{tubesUsed} / {TOTAL_TUBES} used</span>
+                        {safeSamples.length > 0 && (
+                          <button
+                            onClick={() => {
+                              playUiClick?.();
+                              handleClearAllSamples();
+                            }}
+                            className="text-xs text-zinc-400 hover:text-rose-300 flex items-center gap-1 transition px-2 py-0.5 rounded-lg border border-white/10 hover:border-rose-500/30 hover:bg-rose-500/10 cursor-pointer"
+                            title="Empty all sample tubes"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Clear all</span>
+                          </button>
+                        )}
+                      </div>
+                    }
+                  >
                     <div className="grid grid-cols-[repeat(19,minmax(0,1fr))] gap-1">
                       {Array.from({ length: TOTAL_TUBES }, (_, i) => (
-                        <span key={i} title={safeSamples[i]?.name || `Empty tube ${i + 1}`} className={`h-9 rounded-full border ${i < tubesUsed ? 'bg-gradient-to-b from-[#ffb08f] to-[#c2410c] border-[#ffb08f]/60' : 'bg-white/[0.04] border-white/10'}`} />
+                        <span
+                          key={i}
+                          title={safeSamples[i]?.name ? `Tube #${i + 1}: ${safeSamples[i].name} (${safeSamples[i].rockType || 'Core'})` : `Empty tube #${i + 1}`}
+                          className={`h-9 rounded-full border transition-all ${
+                            i < tubesUsed
+                              ? 'bg-gradient-to-b from-[#ffb08f] to-[#c2410c] border-[#ffb08f]/60 shadow-sm shadow-[#ffb08f]/20'
+                              : 'bg-white/[0.04] border-white/10'
+                          }`}
+                        />
                       ))}
                     </div>
                     <div className="mt-4 space-y-2 max-h-64 overflow-y-auto overscroll-contain custom-scrollbar-y pr-1">
                       {safeSamples.length === 0 ? (
-                        <p className="text-sm text-zinc-500">No samples sealed yet.</p>
-                      ) : safeSamples.slice().reverse().map((s, idx) => (
-                        <div key={s.id || idx} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] border border-white/[0.07] p-3 text-sm">
-                          <span className="min-w-0">
-                            <span className="block font-medium truncate">{s.name}</span>
-                            <span className="block text-xs text-zinc-400 truncate">{s.rockType}{s.notes ? ` · ${s.notes}` : ''}</span>
-                          </span>
-                          <span className="text-xs text-emerald-300 shrink-0">{s.status}</span>
+                        <div className="p-6 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
+                          <p className="text-sm text-zinc-400 font-medium">No samples sealed yet.</p>
+                          <p className="text-xs text-zinc-500 mt-1">All {TOTAL_TUBES} sample tubes are empty and ready for caching.</p>
                         </div>
-                      ))}
+                      ) : (
+                        safeSamples.map((s, idx) => (
+                          <div
+                            key={s.id || idx}
+                            className="group flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] border border-white/[0.07] hover:border-white/20 p-3 text-sm transition-all"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-6 h-6 rounded-full bg-gradient-to-b from-[#ffb08f] to-[#c2410c] border border-[#ffb08f]/60 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm">
+                                {idx + 1}
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block font-medium truncate text-white">{s.name}</span>
+                                <span className="block text-xs text-zinc-400 truncate">
+                                  {s.rockType}{s.notes ? ` · ${s.notes}` : ''}
+                                </span>
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs text-emerald-300 font-mono font-medium px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-500/30">
+                                {s.status || 'SEALED IN CACHE'}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  playUiClick?.();
+                                  handleRemoveSample(s.id || idx);
+                                }}
+                                className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-300 hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all cursor-pointer"
+                                title={`Unseal and remove Tube #${idx + 1} (${s.name})`}
+                                aria-label={`Remove sample tube for ${s.name}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </Panel>
                 </div>

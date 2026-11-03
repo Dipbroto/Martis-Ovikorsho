@@ -525,28 +525,7 @@ const useMapStore = create((set, get) => ({
   // IN-SITU SCIENCE LAB & SAMPLING
   // ========================
   isScienceLabOpen: false,
-  collectedSamples: [
-    {
-      id: 'sample-001',
-      name: 'Jezero Delta Mudstone',
-      location: 'Skinner Ridge (18.451°N, 77.398°E)',
-      sol: initialSol - 14,
-      rockType: 'Lacustrine Mudstone',
-      keyMinerals: 'Smectite Clay, Fe-Carbonate, Silica',
-      biosignatureScore: 88,
-      status: 'Cached in Tube #08'
-    },
-    {
-      id: 'sample-002',
-      name: 'Séítah Cumulate Olivine',
-      location: 'Dourbes Outcrop (18.441°N, 77.442°E)',
-      sol: initialSol - 42,
-      rockType: 'Igneous Cumulate',
-      keyMinerals: 'Forsteritic Olivine, Pyroxene',
-      biosignatureScore: 32,
-      status: 'Cached in Tube #14'
-    }
-  ],
+  collectedSamples: [],
   // The lab is a full page now; anything that "opens the lab" goes to it
   setScienceLabOpen: (val) => set((state) => {
     const next = typeof val === 'boolean' ? val : state.activeTab !== 'science';
@@ -555,11 +534,12 @@ const useMapStore = create((set, get) => ({
       : { isScienceLabOpen: false };
   }),
   addSample: (sample) => set((state) => ({
-    collectedSamples: [sample, ...(state.collectedSamples || [])]
+    collectedSamples: [...(state.collectedSamples || []), sample]
   })),
-  removeSample: (id) => set((state) => ({
-    collectedSamples: (state.collectedSamples || []).filter(s => s.id !== id)
+  removeSample: (idOrIndex) => set((state) => ({
+    collectedSamples: (state.collectedSamples || []).filter((s, idx) => (s.id ? s.id !== idOrIndex : idx !== idOrIndex))
   })),
+  clearSamples: () => set({ collectedSamples: [] }),
 
   // ========================
   // FLIGHT PLAN & CHECKLIST
