@@ -1068,5 +1068,65 @@ describe('marsMlService (Client ML Inference)', () => {
       expect(deepProfile.organicCarbonPpm).toBeGreaterThan(surfaceProfile.organicCarbonPpm);
       expect(deepProfile.organicMatch.confidencePercent).toBeGreaterThan(surfaceProfile.organicMatch.confidencePercent);
     });
+
+    it('verifies all 6 calibrated prebiotic library compounds have valid skeletal SVG types and bands', async () => {
+      const { ASTROBIOLOGY_ORGANIC_LIBRARY } = await import('./marsMlService');
+      const compounds = Object.values(ASTROBIOLOGY_ORGANIC_LIBRARY);
+
+      expect(compounds.length).toBe(6);
+      const expectedSvgTypes = ['three_rings', 'four_rings', 'two_rings', 'amino_acid', 'chiral_amino_acid', 'carbon_network'];
+
+      compounds.forEach((c) => {
+        expect(c.id).toBeDefined();
+        expect(c.name).toBeDefined();
+        expect(c.formula).toBeDefined();
+        expect(c.molecularWeight).toBeGreaterThan(50);
+        expect(c.diagnosticBands.length).toBeGreaterThanOrEqual(3);
+        expect(expectedSvgTypes).toContain(c.skeletalSvgType);
+      });
+    });
+
+    it('computes correct baseline deconvolution and carbon D/G metrics across core horizons', async () => {
+      const { calculateSubsurfaceDepthProfile } = await import('./marsMlService');
+      const testTarget = { name: 'Wildcat Ridge', rockType: 'Siltstone', biosignatureScore: 85 };
+
+      [2.0, 15.0, 30.0, 50.0].forEach((depth) => {
+        const profile = calculateSubsurfaceDepthProfile(testTarget, depth);
+        expect(profile.deconvolvedSpectrum.shifts.length).toBeGreaterThan(10);
+        expect(profile.deconvolvedSpectrum.carbonDBand).toBeDefined();
+        expect(profile.deconvolvedSpectrum.carbonGBand).toBeDefined();
+        expect(profile.organicMatch.carbonMetrics.dToGRatio).toBeDefined();
+        expect(profile.allLayers.length).toBe(4);
+      });
+    });
+
+    it('produces distinct organic signatures and matches for different rock lithologies', async () => {
+      const { calculateSubsurfaceDepthProfile } = await import('./marsMlService');
+      const fs = await import('fs');
+      const path = await import('path');
+
+      const rockIds = ['guillaumes', 'bellegarde', 'dourbes', 'quartier', 'montpezat', 'berry-hollow'];
+      const campaigns = JSON.parse(fs.readFileSync(path.resolve('./public/data/science/campaigns.json'), 'utf8')).campaigns;
+
+      for (const id of rockIds) {
+        const meta = campaigns.find(c => c.id === id);
+        const data = JSON.parse(fs.readFileSync(path.resolve(`./public/data/science/${id}.json`), 'utf8'));
+        const profile = calculateSubsurfaceDepthProfile(meta, 45.0, data);
+        console.log(`[ROCK AUDIT] ${meta.name} (${meta.rockType}):`);
+        console.log(`  -> Match: ${profile.organicMatch.bestMatch.name} (${profile.organicMatch.bestMatch.id})`);
+        console.log(`  -> Confidence: ${profile.organicMatch.confidencePercent}%, Biogenic: ${profile.organicMatch.biogenicProbabilityPercent}%`);
+        console.log(`  -> Carbon D/G: ${profile.organicMatch.carbonMetrics.dToGRatio}, TOC: ${profile.organicCarbonPpm} ug/g`);
+      }
+
+      const quartier = calculateSubsurfaceDepthProfile(campaigns.find(c => c.id === 'quartier'), 45.0, JSON.parse(fs.readFileSync(path.resolve('./public/data/science/quartier.json'), 'utf8')));
+      const berryHollow = calculateSubsurfaceDepthProfile(campaigns.find(c => c.id === 'berry-hollow'), 45.0, JSON.parse(fs.readFileSync(path.resolve('./public/data/science/berry-hollow.json'), 'utf8')));
+      const dourbes = calculateSubsurfaceDepthProfile(campaigns.find(c => c.id === 'dourbes'), 45.0, JSON.parse(fs.readFileSync(path.resolve('./public/data/science/dourbes.json'), 'utf8')));
+      const belva = calculateSubsurfaceDepthProfile({ id: 'belva-fan', name: 'Belva Fan', rockType: 'Mudstone / Lacustrine delta' }, 45.0);
+
+      expect(quartier.organicMatch.bestMatch.id).toBe('NAPHTHALENE');
+      expect(berryHollow.organicMatch.bestMatch.id).toBe('REFRACTORY_KEROGEN');
+      expect(dourbes.organicMatch.bestMatch.id).toBe('PHENANTHRENE');
+      expect(belva.organicMatch.bestMatch.id).toBe('GLYCINE_PRECURSOR');
+    });
   });
 });

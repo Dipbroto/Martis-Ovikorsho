@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, Droplets, ExternalLink, RotateCcw, ShieldCheck, Trash2, Flame, Dna,
+  Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, Droplets, ExternalLink, RotateCcw, ShieldCheck, Trash2, Flame, Dna, FileText,
 } from 'lucide-react';
 import { playUiClick, playLaserZap } from '../utils/audioSynthesizer';
 import useScienceLab from '../hooks/useScienceLab';
@@ -59,6 +59,7 @@ export default function ScienceLabPage() {
   } = lab;
   const flyToCoordinate = useMapStore((s) => s.flyToCoordinate);
   const setActiveTab = useMapStore((s) => s.setActiveTab);
+  const setFlightPlanOpen = useMapStore((s) => s.setFlightPlanOpen);
 
   const openOnMap = () => {
     if (!target) return;
@@ -355,7 +356,19 @@ export default function ScienceLabPage() {
                       icon={CheckCircle2}
                       className="xl:col-span-3"
                       right={
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playUiClick?.();
+                              setFlightPlanOpen(true);
+                            }}
+                            className="text-xs text-cyan-300 hover:text-white flex items-center gap-1 transition px-2.5 py-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 cursor-pointer font-mono"
+                            title="Open official NASA Mars Sample Return (MSR) Flight Dispatch Manifest"
+                          >
+                            <FileText className="w-3 h-3 text-cyan-400" />
+                            <span>MSR Flight Manifest</span>
+                          </button>
                           <span className="text-xs text-zinc-500 font-mono">{tubesUsed} / {TOTAL_TUBES} used</span>
                           {safeSamples.length > 0 && (
                             <button
@@ -403,7 +416,15 @@ export default function ScienceLabPage() {
                                   {idx + 1}
                                 </span>
                                 <span className="min-w-0">
-                                  <span className="block font-medium truncate text-white">{s.name}</span>
+                                  <span className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-medium truncate text-white">{s.name}</span>
+                                    {s.notes?.includes('[MSR CORE') && (
+                                      <span className="text-[9px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/40 flex items-center gap-1">
+                                        <Dna className="w-2.5 h-2.5" />
+                                        55mm CORE
+                                      </span>
+                                    )}
+                                  </span>
                                   <span className="block text-xs text-zinc-400 truncate">
                                     {s.rockType}{s.notes ? ` · ${s.notes}` : ''}
                                   </span>

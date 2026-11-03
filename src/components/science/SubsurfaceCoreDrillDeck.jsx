@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Layers, Dna, Sparkles, ShieldCheck, CheckCircle2, AlertTriangle, ArrowRight,
-  Database, RefreshCw, Loader2, Gauge, Activity, Eye, Zap, Compass, Check,
+  Database, RefreshCw, Loader2, Gauge, Activity, Eye, Zap, Compass, Check, FileText,
 } from 'lucide-react';
 import useMapStore from '../../store/useMapStore';
 import {
@@ -11,9 +11,11 @@ import {
 } from '../../services/marsMlService';
 import { playCoreDrill, playLaserZap, playUiClick, playSampleSeal } from '../../utils/audioSynthesizer';
 import ProvenanceBadge from '../ProvenanceBadge';
+import OrganicRamanInspector from './OrganicRamanInspector';
 
 export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target, data, lab, className = '' }) {
   const { handleCacheSample, setCustomTubeNotes, safeSamples = [] } = lab || {};
+  const setFlightPlanOpen = useMapStore((s) => s.setFlightPlanOpen);
 
   // State: drill actuation and interactive depth cursor
   const [isDrilling, setIsDrilling] = useState(false);
@@ -25,8 +27,8 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
 
   // Compute depth-resolved physical stratigraphy and astrobiology signals
   const depthProfile = useMemo(() => {
-    return calculateSubsurfaceDepthProfile(target, activeDepthMm);
-  }, [target, activeDepthMm]);
+    return calculateSubsurfaceDepthProfile(target, activeDepthMm, data);
+  }, [target, activeDepthMm, data]);
 
   const {
     activeLayer,
@@ -461,8 +463,8 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
             </div>
           </div>
 
-          {/* Action Button: Seal Sample Core in Titanium Return Tube */}
-          <div className="pt-3 border-t border-white/10">
+          {/* Action Buttons: Seal Core & View Manifest */}
+          <div className="pt-3 border-t border-white/10 space-y-2">
             <button
               disabled={isSealingThisCore || !isCoreExtracted}
               onClick={handleSealSampleCore}
@@ -480,9 +482,44 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
                 </>
               )}
             </button>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  playUiClick?.();
+                  document.getElementById('organic-raman-inspector')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className="py-2 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-200 text-[11px] font-mono font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all truncate"
+                title="Inspect 2D Chemical structures and Raman spectra"
+              >
+                <Sparkles className="w-3 h-3 text-emerald-300 shrink-0" />
+                <span className="truncate">Inspect Spectra & 2D Molecules ↓</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  playUiClick?.();
+                  setFlightPlanOpen(true);
+                }}
+                className="py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 text-[11px] font-mono flex items-center justify-center gap-1.5 cursor-pointer transition-all truncate"
+                title="Open official NASA Mars Sample Return (MSR) Flight Dispatch Manifest"
+              >
+                <FileText className="w-3 h-3 text-cyan-400 shrink-0" />
+                <span className="truncate">MSR Manifest ({safeSamples.length} Sealed)</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Deep-UV Organic Molecule Fingerprint Inspector & Astrobiology Lab */}
+      <OrganicRamanInspector
+        target={target}
+        depthProfile={depthProfile}
+        activeDepthMm={activeDepthMm}
+      />
     </div>
   );
 }

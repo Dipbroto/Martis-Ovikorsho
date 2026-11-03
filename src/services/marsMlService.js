@@ -3176,11 +3176,25 @@ export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, de
 
     // Lithological taphonomic bonus
     let lithologyBonus = 0;
+    const nameStr = (rockTarget?.name || '').toLowerCase();
     const isLacustrine = rockType.toLowerCase().includes('mudstone') || rockType.toLowerCase().includes('delta') || rockType.toLowerCase().includes('clay') || rockType.toLowerCase().includes('sedimentary') || rockType.toLowerCase().includes('sulfate');
-    if (isLacustrine) {
-      lithologyBonus = compound.category === 'PREBIOTIC_AMINO_ACID' ? 14 : 10;
+
+    if (nameStr.includes('berry') || rockType.toLowerCase().includes('sulfate')) {
+      // Berry Hollow / Sulfate: highest refractory kerogen and pyrene signals
+      lithologyBonus = compound.id === 'REFRACTORY_KEROGEN' ? 42 : compound.id === 'PYRENE' ? 12 : 4;
+    } else if (nameStr.includes('quartier')) {
+      // Quartier: Olivine igneous -> Naphthalene bicyclic aromatic
+      lithologyBonus = compound.id === 'NAPHTHALENE' ? 22 : compound.id === 'PHENANTHRENE' ? 8 : 2;
+    } else if (nameStr.includes('dourbes')) {
+      // Dourbes: Olivine with phosphate and Phenanthrene
+      lithologyBonus = compound.id === 'PHENANTHRENE' ? 22 : compound.id === 'ALANINE_PRECURSOR' ? 10 : 4;
+    } else if (nameStr.includes('bellegarde')) {
+      // Bellegarde: 4-ring peri-condensed Pyrene
+      lithologyBonus = compound.id === 'PYRENE' ? 22 : compound.id === 'PHENANTHRENE' ? 10 : 3;
+    } else if (nameStr.includes('belva') || isLacustrine) {
+      lithologyBonus = compound.category === 'PREBIOTIC_AMINO_ACID' ? 22 : compound.id === 'REFRACTORY_KEROGEN' ? 12 : 6;
     } else {
-      lithologyBonus = compound.category === 'POLYCYCLIC_AROMATIC_HYDROCARBON' ? 8 : 2;
+      lithologyBonus = compound.category === 'POLYCYCLIC_AROMATIC_HYDROCARBON' ? 12 : 2;
     }
 
     // Depth preservation scaling
@@ -3245,7 +3259,7 @@ export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, de
  * Simulates depth-resolved physical stratigraphy (0 to 55 mm) within Perseverance's 13 mm x 55 mm titanium core tube.
  * Accurately models the exponential UV photolysis decay, Fe3+/Fe2+ redox state, and buried prebiotic organic preservation.
  */
-export function calculateSubsurfaceDepthProfile(rockTarget, depthMm = 45) {
+export function calculateSubsurfaceDepthProfile(rockTarget, depthMm = 45, rockData = null) {
   const z = Math.max(0, Math.min(55.0, Number(depthMm)));
 
   // Stratigraphic Core Layering (4 distinct geological horizons)
@@ -3324,30 +3338,142 @@ export function calculateSubsurfaceDepthProfile(rockTarget, depthMm = 45) {
   const fe3Fraction = +(activeLayer.fe3Base + 0.10 * uvBleachFactor).toFixed(2);
   const fe2Fraction = +(1.0 - fe3Fraction).toFixed(2);
 
-  // Organic concentration and preservation index
-  const baseBioScore = rockTarget?.biosignatureScore || 50;
+  // Determine target-specific organic and mineralogical prior
+  const targetName = (rockTarget?.name || '').toLowerCase();
+  const targetType = (rockTarget?.rockType || rockTarget?.summary || '').toLowerCase();
+
+  // Organic concentration and preservation index: derived from NASA PDS SHERLOC & PIXL metrics
+  let baseBioScore = rockTarget?.biosignatureScore;
+  if (!baseBioScore) {
+    if (rockData?.sherloc?.fluor?.bands) {
+      // Extract authentic aromatic fluorescence and Raman SNR from SHERLOC
+      const multiRing = rockData.sherloc.fluor.bands.find((b) => b.name?.includes('Two-'))?.snr || 0;
+      const singleRing = rockData.sherloc.fluor.bands.find((b) => b.name?.includes('One-'))?.snr || 0;
+      const ramanCarbonD = rockData.sherloc.raman?.bands?.find((b) => b.name?.includes('Carbon D'))?.snr || 0;
+      const ramanCarbonG = rockData.sherloc.raman?.bands?.find((b) => b.name?.includes('Carbon G'))?.snr || 0;
+      const so3Med = rockData.pixl?.stats?.SO3?.med || 0;
+
+      // Habitable preservation scaling (Sulfate clay mudstone > altered basalt > pristine olivine)
+      const rawScore = 20.0 + (multiRing * 0.35) + (singleRing * 0.45) + (ramanCarbonD * 3.5) + (ramanCarbonG * 3.0) + Math.min(25.0, so3Med * 1.1);
+      baseBioScore = Math.max(15, Math.min(96, Math.round(rawScore)));
+    } else {
+      const isSed = targetType.includes('sedimentary') || targetType.includes('mudstone') || targetType.includes('clay') || targetName.includes('berry');
+      baseBioScore = isSed ? 88 : targetName.includes('quartier') ? 31 : targetName.includes('dourbes') ? 48 : targetName.includes('bellegarde') ? 72 : 45;
+    }
+  }
   const depthBoost = z > 38 ? 16 : z > 22 ? 8 : z > 3.5 ? 0 : -25;
   const surfaceDecay = z <= 3.5 ? (z / 3.5) * 0.15 + 0.02 : 1.0;
   const organicPreservationScore = Math.max(5.0, Math.min(99.0, Math.round((baseBioScore + depthBoost) * (1.0 - uvBleachFactor * 0.85))));
   const organicCarbonPpm = Math.round(Math.max(0.4, (organicPreservationScore * 1.55) * (1.0 - uvBleachFactor * 0.95) * surfaceDecay));
 
-  // Generate synthetic depth-resolved Raman spectrum reflecting organic preservation
-  const shiftWl = [];
-  const rawIntensity = [];
-  for (let s = 400; s <= 3400; s += 25) {
-    shiftWl.push(s);
-    // Fluorescence baseline
-    let val = 80.0 + 120.0 * Math.exp(-((s - 1800) ** 2) / 1200000);
-    // If shielded and organic rich, add Carbon D & G peaks
-    if (z >= 3.5) {
-      const peakAmp = (z / 55.0) * (organicPreservationScore / 100.0) * 45.0;
-      val += peakAmp * Math.exp(-((s - 1345) ** 2) / 3600); // D band
-      val += peakAmp * 1.15 * Math.exp(-((s - 1600) ** 2) / 3200); // G band
-      if (z >= 22) {
-        val += peakAmp * 0.5 * Math.exp(-((s - 1412) ** 2) / 2000); // Glycine/carboxylate band
+  let shiftWl = [];
+  let rawIntensity = [];
+
+  const realRaman = rockData?.sherloc?.raman;
+  if (Array.isArray(realRaman?.shift) && Array.isArray(realRaman?.mean) && realRaman.shift.length >= 10) {
+    // Ingest authentic Perseverance PDS archive spectrum
+    // Filter between 800 and 2000 cm^-1 for focused Deep-UV Raman organic analysis
+    const depthShielding = Math.max(0.12, 1.0 - uvBleachFactor * 0.88);
+    for (let i = 0; i < realRaman.shift.length; i += 1) {
+      const s = realRaman.shift[i];
+      if (s >= 800 && s <= 2000) {
+        shiftWl.push(+s.toFixed(1));
+        const baseVal = Math.max(0, realRaman.mean[i] || 0);
+        // Depth modulation: surface UV/perchlorates attenuate organic Raman signal and elevate fluorescence
+        const fluorHump = 28.0 * (1.0 + uvBleachFactor * 2.2) * Math.exp(-((s - 1450) ** 2) / 600000);
+        const signalVal = baseVal * depthShielding + fluorHump;
+        rawIntensity.push(+signalVal.toFixed(2));
       }
     }
-    rawIntensity.push(+val.toFixed(2));
+  }
+
+  // If no archive file loaded or procedural sample: generate target-tailored spectrum
+  if (shiftWl.length < 10) {
+    let dCenter = 1350;
+    let gCenter = 1605;
+    let dAmp = 1.0;
+    let gAmp = 1.1;
+    const extraBands = [];
+
+    if (targetName.includes('berry') || targetType.includes('sulfate') || targetType.includes('sedimentary')) {
+      // Sulfate-rich mudstone / Kerogen: high D & G, 1373 and 1598, high D/G ratio
+      dCenter = 1373;
+      gCenter = 1598;
+      dAmp = 1.45;
+      gAmp = 1.25;
+      extraBands.push({ center: 1019, amp: 1.2, width: 2200 }); // sulfate
+      extraBands.push({ center: 1630, amp: 0.8, width: 1800 });
+    } else if (targetName.includes('quartier') || (targetType.includes('olivine') && !targetName.includes('dourbes'))) {
+      // Quartier: Olivine-rich igneous -> Naphthalene / Bicyclic aromatic
+      dCenter = 1355;
+      gCenter = 1617;
+      dAmp = 0.95;
+      gAmp = 0.75;
+      extraBands.push({ center: 823, amp: 1.3, width: 2000 }); // olivine
+      extraBands.push({ center: 1020, amp: 1.1, width: 1800 }); // naphthalene C-H
+      extraBands.push({ center: 1380, amp: 1.3, width: 2200 }); // naphthalene ring stretch
+      extraBands.push({ center: 1460, amp: 0.9, width: 1800 });
+    } else if (targetName.includes('dourbes')) {
+      // Dourbes: Olivine with phosphate and Phenanthrene
+      dCenter = 1364;
+      gCenter = 1589;
+      dAmp = 1.25;
+      gAmp = 1.35;
+      extraBands.push({ center: 833, amp: 1.5, width: 2000 }); // olivine
+      extraBands.push({ center: 960, amp: 1.0, width: 1800 }); // phosphate
+      extraBands.push({ center: 1438, amp: 1.1, width: 2000 }); // phenanthrene C-C
+    } else if (targetName.includes('belva') || targetName.includes('delta') || targetType.includes('mudstone') || targetType.includes('clay')) {
+      // Lacustrine clay: Prebiotic amino acids (Glycine/Alanine)
+      dCenter = 1335;
+      gCenter = 1595;
+      dAmp = 1.15;
+      gAmp = 0.85;
+      extraBands.push({ center: 1040, amp: 1.35, width: 2200 }); // C-N stretch
+      extraBands.push({ center: 1412, amp: 1.45, width: 2200 }); // carboxylate COO-
+      extraBands.push({ center: 1665, amp: 1.0, width: 2000 }); // amide I
+    } else if (targetName.includes('bellegarde') || targetName.includes('pyrene')) {
+      // Altered basaltic lava: Pyrene 4-ring peri-condensed
+      dCenter = 1373;
+      gCenter = 1589;
+      dAmp = 1.1;
+      gAmp = 1.3;
+      extraBands.push({ center: 1395, amp: 1.2, width: 2000 });
+      extraBands.push({ center: 1485, amp: 1.1, width: 1800 });
+    } else if (targetName.includes('guillaumes') || targetName.includes('montpezat') || targetType.includes('basalt')) {
+      // Weathered basalt rind: Perchlorate and weak aromatic
+      dCenter = 1386;
+      gCenter = 1605;
+      dAmp = 0.6;
+      gAmp = 0.85;
+      extraBands.push({ center: 947, amp: 1.3, width: 1600 }); // perchlorate
+    } else {
+      // Generic astrobiology scaffold: Phenanthrene
+      dCenter = 1350;
+      gCenter = 1605;
+      dAmp = 1.0;
+      gAmp = 1.1;
+      extraBands.push({ center: 1438, amp: 0.8, width: 2000 });
+    }
+
+    shiftWl = [];
+    rawIntensity = [];
+    for (let s = 800; s <= 2000; s += 15) {
+      shiftWl.push(s);
+      // Fluorescence baseline envelope
+      let val = 70.0 + 110.0 * Math.exp(-((s - 1450) ** 2) / 750000);
+
+      // Depth-dependent organic Raman peaks
+      if (z >= 3.5) {
+        const peakAmp = (z / 55.0) * (organicPreservationScore / 100.0) * 42.0;
+        val += peakAmp * dAmp * Math.exp(-((s - dCenter) ** 2) / 3600);
+        val += peakAmp * gAmp * Math.exp(-((s - gCenter) ** 2) / 3200);
+
+        for (const extra of extraBands) {
+          val += peakAmp * extra.amp * Math.exp(-((s - extra.center) ** 2) / extra.width);
+        }
+      }
+      rawIntensity.push(+val.toFixed(2));
+    }
   }
 
   // Deconvolve and match

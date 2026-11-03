@@ -8,7 +8,7 @@ import { routeDistance, estimateO2Consumption, estimateWaterConsumption, estimat
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
 import ProvenanceBadge from './ProvenanceBadge';
 import { generateFlightBrief } from '../services/aiService';
-import { Loader2, Sparkles, Flame } from 'lucide-react';
+import { Loader2, Sparkles, Flame, Dna } from 'lucide-react';
 
 export default function FlightPlanModal() {
   const { 
@@ -519,29 +519,66 @@ export default function FlightPlanModal() {
             </div>
           </div>
 
-          {/* Sample Cache Inventory */}
+          {/* Sample Cache Inventory & Mars Sample Return (MSR) Manifest */}
           <div className="space-y-2">
             <h3 className="font-bold text-white text-xs uppercase tracking-wider flex items-center justify-between print:text-black">
-              <span>Sealed Sample Tubes In Custody</span>
-              <span className="text-mars-400 font-mono text-[10px] print:text-black">{collectedSamples?.length || 0} Tubes</span>
+              <span className="flex items-center gap-2">
+                <Dna className="w-4 h-4 text-emerald-400" />
+                <span>Mars Sample Return (MSR) Manifest & Core Inventory</span>
+              </span>
+              <div className="flex items-center gap-2">
+                {collectedSamples?.some((s) => s.notes?.includes('[MSR CORE')) && (
+                  <span className="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30 print:text-black">
+                    {collectedSamples.filter((s) => s.notes?.includes('[MSR CORE')).length} Astrobiology Cores
+                  </span>
+                )}
+                <span className="text-mars-400 font-mono text-[10px] print:text-black">{collectedSamples?.length || 0} / 43 Tubes</span>
+              </div>
             </h3>
             {(collectedSamples || []).length === 0 ? (
               <div className="text-[11px] text-space-400 italic p-3 bg-space-900/30 rounded-lg border border-space-800/60 text-center">
-                No sealed sample tubes currently in custody. Use the In-Situ Science Lab to core and cache samples.
+                No sealed sample tubes currently in custody. Use the In-Situ Science Lab 55mm Core Drill to extract and cache astrobiology samples.
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {(collectedSamples || []).map((s) => (
-                  <div key={s.id} className="p-2.5 bg-space-900/50 rounded-lg border border-space-800 flex items-center justify-between print:bg-white print:border-gray-400 print:text-black">
-                    <div>
-                      <span className="font-bold text-white text-[11px] block print:text-black">{s.name}</span>
-                      <span className="text-[10px] text-space-400 print:text-gray-600">{s.rockType} • Sol {s.sol}</span>
+                {(collectedSamples || []).map((s, idx) => {
+                  const isCore = s.notes?.includes('[MSR CORE');
+                  return (
+                    <div
+                      key={s.id || idx}
+                      className={`p-2.5 rounded-lg border flex flex-col justify-between gap-1.5 print:bg-white print:border-gray-400 print:text-black ${
+                        isCore
+                          ? 'bg-gradient-to-r from-emerald-950/30 via-space-900/60 to-black/60 border-emerald-500/40 shadow-sm shadow-emerald-500/10'
+                          : 'bg-space-900/50 border-space-800'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-white text-[11px] block print:text-black">{s.name}</span>
+                            {isCore && (
+                              <span className="text-[9px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/40 flex items-center gap-1">
+                                <Dna className="w-2.5 h-2.5" />
+                                55mm CORE
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-space-400 print:text-gray-600 block mt-0.5">
+                            {s.rockType} • Sol {s.sol} • Tube #{s.tubeNumber || idx + 1}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-green-400 bg-green-950/60 px-2 py-0.5 rounded border border-green-500/30 shrink-0 print:text-black print:border-black">
+                          {s.status}
+                        </span>
+                      </div>
+                      {s.notes && (
+                        <p className="text-[10px] text-zinc-400 font-mono leading-tight bg-black/40 p-1.5 rounded border border-white/5 line-clamp-2">
+                          {s.notes}
+                        </p>
+                      )}
                     </div>
-                    <span className="text-[10px] font-bold text-green-400 bg-green-950/60 px-2 py-0.5 rounded border border-green-500/30 print:text-black print:border-black">
-                      {s.status}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
