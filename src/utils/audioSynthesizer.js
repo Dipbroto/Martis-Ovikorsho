@@ -605,6 +605,45 @@ class MarsAudioSynthesizer {
     } catch (e) { /* ignore */ }
   }
 
+  playCoreDrill() {
+    if (!this.ctx) this.init();
+    if (!this.ctx || this.isMuted) return;
+    try {
+      const now = this.ctx.currentTime;
+      
+      // Rotary motor humming oscillator
+      const motor = this.ctx.createOscillator();
+      const motorGain = this.ctx.createGain();
+      motor.type = 'sawtooth';
+      motor.frequency.setValueAtTime(85, now);
+      motor.frequency.linearRampToValueAtTime(115, now + 0.3);
+      motor.frequency.linearRampToValueAtTime(75, now + 0.8);
+      motorGain.gain.setValueAtTime(0.06, now);
+      motorGain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+      motor.connect(motorGain);
+      motorGain.connect(this.masterGain);
+      motor.start(now);
+      motor.stop(now + 0.85);
+
+      // Percussive hammer pulses (16 Hz tremolo effect)
+      const hammer = this.ctx.createOscillator();
+      const hammerGain = this.ctx.createGain();
+      hammer.type = 'square';
+      hammer.frequency.setValueAtTime(180, now);
+      hammer.frequency.exponentialRampToValueAtTime(60, now + 0.6);
+      hammerGain.gain.setValueAtTime(0.05, now);
+      hammerGain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+      hammer.connect(hammerGain);
+      hammerGain.connect(this.masterGain);
+      hammer.start(now);
+      hammer.stop(now + 0.65);
+
+      setTimeout(() => {
+        this.playSampleSeal();
+      }, 700);
+    } catch (e) { /* ignore */ }
+  }
+
   getFrequencyData(array) {
     if (this.analyser) {
       this.analyser.getByteFrequencyData(array);
@@ -622,3 +661,4 @@ export const playLaserZap = () => marsAudio.playLaserZap();
 export const playMarsquakeAudio = () => marsAudio.playMarsquakeAudio();
 export const playSampleSeal = () => marsAudio.playSampleSeal();
 export const playPlasmaForge = () => marsAudio.playPlasmaForge();
+export const playCoreDrill = () => marsAudio.playCoreDrill();

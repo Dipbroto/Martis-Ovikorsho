@@ -978,4 +978,95 @@ describe('marsMlService (Client ML Inference)', () => {
     });
   });
 
+
+  describe('Step 1 (Deep Core): Astrobiology Organic Raman Deconvolution & Subsurface Engine', () => {
+    it('defines authentic astrochemistry molecular library entries with diagnostic vibrational bands', async () => {
+      const { ASTROBIOLOGY_ORGANIC_LIBRARY } = await import('./marsMlService');
+
+      expect(ASTROBIOLOGY_ORGANIC_LIBRARY.PHENANTHRENE).toBeDefined();
+      expect(ASTROBIOLOGY_ORGANIC_LIBRARY.PYRENE).toBeDefined();
+      expect(ASTROBIOLOGY_ORGANIC_LIBRARY.NAPHTHALENE).toBeDefined();
+      expect(ASTROBIOLOGY_ORGANIC_LIBRARY.GLYCINE_PRECURSOR).toBeDefined();
+      expect(ASTROBIOLOGY_ORGANIC_LIBRARY.ALANINE_PRECURSOR).toBeDefined();
+      expect(ASTROBIOLOGY_ORGANIC_LIBRARY.REFRACTORY_KEROGEN).toBeDefined();
+
+      // Check molecular properties and bands
+      const phen = ASTROBIOLOGY_ORGANIC_LIBRARY.PHENANTHRENE;
+      expect(phen.formula).toBe('C14H10');
+      expect(phen.molecularWeight).toBeCloseTo(178.23, 1);
+      expect(phen.diagnosticBands.some((b) => b.cm1 === 1350)).toBe(true);
+      expect(phen.diagnosticBands.some((b) => b.cm1 === 1605)).toBe(true);
+
+      const gly = ASTROBIOLOGY_ORGANIC_LIBRARY.GLYCINE_PRECURSOR;
+      expect(gly.category).toBe('PREBIOTIC_AMINO_ACID');
+      expect(gly.molecularWeight).toBeCloseTo(75.07, 1);
+    });
+
+    it('deconvolves deep-UV Raman spectra, strips fluorescence baseline, and extracts Carbon D and G peaks', async () => {
+      const { deconvolveRamanSpectrum } = await import('./marsMlService');
+
+      const shifts = [800, 1000, 1200, 1345, 1400, 1500, 1600, 1800, 2000, 2800, 3000];
+      // Synthetic curve with fluorescence baseline + D peak (1345) and G peak (1600)
+      const raw = [50, 60, 75, 160, 90, 85, 195, 80, 70, 60, 50];
+
+      const res = deconvolveRamanSpectrum(shifts, raw);
+      expect(res.deconvolved.length).toBe(shifts.length);
+      expect(res.fluorescenceBackgroundPct).toBeGreaterThan(0);
+      expect(res.peaks.length).toBeGreaterThan(0);
+      expect(res.carbonDBand).toBeGreaterThan(0);
+      expect(res.carbonGBand).toBeGreaterThan(0);
+      expect(res.dToGRatio).toBeGreaterThan(0);
+    });
+
+    it('matches organic fingerprints and computes biotic vs abiotic plausibility', async () => {
+      const { deconvolveRamanSpectrum, matchOrganicFingerprint } = await import('./marsMlService');
+
+      const shifts = [];
+      const raw = [];
+      for (let s = 400; s <= 3400; s += 20) {
+        shifts.push(s);
+        let val = 40 + Math.sin(s / 500) * 10;
+        // Inject Phenanthrene peaks at 1350 and 1605
+        if (Math.abs(s - 1350) <= 25) val += 80;
+        if (Math.abs(s - 1605) <= 25) val += 95;
+        raw.push(val);
+      }
+
+      const deconvolved = deconvolveRamanSpectrum(shifts, raw);
+      const match = matchOrganicFingerprint(deconvolved, { rockType: 'Delta Mudstone', biosignatureScore: 88 }, 45);
+
+      expect(match.bestMatch).toBeDefined();
+      expect(match.confidencePercent).toBeGreaterThan(40);
+      expect(match.biogenicProbabilityPercent).toBeGreaterThan(30);
+      expect(match.carbonMetrics.dToGRatio).toBeGreaterThan(0);
+      expect(match.matchedBands.length).toBeGreaterThan(0);
+    });
+
+    it('models depth-resolved physical stratigraphy, UV photolysis decay, and Fe3/Fe2 redox gradients', async () => {
+      const { calculateSubsurfaceDepthProfile } = await import('./marsMlService');
+
+      const mockTarget = {
+        name: 'Jezero Delta Mudstone #42',
+        rockType: 'Smectite Clay / Delta Mudstone',
+        biosignatureScore: 92,
+      };
+
+      // 1. Surface Patina (z = 1.5 mm): UV-bleached, oxidized Fe3+, low organic ppm
+      const surfaceProfile = calculateSubsurfaceDepthProfile(mockTarget, 1.5);
+      expect(surfaceProfile.activeLayer.id).toBe('LAYER_PATINA');
+      expect(surfaceProfile.uvBleachFactor).toBeGreaterThan(0.5);
+      expect(surfaceProfile.fe3Fraction).toBeGreaterThan(surfaceProfile.fe2Fraction);
+      expect(surfaceProfile.perchloratePpm).toBeGreaterThan(500);
+      expect(surfaceProfile.organicCarbonPpm).toBeLessThan(15);
+
+      // 2. Deep Shielded Mudstone (z = 48 mm): Protected from UV, high Fe2+, high organic ppm
+      const deepProfile = calculateSubsurfaceDepthProfile(mockTarget, 48.0);
+      expect(deepProfile.activeLayer.id).toBe('LAYER_LAMINAE');
+      expect(deepProfile.uvBleachFactor).toBeLessThan(0.01);
+      expect(deepProfile.fe2Fraction).toBeGreaterThan(surfaceProfile.fe2Fraction);
+      expect(deepProfile.organicPreservationScore).toBeGreaterThan(surfaceProfile.organicPreservationScore);
+      expect(deepProfile.organicCarbonPpm).toBeGreaterThan(surfaceProfile.organicCarbonPpm);
+      expect(deepProfile.organicMatch.confidencePercent).toBeGreaterThan(surfaceProfile.organicMatch.confidencePercent);
+    });
+  });
 });

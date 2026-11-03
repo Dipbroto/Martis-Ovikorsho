@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, Droplets, ExternalLink, RotateCcw, ShieldCheck, Trash2, Flame,
+  Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, Droplets, ExternalLink, RotateCcw, ShieldCheck, Trash2, Flame, Dna,
 } from 'lucide-react';
 import { playUiClick, playLaserZap } from '../utils/audioSynthesizer';
 import useScienceLab from '../hooks/useScienceLab';
@@ -13,6 +13,7 @@ import PixlPanel from './science/PixlPanel';
 import SherlocPanel from './science/SherlocPanel';
 import MineralMlClassifier from './science/MineralMlClassifier';
 import ActiveLearningTriageDeck from './science/ActiveLearningTriageDeck';
+import SubsurfaceCoreDrillDeck from './science/SubsurfaceCoreDrillDeck';
 import IsruPlasmaForgeDeck from './science/IsruPlasmaForgeDeck';
 import PlanetaryDiscoveryScanner from './science/PlanetaryDiscoveryScanner';
 
@@ -20,8 +21,9 @@ const INSTRUMENTS = [
   { id: 'supercam', label: 'SuperCam', what: 'Laser spectroscopy', icon: Zap, tone: 'from-orange-500/25' },
   { id: 'pixl', label: 'PIXL', what: 'X-ray chemistry', icon: Atom, tone: 'from-sky-500/25' },
   { id: 'sherloc', label: 'SHERLOC', what: 'UV Raman and glow', icon: Sparkles, tone: 'from-violet-500/25' },
+  { id: 'core', label: 'Core Drill', what: 'Subsurface astrobiology', icon: Dna, tone: 'from-emerald-500/25' },
   { id: 'isru', label: 'ISRU Forge', what: 'Plasma synthesis', icon: Flame, tone: 'from-amber-500/25' },
-  { id: 'msr', label: 'Sample cache', what: 'Seal and store', icon: Database, tone: 'from-emerald-500/25' },
+  { id: 'msr', label: 'Sample cache', what: 'Seal and store', icon: Database, tone: 'from-cyan-500/25' },
 ];
 
 const TOTAL_TUBES = 38; // Perseverance carries 43 tubes; 38 are for samples
@@ -96,7 +98,7 @@ export default function ScienceLabPage() {
         </header>
 
         {/* Instrument picker */}
-        <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" role="tablist" aria-label="Instruments">
+        <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" role="tablist" aria-label="Instruments">
           {INSTRUMENTS.map(({ id, label, what, icon: Icon, tone }) => {
             const on = activeInstrument === id;
             return (
@@ -104,7 +106,16 @@ export default function ScienceLabPage() {
                 key={id}
                 role="tab"
                 aria-selected={on}
-                onClick={() => { playUiClick?.(); setActiveInstrument(id); }}
+                onClick={() => {
+                  playUiClick?.();
+                  setActiveInstrument(id);
+                  setTimeout(() => {
+                    const el = document.getElementById('active-instrument-deck');
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }, 60);
+                }}
                 className={`group relative overflow-hidden text-left rounded-2xl border p-4 transition-all cursor-pointer ${on ? 'border-[#ff7b4d]/60 bg-[#0a0c12]/70 shadow-[0_10px_40px_-15px_rgba(242,106,61,0.6)]' : 'border-white/10 bg-[#0a0c12]/45 hover:border-white/25'}`}
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${tone} to-transparent ${on ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 transition-opacity`} />
@@ -236,6 +247,27 @@ export default function ScienceLabPage() {
                       <button onClick={handleCacheSample} disabled={isSealingTube || cachedSuccess} className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm text-zinc-200 hover:bg-white/10 transition disabled:opacity-60 cursor-pointer">
                         {cachedSuccess ? <><CheckCircle2 className="w-4 h-4 text-emerald-400" />Sealed</> : <><Database className="w-4 h-4" />{isSealingTube ? 'Sealing…' : 'Seal a sample'}</>}
                       </button>
+                      <button
+                        onClick={() => {
+                          playUiClick?.();
+                          setActiveInstrument('core');
+                          setTimeout(() => {
+                            const el = document.getElementById('core-drill-deck') || document.getElementById('active-instrument-deck');
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                          }, 60);
+                        }}
+                        className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm transition-all cursor-pointer ${
+                          activeInstrument === 'core'
+                            ? 'border-emerald-400 bg-emerald-500/35 text-white font-semibold ring-2 ring-emerald-400/50 shadow-[0_0_20px_rgba(16,185,129,0.4)]'
+                            : 'border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200'
+                        }`}
+                        title="Inspect depth-resolved 55mm core stratigraphy and astrobiology organics"
+                      >
+                        <Dna className={`w-4 h-4 text-emerald-300 ${activeInstrument === 'core' ? 'animate-pulse' : ''}`} />
+                        <span>{activeInstrument === 'core' ? 'Active: Subsurface Core (55mm) ↓' : 'Subsurface Core (55mm)'}</span>
+                      </button>
                       {activeInstrument === 'supercam' && (
                         <button onClick={() => playLaserZap?.()} className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 px-4 py-2.5 text-sm transition cursor-pointer" title="Listen to real SuperCam pulsed laser shots ionizing rock target Máaz (NASA Sol 12)">
                           <Zap className="w-4 h-4 text-rose-400 animate-pulse" />Hear SuperCam laser (Sol 12)
@@ -286,123 +318,127 @@ export default function ScienceLabPage() {
                 </AnimatePresence>
               </section>
 
+              {/* ACTIVE INSTRUMENT WORKSPACE */}
+              <div id="active-instrument-deck" className="scroll-mt-24 space-y-6">
+                {isLoadingData && !data && (
+                  <div className="rounded-2xl border border-white/10 bg-black/40 min-h-[260px] flex flex-col items-center justify-center text-zinc-400">
+                    <Loader2 className="w-7 h-7 animate-spin text-[#ffa07f] mb-3" />Loading measurements for {target.name}…
+                  </div>
+                )}
+                {loadError && !isLoadingData && !data && (
+                  <div className="rounded-2xl border border-amber-400/30 bg-amber-950/20 p-6 text-center">
+                    <p className="text-amber-100 text-sm">{loadError}</p>
+                    <button onClick={retry} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white text-black font-semibold px-4 py-2 text-sm hover:bg-zinc-200 cursor-pointer"><RotateCcw className="w-4 h-4" />Try again</button>
+                  </div>
+                )}
+
+                {data && activeInstrument === 'supercam' && <LibsPanel target={target} data={data} lab={lab} />}
+                {data && activeInstrument === 'pixl' && <PixlPanel target={target} data={data} lab={lab} />}
+                {data && activeInstrument === 'sherloc' && <SherlocPanel target={target} data={data} lab={lab} />}
+                {target && activeInstrument === 'core' && <SubsurfaceCoreDrillDeck id="core-drill-deck" target={target} data={data} lab={lab} />}
+                {target && activeInstrument === 'isru' && <IsruPlasmaForgeDeck target={target} data={data} lab={lab} />}
+
+                {/* SAMPLE CACHE */}
+                {activeInstrument === 'msr' && (
+                  <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+                    <Panel title="Seal a sample" icon={Database} className="xl:col-span-2">
+                      <p className="text-sm text-zinc-300">Core <span className="text-white font-medium">{target.name}</span> into tube #{tubesUsed + 1}.</p>
+                      <label htmlFor="tube-notes" className="block text-xs text-zinc-400 mt-4 mb-1.5">Field notes</label>
+                      <textarea id="tube-notes" rows={3} value={customTubeNotes} onChange={(e) => setCustomTubeNotes(e.target.value)} placeholder="Why this rock matters…" className="w-full rounded-xl bg-black/50 border border-white/10 px-3 py-2 text-sm placeholder-zinc-500 focus:outline-none focus:border-white/40" />
+                      <button onClick={handleCacheSample} disabled={isSealingTube || cachedSuccess || tubesUsed >= TOTAL_TUBES} className="mt-3 w-full rounded-xl bg-white text-black font-semibold py-3 text-sm hover:bg-zinc-200 transition disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2">
+                        {cachedSuccess ? <><CheckCircle2 className="w-4 h-4 text-emerald-600" />Sealed and logged</> : isSealingTube ? <><Loader2 className="w-4 h-4 animate-spin" />Sealing…</> : 'Seal the tube'}
+                      </button>
+                      {cacheError && <p className="mt-2 text-xs text-amber-300">{cacheError}</p>}
+                    </Panel>
+                    <Panel
+                      title="Tube rack"
+                      icon={CheckCircle2}
+                      className="xl:col-span-3"
+                      right={
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-zinc-500 font-mono">{tubesUsed} / {TOTAL_TUBES} used</span>
+                          {safeSamples.length > 0 && (
+                            <button
+                              onClick={() => {
+                                playUiClick?.();
+                                handleClearAllSamples();
+                              }}
+                              className="text-xs text-zinc-400 hover:text-rose-300 flex items-center gap-1 transition px-2 py-0.5 rounded-lg border border-white/10 hover:border-rose-500/30 hover:bg-rose-500/10 cursor-pointer"
+                              title="Empty all sample tubes"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Clear all</span>
+                            </button>
+                          )}
+                        </div>
+                      }
+                    >
+                      <div className="grid grid-cols-[repeat(19,minmax(0,1fr))] gap-1">
+                        {Array.from({ length: TOTAL_TUBES }, (_, i) => (
+                          <span
+                            key={i}
+                            title={safeSamples[i]?.name ? `Tube #${i + 1}: ${safeSamples[i].name} (${safeSamples[i].rockType || 'Core'})` : `Empty tube #${i + 1}`}
+                            className={`h-9 rounded-full border transition-all ${
+                              i < tubesUsed
+                                ? 'bg-gradient-to-b from-[#ffb08f] to-[#c2410c] border-[#ffb08f]/60 shadow-sm shadow-[#ffb08f]/20'
+                                : 'bg-white/[0.04] border-white/10'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <div className="mt-4 space-y-2 max-h-64 overflow-y-auto overscroll-contain custom-scrollbar-y pr-1">
+                        {safeSamples.length === 0 ? (
+                          <div className="p-6 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
+                            <p className="text-sm text-zinc-400 font-medium">No samples sealed yet.</p>
+                            <p className="text-xs text-zinc-500 mt-1">All {TOTAL_TUBES} sample tubes are empty and ready for caching.</p>
+                          </div>
+                        ) : (
+                          safeSamples.map((s, idx) => (
+                            <div
+                              key={s.id || idx}
+                              className="group flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] border border-white/[0.07] hover:border-white/20 p-3 text-sm transition-all"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="w-6 h-6 rounded-full bg-gradient-to-b from-[#ffb08f] to-[#c2410c] border border-[#ffb08f]/60 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm">
+                                  {idx + 1}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block font-medium truncate text-white">{s.name}</span>
+                                  <span className="block text-xs text-zinc-400 truncate">
+                                    {s.rockType}{s.notes ? ` · ${s.notes}` : ''}
+                                  </span>
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-xs text-emerald-300 font-mono font-medium px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-500/30">
+                                  {s.status || 'SEALED IN CACHE'}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    playUiClick?.();
+                                    handleRemoveSample(s.id || idx);
+                                  }}
+                                  className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-300 hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all cursor-pointer"
+                                  title={`Unseal and remove Tube #${idx + 1} (${s.name})`}
+                                  aria-label={`Remove sample tube for ${s.name}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </Panel>
+                  </div>
+                )}
+              </div>
+
               {/* In-Situ ML Mineral Classifier & Biosignature Preservation Deck */}
               {target && <MineralMlClassifier target={target} data={data} />}
 
               {/* Bayesian Active Learning Novelty & Triage Radar Deck */}
               {target && <ActiveLearningTriageDeck target={target} data={data} lab={lab} />}
-
-              {isLoadingData && !data && (
-                <div className="rounded-2xl border border-white/10 bg-black/40 min-h-[260px] flex flex-col items-center justify-center text-zinc-400">
-                  <Loader2 className="w-7 h-7 animate-spin text-[#ffa07f] mb-3" />Loading measurements for {target.name}…
-                </div>
-              )}
-              {loadError && !isLoadingData && !data && (
-                <div className="rounded-2xl border border-amber-400/30 bg-amber-950/20 p-6 text-center">
-                  <p className="text-amber-100 text-sm">{loadError}</p>
-                  <button onClick={retry} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white text-black font-semibold px-4 py-2 text-sm hover:bg-zinc-200 cursor-pointer"><RotateCcw className="w-4 h-4" />Try again</button>
-                </div>
-              )}
-
-              {data && activeInstrument === 'supercam' && <LibsPanel target={target} data={data} lab={lab} />}
-              {data && activeInstrument === 'pixl' && <PixlPanel target={target} data={data} lab={lab} />}
-              {data && activeInstrument === 'sherloc' && <SherlocPanel target={target} data={data} lab={lab} />}
-              {target && activeInstrument === 'isru' && <IsruPlasmaForgeDeck target={target} data={data} lab={lab} />}
-
-              {/* SAMPLE CACHE */}
-              {activeInstrument === 'msr' && (
-                <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-                  <Panel title="Seal a sample" icon={Database} className="xl:col-span-2">
-                    <p className="text-sm text-zinc-300">Core <span className="text-white font-medium">{target.name}</span> into tube #{tubesUsed + 1}.</p>
-                    <label htmlFor="tube-notes" className="block text-xs text-zinc-400 mt-4 mb-1.5">Field notes</label>
-                    <textarea id="tube-notes" rows={3} value={customTubeNotes} onChange={(e) => setCustomTubeNotes(e.target.value)} placeholder="Why this rock matters…" className="w-full rounded-xl bg-black/50 border border-white/10 px-3 py-2 text-sm placeholder-zinc-500 focus:outline-none focus:border-white/40" />
-                    <button onClick={handleCacheSample} disabled={isSealingTube || cachedSuccess || tubesUsed >= TOTAL_TUBES} className="mt-3 w-full rounded-xl bg-white text-black font-semibold py-3 text-sm hover:bg-zinc-200 transition disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2">
-                      {cachedSuccess ? <><CheckCircle2 className="w-4 h-4 text-emerald-600" />Sealed and logged</> : isSealingTube ? <><Loader2 className="w-4 h-4 animate-spin" />Sealing…</> : 'Seal the tube'}
-                    </button>
-                    {cacheError && <p className="mt-2 text-xs text-amber-300">{cacheError}</p>}
-                  </Panel>
-                  <Panel
-                    title="Tube rack"
-                    icon={CheckCircle2}
-                    className="xl:col-span-3"
-                    right={
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-zinc-500 font-mono">{tubesUsed} / {TOTAL_TUBES} used</span>
-                        {safeSamples.length > 0 && (
-                          <button
-                            onClick={() => {
-                              playUiClick?.();
-                              handleClearAllSamples();
-                            }}
-                            className="text-xs text-zinc-400 hover:text-rose-300 flex items-center gap-1 transition px-2 py-0.5 rounded-lg border border-white/10 hover:border-rose-500/30 hover:bg-rose-500/10 cursor-pointer"
-                            title="Empty all sample tubes"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Clear all</span>
-                          </button>
-                        )}
-                      </div>
-                    }
-                  >
-                    <div className="grid grid-cols-[repeat(19,minmax(0,1fr))] gap-1">
-                      {Array.from({ length: TOTAL_TUBES }, (_, i) => (
-                        <span
-                          key={i}
-                          title={safeSamples[i]?.name ? `Tube #${i + 1}: ${safeSamples[i].name} (${safeSamples[i].rockType || 'Core'})` : `Empty tube #${i + 1}`}
-                          className={`h-9 rounded-full border transition-all ${
-                            i < tubesUsed
-                              ? 'bg-gradient-to-b from-[#ffb08f] to-[#c2410c] border-[#ffb08f]/60 shadow-sm shadow-[#ffb08f]/20'
-                              : 'bg-white/[0.04] border-white/10'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <div className="mt-4 space-y-2 max-h-64 overflow-y-auto overscroll-contain custom-scrollbar-y pr-1">
-                      {safeSamples.length === 0 ? (
-                        <div className="p-6 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
-                          <p className="text-sm text-zinc-400 font-medium">No samples sealed yet.</p>
-                          <p className="text-xs text-zinc-500 mt-1">All {TOTAL_TUBES} sample tubes are empty and ready for caching.</p>
-                        </div>
-                      ) : (
-                        safeSamples.map((s, idx) => (
-                          <div
-                            key={s.id || idx}
-                            className="group flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] border border-white/[0.07] hover:border-white/20 p-3 text-sm transition-all"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="w-6 h-6 rounded-full bg-gradient-to-b from-[#ffb08f] to-[#c2410c] border border-[#ffb08f]/60 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm">
-                                {idx + 1}
-                              </span>
-                              <span className="min-w-0">
-                                <span className="block font-medium truncate text-white">{s.name}</span>
-                                <span className="block text-xs text-zinc-400 truncate">
-                                  {s.rockType}{s.notes ? ` · ${s.notes}` : ''}
-                                </span>
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-xs text-emerald-300 font-mono font-medium px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-500/30">
-                                {s.status || 'SEALED IN CACHE'}
-                              </span>
-                              <button
-                                onClick={() => {
-                                  playUiClick?.();
-                                  handleRemoveSample(s.id || idx);
-                                }}
-                                className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-300 hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all cursor-pointer"
-                                title={`Unseal and remove Tube #${idx + 1} (${s.name})`}
-                                aria-label={`Remove sample tube for ${s.name}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </Panel>
-                </div>
-              )}
 
               {/* Ancient water: a reference chart, next to what this rock's chemistry shows */}
               <Panel title="Which water makes which minerals?" icon={Droplets} right={<span className={`text-xs px-2.5 py-1 rounded-full border ${paleo.badge}`}>{paleo.epoch}</span>}>
