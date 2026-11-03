@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
-import { Activity, Target, Zap, Info, Loader2, Trash2, Sparkles } from 'lucide-react';
+import { Activity, Target, Zap, Info, Loader2, Trash2, Sparkles, Crosshair } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { playUiHover } from '../../utils/audioSynthesizer';
 import { libsElements, imageUrl, ELEMENT_COLORS } from '../../data/scienceLab';
 import { coverageGaps, elementMarkers, runningMean, segmentsFromGaps, splitSegments, topMarkers } from '../../utils/libsSpectrum';
 import Panel, { Provenance } from './Panel';
 import ProvenanceBadge from '../ProvenanceBadge';
-import { predictLibsChemometrics } from '../../services/marsMlService';
+import { predictLibsChemometrics, recommendNextScienceTarget } from '../../services/marsMlService';
 import SpectrumChart from './SpectrumChart';
 
 const DUST_SHOTS = 5;
@@ -46,6 +46,14 @@ export default function LibsPanel({ target, data, lab }) {
     if (!point) return null;
     return predictLibsChemometrics(point);
   }, [point]);
+
+  const activeLearning = useMemo(() => {
+    if (!libs?.points?.length) return null;
+    return recommendNextScienceTarget(libs.points, pits.map((p) => p.point));
+  }, [libs?.points, pits]);
+
+  const recommendedPoint = activeLearning?.topRecommendation || null;
+  const currentPointRanking = activeLearning?.candidateRankings?.find((c) => c.index === pointIdx) || null;
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
@@ -93,13 +101,117 @@ export default function LibsPanel({ target, data, lab }) {
         <div className="mt-4">
           <p className="text-xs text-zinc-400 mb-1.5">Laser points on this rock ({libs.points.length} shown)</p>
           <div className="flex flex-wrap gap-1.5">
-            {libs.points.map((p, i) => (
-              <button key={p.n} onClick={() => selectPoint(i)} aria-pressed={i === pointIdx}
-                className={`rounded-lg border px-3 py-1.5 text-xs cursor-pointer transition-colors ${i === pointIdx ? 'bg-white text-black border-white' : 'border-white/10 bg-white/[0.03] text-zinc-200 hover:border-white/30'}`}>
-                Point {p.n}
-              </button>
-            ))}
+            {libs.points.map((p, i) => {
+              const isRecommended = activeLearning?.recommendedIndex === i;
+              const isSampled = pits.some((pit) => pit.point === i);
+              return (
+                <button
+                  key={p.n}
+                  onClick={() => selectPoint(i)}
+                  aria-pressed={i === pointIdx}
+                  className={`rounded-lg border px-3 py-1.5 text-xs cursor-pointer transition-all flex items-center gap-1.5 ${
+                    i === pointIdx
+                      ? 'bg-white text-black border-white shadow-sm'
+                      : isRecommended
+                      ? 'border-amber-400/80 bg-amber-500/15 text-amber-200 hover:border-amber-400 ring-1 ring-amber-400/50'
+                      : 'border-white/10 bg-white/[0.03] text-zinc-200 hover:border-white/30'
+                  }`}
+                >
+                  <span>Point {p.n}</span>
+                  {isRecommended && (
+                    <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400 text-black font-bold uppercase tracking-wider font-mono">
+                      AEGIS
+                    </span>
+                  )}
+                  {isSampled && !isRecommended && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Zapped / Sampled" />
+                  )}
+                </button>
+              );
+            })}
           </div>
+
+        {/* NASA AEGIS Active Learning Target Triage Card */}
+        {activeLearning && recommendedPoint && (
+          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3.5 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-white/5 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  <Sparkles size={14} className="animate-pulse" />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      AEGIS Science Triage
+                    </span>
+                    <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Autonomous Bayesian Triage (NASA AEGIS)" />
+                  </div>
+                  <span className="text-[10px] text-zinc-400 font-mono">
+                    Bayesian Active Learning Optimization (Shannon Entropy + BPP + Novelty)
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 font-mono text-xs">
+                <span className="text-[10px] text-zinc-400 uppercase">Acquisition Score</span>
+                <span className="px-2 py-0.5 rounded-md font-bold text-amber-300 bg-amber-500/20 border border-amber-500/40">
+                  {recommendedPoint.acquisitionScore} / 100
+                </span>
+              </div>
+            </div>
+
+            {/* Metric Gauges Grid */}
+            <div className="grid grid-cols-3 gap-2 font-mono text-center">
+              <div className="bg-black/40 border border-white/5 rounded-lg p-2">
+                <div className="text-[9px] text-zinc-400 font-sans uppercase truncate">Uncertainty</div>
+                <div className="text-xs font-bold text-violet-300 mt-0.5">
+                  {recommendedPoint.entropyPercent}%
+                </div>
+                <div className="text-[8px] text-zinc-500">Entropy</div>
+              </div>
+              <div className="bg-black/40 border border-white/5 rounded-lg p-2">
+                <div className="text-[9px] text-zinc-400 font-sans uppercase truncate">Biosignature</div>
+                <div className="text-xs font-bold text-amber-300 mt-0.5">
+                  {recommendedPoint.biosignatureScore}%
+                </div>
+                <div className="text-[8px] text-zinc-500">BPP Utility</div>
+              </div>
+              <div className="bg-black/40 border border-white/5 rounded-lg p-2">
+                <div className="text-[9px] text-zinc-400 font-sans uppercase truncate">Geochem Novelty</div>
+                <div className="text-xs font-bold text-emerald-300 mt-0.5">
+                  {recommendedPoint.noveltyPercent}%
+                </div>
+                <div className="text-[8px] text-zinc-500">Centroid Dist</div>
+              </div>
+            </div>
+
+            {/* Scientific Rationale */}
+            <div className="text-[11px] text-zinc-300 bg-black/30 border border-white/5 rounded-lg p-2 leading-relaxed">
+              <span className="font-semibold text-amber-200">Autonomous Rationale: </span>
+              {recommendedPoint.rationale}
+            </div>
+
+            {/* Quick Action: Aim & Zap Recommended Point */}
+            <button
+              onClick={() => {
+                selectPoint(activeLearning.recommendedIndex);
+                const angle = (activeLearning.recommendedIndex / (libs.points.length || 1)) * 2 * Math.PI;
+                const r = 25;
+                const targetX = Math.round(50 + r * Math.cos(angle));
+                const targetY = Math.round(50 + r * Math.sin(angle));
+                fireAt(targetX, targetY);
+              }}
+              disabled={isFiringLaser}
+              className="w-full h-8 rounded-lg bg-gradient-to-r from-amber-500/25 to-orange-500/25 hover:from-amber-500/35 hover:to-orange-500/35 border border-amber-400/50 text-amber-200 font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.99] disabled:opacity-50"
+            >
+              <Crosshair size={14} className="text-amber-300" />
+              <span>
+                {pits.some((p) => p.point === activeLearning.recommendedIndex)
+                  ? `Re-Zap Recommended Point ${recommendedPoint.pointN}`
+                  : `Auto-Aim & Zap Recommended Point ${recommendedPoint.pointN} (Score: ${recommendedPoint.acquisitionScore})`}
+              </span>
+            </button>
+          </div>
+        )}
         </div>
 
         <div className="mt-4">
@@ -210,8 +322,15 @@ export default function LibsPanel({ target, data, lab }) {
                 <span className="font-bold text-emerald-300">{chemometrics.mineralClassification.predictedClass}</span>
                 <span className="text-zinc-500">({chemometrics.silicaClass})</span>
               </div>
-              <div className="text-[10px] text-zinc-400">
-                Preservation Score: <strong className="text-amber-300">{chemometrics.mineralClassification.biosignatureScore}%</strong>
+              <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                {currentPointRanking && (
+                  <span className="font-mono text-violet-300">
+                    Entropy: <strong className="text-white">{currentPointRanking.entropyPercent}%</strong>
+                  </span>
+                )}
+                <span>
+                  Preservation Score: <strong className="text-amber-300">{chemometrics.mineralClassification.biosignatureScore}%</strong>
+                </span>
               </div>
             </div>
           </div>

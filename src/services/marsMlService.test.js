@@ -679,4 +679,67 @@ describe('marsMlService (Client ML Inference)', () => {
     });
   });
 
+  describe('Active Learning Science Triage (NASA AEGIS Mode)', () => {
+    const mockPoints = [
+      {
+        n: 1,
+        lines: [
+          { el: 'Si', h: 80, nm: 288.16 },
+          { el: 'Fe', h: 60, nm: 404.58 },
+          { el: 'Mg', h: 45, nm: 285.21 },
+          { el: 'Ca', h: 30, nm: 393.37 },
+        ],
+      },
+      {
+        n: 2,
+        lines: [
+          { el: 'Si', h: 95, nm: 288.16 },
+          { el: 'Al', h: 85, nm: 396.15 },
+          { el: 'Fe', h: 40, nm: 404.58 },
+          { el: 'S', h: 60, nm: 545.38 },
+        ],
+      },
+      {
+        n: 3,
+        lines: [
+          { el: 'Fe', h: 90, nm: 404.58 },
+          { el: 'Mg', h: 85, nm: 285.21 },
+          { el: 'Si', h: 40, nm: 288.16 },
+        ],
+      },
+    ];
+
+    it('evaluates candidate points and ranks by acquisition score', async () => {
+      const { recommendNextScienceTarget } = await import('./marsMlService');
+      const triage = recommendNextScienceTarget(mockPoints, []);
+
+      expect(triage).toBeDefined();
+      expect(triage.totalCandidates).toBe(3);
+      expect(triage.topRecommendation).toBeDefined();
+      expect(triage.topRecommendation.acquisitionScore).toBeGreaterThan(0);
+      expect(triage.topRecommendation.acquisitionScore).toBeLessThanOrEqual(100);
+      expect(triage.topRecommendation.rationale).toBeDefined();
+      expect(triage.candidateRankings).toHaveLength(3);
+      // Verify descending order
+      expect(triage.candidateRankings[0].acquisitionScore).toBeGreaterThanOrEqual(
+        triage.candidateRankings[1].acquisitionScore
+      );
+    });
+
+    it('discounts already sampled points to prioritize novel unvisited targets', async () => {
+      const { recommendNextScienceTarget } = await import('./marsMlService');
+      // When Point 2 is already sampled (in sampledIndices)
+      const triage1 = recommendNextScienceTarget(mockPoints, [1]); // index 1 is Point 2
+      expect(triage1.candidateRankings.find(r => r.pointN === 2).isAlreadySampled).toBe(true);
+      expect(triage1.candidateRankings.find(r => r.pointN === 1).isAlreadySampled).toBe(false);
+    });
+
+    it('returns empty triage object on empty inputs', async () => {
+      const { recommendNextScienceTarget } = await import('./marsMlService');
+      const empty = recommendNextScienceTarget([]);
+      expect(empty.topRecommendation).toBeNull();
+      expect(empty.totalCandidates).toBe(0);
+    });
+  });
+
 });

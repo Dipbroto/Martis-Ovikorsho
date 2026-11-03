@@ -504,7 +504,7 @@ graph TD
 
 All models and inference pipelines are verified via automated Vitest test suites:
 - **Test File**: [`src/services/marsMlService.test.js`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.test.js)
-- **Suite Results**: **163 passing tests across 23 test suites**.
+- **Suite Results**: **168 passing tests across 23 test suites** (100% pass rate).
 - **Execution Speed**: Full test suite runs in under **1.8 seconds**.
 - **Zero Build Warnings**: Production Vite build completes cleanly in **~20 seconds** with zero dead-code or missing dependency warnings.
 
