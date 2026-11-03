@@ -11,6 +11,7 @@ import LibsPanel from './science/LibsPanel';
 import PixlPanel from './science/PixlPanel';
 import SherlocPanel from './science/SherlocPanel';
 import MineralMlClassifier from './science/MineralMlClassifier';
+import PlanetaryDiscoveryScanner from './science/PlanetaryDiscoveryScanner';
 
 const INSTRUMENTS = [
   { id: 'supercam', label: 'SuperCam', what: 'Laser spectroscopy', icon: Zap, tone: 'from-orange-500/25' },
@@ -48,6 +49,7 @@ export default function ScienceLabPage() {
     campaigns, target, data, analysis, isLoadingTargets, isLoadingData, loadError, retry, selectTarget,
     activeInstrument, setActiveInstrument, isAiAnalyzing, aiReport, runAiAnalysis,
     cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample, handleRemoveSample, handleClearAllSamples, safeSamples, paleoPh, setPaleoPh,
+    famousSites = [], discoverRockAt, removeDiscoveredRock, isDiscovering,
   } = lab;
   const flyToCoordinate = useMapStore((s) => s.flyToCoordinate);
   const setActiveTab = useMapStore((s) => s.setActiveTab);
@@ -81,7 +83,7 @@ export default function ScienceLabPage() {
             Pick a rock that Perseverance studied in Jezero crater. Read the laser light, the X-ray chemistry and the deep-UV scan it measured, then seal the best ones for return to Earth.
           </p>
           <div className="mt-5 flex flex-wrap gap-2 text-xs">
-            <span className="px-3 py-1.5 rounded-full border border-white/15 bg-black/40 backdrop-blur">{campaigns.length || 6} rocks</span>
+            <span className="px-3 py-1.5 rounded-full border border-white/15 bg-black/40 backdrop-blur">{campaigns.length || 6} rocks ({famousSites?.length || 7} Martian provinces)</span>
             <span className="px-3 py-1.5 rounded-full border border-white/15 bg-black/40 backdrop-blur">{tubesUsed} of {TOTAL_TUBES} sample tubes used</span>
             <a href={PDS_HOME} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 backdrop-blur flex items-center gap-1.5 hover:bg-emerald-500/20">
               <ShieldCheck className="w-3.5 h-3.5" />Real measurements from NASA’s archive<ExternalLink className="w-3 h-3" />
@@ -125,25 +127,67 @@ export default function ScienceLabPage() {
           </div>
         ) : (
           <div className="mt-8 flex flex-col gap-6">
+            {/* Anywhere on Mars Procedural Discovery Scanner */}
+            <PlanetaryDiscoveryScanner
+              famousSites={famousSites}
+              discoverRockAt={discoverRockAt}
+              isDiscovering={isDiscovering}
+              activeTarget={target}
+            />
+
             {/* Rocks: a row of cards above the lab, so the lab below can use the full width */}
             <Panel title="Choose a rock" icon={MapPin} right={<span className="text-xs text-zinc-500">{campaigns.length} studied by Perseverance</span>}>
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
                 {campaigns.map((c) => {
                   const on = target.id === c.id;
                   return (
-                    <button
-                      key={c.id}
-                      onClick={() => { playUiClick?.(); selectTarget(c.id); }}
-                      aria-pressed={on}
-                      className={`group flex flex-col gap-2 p-2 rounded-xl border text-left transition-colors cursor-pointer ${on ? 'border-[#ff7b4d]/70 bg-[#ff7b4d]/12' : 'border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-white/20'}`}
-                    >
-                      <RockPhoto campaign={c} className="w-full aspect-[4/3]" />
-                      <span className="px-0.5 min-w-0">
-                        <span className="block font-semibold text-sm leading-snug truncate">{c.name}</span>
-                        <span className="block text-xs text-zinc-400 truncate">{c.rockType}</span>
-                        <span className="mt-0.5 block text-[11px] text-zinc-500 truncate">{solRange(c)}</span>
-                      </span>
-                    </button>
+                    <div key={c.id} className="relative group">
+                      <button
+                        onClick={() => { playUiClick?.(); selectTarget(c.id); }}
+                        aria-pressed={on}
+                        className={`w-full flex flex-col gap-2 p-2 rounded-xl border text-left transition-colors cursor-pointer ${
+                          on
+                            ? c.isProcedural
+                              ? 'border-cyan-400/80 bg-cyan-500/15 shadow-[0_4px_20px_-5px_rgba(6,182,212,0.4)]'
+                              : 'border-[#ff7b4d]/70 bg-[#ff7b4d]/12'
+                            : 'border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-white/20'
+                        }`}
+                      >
+                        <div className="relative">
+                          <RockPhoto campaign={c} className="w-full aspect-[4/3]" />
+                          {c.isProcedural ? (
+                            <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/90 text-black border border-cyan-300">
+                              FRONTIER
+                            </span>
+                          ) : (
+                            <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-medium bg-black/60 text-zinc-300 border border-white/10 backdrop-blur">
+                              JEZERO
+                            </span>
+                          )}
+                        </div>
+                        <span className="px-0.5 min-w-0">
+                          <span className="block font-semibold text-sm leading-snug truncate">{c.name}</span>
+                          <span className="block text-xs text-zinc-400 truncate">{c.rockType}</span>
+                          <span className="mt-0.5 block text-[11px] text-zinc-500 truncate">
+                            {c.isProcedural ? (c.province || 'Mars') : solRange(c)}
+                          </span>
+                        </span>
+                      </button>
+                      {c.isProcedural && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            playUiClick?.();
+                            removeDiscoveredRock?.(c.id);
+                          }}
+                          className="absolute top-2 right-2 p-1 rounded-md bg-black/70 hover:bg-rose-500 text-zinc-400 hover:text-white transition opacity-0 group-hover:opacity-100 cursor-pointer"
+                          title="Discard procedural discovery"
+                          aria-label="Discard procedural discovery"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>

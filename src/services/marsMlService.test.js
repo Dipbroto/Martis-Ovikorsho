@@ -742,4 +742,127 @@ describe('marsMlService (Client ML Inference)', () => {
     });
   });
 
+
+  describe('Step 1: Anywhere-on-Mars Procedural Discovery Engine', () => {
+    it('resolves geographical provinces correctly from planetary coordinates', async () => {
+      const { resolveMartianProvince, MARTIAN_PROVINCES } = await import('./marsMlService');
+
+      // Polar test
+      const northPole = resolveMartianProvince(84.9, 0.0);
+      expect(northPole.id).toBe('planum_boreum');
+
+      const southPole = resolveMartianProvince(-75.0, 120.0);
+      expect(southPole.id).toBe('planum_boreum');
+
+      // Olympus Mons
+      const olympus = resolveMartianProvince(18.65, -133.80);
+      expect(olympus.id).toBe('olympus_mons');
+
+      // Valles Marineris
+      const valles = resolveMartianProvince(-13.90, 300.80);
+      expect(valles.id).toBe('valles_marineris');
+
+      // Hellas Basin
+      const hellas = resolveMartianProvince(-42.70, 70.00);
+      expect(hellas.id).toBe('hellas_basin');
+
+      // Explicit override
+      const override = resolveMartianProvince(0, 0, 'gale_crater');
+      expect(override.id).toBe('gale_crater');
+    });
+
+    it('generates physically authentic procedural rock target complying with schema', async () => {
+      const { generateProceduralRockSample } = await import('./marsMlService');
+
+      const sample = generateProceduralRockSample({
+        lat: 18.65,
+        lon: -133.80,
+        name: 'Olympus Flank Basalt Alpha',
+        sol: 820,
+      });
+
+      expect(sample).toBeDefined();
+      expect(sample.target).toBeDefined();
+      expect(sample.data).toBeDefined();
+
+      const { target, data } = sample;
+
+      // Target Metadata verification
+      expect(target.id).toMatch(/^proc_olympus_mons_/);
+      expect(target.name).toBe('Olympus Flank Basalt Alpha');
+      expect(target.isProcedural).toBe(true);
+      expect(target.provinceId).toBe('olympus_mons');
+      expect(target.rockType).toContain('Basalt');
+      expect(target.sols.supercam).toBe(820);
+      expect(target.images.rmi.src).toBeDefined();
+      expect(target.images.aci.src).toBeDefined();
+      expect(target.elements.length).toBeGreaterThanOrEqual(6);
+
+      // Conservation of mass in oxide sum (~99-100%)
+      const sumOx = Object.values(target.pixlMedian).reduce((a, b) => a + b, 0);
+      expect(sumOx).toBeGreaterThan(98.0);
+      expect(sumOx).toBeLessThan(101.5);
+
+      // Verify LIBS structure
+      expect(data.libs.wl).toHaveLength(7933);
+      expect(data.libs.segments).toHaveLength(3);
+      expect(data.libs.points).toHaveLength(5);
+      expect(data.libs.points[0].mean).toHaveLength(7933);
+      expect(data.libs.points[0].lines.length).toBeGreaterThan(5);
+      expect(data.libs.points[0].shots).toHaveLength(30);
+      expect(data.libs.points[0].shotWl.length).toBeGreaterThan(1000);
+
+      // Verify PIXL structure
+      expect(data.pixl.n).toBe(100);
+      expect(data.pixl.x).toHaveLength(100);
+      expect(data.pixl.y).toHaveLength(100);
+      expect(data.pixl.v.SiO2).toHaveLength(100);
+      expect(data.pixl.v['FeO-T']).toHaveLength(100);
+      expect(data.pixl.stats.SiO2.med).toBeGreaterThan(0);
+      expect(data.pixl.stats.SiO2.max).toBeGreaterThanOrEqual(data.pixl.stats.SiO2.min);
+
+      // Verify SHERLOC structure
+      expect(data.sherloc.n).toBe(100);
+      expect(data.sherloc.spots).toHaveLength(100);
+      expect(data.sherloc.raman.bands.length).toBeGreaterThan(0);
+      expect(data.sherloc.fluor.bands.length).toBeGreaterThan(0);
+      expect(data.sherloc.fluor.byBand['One-ring aromatics']).toHaveLength(100);
+      expect(data.sherloc.fluor.byBand['Two- and three-ring aromatics']).toHaveLength(100);
+    });
+
+    it('integrates seamlessly with active learning and mineral classification pipelines', async () => {
+      const {
+        generateProceduralRockSample,
+        classifyRockMineralogy,
+        predictLibsChemometrics,
+        recommendNextScienceTarget,
+      } = await import('./marsMlService');
+
+      // Test Sulfate evaporite from Valles Marineris
+      const vallesSample = generateProceduralRockSample({
+        lat: -13.9,
+        lon: 300.8,
+        regionId: 'valles_marineris',
+      });
+
+      const classification = classifyRockMineralogy(vallesSample.target.pixlMedian);
+      expect(classification.predictedClass).toBe('Sulfate-Rich Evaporite');
+      expect(classification.confidencePercent).toBeGreaterThan(50);
+      expect(classification.biosignatureScore).toBeGreaterThan(60);
+
+      // Test SuperCam LIBS chemometrics regression on procedural points
+      const point0 = vallesSample.data.libs.points[0];
+      const libsResult = predictLibsChemometrics(point0);
+      expect(libsResult.oxides).toBeDefined();
+      expect(libsResult.oxides.SiO2).toBeGreaterThan(0);
+      expect(libsResult.oxides['FeO-T']).toBeGreaterThan(0);
+
+      // Test active learning triage on procedural points
+      const triage = recommendNextScienceTarget(vallesSample.data.libs.points, []);
+      expect(triage.topRecommendation).toBeDefined();
+      expect(triage.topRecommendation.acquisitionScore).toBeGreaterThan(0);
+      expect(triage.candidateRankings).toHaveLength(5);
+    });
+  });
+
 });

@@ -22,9 +22,21 @@ export function loadCampaignIndex() {
 export function loadCampaign(meta) {
   if (!meta) return Promise.resolve(null);
   if (!campaigns.has(meta.id)) {
-    campaigns.set(meta.id, getJson(`${BASE}${meta.file}`).catch((e) => { campaigns.delete(meta.id); throw e; }));
+    if (meta.data) {
+      campaigns.set(meta.id, Promise.resolve(meta.data));
+    } else if (meta.file) {
+      campaigns.set(meta.id, getJson(`${BASE}${meta.file}`).catch((e) => { campaigns.delete(meta.id); throw e; }));
+    } else {
+      return Promise.reject(new Error(`No data or file available for campaign ${meta.id}`));
+    }
   }
   return campaigns.get(meta.id);
+}
+
+/** Pre-registers or caches a campaign dataset (e.g. procedurally discovered rock). */
+export function registerCampaign(meta, data) {
+  if (!meta || !meta.id) return;
+  campaigns.set(meta.id, Promise.resolve(data));
 }
 
 export const imageUrl = (img) => (img ? `${BASE}${img.src}` : null);

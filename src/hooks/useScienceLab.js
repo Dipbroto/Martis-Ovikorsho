@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import useMapStore from '../store/useMapStore';
 import { playLaserZap, playSampleSeal } from '../utils/audioSynthesizer';
-import { loadCampaignIndex, loadCampaign, analyse, aiBrief } from '../data/scienceLab';
+import { loadCampaignIndex, loadCampaign, analyse, aiBrief, registerCampaign } from '../data/scienceLab';
+import { generateProceduralRockSample, MARTIAN_PROVINCES } from '../services/marsMlService';
 import { generateScienceReport } from '../services/aiService';
 import { supabase } from '../lib/supabase';
 import { fetchProfile } from '../services/profileService';
@@ -19,6 +20,16 @@ export default function useScienceLab() {
   const removeSample = useMapStore((s) => s.removeSample);
   const clearSamples = useMapStore((s) => s.clearSamples);
 
+  const famousSites = useMemo(() => Object.values(MARTIAN_PROVINCES), []);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveredSamples, setDiscoveredSamples] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mars_frontier_samples');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [campaigns, setCampaigns] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [data, setData] = useState(null);
@@ -175,6 +186,58 @@ export default function useScienceLab() {
     setIsAiAnalyzing(false);
   };
 
+  const discoverRockAt = useCallback(({ lat, lon, regionId, name, seed, sol = 750 }) => {
+    setIsDiscovering(true);
+    playLaserZap?.();
+    try {
+      const sample = generateProceduralRockSample({ lat, lon, regionId, name, seed, sol });
+      registerCampaign(sample.target, sample.data);
+
+      setCampaigns((prev) => [sample.target, ...prev.filter((c) => c.id !== sample.target.id)]);
+      setSelectedId(sample.target.id);
+
+      setDiscoveredSamples((prev) => {
+        const next = [sample, ...prev.filter((s) => s.target.id !== sample.target.id)].slice(0, 12);
+        try {
+          localStorage.setItem('mars_frontier_samples', JSON.stringify(next));
+        } catch (e) {
+          console.warn('Could not persist sample to localStorage:', e);
+        }
+        return next;
+      });
+
+      setTimeout(() => {
+        setIsDiscovering(false);
+      }, 400);
+
+      return sample;
+    } catch (err) {
+      console.error('Error generating procedural rock sample:', err);
+      setIsDiscovering(false);
+      return null;
+    }
+  }, []);
+
+  const removeDiscoveredRock = useCallback((targetId) => {
+    if (!targetId) return;
+    setCampaigns((prev) => {
+      const next = prev.filter((c) => c.id !== targetId);
+      if (selectedId === targetId) {
+        setSelectedId(next[0]?.id || null);
+      }
+      return next;
+    });
+    setDiscoveredSamples((prev) => {
+      const next = prev.filter((s) => s.target.id !== targetId);
+      try {
+        localStorage.setItem('mars_frontier_samples', JSON.stringify(next));
+      } catch (e) {
+        console.warn('Could not persist sample removal:', e);
+      }
+      return next;
+    });
+  }, [selectedId]);
+
   const handleRemoveSample = useCallback((sampleId) => {
     if (!sampleId && sampleId !== 0) return;
     removeSample(sampleId);
@@ -202,7 +265,7 @@ export default function useScienceLab() {
     setCacheError(null);
     playSampleSeal?.();
 
-    const notes = customTubeNotes || `${target.name}, Jezero crater (${target.lat.toFixed(3)}°N, ${target.lon.toFixed(3)}°E)`;
+    const notes = customTubeNotes || `${target.name}, ${target.province || 'Jezero crater'} (${target.lat.toFixed(3)}°N, ${target.lon.toFixed(3)}°E)`;
     const tubeNumber = (collectedSamples?.length || 0) + 1;
     setTimeout(async () => {
       addSample({
@@ -252,5 +315,6 @@ export default function useScienceLab() {
     cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample,
     handleRemoveSample, handleClearAllSamples,
     collectedSamples, safeSamples, paleoPh, setPaleoPh,
+    famousSites, discoverRockAt, removeDiscoveredRock, isDiscovering,
   };
 }
