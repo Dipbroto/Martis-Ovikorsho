@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Dna, Activity, Eye, ShieldCheck, CheckCircle2, AlertTriangle,
   Info, Compass, ChevronRight, Layers, Flame, Zap, Database, RotateCcw,
+  Radio, Cpu, Network,
 } from 'lucide-react';
 import { ASTROBIOLOGY_ORGANIC_LIBRARY } from '../../services/marsMlService';
 import { playUiClick } from '../../utils/audioSynthesizer';
@@ -592,6 +593,285 @@ function BiogenicGenesisDial({ biogenicProbabilityPercent, classification, depth
 }
 
 /**
+ * 2D Latent Space Manifold & Statistical Hypothesis Radar
+ * Projects multi-modal spectroscopic and geochemical features into calibrated latent space
+ * against Earth Archean microfossils, hydrothermal sinters, and meteoritic PAHs.
+ */
+function AstrobiologyLatentManifoldRadar({ latentManifold, target, activeDepthMm, className = '' }) {
+  const [hoveredClusterId, setHoveredClusterId] = useState(null);
+
+  if (!latentManifold) return null;
+
+  const {
+    z1 = 0,
+    z2 = 0,
+    mahalanobisDistanceNull = 0,
+    chiSquare = 0,
+    pValue = 1.0,
+    isNullRejected = false,
+    nearestCluster,
+    uncertainty = {},
+    benchmarkClusters = [],
+  } = latentManifold;
+
+  // SVG Coordinate mapping: [-4.5, +4.5] to [pad, dim - pad]
+  const W = 680;
+  const H = 320;
+  const padL = 40;
+  const padR = 40;
+  const padT = 30;
+  const padB = 40;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  const mapX = (v) => padL + ((v + 4.5) / 9.0) * plotW;
+  const mapY = (v) => padT + ((4.5 - v) / 9.0) * plotH;
+
+  const targetX = mapX(z1);
+  const targetY = mapY(z2);
+
+  const activeHoverCluster = benchmarkClusters.find((c) => c.id === hoveredClusterId) || nearestCluster || benchmarkClusters[0];
+
+  return (
+    <div className={`p-4 sm:p-5 rounded-2xl border border-cyan-500/30 bg-black/50 space-y-4 backdrop-blur-xl ${className}`}>
+      {/* Header Deck */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+            <Radio className="w-4 h-4 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="font-bold text-white text-sm tracking-tight">
+                2D Astrobiology Latent Manifold & Anomaly Radar
+              </h4>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                16-D MULTI-MODAL PCA
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-400 mt-0.5">
+              Projects combined Deep-UV Raman, aromatic fluorescence, and PIXL oxides against ground-truth Earth Archean microfossils and meteorites.
+            </p>
+          </div>
+        </div>
+
+        {/* Statistical Hypothesis Pill */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-zinc-400">H₀ (Abiotic Null):</span>
+          <span
+            className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded-full border flex items-center gap-1.5 ${
+              isNullRejected
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm shadow-emerald-500/20'
+                : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            {isNullRejected ? `REJECTED (p = ${pValue.toFixed(4)})` : `ACCEPTED (p = ${pValue.toFixed(4)})`}
+          </span>
+        </div>
+      </div>
+
+      {/* Main SVG Scatter Plane */}
+      <div className="relative rounded-xl border border-white/10 bg-black/70 p-2 overflow-hidden">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full h-72 sm:h-80 overflow-visible select-none"
+          aria-label="2D Latent Space Astrobiology Manifold"
+        >
+          <defs>
+            <radialGradient id="targetGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.8" />
+              <stop offset="60%" stopColor="#06b6d4" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#06b6d4" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+
+          {/* Coordinate Gridlines */}
+          <line x1={mapX(0)} y1={padT} x2={mapX(0)} y2={padT + plotH} stroke="#ffffff" strokeWidth="1" strokeDasharray="3 3" opacity="0.2" />
+          <line x1={padL} y1={mapY(0)} x2={padL + plotW} y2={mapY(0)} stroke="#ffffff" strokeWidth="1" strokeDasharray="3 3" opacity="0.2" />
+
+          {/* Concentric Statistical Distance Rings (sigma = 1, 2, 3) */}
+          {[1.5, 3.0, 4.2].map((r, i) => (
+            <circle
+              key={i}
+              cx={mapX(0)}
+              cy={mapY(0)}
+              r={((r / 9.0) * plotW)}
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth="0.75"
+              strokeDasharray="2 4"
+              opacity="0.1"
+            />
+          ))}
+
+          {/* Axes Labels */}
+          <text x={padL + plotW} y={mapY(0) - 8} fontSize="9" fontFamily="monospace" fill="#71717a" textAnchor="end">
+            +z₁ (Biogenic Complexity & Preservation) →
+          </text>
+          <text x={padL} y={mapY(0) - 8} fontSize="9" fontFamily="monospace" fill="#71717a" textAnchor="start">
+            ← -z₁ (Abiotic Basalt Null)
+          </text>
+          <text x={mapX(0) + 8} y={padT + 12} fontSize="9" fontFamily="monospace" fill="#71717a">
+            +z₂ (Aqueous Mudstone / Clays)
+          </text>
+          <text x={mapX(0) + 8} y={padT + plotH - 6} fontSize="9" fontFamily="monospace" fill="#71717a">
+            -z₂ (Primary Igneous Silicates)
+          </text>
+
+          {/* Benchmark Analog Confidence Ellipses */}
+          {benchmarkClusters.map((cluster) => {
+            const cx = mapX(cluster.z1);
+            const cy = mapY(cluster.z2);
+            const rx = (cluster.radius1 / 9.0) * plotW;
+            const ry = (cluster.radius2 / 9.0) * plotH;
+            const isHovered = hoveredClusterId === cluster.id;
+            const isNearest = nearestCluster?.id === cluster.id;
+
+            return (
+              <g
+                key={cluster.id}
+                className="cursor-pointer transition-all"
+                onMouseEnter={() => setHoveredClusterId(cluster.id)}
+                onMouseLeave={() => setHoveredClusterId(null)}
+              >
+                {/* 2-sigma Confidence Ellipse */}
+                <ellipse
+                  cx={cx}
+                  cy={cy}
+                  rx={rx}
+                  ry={ry}
+                  fill={cluster.fillColor}
+                  stroke={cluster.borderColor}
+                  strokeWidth={isHovered || isNearest ? 2 : 1}
+                  strokeDasharray={cluster.category.includes('NULL') ? '4 3' : 'none'}
+                  className="transition-all duration-300"
+                />
+
+                {/* Cluster Centroid Anchor */}
+                <circle cx={cx} cy={cy} r={isNearest ? 4 : 2.5} fill={cluster.color} />
+
+                {/* Cluster Label */}
+                <text
+                  x={cx}
+                  y={cy - ry - 6}
+                  fontSize="9"
+                  fontFamily="monospace"
+                  fontWeight={isNearest || isHovered ? 'bold' : 'normal'}
+                  fill={isNearest || isHovered ? '#ffffff' : cluster.color}
+                  textAnchor="middle"
+                  className="pointer-events-none"
+                >
+                  {cluster.shortName}
+                </text>
+                <text
+                  x={cx}
+                  y={cy - ry + 4}
+                  fontSize="8"
+                  fontFamily="monospace"
+                  fill="#a1a1aa"
+                  textAnchor="middle"
+                  className="pointer-events-none"
+                >
+                  {cluster.ageGa ? `${cluster.ageGa} Ga` : ''}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Active Rock Target Crosshair & Glowing Radar Pulse */}
+          <g>
+            {/* Pulsing Radar Aura */}
+            <circle cx={targetX} cy={targetY} r="18" fill="url(#targetGlow)" />
+            <circle cx={targetX} cy={targetY} r="26" fill="none" stroke="#22d3ee" strokeWidth="1" strokeDasharray="2 3" opacity="0.6">
+              <animate attributeName="r" values="8;32;8" dur="3s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.8;0;0.8" dur="3s" repeatCount="indefinite" />
+            </circle>
+
+            {/* Target Crosshairs */}
+            <line x1={targetX - 10} y1={targetY} x2={targetX + 10} y2={targetY} stroke="#ffffff" strokeWidth="2" />
+            <line x1={targetX} y1={targetY - 10} x2={targetX} y2={targetY + 10} stroke="#ffffff" strokeWidth="2" />
+            <circle cx={targetX} cy={targetY} r="4" fill="#22d3ee" stroke="#000000" strokeWidth="1.5" />
+
+            {/* Target Callout Label */}
+            <rect
+              x={targetX + 12}
+              y={targetY - 22}
+              width={140}
+              height={26}
+              rx="4"
+              fill="rgba(0, 0, 0, 0.85)"
+              stroke="#22d3ee"
+              strokeWidth="1"
+            />
+            <text x={targetX + 18} y={targetY - 12} fontSize="9" fontWeight="bold" fontFamily="monospace" fill="#ffffff">
+              {target?.name || 'Current Core'} ({activeDepthMm.toFixed(1)}mm)
+            </text>
+            <text x={targetX + 18} y={targetY - 2} fontSize="8" fontFamily="monospace" fill="#38bdf8">
+              z₁={z1 > 0 ? `+${z1}` : z1}, z₂={z2 > 0 ? `+${z2}` : z2}
+            </text>
+          </g>
+        </svg>
+      </div>
+
+      {/* Statistical Anomaly & Uncertainty Breakdown Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs font-mono">
+        {/* Metric 1: Mahalanobis Distance */}
+        <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
+          <span className="text-[10px] text-zinc-500 uppercase block">MAHALANOBIS DISTANCE (D_M)</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-base font-bold text-cyan-300">{mahalanobisDistanceNull}σ</span>
+            <span className="text-[10px] text-zinc-400">vs. Sterile Basalt</span>
+          </div>
+          <span className="text-[9px] text-zinc-400 block pt-0.5">
+            {mahalanobisDistanceNull >= 3.0 ? 'Extremely anomalous (>99.7% deviation)' : 'Within crustal baseline envelope'}
+          </span>
+        </div>
+
+        {/* Metric 2: Chi-Square p-Value */}
+        <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
+          <span className="text-[10px] text-zinc-500 uppercase block">HYPOTHESIS TEST (p-VALUE)</span>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-base font-bold ${isNullRejected ? 'text-emerald-400' : 'text-amber-400'}`}>
+              p = {pValue}
+            </span>
+            <span className="text-[10px] text-zinc-400">χ² = {chiSquare}</span>
+          </div>
+          <span className="text-[9px] text-zinc-400 block pt-0.5">
+            {isNullRejected ? 'Abiotic null rejected (α = 0.05)' : 'Consistent with abiotic baseline'}
+          </span>
+        </div>
+
+        {/* Metric 3: Nearest Analog Benchmark */}
+        <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
+          <span className="text-[10px] text-zinc-500 uppercase block">NEAREST EARTH / SPACE ANALOG</span>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeHoverCluster.color }} />
+            <span className="text-white font-bold truncate text-[11px]">{activeHoverCluster.shortName}</span>
+          </div>
+          <span className="text-[9px] text-zinc-400 block pt-0.5 truncate">
+            {activeHoverCluster.locality || activeHoverCluster.provenance}
+          </span>
+        </div>
+
+        {/* Metric 4: Bayesian Uncertainty Quantification */}
+        <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
+          <span className="text-[10px] text-zinc-500 uppercase block">BAYESIAN UNCERTAINTY (σ)</span>
+          <div className="flex items-center justify-between text-[10px] text-zinc-300">
+            <span>Sensor Noise (Aleatoric):</span>
+            <span className="text-amber-300 font-bold">{uncertainty.aleatoricPercent || 15}%</span>
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-zinc-300">
+            <span>Model Novelty (Epistemic):</span>
+            <span className="text-cyan-300 font-bold">{uncertainty.epistemicPercent || 12}%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Main OrganicRamanInspector Component
  * Deep-UV organic fingerprint inspector and astrobiology laboratory sub-deck.
  */
@@ -773,6 +1053,13 @@ export default function OrganicRamanInspector({
           />
         </div>
       </div>
+
+      {/* 2D Astrobiology Latent Manifold & Statistical Anomaly Radar (Advanced ML Engine) */}
+      <AstrobiologyLatentManifoldRadar
+        latentManifold={depthProfile?.latentManifold}
+        target={target}
+        activeDepthMm={activeDepthMm}
+      />
     </div>
   );
 }

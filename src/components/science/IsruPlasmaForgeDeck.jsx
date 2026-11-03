@@ -24,22 +24,35 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
   const [smeltProgress, setSmeltProgress] = useState(0);
   const [lastSmeltSuccess, setLastSmeltSuccess] = useState(null);
 
-  // Diagnostic mode spark pulse simulation
+  // Diagnostic mode spark pulse simulation & physical shot-averaging stats
   const [isSparkFiring, setIsSparkFiring] = useState(false);
   const [sparkPulseCount, setSparkPulseCount] = useState(30);
   const [selectedPeak, setSelectedPeak] = useState('Fe');
+  const [lastCalibrationBurst, setLastCalibrationBurst] = useState(null);
 
   const stats = data?.pixl?.stats || target?.pixlMedian || {};
   const biosignatureScore = target?.biosignatureScore || 50;
 
+  // Safe accessor extracting values from either data.pixl.stats (objects with .med) or target.pixlMedian (scalars)
+  const getVal = (key, altKey, fallback = 0) => {
+    const raw = stats?.[key] ?? (altKey ? stats?.[altKey] : undefined);
+    if (typeof raw === 'number' && !isNaN(raw)) return raw;
+    if (raw && typeof raw.med === 'number' && !isNaN(raw.med)) return raw.med;
+    if (typeof raw === 'string') {
+      const parsed = parseFloat(raw);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return fallback;
+  };
+
   // Extract real elemental percentages for diagnostic emission spectrum
-  const feAbundance = Number(stats['FeO-T'] || stats.FeO || 15.2);
-  const siAbundance = Number(stats.SiO2 || 46.5);
-  const tiAbundance = Number(stats.TiO2 || 1.15);
-  const caAbundance = Number(stats.CaO || 6.8);
-  const mgAbundance = Number(stats.MgO || 7.5);
-  const alAbundance = Number(stats.Al2O3 || 9.8);
-  const so3Abundance = Number(stats.SO3 || 3.4);
+  const feAbundance = getVal('FeO-T', 'FeO', 15.2);
+  const siAbundance = getVal('SiO2', null, 46.5);
+  const tiAbundance = getVal('TiO2', null, 1.15);
+  const caAbundance = getVal('CaO', null, 6.8);
+  const mgAbundance = getVal('MgO', null, 7.5);
+  const alAbundance = getVal('Al2O3', null, 9.8);
+  const so3Abundance = getVal('SO3', null, 3.4);
 
   // Atomic emission line peaks monitored by SuperCam spectrometers
   const emissionLines = [
@@ -49,7 +62,7 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
       wavelength: '288.1 nm',
       channel: 'UV Spectrometer',
       abundance: siAbundance,
-      intensity: Math.min(100, Math.round(siAbundance * 1.8)),
+      intensity: Math.min(100, Math.max(12, Math.round(siAbundance * 1.8))),
       color: 'from-cyan-400 to-sky-500',
       transition: '3s²3p² → 3s²3p4s',
       oxideKey: 'SiO₂',
@@ -60,7 +73,7 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
       wavelength: '334.9 nm',
       channel: 'UV Spectrometer',
       abundance: tiAbundance,
-      intensity: Math.min(100, Math.round(tiAbundance * 38)),
+      intensity: Math.min(100, Math.max(10, Math.round(tiAbundance * 38))),
       color: 'from-amber-300 to-yellow-500',
       transition: '3d²4s² → 3d²4s4p',
       oxideKey: 'TiO₂',
@@ -71,7 +84,7 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
       wavelength: '404.5 & 438.3 nm',
       channel: 'VIO Spectrometer',
       abundance: feAbundance,
-      intensity: Math.min(100, Math.round(feAbundance * 4.2)),
+      intensity: Math.min(100, Math.max(12, Math.round(feAbundance * 2.4))),
       color: 'from-orange-400 to-red-500',
       transition: '3d⁶4s² → 3d⁶4s4p',
       oxideKey: 'FeO-T',
@@ -82,7 +95,7 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
       wavelength: '393.3 & 396.8 nm',
       channel: 'VIO Spectrometer',
       abundance: caAbundance,
-      intensity: Math.min(100, Math.round(caAbundance * 9.5)),
+      intensity: Math.min(100, Math.max(10, Math.round(caAbundance * 8.5))),
       color: 'from-emerald-400 to-teal-500',
       transition: '3p⁶4s → 3p⁶4p (Fraunhofer K & H)',
       oxideKey: 'CaO',
@@ -93,7 +106,7 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
       wavelength: '285.2 & 518.3 nm',
       channel: 'VIS Spectrometer',
       abundance: mgAbundance,
-      intensity: Math.min(100, Math.round(mgAbundance * 8.0)),
+      intensity: Math.min(100, Math.max(10, Math.round(mgAbundance * 4.2))),
       color: 'from-lime-400 to-emerald-500',
       transition: '3s3p → 3s4s (b triplet)',
       oxideKey: 'MgO',
@@ -104,7 +117,7 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
       wavelength: '394.4 & 396.1 nm',
       channel: 'VIO Spectrometer',
       abundance: alAbundance,
-      intensity: Math.min(100, Math.round(alAbundance * 7.5)),
+      intensity: Math.min(100, Math.max(10, Math.round(alAbundance * 7.5))),
       color: 'from-indigo-400 to-purple-500',
       transition: '3p → 4s resonance doublet',
       oxideKey: 'Al₂O₃',
@@ -114,22 +127,43 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
       name: 'Atomic Oxygen (O I triplet)',
       wavelength: '777.4 nm',
       channel: 'VNIR Spectrometer',
-      abundance: so3Abundance + 40.0,
-      intensity: 88,
+      abundance: +(42.0 + (so3Abundance * 0.35)).toFixed(1),
+      intensity: 85,
       color: 'from-rose-400 to-pink-500',
       transition: '3s ⁵S° → 3p ⁵P multiplet',
       oxideKey: 'Volatiles / Oxides',
     },
   ];
 
+  // Physics-based Shot Averaging (Poisson Noise Reduction in LIBS): SNR ∝ √N
+  const snrGain = Math.max(0, +(5 * Math.log10(sparkPulseCount / 30)).toFixed(2));
+  const uncertaintyPct = Math.max(0.12, +(1.25 / Math.sqrt(sparkPulseCount / 30)).toFixed(2));
+  const spectralConfidence = Math.min(99.9, +(98.0 + (sparkPulseCount - 30) * 0.04)).toFixed(1);
+  const ablationDepthUm = +(sparkPulseCount * 0.08).toFixed(2);
+  const plasmaTempK = isSparkFiring
+    ? '11,400 K (Peak Plume)'
+    : `${(8400 + Math.min(900, (sparkPulseCount - 30) * 12)).toLocaleString()} K LTE`;
+  const laserFluenceText = isSparkFiring ? '16.4 mJ (Ionization Flash)' : '15.2 mJ/pulse';
+
   const handleFireSparkPulse = () => {
     if (isSparkFiring) return;
     playLaserZap?.();
     setIsSparkFiring(true);
-    setSparkPulseCount((prev) => prev + 5);
+    const nextCount = sparkPulseCount + 5;
+    setSparkPulseCount(nextCount);
+
+    const delta = +(5 * Math.log10(nextCount / 30) - 5 * Math.log10(sparkPulseCount / 30)).toFixed(2);
+    setLastCalibrationBurst({
+      shots: 5,
+      totalShots: nextCount,
+      snrDelta: delta > 0 ? `+${delta} dB` : '+0.1 dB',
+      depthUm: +(nextCount * 0.08).toFixed(2),
+      timestamp: Date.now(),
+    });
+
     setTimeout(() => {
       setIsSparkFiring(false);
-    }, 700);
+    }, 750);
   };
 
   const handleSmelt = (recipeId) => {
@@ -167,6 +201,8 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
   };
 
   const activePeakData = emissionLines.find((l) => l.element === selectedPeak) || emissionLines[0];
+  const basePeakSnr = (activePeakData.intensity || 50) * 0.38 + 14.5;
+  const currentPeakSnr = +(basePeakSnr + snrGain).toFixed(1);
 
   return (
     <div
@@ -287,9 +323,24 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
                 </span>
               </div>
               <div className="flex items-center gap-4 text-xs font-mono text-zinc-400">
-                <span>Laser Fluence: <strong className="text-sky-300">15.2 mJ/pulse</strong></span>
-                <span>Plasma Temp: <strong className="text-cyan-300">{isSparkFiring ? '9,800 K' : '8,400 K LTE'}</strong></span>
-                <span>Shot Count: <strong className="text-white">{sparkPulseCount}</strong></span>
+                <span>Laser Fluence: <strong className={isSparkFiring ? 'text-cyan-200 animate-pulse' : 'text-sky-300'}>{laserFluenceText}</strong></span>
+                <span>Plasma Temp: <strong className={isSparkFiring ? 'text-amber-200 animate-pulse' : 'text-cyan-300'}>{plasmaTempK}</strong></span>
+                <div className="flex items-center gap-1.5">
+                  <span>Shot Count: <strong className="text-white">{sparkPulseCount}</strong></span>
+                  {sparkPulseCount > 30 && (
+                    <button
+                      onClick={() => {
+                        playUiClick?.();
+                        setSparkPulseCount(30);
+                        setLastCalibrationBurst(null);
+                      }}
+                      title="Reset to Sol 1 nominal baseline (30 shots)"
+                      className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition cursor-pointer"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -336,6 +387,24 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
               </button>
             </div>
 
+            {/* Live Burst Feedback Toast/Banner */}
+            <AnimatePresence>
+              {lastCalibrationBurst && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="mt-2.5 px-3 py-1.5 rounded-lg border border-cyan-400/30 bg-cyan-950/30 flex items-center justify-between text-[11px] font-mono text-cyan-200"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                    <span>Laser Burst #{lastCalibrationBurst.totalShots}: 5 Pulses Fired • Depth: <strong>{lastCalibrationBurst.depthUm} µm</strong> • SNR Gain: <strong>{lastCalibrationBurst.snrDelta}</strong></span>
+                  </span>
+                  <span className="text-[10px] text-zinc-400 shrink-0">Uncertainty: ±{uncertaintyPct}%</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Standoff Instrument Telemetry Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-[11px] font-mono">
               <div className="p-2 rounded-lg bg-white/[0.02] border border-white/5">
@@ -347,12 +416,12 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
                 <span className="font-bold text-sky-200">1064 nm (IR) / 532 nm</span>
               </div>
               <div className="p-2 rounded-lg bg-white/[0.02] border border-white/5">
-                <span className="text-zinc-500 text-[9px] block">SPECTRAL RANGE</span>
-                <span className="font-bold text-sky-200">240 – 853 nm (3 Ch.)</span>
+                <span className="text-zinc-500 text-[9px] block">ABLATION DEPTH</span>
+                <span className="font-bold text-cyan-300">{ablationDepthUm} µm (Pit Stack)</span>
               </div>
               <div className="p-2 rounded-lg bg-white/[0.02] border border-white/5">
-                <span className="text-zinc-500 text-[9px] block">STANDOFF FOCUS</span>
-                <span className="font-bold text-sky-200">2.4 m Auto-Collimated</span>
+                <span className="text-zinc-500 text-[9px] block">SPECTRAL ACCUMULATION</span>
+                <span className="font-bold text-emerald-300">{sparkPulseCount} Pulses ({spectralConfidence}% Fit)</span>
               </div>
             </div>
           </div>
@@ -387,11 +456,11 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
                       isSelected
                         ? 'border-cyan-400 bg-sky-950/40 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
                         : 'border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
-                    }`}
+                    } ${isSparkFiring ? 'ring-1 ring-cyan-400/60 bg-cyan-950/20' : ''}`}
                   >
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-white">{peak.element}</span>
-                      <span className="text-[10px] font-mono text-zinc-400">{peak.abundance.toFixed(1)}%</span>
+                      <span className="text-[10px] font-mono text-zinc-400">{(peak.abundance ?? 0).toFixed(1)}%</span>
                     </div>
                     <div className="text-[10px] text-zinc-400 font-mono mt-0.5 truncate">{peak.wavelength}</div>
 
@@ -418,9 +487,10 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
                   Quantum Transition: <strong className="text-zinc-200">{activePeakData.transition}</strong> • Measured in: {activePeakData.channel}
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-zinc-300">
-                <span>Elemental Content: <strong className="text-cyan-300">{activePeakData.abundance.toFixed(2)} wt%</strong></span>
-                <span>Signal SNR: <strong className="text-emerald-300">{(activePeakData.intensity * 1.8).toFixed(1)} dB</strong></span>
+              <div className="flex items-center gap-3 text-zinc-300 flex-wrap">
+                <span>Elemental Content: <strong className="text-cyan-300">{(activePeakData.abundance ?? 0).toFixed(2)} wt%</strong> <span className="text-[10px] text-zinc-400 font-normal">(±{uncertaintyPct}%)</span></span>
+                <span>Signal SNR: <strong className="text-emerald-300">{currentPeakSnr} dB</strong> {snrGain > 0 && <span className="text-cyan-400 text-[10px] font-normal">(+{snrGain} dB avg)</span>}</span>
+                <span>Confidence: <strong className="text-white">{spectralConfidence}%</strong></span>
               </div>
             </div>
           </div>

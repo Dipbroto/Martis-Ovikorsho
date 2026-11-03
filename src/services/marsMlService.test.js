@@ -1128,5 +1128,32 @@ describe('marsMlService (Client ML Inference)', () => {
       expect(dourbes.organicMatch.bestMatch.id).toBe('PHENANTHRENE');
       expect(belva.organicMatch.bestMatch.id).toBe('GLYCINE_PRECURSOR');
     });
+
+    it('projects multi-modal spectral features into 2D latent space and rejects abiotic null hypothesis', async () => {
+      const { calculateSubsurfaceDepthProfile, ASTROBIOLOGY_BENCHMARK_CLUSTERS } = await import('./marsMlService');
+      const fs = await import('fs');
+      const path = await import('path');
+
+      expect(ASTROBIOLOGY_BENCHMARK_CLUSTERS.length).toBe(5);
+
+      const bData = JSON.parse(fs.readFileSync(path.resolve('./public/data/science/berry-hollow.json'), 'utf8'));
+      const deepBerryProfile = calculateSubsurfaceDepthProfile(
+        { id: 'berry-hollow', name: 'Berry Hollow', rockType: 'Sulfate-rich sedimentary rock' },
+        48.0,
+        bData
+      );
+
+      const { latentManifold } = deepBerryProfile;
+      expect(latentManifold).toBeDefined();
+      expect(typeof latentManifold.z1).toBe('number');
+      expect(typeof latentManifold.z2).toBe('number');
+      expect(latentManifold.mahalanobisDistanceNull).toBeGreaterThan(2.0);
+      expect(latentManifold.pValue).toBeLessThan(0.05);
+      expect(latentManifold.isNullRejected).toBe(true);
+      expect(latentManifold.nearestCluster.id).toBe('PILBARA_BIOGENIC_KEROGEN');
+      expect(latentManifold.uncertainty.aleatoricPercent).toBeGreaterThan(0);
+      expect(latentManifold.uncertainty.epistemicPercent).toBeGreaterThan(0);
+      expect(latentManifold.uncertainty.totalConfidencePercent).toBeGreaterThan(50);
+    });
   });
 });
