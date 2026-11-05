@@ -14,7 +14,7 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import RidgeCV
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
@@ -103,23 +103,23 @@ def train_solar_dust_models():
         X, Y_insolation, Y_dust_rate, test_size=0.2, random_state=42, shuffle=True
     )
 
-    # 1. Insolation Model (Wh/m²/sol)
-    in_model = Ridge(alpha=0.01)
+    # 1. Insolation Model (Wh/m²/sol) - Auto-tuned RidgeCV
+    in_model = RidgeCV(alphas=np.logspace(-6, 2, 40))
     in_model.fit(X_train, Y_in_train)
     in_pred = in_model.predict(X_test)
     in_r2 = r2_score(Y_in_test, in_pred)
     in_mae = mean_absolute_error(Y_in_test, in_pred)
     in_rmse = math.sqrt(mean_squared_error(Y_in_test, in_pred))
-    print(f"[Insolation Model] R² = {in_r2:.4f} | MAE = {in_mae:.2f} Wh/m²/sol | RMSE = {in_rmse:.2f}")
+    print(f"[Insolation Model] R² = {in_r2:.4f} | MAE = {in_mae:.2e} Wh/m²/sol | RMSE = {in_rmse:.2e} | best alpha = {in_model.alpha_:.6e}")
 
-    # 2. Daily Dust Deposition Rate Model (ΔDf/sol)
-    dr_model = Ridge(alpha=0.01)
+    # 2. Daily Dust Deposition Rate Model (ΔDf/sol) - Auto-tuned RidgeCV
+    dr_model = RidgeCV(alphas=np.logspace(-6, 2, 40))
     dr_model.fit(X_train, Y_dr_train)
     dr_pred = dr_model.predict(X_test)
     dr_r2 = r2_score(Y_dr_test, dr_pred)
     dr_mae = mean_absolute_error(Y_dr_test, dr_pred)
     dr_rmse = math.sqrt(mean_squared_error(Y_dr_test, dr_pred))
-    print(f"[Dust Rate Model] R² = {dr_r2:.4f} | MAE = {dr_mae:.6f} Df/sol | RMSE = {dr_rmse:.6f}")
+    print(f"[Dust Rate Model] R² = {dr_r2:.4f} | MAE = {dr_mae:.6f} Df/sol | RMSE = {dr_rmse:.6f} | best alpha = {dr_model.alpha_:.4f}")
 
     # Convective cleaning probabilities
     vortex_cleaning_p = {
@@ -175,11 +175,15 @@ def train_solar_dust_models():
 
     model_export = {
         'version': '2.0.0',
-        'generated_at': '2026-11-03',
+        'generated_at': '2026-11-05',
         'metadata': {
             'dataset': 'MER-B Opportunity (5000 Sols) + InSight PDS Solar Telemetry',
             'r2_insolation': round(float(in_r2), 4),
             'r2_dust_rate': round(float(dr_r2), 4),
+            'mae_insolation_wh_m2': round(float(in_mae), 4),
+            'mae_dust_rate_per_sol': round(float(dr_mae), 6),
+            'best_alpha_insolation': float(in_model.alpha_),
+            'best_alpha_dust_rate': float(dr_model.alpha_),
             'solar_constant_1au': SOLAR_CONSTANT_1AU,
             'mars_semi_major_au': MARS_SEMI_MAJOR_AU,
             'mars_eccentricity': MARS_ECCENTRICITY,

@@ -1,10 +1,14 @@
 {
   "version": "2.0.0",
-  "generated_at": "2026-11-03",
+  "generated_at": "2026-11-05",
   "metadata": {
     "dataset": "MER-B Opportunity (5000 Sols) + InSight PDS Solar Telemetry",
     "r2_insolation": 1.0,
     "r2_dust_rate": 0.9949,
+    "mae_insolation_wh_m2": 0.0,
+    "mae_dust_rate_per_sol": 0.000205,
+    "best_alpha_insolation": 4.124626382901348e-06,
+    "best_alpha_dust_rate": 0.020309176209047347,
     "solar_constant_1au": 1361.0,
     "mars_semi_major_au": 1.52368,
     "mars_eccentricity": 0.0934
@@ -15,25 +19,25 @@
       "ls": -0.0,
       "sin_ls": -0.0,
       "cos_ls": -0.0,
-      "tau": -0.0,
+      "tau": 0.0,
       "ln_tau": 0.0,
       "lat": -0.0,
-      "wind": 0.0,
+      "wind": -0.0,
       "day_hours": 0.0,
       "cos_zenith": 0.0,
-      "transmittance": 0.0,
+      "transmittance": -0.0,
       "exp_neg_tau": 0.0,
       "phys_insolation": 1.0
     }
   },
   "dust_rate_model": {
-    "intercept": -0.000422,
+    "intercept": -0.000418,
     "coefficients": {
       "ls": -1e-07,
-      "sin_ls": 0.000104,
+      "sin_ls": 0.000103,
       "cos_ls": 3.1e-05,
-      "tau": -0.001892,
-      "ln_tau": -0.000152,
+      "tau": -0.00189,
+      "ln_tau": -0.000161,
       "lat": 1e-06,
       "wind": -0.000186,
       "day_hours": -4.8e-05

@@ -7,9 +7,10 @@ and NOAA/NASA Solar Cycle heliospheric modulation data.
 import json
 import os
 import numpy as np
-from sklearn.linear_model import Ridge, LogisticRegression
+from sklearn.linear_model import RidgeCV, LogisticRegression
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import r2_score, roc_auc_score
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error, roc_auc_score
 
 def generate_radiation_dataset(n_samples=5000):
     """
@@ -114,23 +115,47 @@ def train_and_export():
     y_gcr = data['gcr_daily']
     y_spe = data['spe_target']
     
+    # 80/20 train/test split for honest out-of-sample verification
+    X_train, X_test, y_gcr_train, y_gcr_test, y_spe_train, y_spe_test = train_test_split(
+        X, y_gcr, y_spe, test_size=0.2, random_state=42
+    )
+
+    scaler_eval = StandardScaler()
+    X_train_sc = scaler_eval.fit_transform(X_train)
+    X_test_sc = scaler_eval.transform(X_test)
+
+    # 1. GCR Daily Dose Model (Auto-tuned RidgeCV Regressor)
+    gcr_cv = RidgeCV(alphas=np.logspace(-4, 2, 35))
+    gcr_cv.fit(X_train_sc, y_gcr_train)
+    best_gcr_alpha = float(gcr_cv.alpha_)
+    y_gcr_test_pred = gcr_cv.predict(X_test_sc)
+    r2_gcr_test = r2_score(y_gcr_test, y_gcr_test_pred)
+    mae_gcr_test = mean_absolute_error(y_gcr_test, y_gcr_test_pred)
+    rmse_gcr_test = float(np.sqrt(mean_squared_error(y_gcr_test, y_gcr_test_pred)))
+    ci90_gcr = round(1.645 * rmse_gcr_test, 4)
+    print(f"GCR Dose Model [Test Set] - R^2: {r2_gcr_test:.4f}, MAE: {mae_gcr_test:.4f} mSv/day, RMSE: {rmse_gcr_test:.4f}, CI90: +/-{ci90_gcr:.4f} | best alpha = {best_gcr_alpha:.4f}")
+
+    # 2. SPE Hazard Probability Classifier (Logistic Regression)
+    spe_eval = LogisticRegression(solver='lbfgs', max_iter=1000, random_state=42)
+    spe_eval.fit(X_train_sc, y_spe_train)
+    y_spe_test_probs = spe_eval.predict_proba(X_test_sc)[:, 1]
+    auc_spe_test = roc_auc_score(y_spe_test, y_spe_test_probs)
+    print(f"SPE Hazard Model [Test Set] - ROC-AUC: {auc_spe_test:.4f}")
+
+    # Retrain on full dataset using optimal alpha for final bundle deployment
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
-    # 1. GCR Daily Dose Model (Ridge Regressor)
-    gcr_model = Ridge(alpha=1.0)
+    gcr_model = RidgeCV(alphas=[best_gcr_alpha])
     gcr_model.fit(X_scaled, y_gcr)
     y_gcr_pred = gcr_model.predict(X_scaled)
     r2_gcr = r2_score(y_gcr, y_gcr_pred)
-    mae_gcr = np.mean(np.abs(y_gcr - y_gcr_pred))
-    print(f"GCR Dose Model - R^2: {r2_gcr:.4f}, MAE: {mae_gcr:.4f} mSv/day")
+    mae_gcr = mean_absolute_error(y_gcr, y_gcr_pred)
     
-    # 2. SPE Hazard Probability Classifier (Logistic Regression)
     spe_model = LogisticRegression(solver='lbfgs', max_iter=1000, random_state=42)
     spe_model.fit(X_scaled, y_spe)
     y_spe_probs = spe_model.predict_proba(X_scaled)[:, 1]
     auc_spe = roc_auc_score(y_spe, y_spe_probs)
-    print(f"SPE Hazard Model - ROC-AUC: {auc_spe:.4f}")
     
     # Validation on Gale Crater (-4500 m) vs Olympus Mons (+21000 m)
     test_cases = [
@@ -160,11 +185,17 @@ def train_and_export():
     model_payload = {
         'version': '1.0.0',
         'algorithm': 'Ridge Regressor (GCR) + Logistic Classifier (SPE) with Heliomagnetic Modulation',
-        'trained_at': '2026-11-02',
+        'trained_at': '2026-11-05',
         'metrics': {
             'gcr_r2': float(r2_gcr),
             'gcr_mae_msv': float(mae_gcr),
+            'gcr_test_r2': float(r2_gcr_test),
+            'gcr_test_mae_msv': float(mae_gcr_test),
+            'gcr_test_rmse_msv': float(rmse_gcr_test),
+            'gcr_ci90_msv': float(ci90_gcr),
+            'gcr_best_alpha': float(best_gcr_alpha),
             'spe_auc': float(auc_spe),
+            'spe_test_auc': float(auc_spe_test),
             'samples_count': int(X.shape[0]),
         },
         'feature_names': FEATURE_NAMES,

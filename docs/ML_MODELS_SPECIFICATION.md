@@ -78,11 +78,11 @@ The table below enumerates all 8 model families, their sub-models, underlying al
 | **MF-01** | **Atmospheric Multi-Horizon Forecaster** | 15 regressors ($T_{\max}, T_{\min}, P, \text{GTS}_{\max}, \text{GTS}_{\min}$ across $t+1, t+2, t+3$) | Multi-Horizon Ridge Regression ($\alpha=10.0$) with 21 cyclical orbital & lag features | NASA Curiosity REMS (4,711 sols, Gale Crater) | Pressure $R^2 = 0.9950$, $T_{\max}$ $R^2 = 0.8251$, $T_{\min}$ $R^2 = 0.7932$ | $\pm 7.04^\circ\text{C}$ Air, $\pm 12.18^\circ\text{C}$ Soil, $\pm 4.11\text{ Pa}$ Barometric |
 | **MF-02** | **Martian Dust Storm Hazard Classifier** | 3 binary classifiers ($t+1, t+2, t+3$ storm probabilities) | L2-Regularized Logistic Regression ($C=0.5$) with balanced class weights | NASA Curiosity REMS / InSight global dust events | $\text{ROC-AUC} = 0.892$, Accuracy = $94.6\%$ | Calibrated sigmoid probability with 4 alert tiers |
 | **MF-03** | **Geochemical Mineral Classifier & Biosignature Prior** | 1 multinomial classifier (5 rock classes, 7 lithologies, 16 features) | Multinomial Logistic Regression ($C=1.0$) with geochemical alteration indices | NASA Perseverance PIXL micro-XRF (14,000+ points) & PDS Geosciences | 5-Fold Stratified CV = $99.13\%$, Test Accuracy = $99.27\%$ | Class posterior probabilities + Taphonomic Prior ($0\text{--}100$) |
-| **MF-04** | **Space Radiation & SPE Hazard Modeler** | 2 sub-models (GCR surface dose regressor + SPE event classifier) | Ridge Regressor ($\alpha=1.0$) + Logistic Classifier with Schwabe solar modulation | NASA Curiosity RAD (Hassler et al. 2014) + NOAA Solar Cycle 24/25 | GCR $R^2 = 0.9907$ ($\text{MAE} = 0.0117\text{ mSv/day}$), SPE $\text{ROC-AUC} = 0.8727$ | Residual $\pm 0.019\text{ mSv/day}$ ($\pm 1.645\sigma$) |
+| **MF-04** | **Space Radiation & SPE Hazard Modeler** | 2 sub-models (GCR surface dose regressor + SPE event classifier) | RidgeCV Regressor ($\alpha=0.0197$) + Logistic Classifier with Schwabe solar modulation | NASA Curiosity RAD (Hassler et al. 2014) + NOAA Solar Cycle 24/25 | GCR $R^2 = 0.9904$ ($\text{MAE} = 0.0120\text{ mSv/day}$), SPE $\text{ROC-AUC} = 0.8668$ | Residual $\pm 0.0248\text{ mSv/day}$ ($\pm 1.645\sigma$) |
 | **MF-05** | **Rover Terramechanics & Dynamic Battery Discharge** | 3 sub-models (Wheel slip % + Traction Wh/km + Sand-trap hazard) | Bekker-Wong RidgeCV Regressors + Entrapment Logistic Classifier | 12,000 samples calibrated to MER Opportunity Purgatory Dune & Curiosity logs | Slip $R^2 = 0.8476$ ($\text{MAE} = 8.16\%$), Wh/km $R^2 = 0.8667$ ($\text{MAE} = 352.79\text{ Wh/km}$), Trap $\text{AUC} = 0.9993$ | $\pm 20.72\%$ Slip, $\pm 732.39\text{ Wh/km}$ Dynamic Energy |
 | **MF-06** | **SuperCam Quantitative LIBS Chemometrics Regressor** | 9 oxide regressors ($\text{SiO}_2, \text{FeO}, \text{MgO}, \text{Al}_2\text{O}_3, \text{CaO}, \text{Na}_2\text{O}, \text{K}_2\text{O}, \text{TiO}_2, \text{SO}_3$) | Multi-Target RidgeCV Regressors with Micro-Grain Variance Coupling (23 features) | 30 SuperCam LIBS spectra + 7,300 co-located PIXL micro-XRF targets (6,030 samples) | Mean $R^2 = 0.7786$, Mean $\text{MAE} = 1.557\text{ wt}\%$ | Individual 90% CI per oxide ($\pm 0.4\%\text{--}7.5\%$) |
 | **MF-07** | **InSight Marsquake Inversion & GMPE Attenuation** | 3 sub-models (Kinematic $S-P$ inversion + PGA regressor + PGV regressor) | Single-Station Kinematic Ray-Tracing + Log-linear GMPE Attenuation Regressor | InSight SEIS MQS Catalogue V14 (672 calibrated events, S1222a benchmark) | GMPE $R^2 = 0.9908$, $\text{MAE} = 0.1613\text{ m/s}^2$ | Log-normal $\sigma_{\ln} = 0.2342$ (Multiplicative CI90: $\times 1.47$) |
-| **MF-08** | **Solar Array Dust Deposition & ECLSS Power Forecaster** | 3 sub-models (Beer-Lambert insolation + Dust rate decay + Vortex clearing engine) | Physics-constrained Ridge Regressors + Stochastic Convective Vortex Engine | 5,000 sols MER-B Opportunity Dust Factor ($D_f$) + InSight Solar Array logs | Insolation $R^2 = 1.0000$, Dust Rate $R^2 = 0.9949$ ($\text{RMSE} = 0.000261\text{ }D_f/\text{sol}$) | Daily Dust Rate 90% CI: $\pm 0.00043\text{ }D_f/\text{sol}$; 30-Sol CI: $\pm 0.0129\text{ }D_f$ |
+| **MF-08** | **Solar Array Dust Deposition & ECLSS Power Forecaster** | 3 sub-models (Beer-Lambert insolation + Dust rate decay + Vortex clearing engine) | Physics-constrained RidgeCV Regressors + Stochastic Convective Vortex Engine | 5,000 sols MER-B Opportunity Dust Factor ($D_f$) + InSight Solar Array logs | Insolation $R^2 = 1.0000$ ($\text{MAE} = 3.14\times 10^{-10}\text{ Wh/m}^2$), Dust Rate $R^2 = 0.9949$ ($\text{RMSE} = 0.000261\text{ }D_f/\text{sol}$) | Daily Dust Rate 90% CI: $\pm 0.00043\text{ }D_f/\text{sol}$; 30-Sol CI: $\pm 0.0129\text{ }D_f$ |
 
 ---
 
@@ -234,14 +234,14 @@ Mars lacks an intrinsic global dipolar magnetic field. Its thin atmosphere provi
   - Solar Modulation Potential: $\Phi \in [350\text{ MV (solar min)} \text{ to } 1150\text{ MV (solar max)}]$.
 
 #### Architecture & Sub-Models
-1. **GCR Surface Dose Regressor (Ridge Regression, $\alpha=1.0$)**:
+1. **GCR Surface Dose Regressor (RidgeCV Regression, $\alpha=0.0197$)**:
    - Features: Elevation ($m$), Surface Pressure ($\text{Pa}$), Atmospheric Column Depth ($\text{g/cm}^2$), Solar Modulation $\Phi$ ($\text{MV}$), Solar Cycle phase ($\sin, \cos$), Seasonal $L_s$ ($\sin, \cos$).
    - Output: Surface GCR dose rate in $\text{mSv/day}$ and $\text{mSv/hr}$.
-   - Validation: $R^2 = 0.9907$, $\text{MAE} = 0.0117\text{ mSv/day}$.
-   - 90% Confidence Interval: $\pm 0.019\text{ mSv/day}$.
+   - Validation (Out-of-sample Test Set): $R^2 = 0.9904$, $\text{MAE} = 0.0120\text{ mSv/day}$, $\text{RMSE} = 0.0151\text{ mSv/day}$.
+   - 90% Confidence Interval: $\pm 0.0248\text{ mSv/day}$.
 2. **SPE Hazard Occurrence Classifier (Logistic Regression)**:
    - Output: Probability $P(\text{SPE})$ of acute coronal mass ejection proton arrival.
-   - Validation: $\text{ROC-AUC} = 0.8727$.
+   - Validation: $\text{ROC-AUC} = 0.8668$.
 3. **NASA Life Support Limits Embedded**:
    - Single EVA nominal limit: **$0.50\text{ mSv}$** (used to calculate safe walk duration: $t_{\text{safe}} = 0.50 / D_{\text{hourly}}$).
    - NASA 1-Year Standard: **$200\text{ mSv}$**.
@@ -381,11 +381,11 @@ $$T_{\text{total}} = T_{\text{direct}} + T_{\text{diffuse}}$$
 $$G_{\text{daily}} = S_{\text{TOA}} \cdot \mu_{\text{eff}} \cdot T_{\text{total}} \cdot H_{\text{day}}$$
 
 #### Sub-Models & Metrics
-1. **Daily Surface Insolation Regressor**:
-   - $R^2 = 1.0000$, $\text{MAE} = 0.00\text{ Wh/m}^2$, $\text{RMSE} = 0.00\text{ Wh/m}^2$.
-2. **Dust Factor Degradation Rate ($\Delta D_f/\text{sol}$)**:
+1. **Daily Surface Insolation Regressor (RidgeCV, $\alpha = 4.12 \times 10^{-6}$)**:
+   - $R^2 = 1.0000$, $\text{MAE} = 3.14 \times 10^{-10}\text{ Wh/m}^2$, $\text{RMSE} = 3.88 \times 10^{-10}\text{ Wh/m}^2$.
+2. **Dust Factor Degradation Rate ($\Delta D_f/\text{sol}$) (RidgeCV, $\alpha = 0.0203$)**:
    $$\Delta D_f = -0.00175 \left(\frac{\tau}{0.5}\right)^{0.75} (1 + 0.04 \cdot v_{\text{wind}})$$
-   - $R^2 = 0.9949$, $\text{RMSE} = 0.000261\text{ }D_f/\text{sol}$.
+   - $R^2 = 0.9949$, $\text{MAE} = 0.000205\text{ }D_f/\text{sol}$, $\text{RMSE} = 0.000261\text{ }D_f/\text{sol}$.
    - Daily 90% Confidence Interval: $\pm 0.00043\text{ }D_f/\text{sol}$.
    - 30-Sol Cumulative Uncertainty Envelope: $\pm 0.0129\text{ }D_f$.
 3. **Seasonal Convective Vortex Cleaning Probabilities**:
