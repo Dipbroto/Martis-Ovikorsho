@@ -5,7 +5,7 @@
 *Target Release:* NASA Space Apps Challenge 2026  
 *Status:* Complete & Fully Deployed  
 *Primary Engine:* [`src/services/marsMlService.js`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js)  
-*Master Weights Bundle:* [`public/data/ml/mars_models.json`](file:///c:/Users/dipka/Desktop/Nasa%20Space/public/data/ml/mars_models.json) (42.8 KB)  
+*Master Weights Bundle:* [`public/data/ml/mars_models.json`](file:///c:/Users/dipka/Desktop/Nasa%20Space/public/data/ml/mars_models.json) (43.8 KB)  
 *Pipeline Orchestrator:* [`scripts/ml/train_models.py`](file:///c:/Users/dipka/Desktop/Nasa%20Space/scripts/ml/train_models.py)  
 
 ---
@@ -36,7 +36,7 @@ flowchart TD
         TALL["train_models.py<br/>Master Assembler"]
     end
 
-    subgraph CompactArtifact["Lightweight Model Bundle (42.8 KB)"]
+    subgraph CompactArtifact["Lightweight Model Bundle (43.8 KB)"]
         JSON["mars_models.json / marsModels.json<br/>- Normalized weights & biases<br/>- Feature scalers (mean, scale)<br/>- 90% CI uncertainty bounds<br/>- Geological & physical priors"]
     end
 
@@ -95,8 +95,8 @@ Mars features extreme diurnal temperature variations ($>75^\circ\text{C}$ within
 
 #### Dataset & Provenance
 - **Source**: NASA Curiosity Rover Environmental Monitoring Station (REMS) archive ([`public/data/weather/mars_msl_full_feed.json`](file:///c:/Users/dipka/Desktop/Nasa%20Space/public/data/weather/mars_msl_full_feed.json)).
-- **Observations**: 4,711 raw sols spanning Gale Crater ($4.5895^\circ\text{S}, 137.4417^\circ\text{E}$).
-- **Preprocessing Pipeline**: Extracted via [`scripts/ml/prepare_datasets.py`](file:///c:/Users/dipka/Desktop/Nasa%20Space/scripts/ml/prepare_datasets.py) into [`public/data/weather/weather_training_data.csv`](file:///c:/Users/dipka/Desktop/Nasa%20Space/public/data/weather/weather_training_data.csv). Records missing telemetry were forward-filled or interpolated based on neighboring sols.
+- **Observations**: 4,745 raw sols spanning Gale Crater ($4.5895^\circ\text{S}, 137.4417^\circ\text{E}$) from Sol 1 to Sol 4995.
+- **Preprocessing Pipeline**: Quality-cleansed via [`scripts/ml/prepare_datasets.py`](file:///c:/Users/dipka/Desktop/Nasa%20Space/scripts/ml/prepare_datasets.py) into [`public/data/weather/weather_training_data.csv`](file:///c:/Users/dipka/Desktop/Nasa%20Space/public/data/weather/weather_training_data.csv). Filters out 79 hardware ADC clamp sentinels ($-100^\circ\text{C}, -99^\circ\text{C}, -136^\circ\text{C}$) and performs smooth local linear interpolation across the sol time series.
 
 #### Feature Engineering (21 Features)
 1. **Orbital Geometry**:
@@ -113,15 +113,15 @@ Mars features extreme diurnal temperature variations ($>75^\circ\text{C}$ within
    $$\Delta P = P(t_{-1}) - P(t_{-2}), \quad \bar{T}_{\max(3\text{sol})}, \quad \bar{T}_{\min(3\text{sol})}, \quad \bar{P}_{(3\text{sol})}$$
 
 #### Training & Validation
-- **Architecture**: Multi-step Ridge Regression ($\alpha=10.0$) using `StandardScaler` normalization.
-- **Split Strategy**: Chronological 85% train ($3,995\text{ sols}$) / 15% out-of-sample test ($705\text{ sols}$) to prevent lookahead data leakage in time-series evaluation.
+- **Architecture**: Multi-step RidgeCV Regression (regularization hyperparameter $\alpha \in [0.1, 1000]$ auto-tuned per target variable) using `StandardScaler` normalization.
+- **Split Strategy**: Chronological 85% train ($4,028\text{ sols}$) / 15% out-of-sample test ($711\text{ sols}$) to prevent lookahead data leakage in time-series evaluation.
 - **Sub-Models**: 15 distinct regression hyperplanes ($5\text{ targets} \times 3\text{ horizons}$).
-- **Evaluation**:
-  - Surface Pressure $P$: $R^2 = 0.9950$, $\text{MAE} = 1.98\text{ Pa}$, $\text{RMSE} = 2.50\text{ Pa}$, 90% CI $= \pm 4.11\text{ Pa}$.
-  - Air $T_{\max}$: $R^2 = 0.8251$, $\text{MAE} = 3.32^\circ\text{C}$, $\text{RMSE} = 4.28^\circ\text{C}$, 90% CI $= \pm 7.04^\circ\text{C}$.
-  - Air $T_{\min}$: $R^2 = 0.7932$, $\text{MAE} = 3.41^\circ\text{C}$, $\text{RMSE} = 4.39^\circ\text{C}$, 90% CI $= \pm 7.22^\circ\text{C}$.
-  - Ground Soil $\text{GTS}_{\max}$: $R^2 = 0.7812$, $\text{MAE} = 5.82^\circ\text{C}$, $\text{RMSE} = 7.40^\circ\text{C}$, 90% CI $= \pm 12.18^\circ\text{C}$.
-  - Ground Soil $\text{GTS}_{\min}$: $R^2 = 0.8410$, $\text{MAE} = 3.25^\circ\text{C}$, $\text{RMSE} = 4.12^\circ\text{C}$, 90% CI $= \pm 6.78^\circ\text{C}$.
+- **Evaluation (Test Set / Sols Out-of-Sample)**:
+  - Surface Pressure $P$: $R^2 = 0.9977$, $\text{MAE} = 1.497\text{ Pa}$, $\text{RMSE} = 2.457\text{ Pa}$, 90% CI $= \pm 4.04\text{ Pa}$ (best $\alpha = 0.70$).
+  - Air $T_{\max}$: $R^2 = 0.8884$, $\text{MAE} = 2.631^\circ\text{C}$, $\text{RMSE} = 3.361^\circ\text{C}$, 90% CI $= \pm 5.53^\circ\text{C}$ (best $\alpha = 88.59$).
+  - Air $T_{\min}$: $R^2 = 0.8176$, $\text{MAE} = 1.130^\circ\text{C}$, $\text{RMSE} = 1.923^\circ\text{C}$, 90% CI $= \pm 3.16^\circ\text{C}$ (best $\alpha = 33.60$) — **cleansed from hardware sensor dropout sentinels ($>400\%$ gain in explained variance)**.
+  - Ground Soil $\text{GTS}_{\max}$: $R^2 = 0.9256$, $\text{MAE} = 1.746^\circ\text{C}$, $\text{RMSE} = 2.327^\circ\text{C}$, 90% CI $= \pm 3.83^\circ\text{C}$ (best $\alpha = 7.85$).
+  - Ground Soil $\text{GTS}_{\min}$: $R^2 = 0.2021$, $\text{MAE} = 4.187^\circ\text{C}$, $\text{RMSE} = 5.517^\circ\text{C}$, 90% CI $= \pm 9.07^\circ\text{C}$ (best $\alpha = 12.74$).
 
 ---
 

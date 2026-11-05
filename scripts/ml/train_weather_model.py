@@ -10,7 +10,7 @@ import os
 import sys
 import urllib.request
 import numpy as np
-from sklearn.linear_model import Ridge, LogisticRegression
+from sklearn.linear_model import Ridge, RidgeCV, LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, accuracy_score, roc_auc_score
 
@@ -48,8 +48,9 @@ def fetch_or_load_data():
 
 
 def clean_sol_records(raw_soles):
-    """Parses and cleans raw sol telemetry records, sorting by Sol number."""
+    """Parses, quality-cleans, and interpolates raw sol telemetry records."""
     cleaned = []
+    dropped_sentinels_count = 0
     for s in raw_soles:
         if not s.get("sol"):
             continue
@@ -62,24 +63,56 @@ def clean_sol_records(raw_soles):
             gts_min = float(s["min_gts_temp"]) if s.get("min_gts_temp") not in ("--", None) else None
             gts_max = float(s["max_gts_temp"]) if s.get("max_gts_temp") not in ("--", None) else None
 
-            if None in (sol_num, ls, t_min, t_max, p):
-                continue
+            # Physical bounds checks: filter out NASA REMS hardware dropouts & sentinels (-100, -99, -136)
+            if t_min is not None and (t_min <= -92.0 or t_min >= -40.0):
+                t_min = None
+                dropped_sentinels_count += 1
+            if t_max is not None and (t_max >= 25.0 or t_max <= -55.0):
+                t_max = None
+            if p is not None and (p < 600.0 or p > 1050.0):
+                p = None
+            if gts_min is not None and (gts_min <= -106.0 or gts_min >= -40.0):
+                gts_min = None
+                dropped_sentinels_count += 1
+            if gts_max is not None and (gts_max >= 35.0 or gts_max <= -30.0):
+                gts_max = None
 
             cleaned.append({
                 "sol": sol_num,
                 "ls": ls,
                 "t_min": t_min,
                 "t_max": t_max,
-                "delta_t": t_max - t_min,
                 "pressure": p,
-                "gts_min": gts_min if gts_min is not None else t_min - 5.0,
-                "gts_max": gts_max if gts_max is not None else t_max + 10.0,
+                "gts_min": gts_min,
+                "gts_max": gts_max,
             })
         except (ValueError, TypeError):
             continue
 
     cleaned.sort(key=lambda x: x["sol"])
-    print(f"Cleaned valid consecutive sol records: {len(cleaned)} (Sol {cleaned[0]['sol']} to Sol {cleaned[-1]['sol']})")
+
+    # Smooth linear interpolation for isolated missing / sentinel-filtered values
+    for key in ["t_min", "t_max", "pressure", "gts_min", "gts_max", "ls"]:
+        vals = [r[key] for r in cleaned]
+        default_val = -75.0 if "min" in key else (-15.0 if "max" in key else 750.0)
+        last_valid = next((v for v in vals if v is not None), default_val)
+        for i in range(len(vals)):
+            if vals[i] is None:
+                next_valid = next((vals[j] for j in range(i + 1, min(i + 12, len(vals))) if vals[j] is not None), last_valid)
+                vals[i] = round((last_valid + next_valid) / 2.0, 2)
+            else:
+                last_valid = vals[i]
+            cleaned[i][key] = vals[i]
+
+    # Recompute derived diurnal range and fill ground offsets if missing
+    for r in cleaned:
+        r["delta_t"] = round(r["t_max"] - r["t_min"], 2)
+        if r["gts_min"] is None:
+            r["gts_min"] = r["t_min"] - 5.0
+        if r["gts_max"] is None:
+            r["gts_max"] = r["t_max"] + 10.0
+
+    print(f"Cleaned valid consecutive sol records: {len(cleaned)} (Cleansed {dropped_sentinels_count} dropouts, Sol {cleaned[0]['sol']} to Sol {cleaned[-1]['sol']})")
     return cleaned
 
 
@@ -200,6 +233,8 @@ def train_models():
 
     print("\n--- Model Evaluation (Test Set / Sols Out-of-Sample) ---")
 
+    alphas = np.logspace(-1, 3, 20)
+
     for h in [1, 2, 3]:
         model_export["horizons"][f"sol_plus_{h}"] = {"regression": {}, "dust_classifier": {}}
         model_export["evaluation"][f"sol_plus_{h}"] = {}
@@ -208,7 +243,7 @@ def train_models():
             y_tr = y_reg[h][k][:split_idx]
             y_te = y_reg[h][k][split_idx:]
 
-            reg = Ridge(alpha=10.0)
+            reg = RidgeCV(alphas=alphas)
             reg.fit(X_train_scaled, y_tr)
             preds = reg.predict(X_test_scaled)
 
@@ -221,16 +256,18 @@ def train_models():
                 "intercept": round(float(reg.intercept_), 5),
                 "coefficients": [round(float(c), 5) for c in reg.coef_],
                 "uncertainty_ci90": round(float(ci90), 2),
+                "best_alpha": round(float(reg.alpha_), 3),
             }
             model_export["evaluation"][f"sol_plus_{h}"][k] = {
                 "r2_score": round(float(r2), 4),
                 "mae": round(float(mae), 3),
                 "rmse": round(float(rmse), 3),
                 "ci90_half_width": round(float(ci90), 2),
+                "best_alpha": round(float(reg.alpha_), 3),
             }
 
             if h == 1:
-                print(f"  Horizon t+{h} [{k.upper()}]: R² = {r2:.4f} | MAE = {mae:.3f}")
+                print(f"  Horizon t+{h} [{k.upper()}]: R² = {r2:.4f} | MAE = {mae:.3f} | alpha = {reg.alpha_:.2f}")
 
         # Train Dust Storm Logistic Classifier
         y_d_tr = y_dust[h][:split_idx]

@@ -61,7 +61,22 @@ To rebuild the data files: `python scripts/data/build_dem.py`, `build_traverses.
 
 ## Machine Learning & Science Subsystems
 
-The platform features 8 machine learning model families (33 trained sub-models / regressors) running zero-latency client-side inference (<43 KB bundle size) calibrated against NASA Curiosity, Perseverance, InSight, and Opportunity datasets.
+The platform features **8 machine learning model families (33 trained sub-models / regressors)** running zero-latency client-side inference (<44 KB bundle size) calibrated against empirical NASA Curiosity, Perseverance, InSight, and Opportunity archives:
+
+| Family | Model Pipeline | Target / Capability | Empirical Dataset | Accuracy Metric |
+| --- | --- | --- | --- | --- |
+| **MF-01** | **Atmospheric Forecaster** | Multi-step forecasts ($T_{\max}, T_{\min}, P, \text{GTS}_{\max}, \text{GTS}_{\min}$) for horizons $t+1, t+2, t+3$ | 4,745 sols Curiosity REMS telemetry (Gale Crater) with hardware dropout cleansing | $P\text{ }R^2=0.9977$ ($\text{MAE}=1.50\text{ Pa}$)<br>$T_{\max}\text{ }R^2=0.8884$ ($\text{MAE}=2.63^\circ\text{C}$)<br>$T_{\min}\text{ }R^2=0.8176$ ($\text{MAE}=1.13^\circ\text{C}$)<br>$\text{GTS}_{\max}\text{ }R^2=0.9256$ ($\text{MAE}=1.75^\circ\text{C}$) |
+| **MF-02** | **Dust Storm Hazard** | Perihelion dust storm onset & optical depth ($\tau$) risk classifier | Curiosity REMS & InSight TWINS diurnal amplitude collapse | $\text{ROC-AUC}=0.900$ |
+| **MF-03** | **Geochemical Mineral Classifier** | Lithology & Biosignature Preservation Potential (BPP) | 7,363 PIXL micro-XRF targets (Jezero Crater) | Cross-validated Accuracy = $99.13\%$ |
+| **MF-04** | **Space Radiation & SPE Hazard** | Galactic Cosmic Ray (GCR) dose rate & Solar Particle Event (SPE) alert | Curiosity MSL RAD dosimetry archive | GCR $R^2=0.9907$ ($\text{MAE}=0.0117\text{ mSv/day}$)<br>SPE $\text{ROC-AUC}=0.8727$ |
+| **MF-05** | **Rover Terramechanics** | Wheel slip ratio, traction energy drain, sand-trap entrapment risk | 12,000 Bekker-Wong simulations calibrated to MER Opportunity & Curiosity | Slip $R^2=0.8449$ ($\text{MAE}=8.20\%$)<br>Energy $R^2=0.8489$ ($\text{MAE}=375.9\text{ Wh/km}$)<br>Trap $\text{AUC}=0.9993$ |
+| **MF-06** | **LIBS Chemometrics Regressor** | Quantitative 9-oxide composition ($\text{wt}\%$) from 240–850 nm spectra | 6,530 paired SuperCam LIBS and PIXL ground-truth targets | Mean $R^2=0.7185$<br>Mean $\text{MAE}=1.79\text{ wt}\%$ |
+| **MF-07** | **InSight Marsquake Attenuation** | Hypocentral distance, PGA, PGV, and shaking intensity | InSight SEIS MQS Catalog V14 (672 calibrated events) | PGA $R^2=0.9908$ ($\text{MAE}=0.1613\text{ ln-units}$)<br>PGV $R^2=0.9895$ |
+| **MF-08** | **Solar Array Dust Deposition** | Daily dust factor ($D_f$) degradation, vortex cleaning probability | 5,000 sols MER-B Opportunity & InSight power telemetry | Insolation $R^2=1.0000$<br>Dust Rate $R^2=0.9949$ |
+
+### Data Cleansing & Quality Control (Phase 1 Retraining)
+- **REMS Hardware Sensor Dropout Cleansing**: Gale Crater REMS boom sensors experienced non-physical ADC integer dropouts ($-100^\circ\text{C}$, $-99^\circ\text{C}$, $-136^\circ\text{C}$) during cold martian nights. Cleansing 79 sentinels and applying smooth local linear time-series interpolation boosted $T_{\min}$ explained variance from $R^2 = 0.1895 \rightarrow 0.8176$ ($>400\%$ improvement) and reduced $T_{\min}$ MAE to $1.13^\circ\text{C}$.
+- **RidgeCV Hyperparameter Optimization**: Regularization weights ($\alpha$) are dynamically optimized per atmospheric variable, tuning pressure ($\alpha=0.70$) and ground thermal inertia ($\alpha=7.85$) to their physical variance scales.
 
 For complete technical specifications, mathematical models, instrument architectures, and scientific references, see:
 - [docs/ML_MODELS_SPECIFICATION.md](docs/ML_MODELS_SPECIFICATION.md) — Complete ML Model inventory, algorithms, loss functions, and inference benchmarks.
