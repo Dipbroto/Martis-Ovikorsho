@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { clearChunkReloadLock } from '../utils/lazyWithRetry';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -16,6 +17,7 @@ export default class ErrorBoundary extends React.Component {
   }
 
   handleReset = () => {
+    clearChunkReloadLock();
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
       this.props.onReset();
@@ -26,6 +28,12 @@ export default class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      const isChunkError = Boolean(
+        this.state.error?.message?.includes('dynamically imported module') ||
+        this.state.error?.message?.includes('Loading chunk') ||
+        this.state.error?.message?.includes('Failed to fetch')
+      );
+
       return (
         <div className="w-full h-full min-h-[200px] flex items-center justify-center p-6 bg-space-950 text-primary font-mono select-none">
           <div className="max-w-md w-full glass-panel-solid p-6 rounded-2xl border border-red-500/50 shadow-2xl flex flex-col items-center text-center gap-3">
@@ -34,11 +42,13 @@ export default class ErrorBoundary extends React.Component {
             </div>
             
             <h3 className="font-display font-bold text-sm text-red-400 tracking-wider">
-              TELEMETRY SUBSYSTEM RECALIBRATION
+              {isChunkError ? 'MODULE SYNC INTERRUPTED' : 'TELEMETRY SUBSYSTEM RECALIBRATION'}
             </h3>
 
             <p className="text-xs text-space-300 leading-relaxed">
-              A temporary telemetry rendering exception was caught and isolated safely.
+              {isChunkError
+                ? 'A telemetry subsystem module was interrupted during an update or network change. Recalibrating fetches a fresh verified copy.'
+                : 'A temporary telemetry rendering exception was caught and isolated safely.'}
             </p>
 
             {this.state.error?.message && (
@@ -52,7 +62,7 @@ export default class ErrorBoundary extends React.Component {
               className="mt-2 px-4 py-2 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>RECALIBRATE SUBSYSTEM</span>
+              <span>{isChunkError ? 'RECALIBRATE & RECONNECT' : 'RECALIBRATE SUBSYSTEM'}</span>
             </button>
           </div>
         </div>
