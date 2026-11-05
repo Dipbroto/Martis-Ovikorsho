@@ -1,11 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, Droplets, ExternalLink, RotateCcw, ShieldCheck, Trash2, Flame, Dna, FileText,
+  Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, ExternalLink, RotateCcw, ShieldCheck, Trash2, Flame, Dna, FileText,
 } from 'lucide-react';
 import { playUiClick, playLaserZap } from '../utils/audioSynthesizer';
 import useScienceLab from '../hooks/useScienceLab';
 import useMapStore from '../store/useMapStore';
-import { imageUrl, paleoEnvironment, PDS_HOME } from '../data/scienceLab';
+import { imageUrl, PDS_HOME } from '../data/scienceLab';
 import { MARTIAN_PROVINCES } from '../services/marsMlService';
 import Panel from './science/Panel';
 import LibsPanel from './science/LibsPanel';
@@ -16,6 +16,7 @@ import ActiveLearningTriageDeck from './science/ActiveLearningTriageDeck';
 import SubsurfaceCoreDrillDeck from './science/SubsurfaceCoreDrillDeck';
 import IsruPlasmaForgeDeck from './science/IsruPlasmaForgeDeck';
 import PlanetaryDiscoveryScanner from './science/PlanetaryDiscoveryScanner';
+import PaleoHydrologyDeck from './science/PaleoHydrologyDeck';
 
 const INSTRUMENTS = [
   { id: 'supercam', deck: 'DECK 1', label: 'SuperCam', what: 'Laser spectroscopy', icon: Zap, tone: 'from-orange-500/25' },
@@ -69,7 +70,6 @@ export default function ScienceLabPage() {
   };
 
   const tubesUsed = Math.min(TOTAL_TUBES, safeSamples.length);
-  const paleo = paleoEnvironment(paleoPh);
   const ready = target && data && analysis;
 
   return (
@@ -471,31 +471,16 @@ export default function ScienceLabPage() {
               {/* Bayesian Active Learning Novelty & Triage Radar Deck */}
               {target && <ActiveLearningTriageDeck target={target} data={data} lab={lab} />}
 
-              {/* Ancient water: a reference chart, next to what this rock's chemistry shows */}
-              <Panel title="Which water makes which minerals?" icon={Droplets} right={<span className={`text-xs px-2.5 py-1 rounded-full border ${paleo.badge}`}>{paleo.epoch}</span>}>
-                <p className="text-sm text-zinc-300 mb-4">Minerals only form in certain water. Slide the acidity to see which minerals form and how well they keep traces of life. This is a reference chart from geochemistry, not a measurement of {target.name}.</p>
-                <div className="relative pt-7">
-                  <div className="flex h-10 rounded-xl overflow-hidden text-[11px] font-medium text-white/90">
-                    <div className="flex items-center justify-center bg-gradient-to-r from-red-700 to-amber-600" style={{ width: `${(4.5 - 2) / 8 * 100}%` }}>Acid brine</div>
-                    <div className="flex items-center justify-center bg-gradient-to-r from-emerald-700 to-emerald-500" style={{ width: `${(8.2 - 4.5) / 8 * 100}%` }}>Neutral lake</div>
-                    <div className="flex items-center justify-center bg-gradient-to-r from-cyan-600 to-sky-500" style={{ width: `${(10 - 8.2) / 8 * 100}%` }}>Alkaline vents</div>
-                  </div>
-                  <div className="absolute top-0 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-[left] duration-150" style={{ left: `${(paleoPh - 2) / 8 * 100}%` }}>
-                    <span className="text-xs font-semibold bg-white text-black px-2 py-0.5 rounded-md tabular-nums">pH {paleoPh.toFixed(1)}</span>
-                    <span className="w-0.5 h-12 bg-white" />
-                  </div>
-                  <input type="range" min="2" max="10" step="0.1" value={paleoPh} onChange={(e) => setPaleoPh(Number(e.target.value))} aria-label="Water acidity (pH)" className="absolute inset-x-0 top-7 h-10 w-full opacity-0 cursor-pointer" />
-                  <div className="mt-1.5 flex justify-between text-[11px] text-zinc-500"><span>2 · acidic</span><span>6</span><span>10 · alkaline</span></div>
-                </div>
-                <div className="mt-5 grid sm:grid-cols-3 gap-3">
-                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Water</div><div className={`text-sm font-medium mt-0.5 ${paleo.color}`}>{paleo.regime}</div></div>
-                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Minerals that form</div><div className="text-sm font-medium mt-0.5">{paleo.precipitates}</div></div>
-                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">For traces of life</div><div className="text-sm font-medium mt-0.5 text-emerald-300">{paleo.habitability}</div></div>
-                </div>
-                {ready && analysis.evidence.some((e) => e.instrument === 'PIXL') && (
-                  <p className="mt-4 text-xs text-zinc-400"><span className="text-zinc-300">In this rock:</span> {analysis.evidence.filter((e) => e.instrument === 'PIXL').map((e) => e.label.toLowerCase()).join(', ')} (see “What the measurements show”).</p>
-                )}
-              </Panel>
+              {/* Ancient water: rock-specific geochemical paleohydrology and mineral stability horizons */}
+              {target && (
+                <PaleoHydrologyDeck
+                  target={target}
+                  data={data}
+                  analysis={analysis}
+                  paleoPh={paleoPh}
+                  setPaleoPh={setPaleoPh}
+                />
+              )}
             </div>
           </div>
         )}
