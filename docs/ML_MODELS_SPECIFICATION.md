@@ -5,7 +5,7 @@
 *Target Release:* NASA Space Apps Challenge 2026  
 *Status:* Complete & Fully Deployed  
 *Primary Engine:* [`src/services/marsMlService.js`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js)  
-*Master Weights Bundle:* [`public/data/ml/mars_models.json`](file:///c:/Users/dipka/Desktop/Nasa%20Space/public/data/ml/mars_models.json) (43.8 KB)  
+*Master Weights Bundle:* [`public/data/ml/mars_models.json`](file:///c:/Users/dipka/Desktop/Nasa%20Space/public/data/ml/mars_models.json) (44.1 KB)  
 *Pipeline Orchestrator:* [`scripts/ml/train_models.py`](file:///c:/Users/dipka/Desktop/Nasa%20Space/scripts/ml/train_models.py)  
 
 ---
@@ -36,7 +36,7 @@ flowchart TD
         TALL["train_models.py<br/>Master Assembler"]
     end
 
-    subgraph CompactArtifact["Lightweight Model Bundle (43.8 KB)"]
+    subgraph CompactArtifact["Lightweight Model Bundle (44.1 KB)"]
         JSON["mars_models.json / marsModels.json<br/>- Normalized weights & biases<br/>- Feature scalers (mean, scale)<br/>- 90% CI uncertainty bounds<br/>- Geological & physical priors"]
     end
 
@@ -80,7 +80,7 @@ The table below enumerates all 8 model families, their sub-models, underlying al
 | **MF-03** | **Geochemical Mineral Classifier & Biosignature Prior** | 1 multinomial classifier (5 rock classes, 7 lithologies, 16 features) | Multinomial Logistic Regression ($C=1.0$) with geochemical alteration indices | NASA Perseverance PIXL micro-XRF (14,000+ points) & PDS Geosciences | 5-Fold Stratified CV = $99.13\%$, Test Accuracy = $99.27\%$ | Class posterior probabilities + Taphonomic Prior ($0\text{--}100$) |
 | **MF-04** | **Space Radiation & SPE Hazard Modeler** | 2 sub-models (GCR surface dose regressor + SPE event classifier) | Ridge Regressor ($\alpha=1.0$) + Logistic Classifier with Schwabe solar modulation | NASA Curiosity RAD (Hassler et al. 2014) + NOAA Solar Cycle 24/25 | GCR $R^2 = 0.9907$ ($\text{MAE} = 0.0117\text{ mSv/day}$), SPE $\text{ROC-AUC} = 0.8727$ | Residual $\pm 0.019\text{ mSv/day}$ ($\pm 1.645\sigma$) |
 | **MF-05** | **Rover Terramechanics & Dynamic Battery Discharge** | 3 sub-models (Wheel slip % + Traction Wh/km + Sand-trap hazard) | Bekker-Wong Ridge Regressors + Entrapment Logistic Classifier | 12,000 samples calibrated to MER Opportunity Purgatory Dune & Curiosity logs | Slip $R^2 = 0.8449$ ($\text{MAE} = 8.2\%$), Wh/km $R^2 = 0.8489$, Trap $\text{AUC} = 0.9993$ | $\pm 13.5\%$ Slip, $\pm 618\text{ Wh/km}$ Dynamic Energy |
-| **MF-06** | **SuperCam Quantitative LIBS Chemometrics Regressor** | 9 oxide regressors ($\text{SiO}_2, \text{FeO}, \text{MgO}, \text{Al}_2\text{O}_3, \text{CaO}, \text{Na}_2\text{O}, \text{K}_2\text{O}, \text{TiO}_2, \text{SO}_3$) | Multi-Target Ridge / ElasticNet Regressor (23 NIST atomic lines & cross-ratios) | 30 SuperCam LIBS spectra + 7,300 co-located PIXL micro-XRF targets (6,530 pairs) | Mean $R^2 = 0.7185$, Mean $\text{MAE} = 1.786\text{ wt}\%$ | Individual 90% CI per oxide ($\pm 0.4\%\text{--}4.6\%$) |
+| **MF-06** | **SuperCam Quantitative LIBS Chemometrics Regressor** | 9 oxide regressors ($\text{SiO}_2, \text{FeO}, \text{MgO}, \text{Al}_2\text{O}_3, \text{CaO}, \text{Na}_2\text{O}, \text{K}_2\text{O}, \text{TiO}_2, \text{SO}_3$) | Multi-Target RidgeCV Regressors with Micro-Grain Variance Coupling (23 features) | 30 SuperCam LIBS spectra + 7,300 co-located PIXL micro-XRF targets (6,030 samples) | Mean $R^2 = 0.7786$, Mean $\text{MAE} = 1.557\text{ wt}\%$ | Individual 90% CI per oxide ($\pm 0.4\%\text{--}7.5\%$) |
 | **MF-07** | **InSight Marsquake Inversion & GMPE Attenuation** | 3 sub-models (Kinematic $S-P$ inversion + PGA regressor + PGV regressor) | Single-Station Kinematic Ray-Tracing + Log-linear GMPE Attenuation Regressor | InSight SEIS MQS Catalogue V14 (672 calibrated events, S1222a benchmark) | GMPE $R^2 = 0.9908$, $\text{MAE} = 0.1613\text{ m/s}^2$ | Log-normal $\sigma_{\ln} = 0.2342$ (Multiplicative CI90: $\times 1.47$) |
 | **MF-08** | **Solar Array Dust Deposition & ECLSS Power Forecaster** | 3 sub-models (Beer-Lambert insolation + Dust rate decay + Vortex clearing engine) | Physics-constrained Ridge Regressors + Stochastic Convective Vortex Engine | 5,000 sols MER-B Opportunity Dust Factor ($D_f$) + InSight Solar Array logs | Insolation $R^2 = 1.0000$, Dust Rate $R^2 = 0.9949$ ($\text{RMSE} = 0.000261\text{ }D_f/\text{sol}$) | Daily Dust Rate 90% CI: $\pm 0.00043\text{ }D_f/\text{sol}$; 30-Sol CI: $\pm 0.0129\text{ }D_f$ |
 
@@ -318,16 +318,19 @@ SuperCam Laser Pulse ---> Plasma Emission ---> 2,048-Channel Spectrometer (240-8
 - **Sulfur (S)**: $543.28\text{ nm}, 545.38\text{ nm}$
 
 #### Training, Dataset & Performance
-- **Training Set**: 30 empirical SuperCam LIBS spectra paired with 7,300+ co-located PIXL micro-XRF quantitative ground truths across 6 Jezero rocks, augmented with laser pulse jitter to 6,530 training pairs.
-- **Model Architecture**: 9 independent Ridge / ElasticNet regressors with individual 90% confidence uncertainty envelopes.
-- **Metrics**:
-  - Global Mean $R^2 = 0.7185$; Global Mean $\text{MAE} = 1.786\text{ wt}\%$.
-  - $\text{SiO}_2$: $\text{MAE} = 2.31\text{ wt}\%$, 90% CI $= \pm 3.80\text{ wt}\%$.
-  - $\text{FeO-T}$: $\text{MAE} = 1.58\text{ wt}\%$, 90% CI $= \pm 2.60\text{ wt}\%$.
-  - $\text{MgO}$: $\text{MAE} = 1.28\text{ wt}\%$, 90% CI $= \pm 2.10\text{ wt}\%$.
-  - $\text{Al}_2\text{O}_3$: $\text{MAE} = 0.85\text{ wt}\%$, 90% CI $= \pm 1.40\text{ wt}\%$.
-  - $\text{CaO}$: $\text{MAE} = 0.98\text{ wt}\%$, 90% CI $= \pm 1.61\text{ wt}\%$.
-  - Minor Oxides ($\text{Na}_2\text{O}, \text{K}_2\text{O}, \text{TiO}_2, \text{SO}_3$): $\text{MAE} < 0.7\text{ wt}\%$, 90% CI $< \pm 1.1\text{ wt}\%$.
+- **Training Set**: 30 empirical SuperCam LIBS spectra paired with 7,300+ co-located PIXL micro-XRF quantitative ground truths across 6 Jezero rocks, augmented with physically coupled micro-grain variation and detector calibration archetypes to 6,030 samples.
+- **Model Architecture**: 9 independent target-specific `RidgeCV` regressors with calibrated 90% confidence uncertainty envelopes ($\pm 1.645 \sigma_{\text{RMSE}}$).
+- **Metrics (Test Set Out-of-Sample)**:
+  - Global Mean $R^2 = 0.7786$; Global Mean $\text{MAE} = 1.557\text{ wt}\%$.
+  - $\text{Al}_2\text{O}_3$: $R^2 = 0.9269$, $\text{MAE} = 0.94\text{ wt}\%$, 90% CI $= \pm 2.0\text{ wt}\%$ (best $\alpha = 0.75$).
+  - $\text{MgO}$: $R^2 = 0.8613$, $\text{MAE} = 1.75\text{ wt}\%$, 90% CI $= \pm 4.0\text{ wt}\%$ (best $\alpha = 0.75$).
+  - $\text{K}_2\text{O}$: $R^2 = 0.8134$, $\text{MAE} = 0.18\text{ wt}\%$, 90% CI $= \pm 0.4\text{ wt}\%$ (best $\alpha = 0.18$).
+  - $\text{TiO}_2$: $R^2 = 0.8040$, $\text{MAE} = 0.19\text{ wt}\%$, 90% CI $= \pm 0.4\text{ wt}\%$ (best $\alpha = 0.46$).
+  - $\text{CaO}$: $R^2 = 0.8024$, $\text{MAE} = 1.04\text{ wt}\%$, 90% CI $= \pm 2.4\text{ wt}\%$ (best $\alpha = 1.21$).
+  - $\text{Na}_2\text{O}$: $R^2 = 0.7814$, $\text{MAE} = 0.42\text{ wt}\%$, 90% CI $= \pm 0.9\text{ wt}\%$ (best $\alpha = 0.18$).
+  - $\text{FeO-T}$: $R^2 = 0.6839$, $\text{MAE} = 3.27\text{ wt}\%$, 90% CI $= \pm 7.5\text{ wt}\%$ (best $\alpha = 0.75$).
+  - $\text{SO}_3$: $R^2 = 0.6691$, $\text{MAE} = 3.27\text{ wt}\%$, 90% CI $= \pm 7.0\text{ wt}\%$ (best $\alpha = 0.46$).
+  - $\text{SiO}_2$: $R^2 = 0.6652$, $\text{MAE} = 2.95\text{ wt}\%$, 90% CI $= \pm 6.2\text{ wt}\%$ (best $\alpha = 1.96$).
 
 ---
 
