@@ -20,10 +20,9 @@ import math
 import os
 import sys
 import numpy as np
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.linear_model import Ridge, LogisticRegression
+from sklearn.linear_model import Ridge, RidgeCV, LogisticRegression
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import r2_score, mean_absolute_error, roc_auc_score, accuracy_score
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, roc_auc_score, accuracy_score
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT_PUBLIC = os.path.join(ROOT_DIR, "public", "data", "ml", "mars_terramechanics_model.json")
@@ -47,11 +46,9 @@ def generate_terramechanics_calibration_dataset(n_samples=12000, random_seed=42)
 
     # Features:
     # 1. Slope (degrees): -25 to +25 (uphill positive, downhill negative)
-    # Uniformly distributed with higher density near critical slope angles (10-20 deg)
     slopes = rng.uniform(-25.0, 25.0, n_samples)
 
     # 2. Thermal Inertia (THEMIS TI, tiu): 50 to 800
-    # Log-normal distribution reflecting Martian surface distribution
     ti_raw = rng.lognormal(mean=5.3, sigma=0.6, size=n_samples)
     thermal_inertias = np.clip(ti_raw, 50.0, 850.0)
 
@@ -93,8 +90,6 @@ def generate_terramechanics_calibration_dataset(n_samples=12000, random_seed=42)
     stress_ratio = f_req / np.maximum(100.0, f_max_thrust)
 
     # Slip ratio formulation
-    # Base slip on flat hard surface is ~2%
-    # On steep sand when f_req approaches or exceeds f_max_thrust, slip accelerates to >90%
     base_slip = 0.02 + 0.03 * (1.0 - np.tanh(thermal_inertias / 200.0))
     uphill_slip_factor = np.where(slopes > 0, np.power(np.maximum(0.0, stress_ratio), 1.85), 0.0)
     downhill_braking_slip = np.where(slopes < 0, 0.02 + 0.04 * np.abs(slopes) / 25.0, 0.0)
@@ -102,7 +97,7 @@ def generate_terramechanics_calibration_dataset(n_samples=12000, random_seed=42)
 
     slip_ratio = base_slip + uphill_slip_factor * 0.75 + downhill_braking_slip + roughness_slip_penalty
     
-    # Critical sand trap threshold: if slope > 12 deg and TI < 110 (Purgatory Dune scenario)
+    # Critical sand trap threshold: if slope > 10 deg and TI < 120 (Purgatory Dune scenario)
     purgatory_mask = (slopes > 10.0) & (thermal_inertias < 120.0)
     slip_ratio[purgatory_mask] += 0.35 * (slopes[purgatory_mask] / 15.0)
 
@@ -117,8 +112,6 @@ def generate_terramechanics_calibration_dataset(n_samples=12000, random_seed=42)
     speed_actual_kmh = speed_actual_mps * 3.6
 
     # Mechanical tractive power delivered to regolith
-    # High slip dissipates mechanical energy into regolith friction
-    # Power = (F_req * v_commanded) / (1 - slip)
     p_mechanical = np.maximum(120.0, (f_req * (speed_cmd / 3.6)) / np.maximum(0.05, 1.0 - slip_ratio * 0.7))
     
     # Downhill regenerative braking (can recover small fraction when rolling downhill on firm ground)
@@ -132,26 +125,13 @@ def generate_terramechanics_calibration_dataset(n_samples=12000, random_seed=42)
     p_total_elec = p_traction_elec + HOTEL_LOAD_WATTS
 
     # Dynamic traction energy consumption in Wh/km:
-    # (P_total_watts) / (speed_actual_kmh)
     energy_wh_per_km = p_total_elec / speed_actual_kmh
-    # Clip to physically realistic bounds for 3-ton planetary rover
     energy_wh_per_km = np.clip(energy_wh_per_km, 140.0, 3500.0)
 
     # Sand trap hazard label (binary target for logistic classifier):
-    # Slip >= 40% and TI < 140 is a high-risk sand entrapment zone
     trap_hazard = ((slip_pct >= 40.0) | (stress_ratio > 0.85) | (purgatory_mask & (slopes > 12.0))).astype(int)
 
-    # Build feature matrix:
-    # 1: slope_deg
-    # 2: thermal_inertia
-    # 3: roughness_m
-    # 4: speed_cmd_kmh
-    # 5: rover_mass_kg
-    # Derived non-linear interaction terms:
-    # 6: slope_sin (sin of slope)
-    # 7: inv_thermal_inertia (1 / (TI + 10)) -> captures loose sand sensitivity
-    # 8: slope_x_inv_ti (interaction: steep uphill * loose dust)
-    # 9: roughness_x_slope
+    # Build feature matrix (9 physical features):
     slope_sin = np.sin(slope_rad)
     inv_ti = 100.0 / (thermal_inertias + 10.0)
     slope_x_inv_ti = np.maximum(0.0, slope_sin) * inv_ti
@@ -203,23 +183,29 @@ def train_and_export():
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
+    alphas = np.logspace(-2, 3, 25)
+
     # 1. Wheel Slip Ratio (%) Model
-    print("\n--- Training Model 1A: Wheel Slip Ratio (%) Regressor ---")
-    slip_reg = Ridge(alpha=5.0)
+    print("\n--- Training Model 1A: Wheel Slip Ratio (%) Regressor (RidgeCV) ---")
+    slip_reg = RidgeCV(alphas=alphas)
     slip_reg.fit(X_train_scaled, y_slip_tr)
     slip_preds = slip_reg.predict(X_test_scaled)
     slip_r2 = r2_score(y_slip_te, slip_preds)
     slip_mae = mean_absolute_error(y_slip_te, slip_preds)
-    print(f"  Ridge Slip Model: R² = {slip_r2:.4f} | MAE = {slip_mae:.2f}%")
+    slip_rmse = math.sqrt(mean_squared_error(y_slip_te, slip_preds))
+    slip_ci90 = 1.645 * slip_rmse
+    print(f"  Ridge Slip Model: R² = {slip_r2:.4f} | MAE = {slip_mae:.2f}% (±{slip_ci90:.1f}%) | alpha = {slip_reg.alpha_:.2f}")
 
     # 2. Dynamic Energy (Wh/km) Model
-    print("\n--- Training Model 1B: Dynamic Energy Drain (Wh/km) Regressor ---")
-    wh_reg = Ridge(alpha=10.0)
+    print("\n--- Training Model 1B: Dynamic Energy Drain (Wh/km) Regressor (RidgeCV) ---")
+    wh_reg = RidgeCV(alphas=alphas)
     wh_reg.fit(X_train_scaled, y_wh_tr)
     wh_preds = wh_reg.predict(X_test_scaled)
     wh_r2 = r2_score(y_wh_te, wh_preds)
     wh_mae = mean_absolute_error(y_wh_te, wh_preds)
-    print(f"  Ridge Energy Model: R² = {wh_r2:.4f} | MAE = {wh_mae:.2f} Wh/km")
+    wh_rmse = math.sqrt(mean_squared_error(y_wh_te, wh_preds))
+    wh_ci90 = 1.645 * wh_rmse
+    print(f"  Ridge Energy Model: R² = {wh_r2:.4f} | MAE = {wh_mae:.2f} Wh/km (±{wh_ci90:.1f} Wh/km) | alpha = {wh_reg.alpha_:.2f}")
 
     # 3. Entrapment / Sand Trap Logistic Classifier
     print("\n--- Training Model 1C: Entrapment / Sand Trap Logistic Classifier ---")
@@ -233,7 +219,6 @@ def train_and_export():
     # Specific Benchmark Validations:
     print("\n--- Mission Historical Calibration Checks ---")
     # A. Opportunity Purgatory Dune (Slope ~14 deg, TI ~90 tiu, Roughness 0.05 m, 10 km/h, 3000 kg)
-    # Target: High slip > 70%, critical sand trap warning
     purg_slope = 14.0
     purg_ti = 90.0
     purg_rough = 0.05
@@ -254,7 +239,6 @@ def train_and_export():
     print(f"    Predicted Slip: {purg_slip:.1f}% | Energy: {purg_wh:.1f} Wh/km | Trap Risk: {purg_trap_prob * 100:.1f}%")
 
     # B. Curiosity Vera Rubin Ridge Bedrock (Slope 18 deg, TI 500 tiu, Roughness 0.15 m, 10 km/h, 3000 kg)
-    # Target: Low slip < 15%, solid traction
     vrr_slope = 18.0
     vrr_ti = 500.0
     vrr_rough = 0.15
@@ -275,8 +259,8 @@ def train_and_export():
     # Assemble Model Export Object
     model_export = {
         "version": "1.0.0",
-        "algorithm": "Ridge Regressor (Slip & Energy) + Logistic Classifier (Entrapment Hazard)",
-        "trained_at": "2026-11-03",
+        "algorithm": "RidgeCV Regressor (Slip & Energy) + Logistic Classifier (Entrapment Hazard)",
+        "trained_at": "2026-11-05",
         "specs": {
             "g_mars_m_s2": G_MARS,
             "default_rover_mass_kg": DEFAULT_ROVER_MASS,
@@ -288,8 +272,10 @@ def train_and_export():
         "metrics": {
             "slip_r2": round(float(slip_r2), 4),
             "slip_mae_pct": round(float(slip_mae), 2),
+            "slip_ci90_pct": round(float(slip_ci90), 2),
             "wh_r2": round(float(wh_r2), 4),
             "wh_mae": round(float(wh_mae), 2),
+            "wh_ci90_wh_km": round(float(wh_ci90), 2),
             "trap_auc": round(float(trap_auc), 4),
             "trap_accuracy": round(float(trap_acc), 4),
             "samples_count": len(X)
@@ -301,11 +287,15 @@ def train_and_export():
         },
         "slip_model": {
             "intercept": round(float(slip_reg.intercept_), 5),
-            "coefficients": [round(float(c), 5) for c in slip_reg.coef_]
+            "coefficients": [round(float(c), 5) for c in slip_reg.coef_],
+            "best_alpha": round(float(slip_reg.alpha_), 3),
+            "ci90_pct": round(float(slip_ci90), 2)
         },
         "energy_model": {
             "intercept": round(float(wh_reg.intercept_), 5),
-            "coefficients": [round(float(c), 5) for c in wh_reg.coef_]
+            "coefficients": [round(float(c), 5) for c in wh_reg.coef_],
+            "best_alpha": round(float(wh_reg.alpha_), 3),
+            "ci90_wh_km": round(float(wh_ci90), 2)
         },
         "trap_classifier": {
             "intercept": round(float(trap_clf.intercept_[0]), 5),

@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generated_at": "2026-11-03",
+  "generated_at": "2026-11-05",
   "metadata": {
     "dataset": "InSight Marsquake Service (MQS) Catalogue V14 (2,715 events)",
     "station": {
@@ -31,27 +31,29 @@
     "ci90_factor_pgv": 1.48
   },
   "attenuation_pga": {
-    "intercept": -3.5957,
+    "intercept": -3.59533,
     "coefficients": {
-      "mag": 1.12915,
-      "ln_eff_r": -0.77333,
+      "mag": 1.12902,
+      "ln_eff_r": -0.77325,
       "r_hypo": -0.000494,
-      "depth_km": 0.001999,
-      "ln_site": 1.02315,
-      "kind_code": 0.05977
+      "depth_km": 0.001992,
+      "ln_site": 1.02142,
+      "kind_code": 0.05951
     },
+    "best_alpha": 0.4281,
     "r0_near_source_km": 6.2
   },
   "attenuation_pgv": {
-    "intercept": 0.54279,
+    "intercept": 0.54304,
     "coefficients": {
-      "mag": 0.98075,
-      "ln_eff_r": -0.77143,
+      "mag": 0.98065,
+      "ln_eff_r": -0.77134,
       "r_hypo": -0.000496,
-      "depth_km": 0.00197,
-      "ln_site": 1.0149,
-      "kind_code": 0.06062
+      "depth_km": 0.001963,
+      "ln_site": 1.01318,
+      "kind_code": 0.06037
     },
+    "best_alpha": 0.4281,
     "r0_near_source_km": 6.2
   },
   "site_conditions": {

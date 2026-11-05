@@ -13,8 +13,7 @@ import math
 import os
 import sys
 import numpy as np
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import Ridge, RidgeCV
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
@@ -128,8 +127,8 @@ def train_quake_models():
         X, Y_pga, Y_pgv, test_size=0.2, random_state=42, shuffle=True
     )
     
-    # 1. PGA Regressor (Ridge linear model for transparent, lightning-fast browser evaluation)
-    # Using Ridge regression on the physical terms: [1, M, ln(eff_r), r_hypo, depth_km, ln(site)]
+    # 1. PGA Regressor (RidgeCV auto-tuned linear model for transparent, lightning-fast browser evaluation)
+    # Using Ridge regression on the physical terms: [1, M, ln(eff_r), r_hypo, depth_km, ln(site), kind_code]
     X_train_phys = np.column_stack([
         X_train[:, 0],                  # M
         X_train[:, 1],                  # ln(eff_r)
@@ -147,23 +146,24 @@ def train_quake_models():
         X_test[:, 5],
     ])
     
-    pga_model = Ridge(alpha=0.1)
+    alphas = np.logspace(-3, 2, 20)
+    pga_model = RidgeCV(alphas=alphas)
     pga_model.fit(X_train_phys, Y_pga_train)
     pga_pred = pga_model.predict(X_test_phys)
     
     pga_r2 = r2_score(Y_pga_test, pga_pred)
     pga_mae = mean_absolute_error(Y_pga_test, pga_pred)
     pga_rmse = math.sqrt(mean_squared_error(Y_pga_test, pga_pred))
-    print(f"\n[PGA Model] R² = {pga_r2:.4f}, MAE = {pga_mae:.4f} ln-units, RMSE = {pga_rmse:.4f}")
+    print(f"\n[PGA Model] R² = {pga_r2:.4f}, MAE = {pga_mae:.4f} ln-units, RMSE = {pga_rmse:.4f} | alpha = {pga_model.alpha_:.3f}")
     
     # 2. PGV Regressor
-    pgv_model = Ridge(alpha=0.1)
+    pgv_model = RidgeCV(alphas=alphas)
     pgv_model.fit(X_train_phys, Y_pgv_train)
     pgv_pred = pgv_model.predict(X_test_phys)
     pgv_r2 = r2_score(Y_pgv_test, pgv_pred)
     pgv_mae = mean_absolute_error(Y_pgv_test, pgv_pred)
     pgv_rmse = math.sqrt(mean_squared_error(Y_pgv_test, pgv_pred))
-    print(f"[PGV Model] R² = {pgv_r2:.4f}, MAE = {pgv_mae:.4f} ln-units, RMSE = {pgv_rmse:.4f}")
+    print(f"[PGV Model] R² = {pgv_r2:.4f}, MAE = {pgv_mae:.4f} ln-units, RMSE = {pgv_rmse:.4f} | alpha = {pgv_model.alpha_:.3f}")
 
     # Aerospace Uncertainty Quantification (90% Confidence Interval Multipliers)
     pga_ci90_multiplier = math.exp(1.645 * pga_rmse)
@@ -178,9 +178,6 @@ def train_quake_models():
     }
     
     # 3. Hypocentral Inversion Coefficients
-    # InSight travel-time inversion: Δ (deg) = f(Δt_S-P)
-    # Fitting polynomial on known InSight catalogue events
-    # Mean S-P travel time gradient: ~8.84 s/degree
     travel_time_inv = {
         'gradient_s_per_deg': 8.84,
         'linear_coeff': 0.1131,  # deg/second (1/8.84)
@@ -261,7 +258,7 @@ def train_quake_models():
     # Package model payload
     model_export = {
         'version': '1.0.0',
-        'generated_at': '2026-11-03',
+        'generated_at': '2026-11-05',
         'metadata': {
             'dataset': 'InSight Marsquake Service (MQS) Catalogue V14 (2,715 events)',
             'station': {'name': 'InSight SEIS', 'lat': INSIGHT_LAT, 'lon': INSIGHT_LON},
@@ -283,6 +280,7 @@ def train_quake_models():
                 'ln_site': round(float(pga_model.coef_[4]), 5),
                 'kind_code': round(float(pga_model.coef_[5]), 5),
             },
+            'best_alpha': round(float(pga_model.alpha_), 4),
             'r0_near_source_km': 6.2,
         },
         'attenuation_pgv': {
@@ -295,6 +293,7 @@ def train_quake_models():
                 'ln_site': round(float(pgv_model.coef_[4]), 5),
                 'kind_code': round(float(pgv_model.coef_[5]), 5),
             },
+            'best_alpha': round(float(pgv_model.alpha_), 4),
             'r0_near_source_km': 6.2,
         },
         'site_conditions': {

@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "algorithm": "Ridge Regressor (Slip & Energy) + Logistic Classifier (Entrapment Hazard)",
-  "trained_at": "2026-11-03",
+  "algorithm": "RidgeCV Regressor (Slip & Energy) + Logistic Classifier (Entrapment Hazard)",
+  "trained_at": "2026-11-05",
   "specs": {
     "g_mars_m_s2": 3.721,
     "default_rover_mass_kg": 3000.0,
@@ -11,10 +11,12 @@
     "battery_capacity_wh": 60000.0
   },
   "metrics": {
-    "slip_r2": 0.8449,
-    "slip_mae_pct": 8.2,
-    "wh_r2": 0.8489,
-    "wh_mae": 375.91,
+    "slip_r2": 0.8476,
+    "slip_mae_pct": 8.16,
+    "slip_ci90_pct": 20.72,
+    "wh_r2": 0.8667,
+    "wh_mae": 352.79,
+    "wh_ci90_wh_km": 732.39,
     "trap_auc": 0.9993,
     "trap_accuracy": 0.9833,
     "samples_count": 12000
@@ -57,30 +59,34 @@
   "slip_model": {
     "intercept": 28.67109,
     "coefficients": [
-      -11.15786,
-      -3.74097,
-      -0.6259,
-      -0.06011,
-      0.18196,
-      17.87108,
-      1.29078,
-      22.12901,
-      2.61559
-    ]
+      -222.47123,
+      -3.7667,
+      -0.58593,
+      -0.05791,
+      0.18756,
+      229.17632,
+      1.2999,
+      22.14169,
+      2.56802
+    ],
+    "best_alpha": 0.01,
+    "ci90_pct": 20.72
   },
   "energy_model": {
     "intercept": 1705.88953,
     "coefficients": [
-      -210.10692,
-      -163.69136,
-      -205.41222,
-      -93.71795,
-      69.68674,
-      1084.71698,
-      226.52845,
-      156.1583,
-      320.05549
-    ]
+      -19079.0185,
+      -165.767,
+      -204.19925,
+      -93.5777,
+      70.28277,
+      19956.60425,
+      229.22317,
+      152.7007,
+      318.596
+    ],
+    "best_alpha": 0.01,
+    "ci90_wh_km": 732.39
   },
   "trap_classifier": {
     "intercept": -3.79324,
