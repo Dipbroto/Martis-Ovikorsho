@@ -59,9 +59,10 @@ assumptions and the validation against real rover drives.
 To rebuild the data files: `python scripts/data/build_dem.py`, `build_traverses.py` and `build_resources.py`
 (Python 3 with numpy for the DEM script).
 
-## Machine Learning Subsystem
+## Machine Learning & Science Subsystems
 
 The platform features 8 machine learning model families (33 trained sub-models / regressors) running zero-latency client-side inference (<43 KB bundle size) calibrated against NASA Curiosity, Perseverance, InSight, and Opportunity datasets.
 
-For the complete technical specification, model inventory, training algorithms, loss functions, and uncertainty quantification, see:
-- [docs/ML_MODELS_SPECIFICATION.md](docs/ML_MODELS_SPECIFICATION.md)
+For complete technical specifications, mathematical models, instrument architectures, and scientific references, see:
+- [docs/ML_MODELS_SPECIFICATION.md](docs/ML_MODELS_SPECIFICATION.md) — Complete ML Model inventory, algorithms, loss functions, and inference benchmarks.
+- [docs/SCIENCE_LAB_SYSTEM_ARCHITECTURE.md](docs/SCIENCE_LAB_SYSTEM_ARCHITECTURE.md) — Comprehensive guide to the 6 instrument decks, 16-D Astrobiology Latent Manifold, 55mm Core Drill stratigraphy, ISRU plasma smelting, and PDS ground truth archives.
