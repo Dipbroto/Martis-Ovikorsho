@@ -75,7 +75,19 @@ export default function PixlPanel({ target, data, lab }) {
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-      <Panel title="Where each element sits on the rock" icon={Atom} className="xl:col-span-3" right={<span className="text-xs text-zinc-500">{pixl.n} measured points · weight %</span>}>
+      <Panel
+        title="Where each element sits on the rock"
+        icon={Atom}
+        className="xl:col-span-3"
+        right={
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/40">
+              DECK 2
+            </span>
+            <span className="text-xs text-zinc-500">{pixl.n} measured points · weight %</span>
+          </div>
+        }
+      >
         <div className="flex flex-wrap gap-1.5 mb-3" role="group" aria-label="Choose an oxide to map">
           {present.map((o) => (
             <button key={o.key} onClick={() => setOxide(o.key)} aria-pressed={oxide === o.key}

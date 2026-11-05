@@ -18,12 +18,12 @@ import IsruPlasmaForgeDeck from './science/IsruPlasmaForgeDeck';
 import PlanetaryDiscoveryScanner from './science/PlanetaryDiscoveryScanner';
 
 const INSTRUMENTS = [
-  { id: 'supercam', label: 'SuperCam', what: 'Laser spectroscopy', icon: Zap, tone: 'from-orange-500/25' },
-  { id: 'pixl', label: 'PIXL', what: 'X-ray chemistry', icon: Atom, tone: 'from-sky-500/25' },
-  { id: 'sherloc', label: 'SHERLOC', what: 'UV Raman and glow', icon: Sparkles, tone: 'from-violet-500/25' },
-  { id: 'core', label: 'Core Drill', what: 'Subsurface astrobiology', icon: Dna, tone: 'from-emerald-500/25' },
-  { id: 'isru', label: 'ISRU Forge', what: 'Plasma synthesis', icon: Flame, tone: 'from-amber-500/25' },
-  { id: 'msr', label: 'Sample cache', what: 'Seal and store', icon: Database, tone: 'from-cyan-500/25' },
+  { id: 'supercam', deck: 'DECK 1', label: 'SuperCam', what: 'Laser spectroscopy', icon: Zap, tone: 'from-orange-500/25' },
+  { id: 'pixl', deck: 'DECK 2', label: 'PIXL', what: 'X-ray chemistry', icon: Atom, tone: 'from-sky-500/25' },
+  { id: 'sherloc', deck: 'DECK 3', label: 'SHERLOC', what: 'UV Raman and glow', icon: Sparkles, tone: 'from-violet-500/25' },
+  { id: 'core', deck: 'DECK 4', label: 'Core Drill (55mm)', what: 'Subsurface astrobiology', icon: Dna, tone: 'from-emerald-500/25' },
+  { id: 'isru', deck: 'DECK 5', label: 'ISRU Forge', what: 'Plasma synthesis', icon: Flame, tone: 'from-amber-500/25' },
+  { id: 'msr', deck: 'DECK 6', label: 'Sample cache', what: 'Seal and store', icon: Database, tone: 'from-cyan-500/25' },
 ];
 
 const TOTAL_TUBES = 38; // Perseverance carries 43 tubes; 38 are for samples
@@ -100,7 +100,7 @@ export default function ScienceLabPage() {
 
         {/* Instrument picker */}
         <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" role="tablist" aria-label="Instruments">
-          {INSTRUMENTS.map(({ id, label, what, icon: Icon, tone }) => {
+          {INSTRUMENTS.map(({ id, deck, label, what, icon: Icon, tone }) => {
             const on = activeInstrument === id;
             return (
               <button
@@ -121,10 +121,11 @@ export default function ScienceLabPage() {
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${tone} to-transparent ${on ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 transition-opacity`} />
                 <div className="relative flex items-center gap-3">
-                  <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${on ? 'bg-[#F26A3D] text-white' : 'bg-white/10 text-zinc-300'}`}><Icon className="w-5 h-5" /></span>
-                  <span>
-                    <span className="block font-semibold">{label}{id === 'msr' ? ` (${safeSamples.length})` : ''}</span>
-                    <span className="block text-xs text-zinc-400">{what}</span>
+                  <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${on ? 'bg-[#F26A3D] text-white shadow-md' : 'bg-white/10 text-zinc-300'}`}><Icon className="w-5 h-5" /></span>
+                  <span className="min-w-0">
+                    <span className="block text-[10px] font-mono font-bold tracking-wider text-zinc-400 group-hover:text-zinc-300 uppercase leading-none mb-1">{deck}</span>
+                    <span className="block font-semibold truncate leading-tight">{label}{id === 'msr' ? ` (${safeSamples.length})` : ''}</span>
+                    <span className="block text-xs text-zinc-400 truncate mt-0.5">{what}</span>
                   </span>
                 </div>
               </button>
@@ -267,7 +268,7 @@ export default function ScienceLabPage() {
                         title="Inspect depth-resolved 55mm core stratigraphy and astrobiology organics"
                       >
                         <Dna className={`w-4 h-4 text-emerald-300 ${activeInstrument === 'core' ? 'animate-pulse' : ''}`} />
-                        <span>{activeInstrument === 'core' ? 'Active: Subsurface Core (55mm) ↓' : 'Subsurface Core (55mm)'}</span>
+                        <span>{activeInstrument === 'core' ? 'Active: Deck 4 Core Drill (55mm) ↓' : 'Deck 4: Subsurface Core (55mm)'}</span>
                       </button>
                       {activeInstrument === 'supercam' && (
                         <button onClick={() => playLaserZap?.()} className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 px-4 py-2.5 text-sm transition cursor-pointer" title="Listen to real SuperCam pulsed laser shots ionizing rock target Máaz (NASA Sol 12)">
@@ -342,7 +343,16 @@ export default function ScienceLabPage() {
                 {/* SAMPLE CACHE */}
                 {activeInstrument === 'msr' && (
                   <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-                    <Panel title="Seal a sample" icon={Database} className="xl:col-span-2">
+                    <Panel
+                      title="Seal a sample"
+                      icon={Database}
+                      className="xl:col-span-2"
+                      right={
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
+                          DECK 6 · SAMPLE CACHE
+                        </span>
+                      }
+                    >
                       <p className="text-sm text-zinc-300">Core <span className="text-white font-medium">{target.name}</span> into tube #{tubesUsed + 1}.</p>
                       <label htmlFor="tube-notes" className="block text-xs text-zinc-400 mt-4 mb-1.5">Field notes</label>
                       <textarea id="tube-notes" rows={3} value={customTubeNotes} onChange={(e) => setCustomTubeNotes(e.target.value)} placeholder="Why this rock matters…" className="w-full rounded-xl bg-black/50 border border-white/10 px-3 py-2 text-sm placeholder-zinc-500 focus:outline-none focus:border-white/40" />

@@ -243,6 +243,9 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-amber-500/30 text-amber-300 border border-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.3)]">
+                DECK 5 · ISRU FORGE
+              </span>
               <h3 className="font-bold text-white text-base tracking-tight">
                 {laserMode === 'diagnostic'
                   ? 'SuperCam Optical LIBS Diagnostic Spectrometer'

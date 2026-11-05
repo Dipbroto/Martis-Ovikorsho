@@ -90,7 +90,19 @@ export default function SherlocPanel({ target, data, lab }) {
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
-      <Panel title="Scan map" icon={ScanLine} className="xl:col-span-2" right={<span className="text-xs text-zinc-500">{sherloc.n} spots · 248.6 nm laser</span>}>
+      <Panel
+        title="Scan map"
+        icon={ScanLine}
+        className="xl:col-span-2"
+        right={
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-400/40">
+              DECK 3
+            </span>
+            <span className="text-xs text-zinc-500">{sherloc.n} spots · 248.6 nm laser</span>
+          </div>
+        }
+      >
         <div className="flex flex-wrap gap-1.5 mb-3" role="group" aria-label="Choose what to map">
           {METRICS.map((m) => (
             <button key={m.id} onClick={() => setSherlocMetric(m.id)} aria-pressed={metric.id === m.id} title={m.hint}

@@ -57,7 +57,19 @@ export default function LibsPanel({ target, data, lab }) {
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
-      <Panel title="The laser target" icon={Target} className="xl:col-span-2" right={<span className="text-xs text-zinc-500">sol {libs.sol}</span>}>
+      <Panel
+        title="The laser target"
+        icon={Target}
+        className="xl:col-span-2"
+        right={
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-400/40">
+              DECK 1
+            </span>
+            <span className="text-xs text-zinc-500">sol {libs.sol}</span>
+          </div>
+        }
+      >
         <div
           className="relative aspect-square w-full rounded-xl overflow-hidden border border-white/15 bg-black cursor-crosshair"
           role="button" tabIndex={0} aria-label="Click the rock to aim and fire the laser"

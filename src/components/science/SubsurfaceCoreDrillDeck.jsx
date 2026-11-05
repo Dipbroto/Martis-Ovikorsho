@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Layers, Dna, Sparkles, ShieldCheck, CheckCircle2, AlertTriangle, ArrowRight,
-  Database, RefreshCw, Loader2, Gauge, Activity, Eye, Zap, Compass, Check, FileText,
+  Database, RefreshCw, Loader2, Gauge, Activity, Eye, Zap, Compass, Check, FileText, Box, RotateCw,
 } from 'lucide-react';
 import useMapStore from '../../store/useMapStore';
 import {
@@ -12,6 +12,7 @@ import {
 import { playCoreDrill, playLaserZap, playUiClick, playSampleSeal } from '../../utils/audioSynthesizer';
 import ProvenanceBadge from '../ProvenanceBadge';
 import OrganicRamanInspector from './OrganicRamanInspector';
+import CoreDrill3DViewer, { getDepthDrillDynamics } from './CoreDrill3DViewer';
 
 export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target, data, lab, className = '' }) {
   const { handleCacheSample, setCustomTubeNotes, safeSamples = [] } = lab || {};
@@ -24,6 +25,13 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
   const [activeDepthMm, setActiveDepthMm] = useState(46.0); // start in the high-yield shielded laminae
   const [isSealingThisCore, setIsSealingThisCore] = useState(false);
   const [sealedSuccessMsg, setSealedSuccessMsg] = useState(null);
+  const [coreDisplayMode, setCoreDisplayMode] = useState('3D'); // '3D' WebGL or '2D' schematic
+
+  // Live depth mechanical torque dynamics (spindle RPM, load, and rock resistance)
+  const liveDrillDynamics = useMemo(() => {
+    const effectiveZ = isDrilling ? (drillProgress / 100) * 55.0 : activeDepthMm;
+    return getDepthDrillDynamics(effectiveZ);
+  }, [isDrilling, drillProgress, activeDepthMm]);
 
   // Compute depth-resolved physical stratigraphy and astrobiology signals
   const depthProfile = useMemo(() => {
@@ -108,6 +116,9 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 shadow-[0_0_12px_rgba(16,185,129,0.3)]">
+                DECK 4 · ASTROBIOLOGY 55mm CORE
+              </span>
               <h3 className="font-bold text-white text-base tracking-tight">
                 Subsurface Core Drill & Stratigraphic Astrobiology Chamber
               </h3>
@@ -147,21 +158,28 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
         </div>
       </div>
 
-      {/* Drilling Animation Progress Bar */}
+      {/* Drilling Animation & Torque Telemetry Banner */}
       {isDrilling && (
-        <div className="mt-4 p-3 rounded-xl bg-black/60 border border-emerald-500/30 space-y-2">
-          <div className="flex justify-between text-xs font-mono">
+        <div className="mt-4 p-4 rounded-xl bg-black/80 border border-emerald-500/40 space-y-2.5 shadow-[0_0_20px_rgba(16,185,129,0.25)]">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
             <span className="text-emerald-300 flex items-center gap-2">
-              <Activity className="w-3.5 h-3.5 animate-bounce" />
-              Rotary Percussive Bit Penetrating Rock Matrix: 3,000 RPM · 24 Hz Percussion…
+              <RotateCw className="w-4 h-4 text-emerald-400 animate-spin" style={{ animationDuration: '0.4s' }} />
+              <strong>ROTARY PERCUSSIVE SPINDLE TORQUE ACTIVE:</strong> {liveDrillDynamics.rpm.toLocaleString()} RPM · {liveDrillDynamics.torqueNm} N·m · {liveDrillDynamics.hardnessMohs} Mohs
             </span>
-            <span className="text-white font-bold">{drillProgress}%</span>
+            <span className="text-white font-bold bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/40">
+              Drilling: {drillProgress}% ({(55.0 * drillProgress / 100).toFixed(1)} mm)
+            </span>
           </div>
-          <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+          <div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden relative">
             <motion.div
               className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 rounded-full"
               style={{ width: `${drillProgress}%` }}
             />
+          </div>
+          <div className="flex flex-wrap justify-between text-[10px] font-mono text-zinc-400 gap-2">
+            <span>BIT: Hollow Diamond Abrasive Crown (13 mm ID)</span>
+            <span>AXIAL HAMMER: 24 Impacts/sec ({liveDrillDynamics.impactEnergyJ} J)</span>
+            <span>FORMATION: {liveDrillDynamics.layerName}</span>
           </div>
         </div>
       )}
@@ -197,99 +215,142 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
               Perseverance Titanium Sample Core Tube #43 (55.0 mm Length)
             </span>
           </div>
-          <div className="flex items-center gap-3 text-xs font-mono text-zinc-400">
-            <span>Core Diameter: <strong className="text-white">13.0 mm</strong></span>
-            <span>Current Depth: <strong className="text-emerald-300">{activeDepthMm.toFixed(1)} mm</strong></span>
-            <span>Target: <strong className="text-white">{target?.name || 'In-Situ'}</strong></span>
+
+          <div className="flex items-center gap-3">
+            {/* View Mode Switcher: 3D WebGL Model vs 2D Stratigraphy Cutaway */}
+            <div className="flex items-center rounded-lg bg-white/5 border border-white/10 p-0.5 text-[10px] font-mono">
+              <button
+                type="button"
+                onClick={() => { playUiClick?.(); setCoreDisplayMode('3D'); }}
+                className={`px-2.5 py-1 rounded-md transition cursor-pointer font-bold flex items-center gap-1.5 ${
+                  coreDisplayMode === '3D'
+                    ? 'bg-emerald-500 text-black shadow-sm'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                <Box className="w-3 h-3" />
+                <span>3D WebGL Model</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { playUiClick?.(); setCoreDisplayMode('2D'); }}
+                className={`px-2.5 py-1 rounded-md transition cursor-pointer font-bold flex items-center gap-1.5 ${
+                  coreDisplayMode === '2D'
+                    ? 'bg-emerald-500 text-black shadow-sm'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                <Layers className="w-3 h-3" />
+                <span>2D Stratigraphy Cutaway</span>
+              </button>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-3 text-xs font-mono text-zinc-400">
+              <span>Diameter: <strong className="text-white">13.0 mm</strong></span>
+              <span>Current Depth: <strong className="text-emerald-300">{activeDepthMm.toFixed(1)} mm</strong></span>
+            </div>
           </div>
         </div>
 
-        {/* The Cylindrical Core Tube with 4 Stratigraphic Layers */}
-        <div className="relative pt-2 pb-1">
-          {/* Millimeter Scale Header */}
-          <div className="relative flex justify-between text-[9px] font-mono text-zinc-500 px-1 mb-1">
-            <span>0 mm (Surface)</span>
-            <span>10 mm</span>
-            <span>20 mm</span>
-            <span>30 mm</span>
-            <span>40 mm</span>
-            <span>50 mm</span>
-            <span>55 mm (Core Base)</span>
-          </div>
+        {/* 3D WebGL Interactive Model vs 2D Cutaway */}
+        {coreDisplayMode === '3D' ? (
+          <CoreDrill3DViewer
+            target={target}
+            activeDepthMm={activeDepthMm}
+            setActiveDepthMm={setActiveDepthMm}
+            isDrilling={isDrilling}
+            drillProgress={drillProgress}
+            handleActuateDrill={handleActuateDrill}
+          />
+        ) : (
+          /* The 2D Cylindrical Core Tube with 4 Stratigraphic Layers */
+          <div className="relative pt-2 pb-1">
+            {/* Millimeter Scale Header */}
+            <div className="relative flex justify-between text-[9px] font-mono text-zinc-500 px-1 mb-1">
+              <span>0 mm (Surface)</span>
+              <span>10 mm</span>
+              <span>20 mm</span>
+              <span>30 mm</span>
+              <span>40 mm</span>
+              <span>50 mm</span>
+              <span>55 mm (Core Base)</span>
+            </div>
 
-          {/* Tube Outer Housing */}
-          <div
-            className="relative h-20 w-full rounded-2xl border-2 border-zinc-600/60 bg-gradient-to-r from-zinc-800 via-zinc-900 to-zinc-800 p-1.5 shadow-2xl overflow-hidden cursor-crosshair select-none"
-            onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const clickX = e.clientX - rect.left;
-              const ratio = Math.max(0, Math.min(1, clickX / rect.width));
-              const newDepth = +(ratio * 55.0).toFixed(1);
-              playUiClick?.();
-              setActiveDepthMm(newDepth);
-            }}
-          >
-            {/* Core Tube Interior Cutaway with 4 Horizons */}
-            <div className="relative h-full w-full rounded-xl overflow-hidden flex">
-              {/* Layer 1: Eolian Patina (0 to 3.5 mm) -> 6.4% */}
-              <div
-                style={{ width: '6.4%' }}
-                className="h-full bg-gradient-to-r from-[#d97706] to-[#b45309] relative group border-r border-black/50"
-                title="Eolian Dust Patina (0 - 3.5 mm)"
-              >
-                <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:3px_3px]" />
-                <span className="hidden sm:block absolute bottom-1 left-1 text-[8px] font-mono text-amber-200/80 font-bold truncate">
-                  Patina
-                </span>
-              </div>
-
-              {/* Layer 2: Pristine Matrix (3.5 to 22 mm) -> 33.6% */}
-              <div
-                style={{ width: '33.6%' }}
-                className="h-full bg-gradient-to-r from-[#334155] via-[#475569] to-[#334155] relative group border-r border-black/50"
-                title="Pristine Crystalline Matrix (3.5 - 22 mm)"
-              >
-                <div className="absolute inset-0 opacity-30 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:4px_4px]" />
-                <span className="hidden sm:block absolute bottom-1 left-2 text-[8px] font-mono text-zinc-300 font-bold truncate">
-                  Pristine Silicate Matrix
-                </span>
-              </div>
-
-              {/* Layer 3: Hydrothermal Vein (22 to 38 mm) -> 29.1% */}
-              <div
-                style={{ width: '29.1%' }}
-                className="h-full bg-gradient-to-r from-[#0284c7] via-[#0ea5e9] to-[#0284c7] relative group border-r border-black/50"
-                title="Hydrothermal Secondary Vein (22 - 38 mm)"
-              >
-                <div className="absolute inset-0 opacity-25 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:5px_5px]" />
-                <span className="hidden sm:block absolute bottom-1 left-2 text-[8px] font-mono text-cyan-100 font-bold truncate">
-                  Hydrothermal Vein (Sulfate/Silica)
-                </span>
-              </div>
-
-              {/* Layer 4: Shielded Lacustrine Laminae (38 to 55 mm) -> 30.9% */}
-              <div
-                style={{ width: '30.9%' }}
-                className="h-full bg-gradient-to-r from-[#047857] via-[#059669] to-[#065f46] relative group"
-                title="Shielded Lacustrine Mudstone Laminae (38 - 55 mm)"
-              >
-                <div className="absolute inset-0 opacity-30 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:3px_3px]" />
-                <span className="hidden sm:block absolute bottom-1 left-2 text-[8px] font-mono text-emerald-100 font-bold truncate">
-                  Shielded Organic Clay Laminae
-                </span>
-              </div>
-
-              {/* Interactive Laser Depth Crosshair Cursor */}
-              <motion.div
-                className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_15px_#fff] z-20 pointer-events-none"
-                style={{ left: `${(activeDepthMm / 55.0) * 100}%` }}
-              >
-                <div className="w-4 h-4 rounded-full bg-emerald-400 border-2 border-white -ml-1.5 -mt-1 shadow-lg flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 rounded-full bg-black" />
+            {/* Tube Outer Housing */}
+            <div
+              className="relative h-20 w-full rounded-2xl border-2 border-zinc-600/60 bg-gradient-to-r from-zinc-800 via-zinc-900 to-zinc-800 p-1.5 shadow-2xl overflow-hidden cursor-crosshair select-none"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+                const newDepth = +(ratio * 55.0).toFixed(1);
+                playUiClick?.();
+                setActiveDepthMm(newDepth);
+              }}
+            >
+              {/* Core Tube Interior Cutaway with 4 Horizons */}
+              <div className="relative h-full w-full rounded-xl overflow-hidden flex">
+                {/* Layer 1: Eolian Patina (0 to 3.5 mm) -> 6.4% */}
+                <div
+                  style={{ width: '6.4%' }}
+                  className="h-full bg-gradient-to-r from-[#d97706] to-[#b45309] relative group border-r border-black/50"
+                  title="Eolian Dust Patina (0 - 3.5 mm)"
+                >
+                  <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:3px_3px]" />
+                  <span className="hidden sm:block absolute bottom-1 left-1 text-[8px] font-mono text-amber-200/80 font-bold truncate">
+                    Patina
+                  </span>
                 </div>
-              </motion.div>
+
+                {/* Layer 2: Pristine Matrix (3.5 to 22 mm) -> 33.6% */}
+                <div
+                  style={{ width: '33.6%' }}
+                  className="h-full bg-gradient-to-r from-[#334155] via-[#475569] to-[#334155] relative group border-r border-black/50"
+                  title="Pristine Crystalline Matrix (3.5 - 22 mm)"
+                >
+                  <div className="absolute inset-0 opacity-30 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:4px_4px]" />
+                  <span className="hidden sm:block absolute bottom-1 left-2 text-[8px] font-mono text-zinc-300 font-bold truncate">
+                    Pristine Silicate Matrix
+                  </span>
+                </div>
+
+                {/* Layer 3: Hydrothermal Vein (22 to 38 mm) -> 29.1% */}
+                <div
+                  style={{ width: '29.1%' }}
+                  className="h-full bg-gradient-to-r from-[#0284c7] via-[#0ea5e9] to-[#0284c7] relative group border-r border-black/50"
+                  title="Hydrothermal Secondary Vein (22 - 38 mm)"
+                >
+                  <div className="absolute inset-0 opacity-25 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:5px_5px]" />
+                  <span className="hidden sm:block absolute bottom-1 left-2 text-[8px] font-mono text-cyan-100 font-bold truncate">
+                    Hydrothermal Vein (Sulfate/Silica)
+                  </span>
+                </div>
+
+                {/* Layer 4: Shielded Lacustrine Laminae (38 to 55 mm) -> 30.9% */}
+                <div
+                  style={{ width: '30.9%' }}
+                  className="h-full bg-gradient-to-r from-[#047857] via-[#059669] to-[#065f46] relative group"
+                  title="Shielded Lacustrine Mudstone Laminae (38 - 55 mm)"
+                >
+                  <div className="absolute inset-0 opacity-30 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:3px_3px]" />
+                  <span className="hidden sm:block absolute bottom-1 left-2 text-[8px] font-mono text-emerald-100 font-bold truncate">
+                    Shielded Organic Clay Laminae
+                  </span>
+                </div>
+
+                {/* Interactive Laser Depth Crosshair Cursor */}
+                <motion.div
+                  className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_15px_#fff] z-20 pointer-events-none"
+                  style={{ left: `${(activeDepthMm / 55.0) * 100}%` }}
+                >
+                  <div className="w-4 h-4 rounded-full bg-emerald-400 border-2 border-white -ml-1.5 -mt-1 shadow-lg flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-black" />
+                  </div>
+                </motion.div>
+              </div>
             </div>
           </div>
+        )}
 
           {/* Interactive Depth Slider Control */}
           <div className="mt-2.5 flex items-center gap-3">
@@ -338,7 +399,6 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
             })}
           </div>
         </div>
-      </div>
 
       {/* ========================================================================= */}
       {/* DEPTH-RESOLVED SUBSURFACE GEOCHEMICAL & REDOX TELEMETRY                   */}
