@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { motion, animate } from 'framer-motion';
 import {
   ShieldAlert, Wind, Radiation, Mountain, Loader2, Map as MapIcon, RotateCcw, Timer, CheckCircle2, XCircle,
@@ -462,7 +462,7 @@ function SurvivalChart({ profile, km, onPick, busy }) {
   );
 }
 
-export default function ContingencySimulatorPage() {
+function ContingencySimulatorPage() {
   const s = useMapStore(useShallow((st) => ({
     waypoints: st.waypoints, routeGeometry: st.routeGeometry, setActiveTab: st.setActiveTab,
     triggerContingency: st.triggerContingency, setContingencyModalOpen: st.setContingencyModalOpen,
@@ -768,3 +768,6 @@ export default function ContingencySimulatorPage() {
     </div>
   );
 }
+
+// Memoised: switching tabs re-renders App, and this page has no props that change, so it can skip that work
+export default memo(ContingencySimulatorPage);

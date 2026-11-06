@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect, useState, useCallback, Suspense } from 'react';
+import { useRef, useMemo, useEffect, useState, useCallback, Suspense, memo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -517,7 +517,7 @@ const hm = (s) => {
   return h ? `${h} h ${String(m).padStart(2, '0')} min` : `${m} min`;
 };
 
-export default function Mars3DViewer() {
+function Mars3DViewer() {
   const { waypoints, routeGeometry, selectedPOI, setSelectedPOI, setViewMode, flyToCoordinate, viewMode, mapCenter, mapZoom, globeFocus } = useMapStore(useShallow((s) => ({
     viewMode: s.viewMode, waypoints: s.waypoints, routeGeometry: s.routeGeometry, selectedPOI: s.selectedPOI, setSelectedPOI: s.setSelectedPOI,
     setViewMode: s.setViewMode, flyToCoordinate: s.flyToCoordinate, mapCenter: s.mapCenter, mapZoom: s.mapZoom, globeFocus: s.globeFocus,
@@ -987,3 +987,6 @@ export default function Mars3DViewer() {
     </div>
   );
 }
+
+// Memoised: switching tabs re-renders App, and this page has no props that change, so it can skip that work
+export default memo(Mars3DViewer);

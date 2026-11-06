@@ -193,7 +193,8 @@ function App() {
           aria-hidden={activeTab !== 'home'}
         >
           <ErrorBoundary>
-            <HomeHero onSelectTab={(tab) => setActiveTab(tab)} />
+            {/* setActiveTab is a stable store action, so the memoised Home page is not re-rendered on every tab switch */}
+            <HomeHero onSelectTab={setActiveTab} />
           </ErrorBoundary>
         </div>
 

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, ExternalLink, RotateCcw, ShieldCheck, Trash2, Flame, Dna, FileText,
@@ -27,6 +28,10 @@ const INSTRUMENTS = [
   { id: 'msr', deck: 'DECK 6', label: 'Sample cache', what: 'Seal and store', icon: Database, tone: 'from-cyan-500/25' },
 ];
 
+// Lets the browser skip layout and paint of a panel while it is off screen; the size is a placeholder
+// until the panel has been laid out once ('auto' then remembers its real height)
+const OFFSCREEN_SKIP = { contentVisibility: 'auto', containIntrinsicSize: 'auto 900px' };
+
 const LEVEL = {
   strong: { label: 'Clear', cls: 'text-emerald-300 bg-emerald-500/15 border-emerald-400/30' },
   possible: { label: 'Possible', cls: 'text-amber-300 bg-amber-500/15 border-amber-400/30' },
@@ -48,7 +53,7 @@ function RockPhoto({ campaign, className = '' }) {
   );
 }
 
-export default function ScienceLabPage() {
+function ScienceLabPage() {
   const lab = useScienceLab() || {};
   const {
     campaigns = [], target, data, analysis, isLoadingTargets, isLoadingData, loadError, retry, selectTarget,
@@ -480,21 +485,25 @@ export default function ScienceLabPage() {
                 )}
               </div>
 
+              {/* The three long panels below the instrument deck are skipped by layout and paint while off screen
+                  (content-visibility), so showing the lab or switching back to it stays quick */}
               {/* In-Situ ML Mineral Classifier & Biosignature Preservation Deck */}
-              {target && <MineralMlClassifier target={target} data={data} />}
+              {target && <div style={OFFSCREEN_SKIP}><MineralMlClassifier target={target} data={data} /></div>}
 
               {/* Bayesian Active Learning Novelty & Triage Radar Deck */}
-              {target && <ActiveLearningTriageDeck target={target} data={data} lab={lab} />}
+              {target && <div style={OFFSCREEN_SKIP}><ActiveLearningTriageDeck target={target} data={data} lab={lab} /></div>}
 
               {/* Ancient water: rock-specific geochemical paleohydrology and mineral stability horizons */}
               {target && (
-                <PaleoHydrologyDeck
-                  target={target}
-                  data={data}
-                  analysis={analysis}
-                  paleoPh={paleoPh}
-                  setPaleoPh={setPaleoPh}
-                />
+                <div style={OFFSCREEN_SKIP}>
+                  <PaleoHydrologyDeck
+                    target={target}
+                    data={data}
+                    analysis={analysis}
+                    paleoPh={paleoPh}
+                    setPaleoPh={setPaleoPh}
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -503,3 +512,6 @@ export default function ScienceLabPage() {
     </div>
   );
 }
+
+// Memoised: switching tabs re-renders App, and this page has no props that change, so it can skip that work
+export default memo(ScienceLabPage);

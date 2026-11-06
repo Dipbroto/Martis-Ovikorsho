@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Globe, Crosshair, Grid, Shield, Ruler, Play, Pause, ChevronDown, ChevronUp, Check,
@@ -89,7 +89,7 @@ function Item({ icon: Icon, label, hint, active, onSelect, kind = 'checkbox' }) 
 
 const Divider = () => <span className="hidden sm:block w-px h-6 bg-white/10 mx-0.5" aria-hidden />;
 
-export default function MapToolbar() {
+function MapToolbar() {
   const s = useMapStore(useShallow((st) => ({
     viewMode: st.viewMode, setViewMode: st.setViewMode,
     undo: st.undo, undoDepth: st.undoDepth,
@@ -313,3 +313,6 @@ export default function MapToolbar() {
     </div>
   );
 }
+
+// Memoised: switching tabs re-renders App, and this page has no props that change, so it can skip that work
+export default memo(MapToolbar);

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart3, Cloud, Zap, CloudFog, ChevronUp, ChevronDown } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
@@ -8,7 +9,7 @@ import DustStormTracker from './DustStormTracker';
 import { estimateRadiation } from '../utils/marsUtils';
 import { getElevation } from '../utils/elevationService';
 
-export default function BottomPanel() {
+function BottomPanel() {
   const bottomPanelOpen = useMapStore(s => s.bottomPanelOpen);
   const setBottomPanelOpen = useMapStore(s => s.setBottomPanelOpen);
   const bottomPanelTab = useMapStore(s => s.bottomPanelTab);
@@ -187,3 +188,6 @@ export default function BottomPanel() {
     </motion.div>
   );
 }
+
+// Memoised: switching tabs re-renders App, and this page has no props that change, so it can skip that work
+export default memo(BottomPanel);

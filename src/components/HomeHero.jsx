@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import { ArrowRight, Compass, ChevronDown, FlaskConical, Sparkles, ShieldAlert, Image as ImageIcon } from 'lucide-react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import useMapStore from '../store/useMapStore';
@@ -60,7 +60,7 @@ function marsTimeNow() {
   return [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map((n) => String(n).padStart(2, '0')).join(':');
 }
 
-export default function HomeHero({ onSelectTab }) {
+function HomeHero({ onSelectTab }) {
   const currentSol = useMapStore((s) => s.currentSol);
   const weather = useMapStore((s) => s.weather);
   const setGuidedPlannerOpen = useMapStore((s) => s.setGuidedPlannerOpen);
@@ -278,3 +278,6 @@ export default function HomeHero({ onSelectTab }) {
     </div>
   );
 }
+
+// Memoised: switching tabs re-renders App; its only prop (onSelectTab) is a stable store action, so it can skip that work
+export default memo(HomeHero);

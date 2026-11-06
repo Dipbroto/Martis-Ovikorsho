@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Pause, Sun, Moon, Globe2, Clock, Radio, Eclipse, Info, Telescope, Search, Loader2 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ReferenceArea, CartesianGrid } from 'recharts';
@@ -282,7 +282,7 @@ function SkyDome({ sky, objects, timeline, selected, onSelect, onDragTime }) {
   );
 }
 
-export default function MartianSkyEphemeris() {
+function MartianSkyEphemeris() {
   const [site, setSite] = useState(() => SITES.find((x) => x.id === 'gale'));
   const [sol, setSol] = useState(() => Math.floor(msdNow()));
   const [lst, setLst] = useState(() => {
@@ -571,3 +571,6 @@ export default function MartianSkyEphemeris() {
     </div>
   );
 }
+
+// Memoised: switching tabs re-renders App, and this page has no props that change, so it can skip that work
+export default memo(MartianSkyEphemeris);

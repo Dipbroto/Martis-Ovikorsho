@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, Layers, Route, MapPin, Rocket, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
@@ -11,7 +11,7 @@ import MissionTimeline from './MissionTimeline';
 import ResourceCalculator from './ResourceCalculator';
 import MissionReport from './MissionReport';
 
-export default function Sidebar() {
+function Sidebar() {
   const sidebarOpen = useMapStore(s => s.sidebarOpen);
   const setSidebarOpen = useMapStore(s => s.setSidebarOpen);
   const sidebarTab = useMapStore(s => s.sidebarTab);
@@ -188,3 +188,6 @@ export default function Sidebar() {
     </motion.aside>
   );
 }
+
+// Memoised: switching tabs re-renders App, and this page has no props that change, so it can skip that work
+export default memo(Sidebar);

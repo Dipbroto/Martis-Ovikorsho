@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { Camera, Search, Navigation, Sparkles, Loader2, ExternalLink, Compass } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
@@ -40,7 +40,7 @@ function ProgressiveImage({ preview, full, alt, zoomed, onClick, style }) {
   );
 }
 
-export default function MarsImageryPage() {
+function MarsImageryPage() {
   const flyToCoordinate = useMapStore(s => s.flyToCoordinate);
   const setActiveTab = useMapStore(s => s.setActiveTab);
 
@@ -423,3 +423,6 @@ export default function MarsImageryPage() {
     </div>
   );
 }
+
+// Memoised: switching tabs re-renders App, and this page has no props that change, so it can skip that work
+export default memo(MarsImageryPage);
