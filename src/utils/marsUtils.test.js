@@ -58,18 +58,26 @@ describe('slopeDifficulty', () => {
 });
 
 describe('estimateRadiation', () => {
-  it('reproduces the RAD surface measurement at Gale Crater', () => {
-    expect(estimateRadiation(24, -4500).dailyDose).toBeCloseTo(0.67, 2);
+  it('stays within the range Curiosity RAD measured at Gale Crater across the solar cycle', () => {
+    const gale = estimateRadiation(24, -4500).dailyDose;
+    expect(gale).toBeGreaterThan(0.45);
+    expect(gale).toBeLessThan(0.85);
   });
 
-  it('rises with altitude but stays below the free-space dose', () => {
+  it('gives the same dose as the radiation panel model for the same place and day', async () => {
+    const { predictRadiationEnvironment } = await import('../services/marsMlService');
+    for (const elev of [-4500, -2600, 0, 8000]) {
+      expect(estimateRadiation(24, elev).dailyDose).toBe(predictRadiationEnvironment(elev).daily);
+    }
+  });
+
+  it('rises with altitude but stays well below the free-space dose (the planet blocks half the sky)', () => {
     const low = estimateRadiation(24, -7000).dailyDose;
     const datum = estimateRadiation(24, 0).dailyDose;
     const olympus = estimateRadiation(24, 21000).dailyDose;
-    expect(low).toBeLessThan(0.67);
-    expect(datum).toBeGreaterThan(0.67);
+    expect(low).toBeLessThan(datum);
     expect(olympus).toBeGreaterThan(datum);
-    expect(olympus).toBeLessThan(1.84);
+    expect(olympus).toBeLessThan(1.84 * 0.6);
   });
 });
 

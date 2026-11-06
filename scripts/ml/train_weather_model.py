@@ -142,11 +142,13 @@ def build_training_matrix(records):
     y_reg = {h: {k: [] for k in target_keys} for h in horizons}
     y_dust = {h: [] for h in horizons}
 
-    for i in range(3, len(records) - 3):
+    # Sol i is the latest observed sol (lag 1), as it is in the app when a forecast is made; horizon h
+    # predicts sol i + h. (Using i - 1 as lag 1 would skip sol i and make "next sol" two sols ahead.)
+    for i in range(2, len(records) - 3):
         curr = records[i]
-        p1 = records[i - 1]
-        p2 = records[i - 2]
-        p3 = records[i - 3]
+        p1 = records[i]
+        p2 = records[i - 1]
+        p3 = records[i - 2]
 
         ls_rad = curr["ls"] * np.pi / 180.0
         # Perihelion occurs near Ls = 251 degrees (Mars closest to Sun, highest solar flux)

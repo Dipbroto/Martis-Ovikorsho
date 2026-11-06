@@ -1,5 +1,8 @@
 // Mars-specific utility calculations
 // All formulas use real Mars parameters
+// (marsMlService imports marsDistance from here; the two modules only call each other inside functions, so the
+// import cycle is safe)
+import { predictRadiationEnvironment } from '../services/marsMlService';
 
 export const MARS = {
   RADIUS_KM: 3389.5,        // Mean radius in km
@@ -135,20 +138,16 @@ export function pressureAtElevation(elevationM) {
   return MARS.ATMOSPHERE_PRESSURE * Math.exp(-elevationM / MARS.SCALE_HEIGHT);
 }
 
-// Radiation dose estimation (model).
-// Anchors: Curiosity RAD measured ~0.67 mSv/day on the surface in Gale Crater (Hassler et al. 2014, elevation
-// about -4.5 km) and ~1.84 mSv/day in interplanetary cruise (Zeitlin et al. 2013). The dose is interpolated
-// between those two on the atmospheric column above the site, which shrinks with altitude (scale height ~10.8 km).
-const RAD_SURFACE_GALE_MSV_DAY = 0.67;
-const RAD_FREE_SPACE_MSV_DAY = 1.84;
+// Radiation dose estimation. One model serves the whole app (route analysis, walk planner, bottom bar,
+// radiation panel and home atlas), so a place shows the same dose everywhere: the radiation surrogate in
+// marsMlService, which counts the planet blocking half the sky, the atmospheric column above the site and today's
+// point in the solar cycle. It is anchored to Curiosity RAD (~0.67 mSv/day at Gale, Hassler et al. 2014) and the
+// ~1.84 mSv/day interplanetary cruise dose (Zeitlin et al. 2013).
 const RAD_GALE_ELEVATION_M = -4500;
 
 export function estimateRadiation(durationHours, elevationM) {
   const elevation = Number.isFinite(elevationM) ? elevationM : RAD_GALE_ELEVATION_M;
-  // Atmospheric column relative to Gale Crater
-  const columnRatio = Math.exp(-(elevation - RAD_GALE_ELEVATION_M) / MARS.SCALE_HEIGHT);
-  const transmission = RAD_SURFACE_GALE_MSV_DAY / RAD_FREE_SPACE_MSV_DAY;
-  const dailyDose = RAD_FREE_SPACE_MSV_DAY * Math.pow(transmission, columnRatio);
+  const dailyDose = predictRadiationEnvironment(elevation).daily;
   const adjustedRate = dailyDose / 24;
   const totalDose = adjustedRate * durationHours;
 

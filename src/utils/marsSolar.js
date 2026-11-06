@@ -50,6 +50,12 @@ export function subsolarPoint(date = new Date()) {
 }
 export const lsFromMsd = (msd) => lsFromJd(jdFromMsd(msd));
 
+// Curiosity's mission sol 0 began at MSD 49269.2 (landing, 6 August 2012). Checked against REMS downlinks
+// from sol 1 to sol 4995: MSD minus mission sol stays at 49269.1 to 49269.5.
+export const CURIOSITY_SOL0_MSD = 49269.2;
+/** Curiosity mission sol for a Mars Sol Date (the sol numbering used by REMS and by the radiation model). */
+export const curiositySolFromMsd = (msd) => Math.max(0, Math.floor(Number(msd) - CURIOSITY_SOL0_MSD));
+
 /** Solar declination (degrees) for a given Ls. */
 export const solarDeclination = (ls) => deg(Math.asin(Math.sin(rad(MARS_OBLIQUITY_DEG)) * Math.sin(rad(ls))));
 

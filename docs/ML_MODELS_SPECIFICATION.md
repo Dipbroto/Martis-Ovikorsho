@@ -11,8 +11,8 @@
 ---
 
 > **Validation update (6 November 2026).** Earlier versions of this document overstated several scores. The numbers below now come from data each model did not see:
-> - **Weather (MF-01)** is scored on the latest 15% of sols next to a persistence baseline ("tomorrow = today"); it beats it (e.g. $T_{\max}$ $R^2$ 0.888 vs 0.846).
-> - **Dust storm (MF-02)** learns a *proxy* label (diurnal range below 48 °C during Ls 160–330). The chronological hold-out contains no proxy sols, so the old $\text{ROC-AUC} = 0.900$ was a placeholder, not a measurement. Forward-chaining time folds give **0.62–0.70**.
+> - **Weather (MF-01)** is scored on the latest 15% of sols next to a persistence baseline ("tomorrow = today"); it beats it (e.g. next-sol $T_{\max}$ $R^2$ 0.907 vs 0.882). An earlier version skipped the latest sol when building inputs, so its "next sol" was really two sols ahead; that is fixed.
+> - **Dust storm (MF-02)** learns a *proxy* label (diurnal range below 48 °C during Ls 160–330). The chronological hold-out contains no proxy sols, so the old $\text{ROC-AUC} = 0.900$ was a placeholder, not a measurement. Forward-chaining time folds give **0.63–0.70**.
 > - **Mineral classifier (MF-03)** and **LIBS (MF-06)** are scored **leave-one-rock-out** over the 6 Jezero rocks. A random split shares points of the same rock between train and test. Mineral accuracy on unseen rocks is **72.7%** (random split: 99.1%). LIBS beats "predict the training average" only for MgO, Al₂O₃, CaO and TiO₂.
 > - **Radiation, terramechanics, marsquake shaking and solar dust (MF-04, 05, 07, 08)** are **surrogates**: trained on data simulated from published formulas whose constants were tuned to a few NASA benchmarks. Their $R^2$ measures how well they reproduce those formulas. No mission time series is read by their training scripts.
 >
@@ -83,8 +83,8 @@ The table below enumerates all 8 model families, their sub-models, underlying al
 
 | Family ID | Model Family Name | Sub-Models / Target Horizons | Algorithm & Architecture | Primary Dataset & Source | Metric (Validation / Test) | Uncertainty Metric (90% CI) |
 |---|---|---|---|---|---|---|
-| **MF-01** | **Atmospheric Multi-Horizon Forecaster** | 15 regressors ($T_{\max}, T_{\min}, P, \text{GTS}_{\max}, \text{GTS}_{\min}$ across $t+1, t+2, t+3$) | Multi-Horizon RidgeCV Regression with 21 cyclical orbital & lag features | **Real:** NASA Curiosity REMS (4,745 sols, Gale Crater) | Latest 15% of sols: Pressure $R^2 = 0.9977$ (persistence 0.9963), $T_{\max}$ $R^2 = 0.888$ (0.846), $T_{\min}$ $R^2 = 0.818$ (0.740) | $\pm 5.53^\circ\text{C}$ $T_{\max}$, $\pm 4.04\text{ Pa}$ Barometric |
-| **MF-02** | **Martian Dust Storm Risk Classifier** | 3 binary classifiers ($t+1, t+2, t+3$) on a proxy label | L2-Regularized Logistic Regression ($C=0.5$) with balanced class weights | **Real:** Curiosity REMS; label = diurnal range below 48 °C in Ls 160–330 (not a storm catalogue) | Forward-chaining time folds: $\text{ROC-AUC} = 0.62\text{–}0.70$ | Sigmoid probability with 4 alert tiers |
+| **MF-01** | **Atmospheric Multi-Horizon Forecaster** | 15 regressors ($T_{\max}, T_{\min}, P, \text{GTS}_{\max}, \text{GTS}_{\min}$ across $t+1, t+2, t+3$) | Multi-Horizon RidgeCV Regression with 21 cyclical orbital & lag features | **Real:** NASA Curiosity REMS (4,745 sols, Gale Crater) | Next sol, latest 15% of sols: Pressure $R^2 = 0.9979$ (persistence 0.9971), $T_{\max}$ $R^2 = 0.907$ (0.882), $T_{\min}$ $R^2 = 0.822$ (0.724) | $\pm 5.05^\circ\text{C}$ $T_{\max}$, $\pm 3.81\text{ Pa}$ Barometric |
+| **MF-02** | **Martian Dust Storm Risk Classifier** | 3 binary classifiers ($t+1, t+2, t+3$) on a proxy label | L2-Regularized Logistic Regression ($C=0.5$) with balanced class weights | **Real:** Curiosity REMS; label = diurnal range below 48 °C in Ls 160–330 (not a storm catalogue) | Forward-chaining time folds: $\text{ROC-AUC} = 0.63\text{–}0.70$ | Sigmoid probability with 4 alert tiers |
 | **MF-03** | **Geochemical Mineral Classifier & Biosignature Prior** | 1 multinomial classifier (5 rock classes, 16 features) | Multinomial Logistic Regression ($C=1.5$) with geochemical alteration indices | **Real:** 5,363 PIXL points from 6 Jezero rocks; 2,000 synthetic points for mudstone and carbonate | Leave-one-rock-out accuracy = $72.7\%$ (random 5-fold: $99.1\%$, optimistic) | Class posterior probabilities + Taphonomic Prior ($0\text{--}100$) |
 | **MF-04** | **Space Radiation & SPE Hazard Modeler** | 2 sub-models (GCR surface dose regressor + SPE event classifier) | RidgeCV Regressor + Logistic Classifier with Schwabe solar modulation | **Surrogate:** dose formula anchored to Curiosity RAD (Hassler et al. 2014) + solar cycle curve | Fit to its formula: GCR $R^2 = 0.9904$, SPE $\text{ROC-AUC} = 0.8668$ | Residual $\pm 0.0248\text{ mSv/day}$ (vs the formula) |
 | **MF-05** | **Rover Terramechanics & Dynamic Battery Discharge** | 3 sub-models (Wheel slip % + Traction Wh/km + Sand-trap hazard) | Bekker-Wong RidgeCV Regressors + Entrapment Logistic Classifier | **Surrogate:** 12,000 simulations tuned to MER Purgatory Dune & Curiosity benchmarks | Fit to its formulas: Slip $R^2 = 0.8476$, Wh/km $R^2 = 0.8667$, Trap $\text{AUC} = 0.9993$ | $\pm 20.72\%$ Slip, $\pm 732.39\text{ Wh/km}$ (vs the formulas) |
@@ -125,11 +125,12 @@ Mars features extreme diurnal temperature variations ($>75^\circ\text{C}$ within
 - **Split Strategy**: Chronological 85% train ($4,028\text{ sols}$) / 15% out-of-sample test ($711\text{ sols}$) to prevent lookahead data leakage in time-series evaluation.
 - **Sub-Models**: 15 distinct regression hyperplanes ($5\text{ targets} \times 3\text{ horizons}$).
 - **Evaluation (Test Set / Sols Out-of-Sample)**:
-  - Surface Pressure $P$: $R^2 = 0.9977$, $\text{MAE} = 1.497\text{ Pa}$, $\text{RMSE} = 2.457\text{ Pa}$, 90% CI $= \pm 4.04\text{ Pa}$ (best $\alpha = 0.70$).
-  - Air $T_{\max}$: $R^2 = 0.8884$, $\text{MAE} = 2.631^\circ\text{C}$, $\text{RMSE} = 3.361^\circ\text{C}$, 90% CI $= \pm 5.53^\circ\text{C}$ (best $\alpha = 88.59$).
-  - Air $T_{\min}$: $R^2 = 0.8176$, $\text{MAE} = 1.130^\circ\text{C}$, $\text{RMSE} = 1.923^\circ\text{C}$, 90% CI $= \pm 3.16^\circ\text{C}$ (best $\alpha = 33.60$) — **cleansed from hardware sensor dropout sentinels ($>400\%$ gain in explained variance)**.
-  - Ground Soil $\text{GTS}_{\max}$: $R^2 = 0.9256$, $\text{MAE} = 1.746^\circ\text{C}$, $\text{RMSE} = 2.327^\circ\text{C}$, 90% CI $= \pm 3.83^\circ\text{C}$ (best $\alpha = 7.85$).
-  - Ground Soil $\text{GTS}_{\min}$: $R^2 = 0.2021$, $\text{MAE} = 4.187^\circ\text{C}$, $\text{RMSE} = 5.517^\circ\text{C}$, 90% CI $= \pm 9.07^\circ\text{C}$ (best $\alpha = 12.74$).
+  - Next sol (lag 1 = the latest observed sol), scored against persistence ("tomorrow = today"):
+  - Surface Pressure $P$: $R^2 = 0.9979$ (persistence 0.9971), $\text{MAE} = 1.43\text{ Pa}$ (1.69), 90% CI $= \pm 3.81\text{ Pa}$.
+  - Air $T_{\max}$: $R^2 = 0.907$ (0.882), $\text{MAE} = 2.37^\circ\text{C}$ (2.49), 90% CI $= \pm 5.05^\circ\text{C}$.
+  - Air $T_{\min}$: $R^2 = 0.822$ (0.724), $\text{MAE} = 1.10^\circ\text{C}$ (1.19), 90% CI $= \pm 3.13^\circ\text{C}$ — **cleansed from hardware sensor dropout sentinels**.
+  - Ground Soil $\text{GTS}_{\max}$: $R^2 = 0.950$ (0.950), $\text{MAE} = 1.37^\circ\text{C}$ (1.29): no better than persistence.
+  - Ground Soil $\text{GTS}_{\min}$: $R^2 = 0.253$ (−0.042), $\text{MAE} = 4.13^\circ\text{C}$ (4.91), 90% CI $= \pm 8.78^\circ\text{C}$.
 
 ---
 
@@ -143,7 +144,7 @@ $$\Delta T_{\text{diurnal}} = T_{\max} - T_{\min} < 48^\circ\text{C} \quad \text
 - **Algorithm**: L2-regularized Logistic Regression ($C=0.5$) with balanced class weighting (`class_weight='balanced'`) to overcome the class imbalance of storm sols.
 - **Loss Function**: Binary Cross-Entropy with L2 Penalty:
   $$\mathcal{L}(\beta) = -\sum_{i=1}^N \left[ y_i \ln \sigma(\mathbf{x}_i^T \beta) + (1 - y_i) \ln(1 - \sigma(\mathbf{x}_i^T \beta)) \right] + \frac{1}{2C} \|\beta\|_2^2$$
-- **Metrics**: the latest 15% of sols holds no proxy storm sols, so ROC-AUC cannot be measured there. Forward-chaining time folds (train on the past, test on the next block) give $\text{ROC-AUC} = 0.62$ ($t+1$), $0.70$ ($t+2$) and $0.69$ ($t+3$): modest skill. The label is a temperature-range proxy, not a storm catalogue.
+- **Metrics**: the latest 15% of sols holds no proxy storm sols, so ROC-AUC cannot be measured there. Forward-chaining time folds (train on the past, test on the next block) give $\text{ROC-AUC} = 0.70$ ($t+1$), $0.63$ ($t+2$) and $0.70$ ($t+3$): modest skill. The label is a temperature-range proxy, not a storm catalogue.
 - **Operational Hazard Tiers**:
   - **LOW** ($P < 0.25$): Atmospheric opacity nominal ($\tau \approx 0.4\text{--}0.6$). Nominal EVA operations.
   - **MODERATE** ($0.25 \le P < 0.50$): Local dust lifting detected. Narrowing diurnal $\Delta T$.

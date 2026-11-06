@@ -118,12 +118,14 @@ const WeatherPanel = () => {
   }, [roverWeatherFeed]);
 
   // 3-Sol ML Multi-Step Predictive Outlook (computed from in-situ telemetry)
+  // The model forecasts from real telemetry, so it is anchored to a downlinked Curiosity sol (the one picked, or
+  // the latest): its inputs are that sol and the sols before it, and its Ls and sol numbers are that sol's.
+  const forecastAnchor = activeDownlinkSol;
   const mlForecast = useMemo(() => {
-    const anchorSol = isDownlinkMode && activeDownlinkSol ? activeDownlinkSol.sol : (currentSol ?? 1);
-    const anchorLs = isDownlinkMode && activeDownlinkSol ? activeDownlinkSol.ls : (weather?.ls || 0);
-    const recent = roverWeatherFeed && roverWeatherFeed.length > 0 ? roverWeatherFeed : [];
-    return predictMultiSolForecast(recent, anchorLs, anchorSol, 3);
-  }, [isDownlinkMode, activeDownlinkSol, currentSol, weather?.ls, roverWeatherFeed]);
+    if (!forecastAnchor) return predictMultiSolForecast([], weather?.ls || 0, currentSol ?? 1, 3);
+    const upToAnchor = roverWeatherFeed.filter((s) => s.sol <= forecastAnchor.sol);
+    return predictMultiSolForecast(upToAnchor, forecastAnchor.ls, forecastAnchor.sol, 3);
+  }, [forecastAnchor, roverWeatherFeed, currentSol, weather?.ls]);
 
   const isDustContingency = activeContingency === 'dust_storm';
 
@@ -475,6 +477,11 @@ const WeatherPanel = () => {
             <span className="text-[10px] font-mono text-violet-300 bg-violet-950/60 px-2 py-0.5 rounded border border-violet-700/50 font-bold whitespace-nowrap">
               3-SOL FORWARD LOOKAHEAD
             </span>
+            {forecastAnchor && (
+              <span className="text-[10px] font-mono text-zinc-400 whitespace-nowrap">
+                from Curiosity sol {forecastAnchor.sol}{forecastAnchor.terrestrialDate ? ` (${forecastAnchor.terrestrialDate})` : ''}
+              </span>
+            )}
           </div>
           {weatherScore && (
             <span

@@ -14,6 +14,7 @@ import defaultLibsModel from '../data/marsLibsModel.json';
 import defaultQuakeModel from '../data/marsQuakeModel.json';
 import defaultSolarDustModel from '../data/marsSolarDustModel.json';
 import { marsDistance } from '../utils/marsUtils';
+import { msdFromDate, lsFromMsd, curiositySolFromMsd } from '../utils/marsSolar';
 
 // In-memory model cache
 let activeModel = defaultWeatherModel;
@@ -340,7 +341,9 @@ export function predictSingleHorizon(horizonNum = 1, scaledFeatures = [], model 
  */
 export function predictMultiSolForecast(recentSols = [], currentLs = 0, currentSol = 5000, numHorizons = 3) {
   const model = activeModel;
-  const rawFeatures = buildWeatherFeatureVector(recentSols, currentLs);
+  const lsNum = Number.isFinite(Number(currentLs)) ? Number(currentLs) : 0;
+  const solNum = Number.isFinite(Number(currentSol)) ? Number(currentSol) : 0;
+  const rawFeatures = buildWeatherFeatureVector(recentSols, lsNum);
   const scaledFeatures = scaleFeatures(rawFeatures, model);
 
   const maxH = Math.min(3, Math.max(1, numHorizons));
@@ -351,8 +354,8 @@ export function predictMultiSolForecast(recentSols = [], currentLs = 0, currentS
     forecasts.push({
       ...horizonPred,
       solOffset: h,
-      targetSol: currentSol + h,
-      ls: (currentLs + h * 0.52) % 360, // Mars moves ~0.52° Ls per Sol
+      targetSol: solNum + h,
+      ls: (lsNum + h * 0.52) % 360, // Mars moves ~0.52° Ls per Sol
     });
   }
 
@@ -611,11 +614,15 @@ export function classifyRockMineralogy(pixlStatsOrOxides, modelOverride = null) 
  * Predicts surface space radiation dosimetry and Solar Particle Event (SPE) hazard
  * using the trained MSL RAD heliospheric modulation model.
  */
-export function predictRadiationEnvironment(elevationM = -2500, currentSol = 1000, ls = 180, isSPEActive = false) {
+export function predictRadiationEnvironment(elevationM = -2500, currentSol = null, ls = null, isSPEActive = false) {
   const model = activeRadiationModel;
   const elev = Number.isFinite(elevationM) ? elevationM : -2500;
-  const sol = Number(currentSol) || 1;
-  const lsNorm = ((Number(ls) % 360) + 360) % 360;
+  // currentSol is a Curiosity mission sol (the model's solar cycle starts at sol 0); without one, today's is used,
+  // as is today's Ls, so every caller shows the dose for the current point in the solar cycle and season
+  const msdNow = msdFromDate();
+  const sol = Number.isFinite(Number(currentSol)) && currentSol !== null ? Number(currentSol) : curiositySolFromMsd(msdNow);
+  const lsValue = Number.isFinite(Number(ls)) && ls !== null ? Number(ls) : lsFromMsd(msdNow);
+  const lsNorm = ((lsValue % 360) + 360) % 360;
 
   // Seasonal atmospheric pressure breathing & column depth
   const seasonalFactor = 1.0 + 0.12 * Math.sin((lsNorm - 160) * (Math.PI / 180));
@@ -1152,7 +1159,7 @@ export function invertMarsquakeHypocenter({
   const kmPerDeg = model?.metadata?.km_per_degree || 59.16;
 
   // Epicentral distance in degrees and kilometers
-  const distDeg = Math.max(0.1, Number(deltaT_Sp) / gradient);
+  const distDeg = Math.max(0.1, (Number.isFinite(Number(deltaT_Sp)) ? Number(deltaT_Sp) : 265.0) / gradient);
   const distKm = distDeg * kmPerDeg;
 
   // Focal depth based on frequency class
@@ -1165,7 +1172,7 @@ export function invertMarsquakeHypocenter({
   const rad = Math.PI / 180;
   const phi1 = stationLat * rad;
   const lam1 = stationLon * rad;
-  const brng = backAzimuthDeg * rad;
+  const brng = (Number.isFinite(Number(backAzimuthDeg)) ? Number(backAzimuthDeg) : 88.0) * rad;
   const deltaRad = distDeg * rad;
 
   const sinPhi1 = Math.sin(phi1);
@@ -1458,12 +1465,19 @@ export function predictSolarArrayDegradation({
       c.ln_tau * lnTau +
       c.lat * latNum +
       c.wind * windNum +
-      c.day_hours * dayHours;
+      c.day_hours * dayHours +
+      // the last four terms of the fitted model (absent in older model files, which then use the first eight)
+      (c.cos_zenith || 0) * cosZenithEff +
+      (c.transmittance || 0) * tTotal +
+      (c.exp_neg_tau || 0) * expNegTau +
+      (c.phys_insolation || 0) * physInsolation;
   }
   deltaDfPerSol = Math.min(-0.0001, deltaDfPerSol);
 
   // Project current Dust Factor after solsElapsed
-  const currentDf = Math.max(0.12, Math.min(1.0, Number(initialDf) + deltaDfPerSol * Number(solsElapsed)));
+  const df0 = Number.isFinite(Number(initialDf)) ? Number(initialDf) : 0.85;
+  const elapsed = Number.isFinite(Number(solsElapsed)) ? Math.max(0, Number(solsElapsed)) : 0;
+  const currentDf = Math.max(0.12, Math.min(1.0, df0 + deltaDfPerSol * elapsed));
 
   // Clean vs Actual Generation (kWh/sol)
   const area = Math.max(0.5, Number(arrayAreaM2));
@@ -1534,8 +1548,8 @@ export function predictSolarArrayDegradation({
   };
   const inHalfWidth = uncert.insolation_ci90_half_width || 0.0;
   const drHalfWidth = uncert.dust_rate_ci90_half_width || 0.00043;
-  const currentDfMin = Math.max(0.1, +(currentDf - drHalfWidth * Number(solsElapsed)).toFixed(3));
-  const currentDfMax = Math.min(1.0, +(currentDf + drHalfWidth * Number(solsElapsed)).toFixed(3));
+  const currentDfMin = Math.max(0.1, +(currentDf - drHalfWidth * elapsed).toFixed(3));
+  const currentDfMax = Math.min(1.0, +(currentDf + drHalfWidth * elapsed).toFixed(3));
   const actualKwhMin = Math.max(0, +(cleanDailyKwh * currentDfMin).toFixed(2));
   const actualKwhMax = +(cleanDailyKwh * currentDfMax).toFixed(2);
 
@@ -3362,7 +3376,7 @@ export const ASTROBIOLOGY_BENCHMARK_CLUSTERS = [
  * Computes Mahalanobis statistical distance and p-value against the abiotic null hypothesis.
  */
 export function projectAstrobiologyLatentManifold(rockTarget, depthProfile, rockData = null, depthMm = 45) {
-  const z = Math.max(0, Math.min(55.0, Number(depthMm)));
+  const z = Number.isFinite(Number(depthMm)) ? Math.max(0, Math.min(55.0, Number(depthMm))) : 45;
   const {
     deconvolvedSpectrum,
     organicMatch,
@@ -3564,7 +3578,7 @@ export function coreDeepHorizon(rockTarget) {
  * modelled from exponential laws, with the deepest horizon chosen to fit the rock type.
  */
 export function calculateSubsurfaceDepthProfile(rockTarget, depthMm = 45, rockData = null) {
-  const z = Math.max(0, Math.min(55.0, Number(depthMm)));
+  const z = Number.isFinite(Number(depthMm)) ? Math.max(0, Math.min(55.0, Number(depthMm))) : 45;
   const rockClass = coreRockClass(rockTarget);
   const matrix = CORE_MATRIX_BY_CLASS[rockClass];
 

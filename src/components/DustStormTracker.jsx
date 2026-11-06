@@ -13,9 +13,11 @@ const DustStormTracker = () => {
   
     const mlDustRisk = useMemo(() => {
     if (!roverWeatherFeed || roverWeatherFeed.length === 0) return null;
-    const fc = predictMultiSolForecast(roverWeatherFeed, getSolarLongitude(currentSol), currentSol, 1);
+    // Forecast from the latest downlinked sol with that sol's Ls, not today's: the inputs are that sol's telemetry
+    const latest = roverWeatherFeed.reduce((a, s) => (s.sol > a.sol ? s : a), roverWeatherFeed[0]);
+    const fc = predictMultiSolForecast(roverWeatherFeed, latest.ls, latest.sol, 1);
     return fc[0]?.dustStorm || null;
-  }, [roverWeatherFeed, currentSol]);
+  }, [roverWeatherFeed]);
 
   const { ls, currentSeason, chartData, currentRiskLevel, riskColor, riskText } = useMemo(() => {
     const currentLs = getSolarLongitude(currentSol);
@@ -93,7 +95,7 @@ const DustStormTracker = () => {
               </p>
             </div>
           </div>
-          <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Trained on a proxy storm label (REMS diurnal range below 48 °C in storm season); modest skill, time-fold ROC-AUC 0.62-0.70" />
+          <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Trained on a proxy storm label (REMS diurnal range below 48 °C in storm season); modest skill, time-fold ROC-AUC 0.63-0.70" />
         </div>
       )}
       <div className="flex justify-between items-center mb-2">

@@ -41,7 +41,11 @@
       "ln_tau": -0.000161,
       "lat": 1e-06,
       "wind": -0.000186,
-      "day_hours": -4.8e-05
+      "day_hours": -4.8e-05,
+      "cos_zenith": -0.00045,
+      "transmittance": -0.002316,
+      "exp_neg_tau": 0.002254,
+      "phys_insolation": 3.9e-07
     }
   },
   "uncertainty_ci90": {

@@ -218,6 +218,11 @@ def train_solar_dust_models():
                 'lat': round(float(dr_model.coef_[5]), 6),
                 'wind': round(float(dr_model.coef_[6]), 6),
                 'day_hours': round(float(dr_model.coef_[7]), 6),
+                # the model is fitted on all 12 features; leaving these four out cut its R² from 0.995 to 0.971
+                'cos_zenith': round(float(dr_model.coef_[8]), 6),
+                'transmittance': round(float(dr_model.coef_[9]), 6),
+                'exp_neg_tau': round(float(dr_model.coef_[10]), 6),
+                'phys_insolation': round(float(dr_model.coef_[11]), 9),
             },
         },
         'uncertainty_ci90': uncertainty,

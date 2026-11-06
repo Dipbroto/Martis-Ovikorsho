@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { estimateRadiation, routeDistance } from '../utils/marsUtils';
 import { getElevation } from '../utils/elevationService';
 import { predictRadiationEnvironment } from '../services/marsMlService';
+import { curiositySolFromMsd, lsFromMsd } from '../utils/marsSolar';
 import { Sun, ShieldCheck, Compass, Sparkles } from 'lucide-react';
 import { RadioTower, Shield, AlertTriangle, Activity, Heart } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -27,9 +28,11 @@ const RadiationPanel = () => {
   const isSPEActive = activeContingency === 'spe';
 
   const radiation = useMemo(() => {
-    // Planetary areocentric solar longitude (Ls)
-    const ls = (Number(currentSol || 1) * 0.524) % 360;
-    return predictRadiationEnvironment(elevation, currentSol, ls, isSPEActive);
+    // currentSol is a Mars Sol Date; the model's solar cycle counts Curiosity mission sols, and Ls comes from the date
+    const msd = Number(currentSol) || undefined;
+    const missionSol = msd ? curiositySolFromMsd(msd) : null;
+    const ls = msd ? lsFromMsd(msd) : null;
+    return predictRadiationEnvironment(elevation, missionSol, ls, isSPEActive);
   }, [currentSol, elevation, isSPEActive]);
 
   const evaExposure = useMemo(() => {
