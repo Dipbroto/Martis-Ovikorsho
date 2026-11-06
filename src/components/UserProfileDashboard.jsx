@@ -139,7 +139,8 @@ export default function UserProfileDashboard() {
 
       // Clean up corresponding sample in local store if present
       const currentSamples = useMapStore.getState().collectedSamples || [];
-      const match = currentSamples.find((s) => s.id === logId || s.name === targetName);
+      const match = currentSamples.find((s) => s.logId === logId)
+        || currentSamples.find((s) => !s.logId && (s.id === logId || s.name === targetName));
       if (match) {
         removeSample(match.id);
       }

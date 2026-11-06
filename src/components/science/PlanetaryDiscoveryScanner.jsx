@@ -4,7 +4,14 @@ import {
   Compass, Radio, Crosshair, Sparkles, MapPin, Loader2, Plus, ChevronDown, ChevronUp, Layers, CheckCircle2,
 } from 'lucide-react';
 import { playUiClick } from '../../utils/audioSynthesizer';
+import { getSolFromDate } from '../../data/weatherSimulation';
+import { wrapLon, formatLatLon } from '../../hooks/useScienceLab';
 import ProvenanceBadge from '../ProvenanceBadge';
+
+// Perseverance landed on Mars Sol Date 52304 (18 February 2021): its mission sol is the MSD minus that
+const PERSEVERANCE_LANDING_MSD = 52304;
+const todaysMissionSol = () => Math.max(0, getSolFromDate() - PERSEVERANCE_LANDING_MSD);
+const MAX_SOL = 9999;
 
 export default function PlanetaryDiscoveryScanner({
   famousSites = [],
@@ -20,6 +27,9 @@ export default function PlanetaryDiscoveryScanner({
   const [customName, setCustomName] = useState('');
   const [selectedSiteId, setSelectedSiteId] = useState('olympus_mons');
   const [lastDiscovered, setLastDiscovered] = useState(null);
+  // the mission sol the sample is taken on, used by every instrument of the new rock
+  const [solInput, setSolInput] = useState(() => String(todaysMissionSol()));
+  const sol = Math.min(MAX_SOL, Math.max(0, Math.round(Number(solInput) || 0)));
 
   const handleQuickDeploy = (site) => {
     playUiClick?.();
@@ -29,6 +39,7 @@ export default function PlanetaryDiscoveryScanner({
       lon: site.lon,
       regionId: site.id,
       name: `${site.shortName} Core #${Math.floor(Math.random() * 89 + 10)}`,
+      sol,
     });
     if (result?.target) {
       setLastDiscovered(result.target);
@@ -44,8 +55,9 @@ export default function PlanetaryDiscoveryScanner({
 
     const result = discoverRockAt({
       lat: Math.max(-90, Math.min(90, lat)),
-      lon,
+      lon: wrapLon(lon),
       name: customName.trim() || undefined,
+      sol,
     });
     if (result?.target) {
       setLastDiscovered(result.target);
@@ -110,7 +122,7 @@ export default function PlanetaryDiscoveryScanner({
           >
             <div className="p-4 sm:p-6 bg-black/30 border-b border-white/[0.06]">
               {/* Mode Switcher Tabs */}
-              <div className="flex items-center gap-2 mb-4" role="tablist">
+              <div className="flex flex-wrap items-center gap-2 mb-4" role="tablist">
                 <button
                   role="tab"
                   aria-selected={activeTab === 'provinces'}
@@ -144,6 +156,27 @@ export default function PlanetaryDiscoveryScanner({
                   <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
                   <span>Custom Coordinate Inversion</span>
                 </button>
+
+                <label className="ml-auto flex items-center gap-2 text-[11px] font-mono text-zinc-400" title="Perseverance mission sol the sample is taken on. Defaults to today's sol.">
+                  <span>Sample sol</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max={MAX_SOL}
+                    step="1"
+                    value={solInput}
+                    onChange={(e) => setSolInput(e.target.value)}
+                    onBlur={() => setSolInput(String(sol))}
+                    className="w-20 rounded-lg bg-black/60 border border-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSolInput(String(todaysMissionSol()))}
+                    className="px-2 py-1 rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] text-zinc-300 cursor-pointer"
+                  >
+                    Today
+                  </button>
+                </label>
               </div>
 
               {/* Tab Content 1: Famous Sites */}
@@ -181,7 +214,7 @@ export default function PlanetaryDiscoveryScanner({
                               {site.rockType}
                             </span>
                             <span className="block text-[10px] text-zinc-500 mt-1 font-mono">
-                              {site.lat.toFixed(2)}°N, {site.lon.toFixed(2)}°E · {site.elevationM > 0 ? '+' : ''}{site.elevationM.toLocaleString()}m
+                              {formatLatLon(site.lat, site.lon, 2)} ·{site.elevationM > 0 ? '+' : ''}{site.elevationM.toLocaleString()}m
                             </span>
                           </div>
 
@@ -284,7 +317,7 @@ export default function PlanetaryDiscoveryScanner({
                   <div className="flex items-center gap-2 text-emerald-300">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span>
-                      Synthesized and loaded <strong>{lastDiscovered.name}</strong> ({lastDiscovered.rockType}). All 3 instrument datasets ready for analysis below.
+                      Synthesized and loaded <strong>{lastDiscovered.name}</strong> ({lastDiscovered.rockType}) on sol {lastDiscovered.sols?.supercam}. All 3 simulated instrument datasets ready for analysis below.
                     </span>
                   </div>
                   <span className="text-[10px] text-emerald-400/80 font-mono shrink-0">

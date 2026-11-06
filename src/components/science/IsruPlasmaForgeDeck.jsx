@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Flame, Zap, ShieldCheck, CheckCircle2, AlertTriangle, ArrowRight, BatteryCharging,
@@ -29,6 +29,14 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
   const [sparkPulseCount, setSparkPulseCount] = useState(30);
   const [selectedPeak, setSelectedPeak] = useState('Fe');
   const [lastCalibrationBurst, setLastCalibrationBurst] = useState(null);
+
+  // the running smelt and the delayed resets; a smelt left mid-way when the deck closes is cancelled
+  const smeltTimer = useRef(null);
+  const timers = useRef([]);
+  useEffect(() => () => {
+    if (smeltTimer.current) clearInterval(smeltTimer.current);
+    timers.current.forEach(clearTimeout);
+  }, []);
 
   const stats = data?.pixl?.stats || target?.pixlMedian || {};
   const biosignatureScore = target?.biosignatureScore || 50;
@@ -161,9 +169,9 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
       timestamp: Date.now(),
     });
 
-    setTimeout(() => {
+    timers.current.push(setTimeout(() => {
       setIsSparkFiring(false);
-    }, 750);
+    }, 750));
   };
 
   const handleSmelt = (recipeId) => {
@@ -186,6 +194,7 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
 
       if (stepCount >= steps) {
         clearInterval(timer);
+        smeltTimer.current = null;
         synthesizeMaterial(recipeId, 1);
         setActiveSmeltRecipe(null);
         setSmeltProgress(0);
@@ -195,9 +204,10 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
           yieldText: `+${recipe.yieldPerRun.amount} ${recipe.yieldPerRun.unit} of ${recipe.shortName}`,
           yieldKey: recipe.yieldPerRun.key,
         });
-        setTimeout(() => setLastSmeltSuccess(null), 5000);
+        timers.current.push(setTimeout(() => setLastSmeltSuccess(null), 5000));
       }
     }, intervalTime);
+    smeltTimer.current = timer;
   };
 
   const activePeakData = emissionLines.find((l) => l.element === selectedPeak) || emissionLines[0];

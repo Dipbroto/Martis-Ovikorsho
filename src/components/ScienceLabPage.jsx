@@ -3,7 +3,7 @@ import {
   Sparkles, Database, CheckCircle2, Zap, Atom, Loader2, MapPin, FlaskConical, Map as MapIcon, ExternalLink, RotateCcw, ShieldCheck, Trash2, Flame, Dna, FileText,
 } from 'lucide-react';
 import { playUiClick, playLaserZap } from '../utils/audioSynthesizer';
-import useScienceLab from '../hooks/useScienceLab';
+import useScienceLab, { TOTAL_TUBES, formatLatLon } from '../hooks/useScienceLab';
 import useMapStore from '../store/useMapStore';
 import { imageUrl, PDS_HOME } from '../data/scienceLab';
 import { MARTIAN_PROVINCES } from '../services/marsMlService';
@@ -26,8 +26,6 @@ const INSTRUMENTS = [
   { id: 'isru', deck: 'DECK 5', label: 'ISRU Forge', what: 'Plasma synthesis', icon: Flame, tone: 'from-amber-500/25' },
   { id: 'msr', deck: 'DECK 6', label: 'Sample cache', what: 'Seal and store', icon: Database, tone: 'from-cyan-500/25' },
 ];
-
-const TOTAL_TUBES = 38; // Perseverance carries 43 tubes; 38 are for samples
 
 const LEVEL = {
   strong: { label: 'Clear', cls: 'text-emerald-300 bg-emerald-500/15 border-emerald-400/30' },
@@ -55,7 +53,7 @@ export default function ScienceLabPage() {
   const {
     campaigns = [], target, data, analysis, isLoadingTargets, isLoadingData, loadError, retry, selectTarget,
     activeInstrument, setActiveInstrument, isAiAnalyzing, aiReport, runAiAnalysis,
-    cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample, handleRemoveSample, handleClearAllSamples, safeSamples = [], paleoPh, setPaleoPh,
+    cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample, tubesFull, handleRemoveSample, handleClearAllSamples, safeSamples = [], paleoPh, setPaleoPh,
     famousSites = Object.values(MARTIAN_PROVINCES || {}), discoverRockAt, removeDiscoveredRock, isDiscovering,
   } = lab;
   const flyToCoordinate = useMapStore((s) => s.flyToCoordinate);
@@ -71,6 +69,8 @@ export default function ScienceLabPage() {
 
   const tubesUsed = Math.min(TOTAL_TUBES, safeSamples.length);
   const ready = target && data && analysis;
+  // a rock from the discovery scanner: its numbers are generated, and its photo is a stand-in from Jezero
+  const simulated = Boolean(target?.isProcedural);
 
   return (
     <div className="relative min-h-screen text-white font-sans -mt-20 sm:-mt-24 -mx-3 sm:-mx-8 lg:-mx-14">
@@ -93,8 +93,13 @@ export default function ScienceLabPage() {
             <span className="px-3 py-1.5 rounded-full border border-white/15 bg-black/40 backdrop-blur">{campaigns.length || 6} rocks ({famousSites?.length || 7} Martian provinces)</span>
             <span className="px-3 py-1.5 rounded-full border border-white/15 bg-black/40 backdrop-blur">{tubesUsed} of {TOTAL_TUBES} sample tubes used</span>
             <a href={PDS_HOME} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 backdrop-blur flex items-center gap-1.5 hover:bg-emerald-500/20">
-              <ShieldCheck className="w-3.5 h-3.5" />Real measurements from NASA’s archive<ExternalLink className="w-3 h-3" />
+              <ShieldCheck className="w-3.5 h-3.5" />{simulated ? 'Jezero rocks: real measurements from NASA’s archive' : 'Real measurements from NASA’s archive'}<ExternalLink className="w-3 h-3" />
             </a>
+            {simulated && (
+              <span className="px-3 py-1.5 rounded-full border border-cyan-400/40 bg-cyan-500/10 text-cyan-200 backdrop-blur">
+                Selected rock is simulated from orbital data
+              </span>
+            )}
           </div>
         </header>
 
@@ -216,19 +221,29 @@ export default function ScienceLabPage() {
                 <div className="p-5 sm:p-6 grid sm:grid-cols-[auto_1fr] gap-5 sm:gap-6">
                   <div className="mx-auto sm:mx-0">
                     <RockPhoto campaign={target} className="w-44 h-44 sm:w-52 sm:h-52" />
-                    <p className="mt-2 text-[11px] text-zinc-500 text-center max-w-[13rem]">SuperCam close-up, sol {target.images?.rmi?.sol ?? target.sols.supercam}</p>
+                    <p className="mt-2 text-[11px] text-zinc-500 text-center max-w-[13rem]">
+                      {simulated
+                        ? 'Stand-in photo of a Jezero rock, not this one'
+                        : `SuperCam close-up, sol ${target.images?.rmi?.sol ?? target.sols.supercam}`}
+                    </p>
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs text-[#ffc2a8]">{target.rockType}</p>
                     <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">{target.name}</h2>
                     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-400">
-                      <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-[#ffa07f]" />Jezero crater · {target.lat.toFixed(3)}°N, {target.lon.toFixed(3)}°E</span>
+                      <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-[#ffa07f]" />{target.province || 'Jezero crater'} · {formatLatLon(target.lat, target.lon)}</span>
                       <button onClick={openOnMap} className="flex items-center gap-1.5 text-[#ffc2a8] hover:text-white cursor-pointer"><MapIcon className="w-4 h-4" />Show on the map</button>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
-                      <span className="px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10">SuperCam · sol {target.sols.supercam}</span>
-                      <span className="px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10">PIXL · sol {target.sols.pixl}</span>
-                      <span className="px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10">SHERLOC · sol {target.sols.sherloc}</span>
+                      {simulated ? (
+                        <span className="px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-200">All instruments simulated · sol {target.sols.supercam}</span>
+                      ) : (
+                        <>
+                          <span className="px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10">SuperCam · sol {target.sols.supercam}</span>
+                          <span className="px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10">PIXL · sol {target.sols.pixl}</span>
+                          <span className="px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10">SHERLOC · sol {target.sols.sherloc}</span>
+                        </>
+                      )}
                     </div>
                     {ready ? (
                       <>
@@ -246,8 +261,8 @@ export default function ScienceLabPage() {
                       <button onClick={runAiAnalysis} disabled={!ready || isAiAnalyzing} className="flex items-center justify-center gap-2 rounded-xl border border-white/20 px-4 py-2.5 text-sm hover:bg-white/10 transition disabled:opacity-60 cursor-pointer">
                         {isAiAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-violet-300" />}{isAiAnalyzing ? 'Analysing…' : 'Explain the data'}
                       </button>
-                      <button onClick={handleCacheSample} disabled={isSealingTube || cachedSuccess} className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm text-zinc-200 hover:bg-white/10 transition disabled:opacity-60 cursor-pointer">
-                        {cachedSuccess ? <><CheckCircle2 className="w-4 h-4 text-emerald-400" />Sealed</> : <><Database className="w-4 h-4" />{isSealingTube ? 'Sealing…' : 'Seal a sample'}</>}
+                      <button onClick={() => handleCacheSample()} disabled={isSealingTube || cachedSuccess || tubesFull} className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm text-zinc-200 hover:bg-white/10 transition disabled:opacity-60 cursor-pointer">
+                        {cachedSuccess ? <><CheckCircle2 className="w-4 h-4 text-emerald-400" />Sealed</> : <><Database className="w-4 h-4" />{isSealingTube ? 'Sealing…' : tubesFull ? 'All tubes full' : 'Seal a sample'}</>}
                       </button>
                       <button
                         onClick={() => {
@@ -271,8 +286,8 @@ export default function ScienceLabPage() {
                         <span>{activeInstrument === 'core' ? 'Active: Deck 4 Core Drill (55mm) ↓' : 'Deck 4: Subsurface Core (55mm)'}</span>
                       </button>
                       {activeInstrument === 'supercam' && (
-                        <button onClick={() => playLaserZap?.()} className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 px-4 py-2.5 text-sm transition cursor-pointer" title="Listen to real SuperCam pulsed laser shots ionizing rock target Máaz (NASA Sol 12)">
-                          <Zap className="w-4 h-4 text-rose-400 animate-pulse" />Hear SuperCam laser (Sol 12)
+                        <button onClick={() => playLaserZap?.()} className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 px-4 py-2.5 text-sm transition cursor-pointer" title="A synthesised impression of the laser clicks SuperCam's microphone recorded on rock Máaz (sol 12), not the recording itself">
+                          <Zap className="w-4 h-4 text-rose-400 animate-pulse" />Hear the laser (simulated)
                         </button>
                       )}
                     </div>
@@ -356,7 +371,7 @@ export default function ScienceLabPage() {
                       <p className="text-sm text-zinc-300">Core <span className="text-white font-medium">{target.name}</span> into tube #{tubesUsed + 1}.</p>
                       <label htmlFor="tube-notes" className="block text-xs text-zinc-400 mt-4 mb-1.5">Field notes</label>
                       <textarea id="tube-notes" rows={3} value={customTubeNotes} onChange={(e) => setCustomTubeNotes(e.target.value)} placeholder="Why this rock matters…" className="w-full rounded-xl bg-black/50 border border-white/10 px-3 py-2 text-sm placeholder-zinc-500 focus:outline-none focus:border-white/40" />
-                      <button onClick={handleCacheSample} disabled={isSealingTube || cachedSuccess || tubesUsed >= TOTAL_TUBES} className="mt-3 w-full rounded-xl bg-white text-black font-semibold py-3 text-sm hover:bg-zinc-200 transition disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2">
+                      <button onClick={() => handleCacheSample()} disabled={isSealingTube || cachedSuccess || tubesFull} className="mt-3 w-full rounded-xl bg-white text-black font-semibold py-3 text-sm hover:bg-zinc-200 transition disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2">
                         {cachedSuccess ? <><CheckCircle2 className="w-4 h-4 text-emerald-600" />Sealed and logged</> : isSealingTube ? <><Loader2 className="w-4 h-4 animate-spin" />Sealing…</> : 'Seal the tube'}
                       </button>
                       {cacheError && <p className="mt-2 text-xs text-amber-300">{cacheError}</p>}

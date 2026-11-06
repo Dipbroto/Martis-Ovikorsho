@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Layers, Dna, Sparkles, ShieldCheck, CheckCircle2, AlertTriangle, ArrowRight,
@@ -9,14 +9,23 @@ import {
   calculateSubsurfaceDepthProfile,
   ASTROBIOLOGY_ORGANIC_LIBRARY,
 } from '../../services/marsMlService';
-import { playCoreDrill, playLaserZap, playUiClick, playSampleSeal } from '../../utils/audioSynthesizer';
+import { playCoreDrill, playLaserZap, playUiClick } from '../../utils/audioSynthesizer';
 import ProvenanceBadge from '../ProvenanceBadge';
 import OrganicRamanInspector from './OrganicRamanInspector';
 import CoreDrill3DViewer, { getDepthDrillDynamics } from './CoreDrill3DViewer';
+import { TOTAL_TUBES } from '../../hooks/useScienceLab';
 
 export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target, data, lab, className = '' }) {
-  const { handleCacheSample, setCustomTubeNotes, safeSamples = [] } = lab || {};
+  const { handleCacheSample, safeSamples = [], tubesFull = false } = lab || {};
   const setFlightPlanOpen = useMapStore((s) => s.setFlightPlanOpen);
+
+  // the running drill and the seal messages; stopped if the deck closes mid-way
+  const drillTimer = useRef(null);
+  const timers = useRef([]);
+  useEffect(() => () => {
+    if (drillTimer.current) clearInterval(drillTimer.current);
+    timers.current.forEach(clearTimeout);
+  }, []);
 
   // State: drill actuation and interactive depth cursor
   const [isDrilling, setIsDrilling] = useState(false);
@@ -72,31 +81,30 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
 
       if (stepCount >= steps) {
         clearInterval(timer);
+        drillTimer.current = null;
         setIsDrilling(false);
         setIsCoreExtracted(true);
         setActiveDepthMm(48.0);
       }
     }, intervalTime);
+    drillTimer.current = timer;
   };
 
   // Seal core in Perseverance Mars Sample Return titanium tube
   const handleSealSampleCore = () => {
     if (isSealingThisCore || !handleCacheSample) return;
-    playSampleSeal?.();
+    const tubeNumber = safeSamples.length + 1;
+    const notes = `[MSR CORE #${tubeNumber}] Target: ${target?.name || 'In-Situ'}. Stratigraphy: ${activeLayer.name} at ${activeDepthMm}mm depth. Organic: ${organicMatch.bestMatch.name} (${organicMatch.confidencePercent}% conf, ${organicMatch.biogenicProbabilityPercent}% biogenic plausibility). TOC: ${organicCarbonPpm} ug/g. Fe3+/Fe2+: ${(fe3Fraction * 100).toFixed(0)}%/${(fe2Fraction * 100).toFixed(0)}%.`;
+
+    // the notes go in with the call: setting the field notes first would only reach the next render
+    if (!handleCacheSample(notes)) return; // it also plays the seal sound
     setIsSealingThisCore(true);
 
-    const notes = `[MSR CORE #${safeSamples.length + 1}] Target: ${target?.name || 'In-Situ'}. Stratigraphy: ${activeLayer.name} at ${activeDepthMm}mm depth. Organic: ${organicMatch.bestMatch.name} (${organicMatch.confidencePercent}% conf, ${organicMatch.biogenicProbabilityPercent}% biogenic plausibility). TOC: ${organicCarbonPpm} ug/g. Fe3+/Fe2+: ${(fe3Fraction * 100).toFixed(0)}%/${(fe2Fraction * 100).toFixed(0)}%.`;
-
-    if (setCustomTubeNotes) {
-      setCustomTubeNotes(notes);
-    }
-    handleCacheSample();
-
-    setTimeout(() => {
+    timers.current.push(setTimeout(() => {
       setIsSealingThisCore(false);
-      setSealedSuccessMsg(`Sealed in MSR Return Tube #${safeSamples.length + 1}! Stratigraphic & molecular record persisted.`);
-      setTimeout(() => setSealedSuccessMsg(null), 6000);
-    }, 600);
+      setSealedSuccessMsg(`Sealed in MSR Return Tube #${tubeNumber}! Stratigraphic & molecular record persisted.`);
+      timers.current.push(setTimeout(() => setSealedSuccessMsg(null), 6000));
+    }, 600));
   };
 
   return (
@@ -526,14 +534,19 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
           {/* Action Buttons: Seal Core & View Manifest */}
           <div className="pt-3 border-t border-white/10 space-y-2">
             <button
-              disabled={isSealingThisCore || !isCoreExtracted}
+              disabled={isSealingThisCore || !isCoreExtracted || tubesFull}
               onClick={handleSealSampleCore}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSealingThisCore ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>Hermetically Sealing Tube…</span>
+                </>
+              ) : tubesFull ? (
+                <>
+                  <Database className="w-3.5 h-3.5" />
+                  <span>All {TOTAL_TUBES} sample tubes are full</span>
                 </>
               ) : (
                 <>

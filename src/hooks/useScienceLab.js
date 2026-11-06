@@ -8,6 +8,58 @@ import { supabase } from '../lib/supabase';
 import { fetchProfile } from '../services/profileService';
 
 const SHOT_MS = 110;
+export const TOTAL_TUBES = 38; // Perseverance carries 43 tubes; 38 are for samples
+
+// Discovered rocks are saved as the inputs that rebuild them (a few bytes each), not as their spectra (~400 kB each)
+const FRONTIER_KEY = 'mars_frontier_rocks';
+const OLD_FRONTIER_KEY = 'mars_frontier_samples';
+const MAX_FRONTIER = 12;
+
+/** Longitude folded into -180..180, so 400°E is the same place as 40°E. */
+export const wrapLon = (lon) => Math.round((((((Number(lon) + 180) % 360) + 360) % 360) - 180) * 1e6) / 1e6;
+
+/** "14.500°S, 175.400°E": a hemisphere letter instead of a minus sign. */
+export const formatLatLon = (lat, lon, digits = 3) => (
+  `${Math.abs(lat).toFixed(digits)}°${lat < 0 ? 'S' : 'N'}, ${Math.abs(lon).toFixed(digits)}°${lon < 0 ? 'W' : 'E'}`
+);
+
+// Remove the crew's science-log rows for these tubes; only tubes saved while signed in have a row id
+const deleteLogs = (samples) => {
+  const user = useMapStore.getState().user;
+  const ids = samples.map((s) => s.logId).filter(Boolean);
+  if (!user || !supabase || !ids.length) return;
+  supabase.from('science_logs').delete().eq('user_id', user.id).in('id', ids).then(({ error }) => {
+    if (error) console.warn('Could not remove the sample from your profile:', error.message);
+    else fetchProfile(user.id);
+  });
+};
+
+const loadFrontier = () => {
+  try {
+    localStorage.removeItem(OLD_FRONTIER_KEY); // the old format stored whole spectra and could fill the browser's quota
+    const saved = JSON.parse(localStorage.getItem(FRONTIER_KEY));
+    if (!Array.isArray(saved)) return [];
+    return saved.flatMap((recipe) => {
+      try {
+        const sample = generateProceduralRockSample(recipe);
+        registerCampaign(sample.target, sample.data);
+        return [sample];
+      } catch {
+        return [];
+      }
+    });
+  } catch {
+    return [];
+  }
+};
+
+const saveFrontier = (samples) => {
+  try {
+    localStorage.setItem(FRONTIER_KEY, JSON.stringify(samples.map((s) => s.recipe).filter(Boolean)));
+  } catch (e) {
+    console.warn('Could not save the discovered rocks:', e);
+  }
+};
 
 /**
  * Shared state and handlers for the In-Situ Science Lab page (ScienceLabPage).
@@ -19,17 +71,14 @@ export default function useScienceLab() {
   const addSample = useMapStore((s) => s.addSample);
   const removeSample = useMapStore((s) => s.removeSample);
   const clearSamples = useMapStore((s) => s.clearSamples);
+  const updateSample = useMapStore((s) => s.updateSample);
 
   const famousSites = useMemo(() => Object.values(MARTIAN_PROVINCES), []);
   const [isDiscovering, setIsDiscovering] = useState(false);
-  const [discoveredSamples, setDiscoveredSamples] = useState(() => {
-    try {
-      const saved = localStorage.getItem('mars_frontier_samples');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [discoveredSamples, setDiscoveredSamples] = useState(loadFrontier);
+  // read by the rock-list loader, so a reload or a retry puts the discovered rocks back in the list
+  const discoveredRef = useRef(discoveredSamples);
+  discoveredRef.current = discoveredSamples;
   const [campaigns, setCampaigns] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [data, setData] = useState(null);
@@ -60,6 +109,12 @@ export default function useScienceLab() {
   const [paleoPh, setPaleoPh] = useState(7.2);
 
   const timer = useRef(null);
+  // the beam animation of a click on the rock; cancelled when the rock changes, so it cannot play on the next one
+  const beamTimer = useRef(null);
+  // which measured point the next click on the rock plays
+  const nextPoint = useRef(0);
+  // the delayed parts of sealing a tube, cancelled if the page goes away
+  const sealTimers = useRef([]);
   // which rock the latest AI request belongs to: an answer for a rock no longer shown is dropped
   const aiRequest = useRef(0);
   const stopFiring = useCallback(() => {
@@ -67,7 +122,16 @@ export default function useScienceLab() {
     timer.current = null;
     setIsFiringLaser(false);
   }, []);
-  useEffect(() => stopFiring, [stopFiring]);
+  const stopBeam = useCallback(() => {
+    if (beamTimer.current) clearTimeout(beamTimer.current);
+    beamTimer.current = null;
+    setBeamActive(false);
+  }, []);
+  useEffect(() => () => {
+    stopFiring();
+    stopBeam();
+    sealTimers.current.forEach(clearTimeout);
+  }, [stopFiring, stopBeam]);
 
   // the list of rocks
   useEffect(() => {
@@ -75,7 +139,8 @@ export default function useScienceLab() {
     setIsLoadingTargets(true);
     loadCampaignIndex().then((idx) => {
       if (cancelled) return;
-      setCampaigns(idx.campaigns);
+      const frontier = discoveredRef.current.map((s) => s.target);
+      setCampaigns([...frontier, ...idx.campaigns.filter((c) => !frontier.some((f) => f.id === c.id))]);
       setSelectedId((cur) => cur || idx.campaigns[0]?.id || null);
       setLoadError(null);
     }).catch((e) => {
@@ -92,9 +157,11 @@ export default function useScienceLab() {
     if (!target) return undefined;
     let cancelled = false;
     stopFiring();
+    stopBeam();
     setData(null);
     setIsLoadingData(true);
-    setPointIdx(0); setShot(null); setPits([]); setBeamActive(false); setHighlightedPeak(null); setPixlPick(null); setSherlocSpot(null); setAiReport(null);
+    setPointIdx(0); setShot(null); setPits([]); setHighlightedPeak(null); setPixlPick(null); setSherlocSpot(null); setAiReport(null);
+    nextPoint.current = 0;
     aiRequest.current += 1; setIsAiAnalyzing(false);
     loadCampaign(target).then((d) => {
       if (cancelled) return;
@@ -113,7 +180,7 @@ export default function useScienceLab() {
       if (!cancelled) setLoadError(`The measurements for ${target.name} could not be loaded.`);
     }).finally(() => { if (!cancelled) setIsLoadingData(false); });
     return () => { cancelled = true; };
-  }, [target, reloadKey, stopFiring]);
+  }, [target, reloadKey, stopFiring, stopBeam]);
 
   const analysis = useMemo(() => analyse(target, data), [target, data]);
 
@@ -150,13 +217,16 @@ export default function useScienceLab() {
   const fireAt = (x, y) => {
     const points = data?.libs?.points;
     if (!points?.length || isFiringLaser || beamActive) return;
-    const next = pits.length % points.length;
+    // a counter, not the number of pits shown: only the last 5 pits stay on the photo
+    const next = nextPoint.current % points.length;
+    nextPoint.current += 1;
     setLaserPos({ x, y });
     setBeamActive(true);
     setPits((prev) => [...prev.slice(-4), { id: Date.now(), x, y, point: next }]);
     playLaserZap?.();
     stopFiring();
-    setTimeout(() => {
+    beamTimer.current = setTimeout(() => {
+      beamTimer.current = null;
       setBeamActive(false);
       if (next === 0) stepShots();
       else { setPointIdx(next); setShot(null); }
@@ -190,21 +260,16 @@ export default function useScienceLab() {
     setIsDiscovering(true);
     playLaserZap?.();
     try {
-      const sample = generateProceduralRockSample({ lat, lon, regionId, name, seed, sol });
+      const sample = generateProceduralRockSample({ lat, lon: wrapLon(lon), regionId, name, seed, sol });
       registerCampaign(sample.target, sample.data);
 
-      setCampaigns((prev) => [sample.target, ...prev.filter((c) => c.id !== sample.target.id)]);
+      const next = [sample, ...discoveredRef.current.filter((s) => s.target.id !== sample.target.id)].slice(0, MAX_FRONTIER);
+      const keep = new Set(next.map((s) => s.target.id));
+      // the oldest discovery past the limit leaves the rock list too, as it is no longer saved
+      setCampaigns((prev) => [sample.target, ...prev.filter((c) => c.id !== sample.target.id && (!c.isProcedural || keep.has(c.id)))]);
       setSelectedId(sample.target.id);
-
-      setDiscoveredSamples((prev) => {
-        const next = [sample, ...prev.filter((s) => s.target.id !== sample.target.id)].slice(0, 12);
-        try {
-          localStorage.setItem('mars_frontier_samples', JSON.stringify(next));
-        } catch (e) {
-          console.warn('Could not persist sample to localStorage:', e);
-        }
-        return next;
-      });
+      setDiscoveredSamples(next);
+      saveFrontier(next);
 
       setTimeout(() => {
         setIsDiscovering(false);
@@ -227,31 +292,20 @@ export default function useScienceLab() {
       }
       return next;
     });
-    setDiscoveredSamples((prev) => {
-      const next = prev.filter((s) => s.target.id !== targetId);
-      try {
-        localStorage.setItem('mars_frontier_samples', JSON.stringify(next));
-      } catch (e) {
-        console.warn('Could not persist sample removal:', e);
-      }
-      return next;
-    });
+    const next = discoveredRef.current.filter((s) => s.target.id !== targetId);
+    setDiscoveredSamples(next);
+    saveFrontier(next);
   }, [selectedId]);
 
   const handleRemoveSample = useCallback((sampleId) => {
     if (!sampleId && sampleId !== 0) return;
+    const sample = (useMapStore.getState().collectedSamples || []).find((s, idx) => (s.id ? s.id === sampleId : idx === sampleId));
     removeSample(sampleId);
-
-    // If signed-in crew has science_logs, sync deletion
-    const user = useMapStore.getState().user;
-    if (user && supabase) {
-      supabase.from('science_logs').delete().match({ user_id: user.id, id: sampleId }).then(({ error }) => {
-        if (!error) fetchProfile(user.id);
-      }).catch((e) => console.warn('Could not sync sample deletion with profile:', e));
-    }
+    if (sample) deleteLogs([sample]);
   }, [removeSample]);
 
   const handleClearAllSamples = useCallback(() => {
+    deleteLogs(useMapStore.getState().collectedSamples || []);
     if (clearSamples) {
       clearSamples();
     } else {
@@ -259,52 +313,63 @@ export default function useScienceLab() {
     }
   }, [clearSamples]);
 
-  const handleCacheSample = () => {
-    if (!target) return;
+  const safeSamples = Array.isArray(collectedSamples) ? collectedSamples : [];
+  const tubesFull = safeSamples.length >= TOTAL_TUBES;
+
+  // notesOverride: notes written by another deck (the core drill), used instead of the typed field notes
+  const handleCacheSample = (notesOverride) => {
+    if (!target || isSealingTube || tubesFull) return false;
     setIsSealingTube(true);
     setCacheError(null);
     playSampleSeal?.();
 
-    const notes = customTubeNotes || `${target.name}, ${target.province || 'Jezero crater'} (${target.lat.toFixed(3)}°N, ${target.lon.toFixed(3)}°E)`;
-    const tubeNumber = (collectedSamples?.length || 0) + 1;
-    setTimeout(async () => {
+    const typed = typeof notesOverride === 'string' && notesOverride ? notesOverride : customTubeNotes;
+    const notes = typed || `${target.name}, ${target.province || 'Jezero crater'} (${formatLatLon(target.lat, target.lon)})`;
+    const tubeNumber = safeSamples.length + 1;
+    const sampleId = `${Date.now()}`;
+    const sealed = target;
+    const minerals = analysis?.minerals.join(', ') || null;
+    const sol = data?.libs?.sol || target.sols?.supercam || 1;
+    sealTimers.current.push(setTimeout(async () => {
       addSample({
-        id: Date.now().toString(),
+        id: sampleId,
         tubeNumber,
-        name: target.name,
-        rockType: target.rockType,
+        name: sealed.name,
+        rockType: sealed.rockType,
         status: 'SEALED IN CACHE',
-        sol: data?.libs?.sol || target.sols?.supercam || 1,
+        sol,
         notes,
       });
 
       // Signed-in crews also log the sample to their profile (the database counts it)
       const user = useMapStore.getState().user;
       if (user) {
-        const { error } = await supabase.from('science_logs').insert({
-          user_id: user.id,
-          target_id: target.id,
-          target_name: target.name,
-          mineralogy: analysis?.minerals.join(', ') || null,
-          ph_level: null,
-          notes: notes.slice(0, 2000),
-        });
-        if (error) {
-          console.warn('Could not save sample to profile:', error.message);
-          setCacheError('Sealed locally, but saving to your profile failed.');
-        } else {
+        try {
+          const { data: row, error } = await supabase.from('science_logs').insert({
+            user_id: user.id,
+            target_id: sealed.id,
+            target_name: sealed.name,
+            mineralogy: minerals,
+            ph_level: null,
+            notes: notes.slice(0, 2000),
+          }).select('id').single();
+          if (error) throw error;
+          // keep the row id, so removing this tube can remove its log entry too
+          if (row?.id) updateSample(sampleId, { logId: row.id });
           fetchProfile(user.id);
+        } catch (e) {
+          console.warn('Could not save sample to profile:', e?.message || e);
+          setCacheError('Sealed locally, but saving to your profile failed.');
         }
       }
 
       setIsSealingTube(false);
       setCachedSuccess(true);
       setCustomTubeNotes('');
-      setTimeout(() => setCachedSuccess(false), 3000);
-    }, 1200);
+      sealTimers.current.push(setTimeout(() => setCachedSuccess(false), 3000));
+    }, 1200));
+    return true;
   };
-
-  const safeSamples = Array.isArray(collectedSamples) ? collectedSamples : [];
 
   return {
     campaigns, target, data, analysis, isLoadingTargets, isLoadingData, loadError, retry, selectTarget,
@@ -312,7 +377,7 @@ export default function useScienceLab() {
     pointIdx, selectPoint, shot, isFiringLaser, fireLaser, fireAt, laserPos, beamActive, pits, setPits, showAverage, pickShot, highlightedPeak, setHighlightedPeak,
     oxide, setOxide, pixlPick, setPixlPick, sherlocMetric, setSherlocMetric, sherlocSpot, setSherlocSpot,
     isAiAnalyzing, aiReport, setAiReport, runAiAnalysis,
-    cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample,
+    cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample, tubesFull,
     handleRemoveSample, handleClearAllSamples,
     collectedSamples, safeSamples, paleoPh, setPaleoPh,
     famousSites, discoverRockAt, removeDiscoveredRock, isDiscovering,

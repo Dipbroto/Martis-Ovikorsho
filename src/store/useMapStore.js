@@ -28,6 +28,17 @@ const UNDO_CAMERA_KEYS = ['mapCenter', 'mapZoom'];
 const UNDO_MAX_STEPS = 50;
 // One click often makes several store updates in a row (and a planned route arrives in two): keep them as one step
 const UNDO_GROUP_MS = 250;
+// Sealed sample tubes are kept in the browser so a reload does not empty the rack
+const SAMPLES_KEY = 'mars_sealed_samples';
+const loadSamples = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAMPLES_KEY));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+};
+
 let undoHistory = [];
 let undoLastStepAt = 0;
 let undoRestoring = false;
@@ -525,7 +536,7 @@ const useMapStore = create((set, get) => ({
   // IN-SITU SCIENCE LAB & SAMPLING
   // ========================
   isScienceLabOpen: false,
-  collectedSamples: [],
+  collectedSamples: loadSamples(),
   // The lab is a full page now; anything that "opens the lab" goes to it
   setScienceLabOpen: (val) => set((state) => {
     const next = typeof val === 'boolean' ? val : state.activeTab !== 'science';
@@ -538,6 +549,10 @@ const useMapStore = create((set, get) => ({
   })),
   removeSample: (idOrIndex) => set((state) => ({
     collectedSamples: (state.collectedSamples || []).filter((s, idx) => (s.id ? s.id !== idOrIndex : idx !== idOrIndex))
+  })),
+  // Merge fields into one tube, e.g. the id of its row in the crew's science log once that is saved
+  updateSample: (id, patch) => set((state) => ({
+    collectedSamples: (state.collectedSamples || []).map((s) => (s.id === id ? { ...s, ...patch } : s))
   })),
   clearSamples: () => set({ collectedSamples: [] }),
 
@@ -897,6 +912,15 @@ useMapStore.subscribe((state, prev) => {
   useMapStore.setState({ undoDepth: undoHistory.length });
 });
 
-export const routeSignature = (waypoints) => (waypoints || []).map((w) => w.id).join('|');
+useMapStore.subscribe((state, prev) => {
+  if (state.collectedSamples === prev.collectedSamples) return;
+  try {
+    localStorage.setItem(SAMPLES_KEY, JSON.stringify(state.collectedSamples || []));
+  } catch (e) {
+    console.warn('Could not save the sealed samples:', e);
+  }
+});
+
+export const routeSignature =(waypoints) => (waypoints || []).map((w) => w.id).join('|');
 
 export default useMapStore;

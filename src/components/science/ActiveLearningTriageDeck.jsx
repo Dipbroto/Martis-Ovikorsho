@@ -15,7 +15,7 @@ import { playUiClick } from '../../utils/audioSynthesizer';
  * to provide autonomous rover triage recommendations and ISRU forge suitability.
  */
 export default function ActiveLearningTriageDeck({ target, data, lab, className = '' }) {
-  const { handleCacheSample, setCustomTubeNotes, tubesUsed = 0, safeSamples = [] } = lab || {};
+  const { handleCacheSample, tubesFull = false, isSealingTube = false } = lab || {};
 
   // Compute Active Learning evaluation from PIXL micro-XRF or SuperCam LIBS chemometrics
   const triage = useMemo(() => {
@@ -53,14 +53,10 @@ export default function ActiveLearningTriageDeck({ target, data, lab, className 
 
   const handleQuickCache = () => {
     playUiClick?.();
-    if (setCustomTubeNotes) {
-      setCustomTubeNotes(
-        `[AEGIS TRIAGE: ${triageLabel}] Novelty ${noveltyPercent}%, BPP ${biosignatureScore}%. ${rationale.slice(0, 300)}`
-      );
-    }
-    if (handleCacheSample) {
-      handleCacheSample();
-    }
+    // the notes go in with the call: setting the field notes first would only reach the next render
+    handleCacheSample?.(
+      `[AEGIS TRIAGE: ${triageLabel}] Novelty ${noveltyPercent}%, BPP ${biosignatureScore}%. ${rationale.slice(0, 300)}`
+    );
   };
 
   return (
@@ -317,14 +313,15 @@ export default function ActiveLearningTriageDeck({ target, data, lab, className 
             </span>
             <button
               onClick={handleQuickCache}
-              className={`px-3 py-1.5 rounded-xl font-semibold text-xs transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
+              disabled={tubesFull || isSealingTube}
+              className={`px-3 py-1.5 rounded-xl font-semibold text-xs transition cursor-pointer flex items-center gap-1.5 shrink-0 disabled:opacity-60 disabled:cursor-not-allowed ${
                 isPriorityCache
                   ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-md shadow-emerald-900/30'
                   : 'bg-white/10 hover:bg-white/20 text-zinc-200 border border-white/10'
               }`}
             >
               <Database className="w-3.5 h-3.5" />
-              <span>Core & Seal Sample</span>
+              <span>{tubesFull ? 'All tubes full' : isSealingTube ? 'Sealing…' : 'Core & Seal Sample'}</span>
             </button>
           </div>
         </div>

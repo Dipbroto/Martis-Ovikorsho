@@ -2402,7 +2402,10 @@ export function generateProceduralRockSample({
     },
   };
 
-  return { target, data };
+  // The inputs that rebuild exactly this rock: saving these is far smaller than saving the spectra
+  const recipe = { lat: Number(lat), lon: Number(lon), regionId, name, seed: actualSeed, sol };
+
+  return { target, data, recipe };
 }
 
 
