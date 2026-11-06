@@ -527,11 +527,11 @@ function BiogenicGenesisDial({ biogenicProbabilityPercent, classification, depth
 
   if (prob >= 75) {
     dialColor = 'from-emerald-500 via-teal-400 to-cyan-400';
-    ratingLabel = 'Strong Biogenic Potential';
+    ratingLabel = 'High preservation potential (not a detection)';
     badgeClass = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
   } else if (prob >= 50) {
     dialColor = 'from-cyan-500 to-teal-400';
-    ratingLabel = 'Plausible Prebiotic Synthesis';
+    ratingLabel = 'Organic-friendly setting';
     badgeClass = 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40';
   } else if (prob >= 25) {
     dialColor = 'from-yellow-500 to-amber-500';
@@ -556,8 +556,8 @@ function BiogenicGenesisDial({ biogenicProbabilityPercent, classification, depth
       {/* Progress Arc / Bar */}
       <div>
         <div className="flex justify-between items-baseline text-xs font-mono mb-1.5">
-          <span className="text-zinc-400">Biogenic Plausibility Index:</span>
-          <span className="text-base font-bold text-white font-mono">{prob}%</span>
+          <span className="text-zinc-400" title="An illustrative score from band positions and rock type. It is not a probability that life was present.">Biogenic score (illustrative):</span>
+          <span className="text-base font-bold text-white font-mono">{prob}/100</span>
         </div>
         <div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden p-0.5 border border-white/10">
           <motion.div
@@ -568,9 +568,9 @@ function BiogenicGenesisDial({ biogenicProbabilityPercent, classification, depth
           />
         </div>
         <div className="flex justify-between text-[9px] font-mono text-zinc-500 mt-1">
-          <span>0% Abiotic / Meteoritic</span>
-          <span>50% Prebiotic Matrix</span>
-          <span>100% Ancient Biosignature</span>
+          <span>0 Abiotic / Meteoritic</span>
+          <span>50 Prebiotic Matrix</span>
+          <span>100 Biosignature-like</span>
         </div>
       </div>
 
@@ -582,10 +582,13 @@ function BiogenicGenesisDial({ biogenicProbabilityPercent, classification, depth
         </div>
         <p className="text-[11px] text-zinc-400 leading-relaxed">
           {depthMm < 4.0
-            ? 'Surface ultraviolet photolysis and superoxide perchlorate bleaching have stripped diagnostic isotopic ratios. Residual carbon represents refractory polycyclic patina.'
+            ? 'Near the surface, ultraviolet light and perchlorate oxidants break organic molecules down, so little survives.'
             : depthMm < 22.0
-            ? 'Subsurface silicate matrix preserves unweathered polycyclic aromatic hydrocarbons (PAHs) consistent with ancient carbonaceous meteorite infall and hydrothermal organic synthesis.'
-            : 'Shielded sub-lacustrine laminae exhibit elevated Carbon D/G band vibrational prominence and preserved amino acid precursors protected by smectite clay shielding.'}
+            ? 'Below the rind, organics are shielded from UV. Aromatic carbon at this depth on Mars could come from meteorites or from water-rock chemistry, not only from life.'
+            : 'Deeper rock is best shielded from UV and oxidants, which is why rovers drill. A Raman band pattern alone cannot tell biological carbon from abiotic carbon.'}
+        </p>
+        <p className="text-[10px] text-zinc-500 leading-relaxed">
+          Perseverance has found organic signals in Jezero rocks, but no confirmed biosignature. This dial is a teaching aid, not a detection.
         </p>
       </div>
     </div>
@@ -595,7 +598,8 @@ function BiogenicGenesisDial({ biogenicProbabilityPercent, classification, depth
 /**
  * 2D Latent Space Manifold & Statistical Hypothesis Radar
  * Projects multi-modal spectroscopic and geochemical features into calibrated latent space
- * against Earth Archean microfossils, hydrothermal sinters, and meteoritic PAHs.
+ * next to hand-placed reference clouds for Earth kerogen, hydrothermal sinters and meteoritic PAHs.
+ * Illustrative only: the axes are hand-weighted scores, not a fitted projection, and no hypothesis is tested.
  */
 function AstrobiologyLatentManifoldRadar({ latentManifold, target, activeDepthMm, className = '' }) {
   const [hoveredClusterId, setHoveredClusterId] = useState(null);
@@ -606,8 +610,6 @@ function AstrobiologyLatentManifoldRadar({ latentManifold, target, activeDepthMm
     z1 = 0,
     z2 = 0,
     mahalanobisDistanceNull = 0,
-    chiSquare = 0,
-    pValue = 1.0,
     isNullRejected = false,
     nearestCluster,
     uncertainty = {},
@@ -645,28 +647,29 @@ function AstrobiologyLatentManifoldRadar({ latentManifold, target, activeDepthMm
               <h4 className="font-bold text-white text-sm tracking-tight">
                 2D Astrobiology Latent Manifold & Anomaly Radar
               </h4>
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                16-D MULTI-MODAL PCA
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                ILLUSTRATIVE 2-D SCORE
               </span>
             </div>
             <p className="text-[11px] text-zinc-400 mt-0.5">
-              Projects combined Deep-UV Raman, aromatic fluorescence, and PIXL oxides against ground-truth Earth Archean microfossils and meteorites.
+              Places this rock on two hand-weighted scores built from its Raman carbon bands, fluorescence and PIXL chemistry. The reference clouds (Earth kerogen, meteorites, basalt) are placed by hand to show where such materials would sit; they are not measured data.
             </p>
           </div>
         </div>
 
-        {/* Statistical Hypothesis Pill */}
+        {/* How far the rock sits from the basalt reference, with no claim of a statistical test */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono text-zinc-400">H₀ (Abiotic Null):</span>
+          <span className="text-[10px] font-mono text-zinc-400">Basalt reference:</span>
           <span
             className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded-full border flex items-center gap-1.5 ${
               isNullRejected
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm shadow-emerald-500/20'
-                : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                ? 'bg-cyan-500/15 text-cyan-200 border-cyan-500/40'
+                : 'bg-zinc-500/15 text-zinc-300 border-zinc-500/30'
             }`}
+            title="Distance on the illustrative score, not a hypothesis test and not evidence of life"
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            {isNullRejected ? `REJECTED (p = ${pValue.toFixed(4)})` : `ACCEPTED (p = ${pValue.toFixed(4)})`}
+            {isNullRejected ? 'Far from it' : 'Close to it'}
           </span>
         </div>
       </div>
@@ -707,10 +710,10 @@ function AstrobiologyLatentManifoldRadar({ latentManifold, target, activeDepthMm
 
           {/* Axes Labels */}
           <text x={padL + plotW} y={mapY(0) - 8} fontSize="9" fontFamily="monospace" fill="#71717a" textAnchor="end">
-            +z₁ (Biogenic Complexity & Preservation) →
+            +z₁ (carbon signal & shielding) →
           </text>
           <text x={padL} y={mapY(0) - 8} fontSize="9" fontFamily="monospace" fill="#71717a" textAnchor="start">
-            ← -z₁ (Abiotic Basalt Null)
+            ← -z₁ (plain basalt)
           </text>
           <text x={mapX(0) + 8} y={padT + 12} fontSize="9" fontFamily="monospace" fill="#71717a">
             +z₂ (Aqueous Mudstone / Clays)
@@ -816,35 +819,29 @@ function AstrobiologyLatentManifoldRadar({ latentManifold, target, activeDepthMm
 
       {/* Statistical Anomaly & Uncertainty Breakdown Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs font-mono">
-        {/* Metric 1: Mahalanobis Distance */}
+        {/* Metric 1: distance on the illustrative score */}
         <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
-          <span className="text-[10px] text-zinc-500 uppercase block">MAHALANOBIS DISTANCE (D_M)</span>
+          <span className="text-[10px] text-zinc-500 uppercase block">DISTANCE FROM BASALT REFERENCE</span>
           <div className="flex items-baseline gap-2">
-            <span className="text-base font-bold text-cyan-300">{mahalanobisDistanceNull}σ</span>
-            <span className="text-[10px] text-zinc-400">vs. Sterile Basalt</span>
+            <span className="text-base font-bold text-cyan-300">{mahalanobisDistanceNull}</span>
+            <span className="text-[10px] text-zinc-400">score units</span>
           </div>
           <span className="text-[9px] text-zinc-400 block pt-0.5">
-            {mahalanobisDistanceNull >= 3.0 ? 'Extremely anomalous (>99.7% deviation)' : 'Within crustal baseline envelope'}
+            {mahalanobisDistanceNull >= 3.0 ? 'Chemistry and carbon bands differ from a plain basalt' : 'Close to a plain basalt'}
           </span>
         </div>
 
-        {/* Metric 2: Chi-Square p-Value */}
+        {/* Metric 2: what the score cannot say */}
         <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
-          <span className="text-[10px] text-zinc-500 uppercase block">HYPOTHESIS TEST (p-VALUE)</span>
-          <div className="flex items-baseline gap-2">
-            <span className={`text-base font-bold ${isNullRejected ? 'text-emerald-400' : 'text-amber-400'}`}>
-              p = {pValue}
-            </span>
-            <span className="text-[10px] text-zinc-400">χ² = {chiSquare}</span>
-          </div>
-          <span className="text-[9px] text-zinc-400 block pt-0.5">
-            {isNullRejected ? 'Abiotic null rejected (α = 0.05)' : 'Consistent with abiotic baseline'}
+          <span className="text-[10px] text-zinc-500 uppercase block">WHAT THIS MEANS</span>
+          <span className="text-[10px] text-zinc-300 block leading-relaxed">
+            A teaching score, not a statistical test. Unusual chemistry is not evidence of life.
           </span>
         </div>
 
-        {/* Metric 3: Nearest Analog Benchmark */}
+        {/* Metric 3: Nearest hand-placed reference */}
         <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
-          <span className="text-[10px] text-zinc-500 uppercase block">NEAREST EARTH / SPACE ANALOG</span>
+          <span className="text-[10px] text-zinc-500 uppercase block">CLOSEST REFERENCE (HAND-PLACED)</span>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeHoverCluster.color }} />
             <span className="text-white font-bold truncate text-[11px]">{activeHoverCluster.shortName}</span>
@@ -856,13 +853,13 @@ function AstrobiologyLatentManifoldRadar({ latentManifold, target, activeDepthMm
 
         {/* Metric 4: Bayesian Uncertainty Quantification */}
         <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
-          <span className="text-[10px] text-zinc-500 uppercase block">BAYESIAN UNCERTAINTY (σ)</span>
+          <span className="text-[10px] text-zinc-500 uppercase block">ROUGH UNCERTAINTY</span>
           <div className="flex items-center justify-between text-[10px] text-zinc-300">
-            <span>Sensor Noise (Aleatoric):</span>
+            <span>From signal strength:</span>
             <span className="text-amber-300 font-bold">{uncertainty.aleatoricPercent || 15}%</span>
           </div>
           <div className="flex items-center justify-between text-[10px] text-zinc-300">
-            <span>Model Novelty (Epistemic):</span>
+            <span>From distance to references:</span>
             <span className="text-cyan-300 font-bold">{uncertainty.epistemicPercent || 12}%</span>
           </div>
         </div>
@@ -922,12 +919,15 @@ export default function OrganicRamanInspector({
               </span>
             </h4>
             <p className="text-[11px] text-zinc-400 mt-0.5">
-              Iterative rolling-minimum baseline subtraction strips native fluorescence to isolate prebiotic Raman scattering bands at {activeDepthMm.toFixed(1)} mm depth.
+              {target?.isProcedural
+                ? 'A simulated SHERLOC spectrum for this discovered rock. '
+                : 'Starts from the real SHERLOC spectrum of this rock’s abraded surface. '}
+              A rolling-minimum baseline removes fluorescence; the depth slider then reshapes the spectrum with a UV-shielding model ({activeDepthMm.toFixed(1)} mm), and peaks are compared to library band positions.
             </p>
           </div>
         </div>
 
-        <ProvenanceBadge type="PREDICTED BY ML" size="xs" detail="Cosine Spectral Angle Matcher" />
+        <ProvenanceBadge type="SIMULATED" size="xs" detail="Real surface spectrum reshaped by a depth model; compound match is by band position only" />
       </div>
 
       {/* Main Grid: Spectral Chart & Molecule Inspector */}
@@ -1019,7 +1019,7 @@ export default function OrganicRamanInspector({
                     <div className="flex items-center justify-between text-[8px] font-mono mt-0.5">
                       <span className="text-amber-300/80">{comp.formula}</span>
                       {isDetected && (
-                        <span className="px-1 rounded bg-emerald-500/30 text-emerald-200 font-bold">MATCH</span>
+                        <span className="px-1 rounded bg-emerald-500/30 text-emerald-200 font-bold">CLOSEST</span>
                       )}
                     </div>
                   </button>

@@ -154,9 +154,9 @@ export default function LibsPanel({ target, data, lab }) {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-white uppercase tracking-wider">
-                      AEGIS Science Triage
+                      AEGIS-inspired Triage
                     </span>
-                    <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Autonomous Bayesian Triage (NASA AEGIS)" />
+                    <ProvenanceBadge type="DERIVED" size="xs" detail="AEGIS-inspired target ranking (entropy, novelty, preservation score); not NASA’s AEGIS software" />
                   </div>
                   <span className="text-[10px] text-zinc-400 font-mono">
                     Bayesian Active Learning Optimization (Shannon Entropy + BPP + Novelty)

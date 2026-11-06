@@ -81,7 +81,7 @@ export default function MineralMlClassifier({ target, data, className = '' }) {
               <h3 className="font-bold text-base sm:text-lg text-white tracking-tight flex items-center gap-2">
                 In-Situ ML Mineral Classifier
               </h3>
-              <ProvenanceBadge type="ML_PREDICTION" label="NASA PIXL In-Situ ML" />
+              <ProvenanceBadge type="ML_PREDICTION" detail="Trained on PIXL points from 6 Jezero rocks; scored on rocks it did not see" />
             </div>
             <p className="text-xs text-zinc-400">
               {instrumentSource === 'libs'

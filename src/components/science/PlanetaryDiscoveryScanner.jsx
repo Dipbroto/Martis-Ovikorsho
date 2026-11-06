@@ -85,15 +85,16 @@ export default function PlanetaryDiscoveryScanner({
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Invert CRISM hyperspectral, THEMIS thermal inertia, and MOLA topography into authentic ground samples.
+              Generate a simulated rock anywhere on Mars from the nearest of {famousSites.length} hand-built regional profiles (typical chemistry, elevation and thermal inertia from published orbital maps).
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2.5">
           <ProvenanceBadge
-            source="ORBITAL_TO_GROUND_INVERSION"
-            text="MOLA · THEMIS · CRISM INVERSION"
+            type="SIMULATED"
+            size="xs"
+            detail="Procedural rock from a regional profile; no orbital data is read at run time"
             className="hidden sm:inline-flex"
           />
           <button
@@ -154,7 +155,7 @@ export default function PlanetaryDiscoveryScanner({
                   }`}
                 >
                   <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Custom Coordinate Inversion</span>
+                  <span>Custom Coordinates</span>
                 </button>
 
                 <label className="ml-auto flex items-center gap-2 text-[11px] font-mono text-zinc-400" title="Perseverance mission sol the sample is taken on. Defaults to today's sol.">
@@ -183,7 +184,7 @@ export default function PlanetaryDiscoveryScanner({
               {activeTab === 'provinces' && (
                 <div className="space-y-3">
                   <p className="text-xs text-zinc-400">
-                    Deploy rover SuperCam & PIXL telemetry to primary Martian geological regimes. Each target synthesizes 7,933-channel LIBS spectra, micro-XRF elemental rasters, and deep-UV Raman spots:
+                    Pick a region of Mars. Each simulated rock gets generated SuperCam LIBS spectra, a PIXL-style chemistry map and SHERLOC-style Raman spots, built from that region&rsquo;s typical chemistry:
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
                     {famousSites.map((site) => {
@@ -236,7 +237,7 @@ export default function PlanetaryDiscoveryScanner({
               {activeTab === 'coordinates' && (
                 <form onSubmit={handleCustomDeploy} className="space-y-4 max-w-2xl">
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    Enter any coordinate on the Martian sphere. The inversion pipeline queries MOLA global elevation and THEMIS thermal inertia maps to synthesize authentic in-situ geochemistry and SuperCam spectral lines.
+                    Enter any coordinate on Mars. The scanner snaps to the nearest regional profile and generates a simulated rock from it.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
@@ -295,17 +296,17 @@ export default function PlanetaryDiscoveryScanner({
                       {isDiscovering ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Inverting Spectra…</span>
+                          <span>Generating rock…</span>
                         </>
                       ) : (
                         <>
                           <Sparkles className="w-3.5 h-3.5 text-cyan-200" />
-                          <span>Deploy Orbital Inversion Scanner</span>
+                          <span>Generate a simulated rock here</span>
                         </>
                       )}
                     </button>
                     <span className="text-[11px] text-zinc-500">
-                      Zero-latency client-side inversion (~1.2 ms execution)
+                      Generated in your browser in about a millisecond
                     </span>
                   </div>
                 </form>

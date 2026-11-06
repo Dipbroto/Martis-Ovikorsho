@@ -1585,7 +1585,7 @@ export function predictSolarArrayDegradation({
 
 
 /**
- * Active Learning Science Triage & Target Recommendation Engine (NASA AEGIS Mode)
+ * Active Learning Science Triage & Target Recommendation Engine (AEGIS-inspired)
  *
  * Implements Bayesian Active Learning combining:
  * 1. Shannon Classification Entropy (Model Uncertainty / Information Gain)
@@ -1602,7 +1602,7 @@ export function recommendNextScienceTarget(points = [], sampledIndices = [], opt
       candidateRankings: [],
       sampledCount: 0,
       totalCandidates: 0,
-      provenance: 'ACTIVE_LEARNING_BAYESIAN_OPTIMIZATION (NASA AEGIS STANDARD)',
+      provenance: 'ACTIVE_LEARNING_TRIAGE (AEGIS-INSPIRED)',
     };
   }
 
@@ -1788,7 +1788,7 @@ export function recommendNextScienceTarget(points = [], sampledIndices = [], opt
     candidateRankings: rankings,
     sampledCount: sampledVectors.length,
     totalCandidates: points.length,
-    provenance: 'ACTIVE_LEARNING_BAYESIAN_OPTIMIZATION (NASA AEGIS STANDARD)',
+    provenance: 'ACTIVE_LEARNING_TRIAGE (AEGIS-INSPIRED)',
   };
 }
 
@@ -2656,7 +2656,7 @@ export function evaluateRockNoveltyAndTriage(pixlStatsOrOxides, targetMeta = nul
     isruPotentials,
     mineralResult,
     targetName: targetMeta?.name || 'In-Situ Target',
-    provenance: 'NASA_AEGIS_ACTIVE_LEARNING_TRIAGE (MAHALANOBIS PDS BENCHMARK)',
+    provenance: 'AEGIS_INSPIRED_TRIAGE (CRUSTAL AVERAGE BENCHMARK)',
   };
 }
 
@@ -3230,7 +3230,7 @@ export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, de
   if (depthMm < 4.0) {
     classification = 'PHOTO_OXIDIZED_RESIDUAL';
   } else if (best.compound.category === 'PREBIOTIC_AMINO_ACID' && best.confidencePercent >= 55) {
-    classification = 'PREBIOTIC_BIOMARKER';
+    classification = 'PREBIOTIC_PATTERN';
   } else if (best.compound.category === 'POLYCYCLIC_AROMATIC_HYDROCARBON' && best.confidencePercent >= 50) {
     classification = 'POLYCYCLIC_AROMATIC';
   } else if (best.confidencePercent >= 45) {
@@ -3332,8 +3332,8 @@ export const ASTROBIOLOGY_BENCHMARK_CLUSTERS = [
   },
   {
     id: 'MARTIAN_CRUSTAL_BASALT_NULL',
-    name: 'Sterile Martian Crustal Basalt Null',
-    shortName: 'Martian Basalt Null',
+    name: 'Organic-Poor Martian Basalt (reference)',
+    shortName: 'Plain Basalt',
     category: 'ABIOTIC_NULL_BASELINE',
     z1: -2.40,
     z2: -0.85,
@@ -3345,7 +3345,7 @@ export const ASTROBIOLOGY_BENCHMARK_CLUSTERS = [
     ageGa: 3.90,
     locality: 'Zagami / EETA79001 Martian Shergottite Null Matrix',
     provenance: 'Martian Abiotic Reference',
-    description: 'Sterile basaltic lava crust with zero biogenic carbon, high olivine/pyroxene, and surface superoxide photolysis stripping all organic molecules.',
+    description: 'Hand-placed reference for a weathered basalt with little organic carbon and no organic Raman bands.',
   },
 ];
 
@@ -3468,14 +3468,101 @@ export function projectAstrobiologyLatentManifold(rockTarget, depthProfile, rock
 }
 
 /**
- * Subsurface Core Stratigraphy & Depth Profile Simulator
- * Simulates depth-resolved physical stratigraphy (0 to 55 mm) within Perseverance's 13 mm x 55 mm titanium core tube.
- * Accurately models the exponential UV photolysis decay, Fe3+/Fe2+ redox state, and buried prebiotic organic preservation.
+ * Which deep-core horizons fit a rock: lake sediment, sulfate sediment, olivine cumulate or basalt.
+ * Perseverance only measured the abraded surface of each rock, so everything below it is a model;
+ * this keeps the model from giving an igneous rock a buried lake mudstone.
+ */
+function coreRockClass(rockTarget) {
+  const t = `${rockTarget?.rockType || ''} ${rockTarget?.summary || ''} ${rockTarget?.name || ''}`.toLowerCase();
+  if (/mudstone|clay|smectite|siltstone|lacustrine|delta|belva|wildcat/.test(t)) return 'lacustrine';
+  if (/sulfate|evaporite|sedimentary|berry/.test(t)) return 'sulfate';
+  if (/olivine|cumulate|dunite|quartier|dourbes/.test(t)) return 'olivine';
+  return 'basalt';
+}
+
+const CORE_MATRIX_BY_CLASS = {
+  lacustrine: { name: 'Fine-Grained Sediment Matrix', facies: 'Detrital Sediment Matrix', primaryMineral: 'Clay, Fine Silicate Grains, Iron Oxides', grainSize: 'Fine Silt (< 60 μm)' },
+  sulfate: { name: 'Sulfate-Cemented Sediment Matrix', facies: 'Cemented Detrital Sediment', primaryMineral: 'Mg/Ca Sulfates, Silicate Grains, Hematite', grainSize: 'Fine Sand & Silt (60 - 250 μm)' },
+  olivine: { name: 'Olivine Cumulate Matrix', facies: 'Igneous Cumulate', primaryMineral: 'Olivine, Pyroxene, Minor Carbonate Alteration', grainSize: 'Coarse Crystalline (1 - 3 mm)' },
+  basalt: { name: 'Basaltic Rock Matrix', facies: 'Igneous Lava Flow', primaryMineral: 'Augite, Plagioclase, Fe-Ti Oxides', grainSize: 'Medium Crystalline (100 - 500 μm)' },
+};
+
+const CORE_DEEP_BY_CLASS = {
+  lacustrine: {
+    id: 'LAYER_LAMINAE',
+    name: 'Deep Shielded Lacustrine Mudstone Laminae',
+    shortName: 'Shielded Mudstone',
+    color: '#2ec4b6',
+    accentColor: 'from-emerald-500 to-teal-700',
+    description: 'Fine-grained lake sediment, shielded from surface UV. Clay-rich mudstones like this have the highest organic preservation potential on Mars.',
+    grainSize: 'Sub-Micron Smectite Clay Laminae',
+    facies: 'Quiet Lacustrine Bottom Mudstone',
+    primaryMineral: 'Smectite Clay, Carbonate, Iron Sulfides',
+    organicPpmRange: '20.0 - 90.0 μg/g',
+    fe3Base: 0.22,
+    depthBoost: 16,
+  },
+  sulfate: {
+    id: 'LAYER_LAMINAE',
+    name: 'Deep Sulfate-Cemented Sediment',
+    shortName: 'Shielded Sediment',
+    color: '#2ec4b6',
+    accentColor: 'from-emerald-500 to-teal-700',
+    description: 'Sediment cemented by sulfate salts that precipitated from evaporating water, shielded from surface UV. Salts can trap and protect organic matter.',
+    grainSize: 'Fine Sand & Silt with Sulfate Cement',
+    facies: 'Evaporitic Sediment',
+    primaryMineral: 'Mg/Ca Sulfates, Clay, Hematite',
+    organicPpmRange: '10.0 - 60.0 μg/g',
+    fe3Base: 0.3,
+    depthBoost: 16,
+  },
+  olivine: {
+    id: 'LAYER_DEEP_IGNEOUS',
+    name: 'Deep Olivine Cumulate Interior',
+    shortName: 'Igneous Interior',
+    color: '#6a994e',
+    accentColor: 'from-lime-600 to-emerald-800',
+    description: 'Unweathered interior of an olivine-rich igneous rock that crystallised from magma. Water later altered some olivine to carbonate, but igneous rocks hold little organic carbon.',
+    grainSize: 'Coarse Crystalline (1 - 3 mm)',
+    facies: 'Igneous Cumulate',
+    primaryMineral: 'Olivine, Pyroxene, Minor Carbonate',
+    organicPpmRange: '0.5 - 10.0 μg/g',
+    fe3Base: 0.25,
+    depthBoost: 2,
+  },
+  basalt: {
+    id: 'LAYER_DEEP_IGNEOUS',
+    name: 'Deep Basaltic Interior',
+    shortName: 'Igneous Interior',
+    color: '#5c677d',
+    accentColor: 'from-slate-600 to-indigo-800',
+    description: 'Unweathered interior of a basaltic lava rock. Shielded from UV and oxidants, but igneous rocks hold little organic carbon.',
+    grainSize: 'Medium Crystalline (100 - 500 μm)',
+    facies: 'Igneous Lava Flow',
+    primaryMineral: 'Augite, Plagioclase, Fe-Ti Oxides',
+    organicPpmRange: '0.5 - 10.0 μg/g',
+    fe3Base: 0.3,
+    depthBoost: 2,
+  },
+};
+
+/** The deepest modelled core horizon that fits this rock (shared with the 3D drill view). */
+export function coreDeepHorizon(rockTarget) {
+  return CORE_DEEP_BY_CLASS[coreRockClass(rockTarget)];
+}
+
+/**
+ * Subsurface Core Stratigraphy & Depth Profile Model
+ * An illustrative depth model (0 to 55 mm) of a 13 mm x 55 mm Perseverance core. Perseverance's instruments
+ * measured each rock's abraded surface; the layers, UV decay, Fe3+/Fe2+ gradient and organic carbon below it are
+ * modelled from exponential laws, with the deepest horizon chosen to fit the rock type.
  */
 export function calculateSubsurfaceDepthProfile(rockTarget, depthMm = 45, rockData = null) {
   const z = Math.max(0, Math.min(55.0, Number(depthMm)));
+  const rockClass = coreRockClass(rockTarget);
+  const matrix = CORE_MATRIX_BY_CLASS[rockClass];
 
-  // Stratigraphic Core Layering (4 distinct geological horizons)
+  // Stratigraphic Core Layering (4 horizons; the matrix and the deepest one depend on the rock type)
   const LAYERS = [
     {
       id: 'LAYER_PATINA',
@@ -3491,21 +3578,23 @@ export function calculateSubsurfaceDepthProfile(rockTarget, depthMm = 45, rockDa
       primaryMineral: 'Hematite, Perchlorate, Amorphous Silica',
       organicPpmRange: '0.1 - 2.0 μg/g',
       fe3Base: 0.88,
+      depthBoost: -25,
     },
     {
       id: 'LAYER_MATRIX',
       minMm: 3.5,
       maxMm: 22.0,
-      name: 'Pristine Crystalline Rock Matrix',
+      name: matrix.name,
       shortName: 'Unaltered Matrix',
       color: '#8187dc',
       accentColor: 'from-indigo-600 to-sky-700',
-      description: 'Primary unaltered crystalline rock matrix protected from ambient diurnal humidity and solar radiation. Fresh silicate grains with sharp grain boundaries.',
-      grainSize: 'Medium Crystalline (100 - 500 μm)',
-      facies: 'Pristine Igneous/Detrital Matrix',
-      primaryMineral: 'Augite, Plagioclase, Olivine',
-      organicPpmRange: '8.0 - 25.0 μg/g',
+      description: 'Rock matrix below the weathering rind, protected from solar UV and atmospheric oxidants.',
+      grainSize: matrix.grainSize,
+      facies: matrix.facies,
+      primaryMineral: matrix.primaryMineral,
+      organicPpmRange: rockClass === 'lacustrine' || rockClass === 'sulfate' ? '5.0 - 25.0 μg/g' : '0.5 - 8.0 μg/g',
       fe3Base: 0.52,
+      depthBoost: 0,
     },
     {
       id: 'LAYER_VEIN',
@@ -3515,27 +3604,18 @@ export function calculateSubsurfaceDepthProfile(rockTarget, depthMm = 45, rockDa
       shortName: 'Secondary Vein',
       color: '#48bfe3',
       accentColor: 'from-cyan-500 to-teal-600',
-      description: 'Secondary mineralization fracture fill formed by ancient low-temperature hydrothermal fluid percolation. Rich in hydrated calcium sulfate (bassanite/gypsum) and opaline silica.',
+      description: 'Secondary mineral fill where water once moved through a fracture. Calcium sulfate veins like this are common in Jezero rocks.',
       grainSize: 'Fibrous Crystalline Vein',
       facies: 'Hydrothermal Fluid Conduit',
       primaryMineral: 'Bassanite, Gypsum, Chalcedony',
-      organicPpmRange: '35.0 - 75.0 μg/g',
+      organicPpmRange: '2.0 - 20.0 μg/g',
       fe3Base: 0.35,
+      depthBoost: 8,
     },
     {
-      id: 'LAYER_LAMINAE',
+      ...CORE_DEEP_BY_CLASS[rockClass],
       minMm: 38.0,
       maxMm: 55.0,
-      name: 'Deep Shielded Lacustrine Mudstone Laminae',
-      shortName: 'Shielded Mudstone',
-      color: '#2ec4b6',
-      accentColor: 'from-emerald-500 to-teal-700',
-      description: 'Fine-grained lacustrine sediment deposited in quiet, anoxic bottom water of ancient Lake Jezero. High concentration of smectite clays with exceptional biosignature preservation potential.',
-      grainSize: 'Sub-Micron Smectite Clay Laminae',
-      facies: 'Quiet Lacustrine Bottom Mudstone',
-      primaryMineral: 'Nontronite Clay, Carbonate, Pyrite',
-      organicPpmRange: '90.0 - 180.0 μg/g',
-      fe3Base: 0.22,
     },
   ];
 
@@ -3574,7 +3654,7 @@ export function calculateSubsurfaceDepthProfile(rockTarget, depthMm = 45, rockDa
       baseBioScore = isSed ? 88 : targetName.includes('quartier') ? 31 : targetName.includes('dourbes') ? 48 : targetName.includes('bellegarde') ? 72 : 45;
     }
   }
-  const depthBoost = z > 38 ? 16 : z > 22 ? 8 : z > 3.5 ? 0 : -25;
+  const depthBoost = activeLayer.depthBoost;
   const surfaceDecay = z <= 3.5 ? (z / 3.5) * 0.15 + 0.02 : 1.0;
   const organicPreservationScore = Math.max(5.0, Math.min(99.0, Math.round((baseBioScore + depthBoost) * (1.0 - uvBleachFactor * 0.85))));
   const organicCarbonPpm = Math.round(Math.max(0.4, (organicPreservationScore * 1.55) * (1.0 - uvBleachFactor * 0.95) * surfaceDecay));

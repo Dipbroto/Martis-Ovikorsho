@@ -286,8 +286,8 @@ export default function ScienceLabPage() {
                         <span>{activeInstrument === 'core' ? 'Active: Deck 4 Core Drill (55mm) ↓' : 'Deck 4: Subsurface Core (55mm)'}</span>
                       </button>
                       {activeInstrument === 'supercam' && (
-                        <button onClick={() => playLaserZap?.()} className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 px-4 py-2.5 text-sm transition cursor-pointer" title="A synthesised impression of the laser clicks SuperCam's microphone recorded on rock Máaz (sol 12), not the recording itself">
-                          <Zap className="w-4 h-4 text-rose-400 animate-pulse" />Hear the laser (simulated)
+                        <button onClick={() => playLaserZap?.()} className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 px-4 py-2.5 text-sm transition cursor-pointer" title="Plays NASA's recording of SuperCam laser shots on rock Máaz (sol 12), with a short synthesized tone layered on top">
+                          <Zap className="w-4 h-4 text-rose-400 animate-pulse" />Hear SuperCam laser (sol 12 recording)
                         </button>
                       )}
                     </div>

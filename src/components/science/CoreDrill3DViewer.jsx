@@ -6,12 +6,14 @@ import {
   Activity, RefreshCw,
 } from 'lucide-react';
 import { playUiClick } from '../../utils/audioSynthesizer';
+import { coreDeepHorizon } from '../../services/marsMlService';
 
 /**
  * Calculates depth-resolved mechanical resistance, spindle torque, RPM,
  * and vibration physics across the 4 Martian stratigraphic horizons.
+ * deepHorizon: the rock's deepest modelled horizon (an igneous interior drills harder than a sediment).
  */
-export function getDepthDrillDynamics(depthMm) {
+export function getDepthDrillDynamics(depthMm, deepHorizon = null) {
   const z = Math.max(0, Math.min(55, Number(depthMm)));
 
   if (z < 3.5) {
@@ -78,11 +80,31 @@ export function getDepthDrillDynamics(depthMm) {
     };
   }
 
-  // Horizon 4: Shielded Mudstone Laminae (38.0 - 55.0 mm) - Compacted lacustrine smectite clay
   const u = (z - 38.0) / 17.0;
+
+  // Horizon 4 of an igneous rock (38.0 - 55.0 mm): hard unweathered interior
+  if (deepHorizon?.id === 'LAYER_DEEP_IGNEOUS') {
+    return {
+      layerId: 'DEEP_IGNEOUS',
+      layerName: deepHorizon.shortName,
+      hardnessMohs: +(6.4 + 0.3 * u).toFixed(1),
+      rpm: Math.round(2300 - 120 * u),
+      torqueNm: +(6.8 + 0.6 * u).toFixed(1),
+      impactEnergyJ: +(29.0 + 2.5 * u).toFixed(1),
+      resistanceFactor: +(0.88 + 0.08 * u).toFixed(2),
+      angularSpeedFactor: +(0.7 - 0.05 * u).toFixed(2),
+      chatterIntensity: 0.034,
+      axialHammerStroke: 0.062,
+      sparkRate: 0.9,
+      sparkColor: '#fde047',
+      description: 'Hard unweathered igneous interior · Heavy torque load',
+    };
+  }
+
+  // Horizon 4 of a sediment (38.0 - 55.0 mm): compacted fine-grained laminae
   return {
     layerId: 'LAMINAE',
-    layerName: 'Shielded Mudstone Laminae',
+    layerName: deepHorizon?.shortName || 'Shielded Sediment Laminae',
     hardnessMohs: +(3.5 + 0.6 * u).toFixed(1),
     rpm: Math.round(2820 - 180 * u),
     torqueNm: +(4.2 + 0.8 * u).toFixed(1),
@@ -93,7 +115,7 @@ export function getDepthDrillDynamics(depthMm) {
     axialHammerStroke: 0.048,
     sparkRate: 0.3,
     sparkColor: '#34d399', // emerald tinted clay dust
-    description: 'Deep fine smectite mudstone · Viscous overburden friction',
+    description: 'Deep fine-grained sediment · Viscous overburden friction',
   };
 }
 
@@ -592,6 +614,7 @@ function CameraRig({ viewPreset = 'PERSPECTIVE' }) {
  * Main 3D Core Drill & Titanium Tube Interactive WebGL Viewer.
  */
 export default function CoreDrill3DViewer({
+  target = null,
   activeDepthMm = 45.0,
   setActiveDepthMm,
   isDrilling = false,
@@ -603,7 +626,8 @@ export default function CoreDrill3DViewer({
   const textures = useProceduralCoreTextures();
 
   const effectiveDepth = isDrilling ? (drillProgress / 100) * 55.0 : activeDepthMm;
-  const dynamics = useMemo(() => getDepthDrillDynamics(effectiveDepth), [effectiveDepth]);
+  const deepHorizon = useMemo(() => coreDeepHorizon(target), [target]);
+  const dynamics = useMemo(() => getDepthDrillDynamics(effectiveDepth, deepHorizon), [effectiveDepth, deepHorizon]);
 
   return (
     <div className={`relative rounded-2xl border border-emerald-500/30 bg-black/85 overflow-hidden shadow-2xl ${className}`}>

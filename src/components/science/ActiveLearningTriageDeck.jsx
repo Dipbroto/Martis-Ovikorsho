@@ -55,7 +55,7 @@ export default function ActiveLearningTriageDeck({ target, data, lab, className 
     playUiClick?.();
     // the notes go in with the call: setting the field notes first would only reach the next render
     handleCacheSample?.(
-      `[AEGIS TRIAGE: ${triageLabel}] Novelty ${noveltyPercent}%, BPP ${biosignatureScore}%. ${rationale.slice(0, 300)}`
+      `[TRIAGE: ${triageLabel}] Novelty ${noveltyPercent}%, BPP ${biosignatureScore}%. ${rationale.slice(0, 300)}`
     );
   };
 
@@ -93,21 +93,22 @@ export default function ActiveLearningTriageDeck({ target, data, lab, className 
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-bold text-white text-base tracking-tight">
-                AEGIS Active Learning Novelty & Triage Radar
+                AEGIS-inspired Novelty & Triage Radar
               </h3>
               <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${triageBadge}`}>
                 {triageLabel}
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Bayesian acquisition function benchmarked against 4,700+ sols of NASA Curiosity & Perseverance PDS records.
+              Scores how unusual this rock’s chemistry is against an average Martian crust composition, the kind of priority call NASA’s AEGIS software helps rovers make. A teaching model, not AEGIS itself.
             </p>
           </div>
         </div>
 
         <ProvenanceBadge
-          source="NASA_PDS_ACTIVE_LEARNING"
-          text="MAHALANOBIS PDS BENCHMARK"
+          type="DERIVED"
+          size="xs"
+          detail="Per-oxide z-scores against a literature average of Martian crust chemistry"
           className="hidden sm:inline-flex"
         />
       </div>
@@ -329,7 +330,7 @@ export default function ActiveLearningTriageDeck({ target, data, lab, className 
 
       {/* Autonomous Scientific Rationale Narrative */}
       <div className="relative mt-4 p-3.5 rounded-xl border border-white/[0.06] bg-black/30 text-xs">
-        <span className="text-zinc-500 font-mono text-[10px] block mb-1">AEGIS AUTONOMOUS DECISION RATIONALE:</span>
+        <span className="text-zinc-500 font-mono text-[10px] block mb-1">TRIAGE RATIONALE (AEGIS-INSPIRED):</span>
         <p className="text-zinc-300 leading-relaxed">{rationale}</p>
       </div>
     </div>

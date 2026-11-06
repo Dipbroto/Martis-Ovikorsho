@@ -273,8 +273,11 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
             </div>
             <p className="text-xs text-zinc-400 mt-0.5 max-w-2xl">
               {laserMode === 'diagnostic'
-                ? 'Analyzes atomic spark emissions and plasma breakdown temperatures from low-fluence laser pulses to verify rock stoichiometry before smelting.'
-                : 'Converts SuperCam mast laser into a high-fluence plasma induction torch to synthesize structural alloys, quartz glass, and rocket fuels.'}
+                ? 'Explore how laser-spark emission lines relate to the rock’s chemistry, and how averaging more shots reduces noise.'
+                : 'A speculative look at what future in-situ resource utilisation (ISRU) could make from this rock’s chemistry: alloys, glass and propellant.'}
+            </p>
+            <p className="text-[11px] text-amber-300/90 mt-1 max-w-2xl">
+              Speculative concept. SuperCam’s laser fires about 10 mJ pulses that vaporise microscopic spots; it cannot smelt rock. Real Mars ISRU so far is MOXIE, which made oxygen from CO₂ on Perseverance. Yields and temperatures here are illustrative.
             </p>
           </div>
         </div>
@@ -448,10 +451,10 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
                   <span>Optical Emission Spectrograph (Atomic Line Peaks)</span>
                 </h4>
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  Measured relative peak intensities from active target {target?.name || 'rock'}. Click any peak to inspect quantum transition.
+                  Line strengths estimated from {target?.name || 'this rock'}’s PIXL chemistry (the real SuperCam spectrum is in Deck 1). Click any peak to inspect its atomic transition.
                 </p>
               </div>
-              <ProvenanceBadge type="OBSERVED" size="xs" detail="SuperCam LIBS Calibrated Channels" />
+              <ProvenanceBadge type="DERIVED" size="xs" detail="Line strengths scaled from PIXL oxide abundances; wavelengths from NIST" />
             </div>
 
             {/* Peaks Interactive Bars */}
@@ -497,7 +500,7 @@ export default function IsruPlasmaForgeDeck({ target, data, lab, className = '' 
               <div>
                 <span className="text-sky-300 font-bold">{activePeakData.name} ({activePeakData.wavelength})</span>
                 <span className="text-zinc-400 block text-[11px] mt-0.5">
-                  Quantum Transition: <strong className="text-zinc-200">{activePeakData.transition}</strong> • Measured in: {activePeakData.channel}
+                  Quantum Transition: <strong className="text-zinc-200">{activePeakData.transition}</strong> • SuperCam channel: {activePeakData.channel}
                 </span>
               </div>
               <div className="flex items-center gap-3 text-zinc-300 flex-wrap">

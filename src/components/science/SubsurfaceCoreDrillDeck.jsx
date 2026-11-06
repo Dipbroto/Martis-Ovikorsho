@@ -7,7 +7,7 @@ import {
 import useMapStore from '../../store/useMapStore';
 import {
   calculateSubsurfaceDepthProfile,
-  ASTROBIOLOGY_ORGANIC_LIBRARY,
+  coreDeepHorizon,
 } from '../../services/marsMlService';
 import { playCoreDrill, playLaserZap, playUiClick } from '../../utils/audioSynthesizer';
 import ProvenanceBadge from '../ProvenanceBadge';
@@ -39,8 +39,8 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
   // Live depth mechanical torque dynamics (spindle RPM, load, and rock resistance)
   const liveDrillDynamics = useMemo(() => {
     const effectiveZ = isDrilling ? (drillProgress / 100) * 55.0 : activeDepthMm;
-    return getDepthDrillDynamics(effectiveZ);
-  }, [isDrilling, drillProgress, activeDepthMm]);
+    return getDepthDrillDynamics(effectiveZ, coreDeepHorizon(target));
+  }, [isDrilling, drillProgress, activeDepthMm, target]);
 
   // Compute depth-resolved physical stratigraphy and astrobiology signals
   const depthProfile = useMemo(() => {
@@ -94,7 +94,7 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
   const handleSealSampleCore = () => {
     if (isSealingThisCore || !handleCacheSample) return;
     const tubeNumber = safeSamples.length + 1;
-    const notes = `[MSR CORE #${tubeNumber}] Target: ${target?.name || 'In-Situ'}. Stratigraphy: ${activeLayer.name} at ${activeDepthMm}mm depth. Organic: ${organicMatch.bestMatch.name} (${organicMatch.confidencePercent}% conf, ${organicMatch.biogenicProbabilityPercent}% biogenic plausibility). TOC: ${organicCarbonPpm} ug/g. Fe3+/Fe2+: ${(fe3Fraction * 100).toFixed(0)}%/${(fe2Fraction * 100).toFixed(0)}%.`;
+    const notes = `[MSR CORE #${tubeNumber}] Target: ${target?.name || 'In-Situ'}. Modelled horizon: ${activeLayer.name} at ${activeDepthMm}mm depth. Closest library compound (illustrative): ${organicMatch.bestMatch.name}. Modelled TOC: ${organicCarbonPpm} ug/g.`;
 
     // the notes go in with the call: setting the field notes first would only reach the next render
     if (!handleCacheSample(notes)) return; // it also plays the seal sound
@@ -102,7 +102,7 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
 
     timers.current.push(setTimeout(() => {
       setIsSealingThisCore(false);
-      setSealedSuccessMsg(`Sealed in MSR Return Tube #${tubeNumber}! Stratigraphic & molecular record persisted.`);
+      setSealedSuccessMsg(`Sealed in MSR Return Tube #${tubeNumber}. Core notes saved with the tube.`);
       timers.current.push(setTimeout(() => setSealedSuccessMsg(null), 6000));
     }, 600));
   };
@@ -135,7 +135,7 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-0.5 max-w-2xl">
-              Actuates Perseverance's rotary percussive coring drill to extract a depth-resolved cylindrical rock core, revealing ancient lacustrine sediments shielded from surface UV photolysis.
+              Drill a 55 mm core and explore how the rock may change with depth, away from surface UV and oxidants. Perseverance measured only the abraded surface of each rock: everything below it in this deck is an illustrative model, with the deepest layer chosen to fit the rock type.
             </p>
           </div>
         </div>
@@ -418,7 +418,7 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
             <span className="text-[10px] font-mono text-emerald-400 uppercase font-bold tracking-wider">
               STRATIGRAPHIC HORIZON
             </span>
-            <ProvenanceBadge type="OBSERVED" size="xs" detail="MSR 55mm Core Standard" />
+            <ProvenanceBadge type="SIMULATED" size="xs" detail="Modelled depth horizon; Perseverance measured the abraded surface only" />
           </div>
 
           <h4 className="text-sm font-bold text-white leading-tight">
@@ -484,7 +484,7 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
               <strong className="text-white">{perchloratePpm} μg/g</strong>
             </div>
             <div className="flex justify-between">
-              <span>Total Organic Carbon (TOC):</span>
+              <span>Modelled Organic Carbon (TOC):</span>
               <strong className="text-emerald-300 font-bold">{organicCarbonPpm} μg/g</strong>
             </div>
           </div>
@@ -509,7 +509,7 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
             </div>
 
             <div className="mt-2">
-              <span className="text-xs font-mono text-zinc-400 block">Matched Prebiotic Compound:</span>
+              <span className="text-xs font-mono text-zinc-400 block" title="The library compound whose Raman bands sit closest to the peaks in this spectrum. SHERLOC data alone cannot identify a specific molecule.">Closest library compound (illustrative):</span>
               <h5 className="text-sm font-bold text-white mt-0.5">
                 {organicMatch.bestMatch.name}
               </h5>
@@ -521,12 +521,12 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
 
             <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-mono">
               <div className="p-2 rounded-lg bg-black/40 border border-white/5">
-                <span className="text-zinc-500 block">SPECTRAL MATCH</span>
+                <span className="text-zinc-500 block">BAND OVERLAP</span>
                 <span className="text-emerald-300 font-bold text-xs">{organicMatch.confidencePercent}%</span>
               </div>
-              <div className="p-2 rounded-lg bg-black/40 border border-white/5">
-                <span className="text-zinc-500 block">BIOGENIC PROB.</span>
-                <span className="text-cyan-300 font-bold text-xs">{organicMatch.biogenicProbabilityPercent}%</span>
+              <div className="p-2 rounded-lg bg-black/40 border border-white/5" title="An illustrative score from band positions and rock type. It is not a probability that life was present.">
+                <span className="text-zinc-500 block">BIOGENIC SCORE*</span>
+                <span className="text-cyan-300 font-bold text-xs">{organicMatch.biogenicProbabilityPercent}/100</span>
               </div>
             </div>
           </div>

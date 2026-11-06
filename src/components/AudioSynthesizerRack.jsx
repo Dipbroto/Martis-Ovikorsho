@@ -247,8 +247,7 @@ export default function AudioSynthesizerRack() {
             <div className="flex items-center justify-between text-[11px] text-zinc-400 px-1">
               <span>Authentic raw recordings captured by microphones & seismometers on Mars</span>
               <ProvenanceBadge
-                level="observed"
-                label="Observed"
+                type="OBSERVED"
                 detail="NASA Mars 2020 SuperCam & InSight SEIS Public Domain Audio"
               />
             </div>

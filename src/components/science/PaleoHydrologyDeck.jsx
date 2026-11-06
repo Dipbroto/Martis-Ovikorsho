@@ -327,7 +327,7 @@ export default function PaleoHydrologyDeck({
           <span className={`text-xs px-2.5 py-1 rounded-full border font-mono font-medium ${currentRegime.badge}`}>
             {currentRegime.epochShort}
           </span>
-          <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="NASA PDS Geochemistry & Planetary Analogue" />
+          <ProvenanceBadge type="DERIVED" size="xs" detail="Rule-based: the water pH is inferred from this rock's PIXL chemistry and type, then matched to published mineral stability ranges" />
         </div>
       }
     >
