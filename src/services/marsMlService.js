@@ -366,9 +366,32 @@ export function predictMultiSolForecast(recentSols = [], currentLs = 0, currentS
  * Returns deterministic baseline climatology derived from real NASA multi-year records
  * for hypothetical future sols or when no recent telemetry exists (replacing Math.random).
  */
+/**
+ * REMS climatology at any Ls: linear interpolation between the two nearest 30° bins (wrapping at 360°).
+ * Falls back to the four-season averages for older model files.
+ */
+function climatologyAtLs(ls, model = activeModel) {
+  const bins = model?.climatology_by_ls;
+  if (Array.isArray(bins) && bins.length >= 2) {
+    const l = ((Number(ls) % 360) + 360) % 360;
+    const sorted = [...bins].sort((a, b) => a.ls_center - b.ls_center);
+    let lo = sorted[sorted.length - 1];
+    let hi = sorted[0];
+    for (let i = 0; i < sorted.length; i += 1) {
+      if (sorted[i].ls_center > l) { hi = sorted[i]; lo = sorted[(i - 1 + sorted.length) % sorted.length]; break; }
+      if (i === sorted.length - 1) { lo = sorted[i]; hi = sorted[0]; }
+    }
+    const span = ((hi.ls_center - lo.ls_center + 360) % 360) || 360;
+    const t = (((l - lo.ls_center + 360) % 360) / span);
+    const mix = (k) => Math.round((lo[k] + (hi[k] - lo[k]) * t) * 10) / 10;
+    return { t_max: mix('t_max'), t_min: mix('t_min'), t_avg: mix('t_avg'), pressure: mix('pressure'), gts_max: mix('gts_max'), gts_min: mix('gts_min') };
+  }
+  return model?.climatology?.[getLsSeason(ls)] || null;
+}
+
 export function predictClimatologicalWeather(sol, ls) {
   const season = getLsSeason(ls);
-  const clim = activeModel?.climatology?.[season] || {
+  const clim = climatologyAtLs(ls) || {
     t_max: -15.0,
     t_min: -75.0,
     t_avg: -45.0,
@@ -749,12 +772,15 @@ export function predictMetabolicBiometrics(slopeDeg = 0, walkingSpeedMps = 1.0, 
   // Cardiac response: resting 68 bpm + slope/speed demand
   const heartRateBpm = Math.round(Math.min(170, Math.max(62, 65 + (totalMetabolicWatts - 85) * 0.23)));
   
-  // Oxygen consumption rate: 1 Watt ~ 0.0143 L/min of O2
-  const o2FluxLpm = +(totalMetabolicWatts * 0.00143).toFixed(3);
-  const o2FluxKgPerHour = +(o2FluxLpm * 60 * 0.001429).toFixed(3); // Density of O2 ~ 1.429 g/L
-  
-  // Carbon dioxide production
-  const co2FluxKgPerHour = +(o2FluxKgPerHour * 0.85).toFixed(3); // Respiratory quotient RQ ~ 0.85
+  // Oxygen consumption: each litre of O2 releases about 20.1 kJ, so 1 W = 60 J/min / 20,100 J/L = 0.00299 L/min
+  const O2_JOULES_PER_LITRE = 20100;
+  const o2FluxLpmRaw = (totalMetabolicWatts * 60) / O2_JOULES_PER_LITRE;
+  const o2FluxLpm = +o2FluxLpmRaw.toFixed(3);
+  const o2FluxKgPerHour = +(o2FluxLpmRaw * 60 * 0.001429).toFixed(3); // O2 density ~1.429 g/L
+
+  // Carbon dioxide: the respiratory quotient (~0.85) is a volume ratio; CO2 is denser (~1.977 g/L)
+  const RQ = 0.85;
+  const co2FluxKgPerHour = +(o2FluxLpmRaw * RQ * 60 * 0.001977).toFixed(3);
   
   return {
     slopeDeg: slope,
@@ -2047,8 +2073,9 @@ export function resolveMartianProvince(lat, lon, regionId = null) {
   while (longitude < 0) longitude += 360;
   while (longitude >= 360) longitude -= 360;
 
-  // Polar threshold: |lat| > 70 deg
-  if (Math.abs(latitude) >= 70) {
+  // North polar cap: Planum Boreum is a northern province, so only northern latitudes map to it (southern polar
+  // ground has no profile of its own and takes the nearest province below)
+  if (latitude >= 70) {
     return MARTIAN_PROVINCES.planum_boreum;
   }
 
@@ -2503,25 +2530,26 @@ export function chi2Cdf(chi2, k = 11) {
  * against the 4,700-sol NASA PDS surface baseline.
  */
 export function calculateMahalanobisDistance(pixlStatsOrOxides) {
+  // Oxides the data does not report are left out (counting them as 0 wt% made every LIBS or partial
+  // analysis look like an outlier); the chi-square then has one degree of freedom per oxide present
   const ox = {};
   if (pixlStatsOrOxides) {
     for (const el of PDS_GEOCHEMICAL_BASELINE.elements) {
       const entry = pixlStatsOrOxides[el];
-      if (typeof entry === 'number') {
+      if (typeof entry === 'number' && Number.isFinite(entry)) {
         ox[el] = entry;
-      } else if (entry && typeof entry.med === 'number') {
+      } else if (entry && typeof entry.med === 'number' && Number.isFinite(entry.med)) {
         ox[el] = entry.med;
-      } else {
-        ox[el] = 0.0;
       }
     }
   }
+  const present = PDS_GEOCHEMICAL_BASELINE.elements.filter((el) => el in ox);
 
   let chi2 = 0;
   const anomalies = [];
 
-  for (const el of PDS_GEOCHEMICAL_BASELINE.elements) {
-    const val = ox[el] ?? 0;
+  for (const el of present) {
+    const val = ox[el];
     const mu = PDS_GEOCHEMICAL_BASELINE.mean[el];
     const sigma = PDS_GEOCHEMICAL_BASELINE.std[el];
     const diff = val - mu;
@@ -2539,8 +2567,10 @@ export function calculateMahalanobisDistance(pixlStatsOrOxides) {
     });
   }
 
+  // Distance over independent per-oxide z-scores (a diagonal Mahalanobis distance: oxide correlations are not
+  // modelled). A typical rock scores about sqrt(k), so the percentile below is what says whether it is unusual.
   const dM = Math.sqrt(chi2);
-  const pValue = chi2Cdf(chi2, PDS_GEOCHEMICAL_BASELINE.elements.length);
+  const pValue = present.length ? chi2Cdf(chi2, present.length) : 0;
   const noveltyPercent = Math.max(1.0, Math.min(99.9, Math.round(pValue * 1000) / 10));
 
   // Sort anomalies by absolute z-score
@@ -2550,6 +2580,8 @@ export function calculateMahalanobisDistance(pixlStatsOrOxides) {
 
   return {
     mahalanobisDistance: +dM.toFixed(2),
+    typicalDistance: +Math.sqrt(present.length).toFixed(2),
+    oxidesCompared: present.length,
     chiSquare: +chi2.toFixed(1),
     noveltyPercent,
     anomalies,
@@ -2597,7 +2629,9 @@ export function evaluateRockNoveltyAndTriage(pixlStatsOrOxides, targetMeta = nul
   const cia = mineralResult?.indices?.cia ?? 40;
   const isHighAqueous = cia > 50 || (maha.anomalies.find((a) => a.element === 'SO3')?.percentDelta ?? 0) > 80;
 
-  if (bppScore >= 75 && (maha.noveltyPercent >= 70 || isHighAqueous)) {
+  // noveltyPercent is a chi-square percentile against average Martian crust: 99 means only 1% of ordinary rocks
+  // differ this much. Below that a rock is not called an outlier (at 75, a quarter of ordinary rocks would be).
+  if (bppScore >= 75 && (maha.noveltyPercent >= 95 || isHighAqueous)) {
     triageTier = 'ASTROBIOLOGY_GOLD_STANDARD';
     triageLabel = 'PRIORITY 1: ASTROBIOLOGY GOLD STANDARD';
     triageBadge = 'bg-emerald-500/25 text-emerald-300 border-emerald-400/50 shadow-sm shadow-emerald-500/20';
@@ -2605,7 +2639,7 @@ export function evaluateRockNoveltyAndTriage(pixlStatsOrOxides, targetMeta = nul
     cachingAction = 'MANDATORY_MSR_CACHE';
     cachingStatusText = 'Mandatory MSR Return · High Biomarker Potential';
     isPriorityCache = true;
-  } else if (maha.noveltyPercent >= 75 || acquisitionScore >= 72) {
+  } else if (maha.noveltyPercent >= 99 || acquisitionScore >= 72) {
     triageTier = 'HIGH_NOVELTY_ANOMALY';
     triageLabel = 'PRIORITY 2: GEOCHEMICAL ANOMALY';
     triageBadge = 'bg-violet-500/25 text-violet-300 border-violet-400/50 shadow-sm shadow-violet-500/20';
@@ -2613,7 +2647,7 @@ export function evaluateRockNoveltyAndTriage(pixlStatsOrOxides, targetMeta = nul
     cachingAction = 'RECOMMENDED_CACHE';
     cachingStatusText = 'Recommended Caching · Severe Chemical Outlier';
     isPriorityCache = true;
-  } else if (maha.noveltyPercent >= 40 || bppScore >= 50 || isHighAqueous) {
+  } else if (maha.noveltyPercent >= 95 || bppScore >= 50 || isHighAqueous) {
     triageTier = 'AQUEOUS_ALTERATION';
     triageLabel = 'PRIORITY 3: AQUEOUS ALTERATION';
     triageBadge = 'bg-amber-500/25 text-amber-300 border-amber-400/50 shadow-sm shadow-amber-500/20';
@@ -2630,11 +2664,11 @@ export function evaluateRockNoveltyAndTriage(pixlStatsOrOxides, targetMeta = nul
   if (triageTier === 'ASTROBIOLOGY_GOLD_STANDARD') {
     rationale = `Extreme astrobiological priority (${bppScore}% BPP score, CIA ${cia.toFixed(1)}). The lithofacies exhibits strong aqueous clay/sediment signatures with ${topEnrich || 'favorable preservation chemistry'}, maximizing chances of fossilized bio-organic preservation for Mars Sample Return.`;
   } else if (triageTier === 'HIGH_NOVELTY_ANOMALY') {
-    rationale = `Pronounced geochemical divergence (${maha.noveltyPercent}% novelty, Mahalanobis distance D_M = ${maha.mahalanobisDistance}σ). Strong anomaly enrichment in ${topEnrich || 'rare mineral oxides'} expands planetary petrogenesis understanding beyond nominal PDS crustal averages.`;
+    rationale = `Unusual chemistry: more different from average Martian crust than ${maha.noveltyPercent}% of ordinary rocks (distance ${maha.mahalanobisDistance} over ${maha.oxidesCompared} oxides; a typical rock scores about ${maha.typicalDistance}). Enriched in ${topEnrich || 'rare mineral oxides'}.`;
   } else if (triageTier === 'AQUEOUS_ALTERATION') {
     rationale = `Moderate aqueous alteration detected (${mineralResult?.predictedClass}, CIA ${cia.toFixed(1)}). Enriched in ${topEnrich || 'secondary minerals'}, providing valuable paleo-environmental lake/groundwater evidence.`;
   } else {
-    rationale = `Nominal basaltic crust composition (${maha.noveltyPercent}% novelty, D_M = ${maha.mahalanobisDistance}σ). Matches common Martian bedrock; suitable for standard contextual survey but lower priority for sealed sample tubes.`;
+    rationale = `Ordinary crust composition (more different than ${maha.noveltyPercent}% of ordinary rocks; distance ${maha.mahalanobisDistance} vs about ${maha.typicalDistance} for a typical rock). Matches common Martian bedrock; suitable for a contextual survey but lower priority for sealed sample tubes.`;
   }
 
   // 7. ISRU Forge Suitability
@@ -2657,6 +2691,8 @@ export function evaluateRockNoveltyAndTriage(pixlStatsOrOxides, targetMeta = nul
 
   return {
     mahalanobisDistance: maha.mahalanobisDistance,
+    typicalDistance: maha.typicalDistance,
+    oxidesCompared: maha.oxidesCompared,
     chiSquare: maha.chiSquare,
     noveltyPercent: maha.noveltyPercent,
     shannonEntropyBits: +rawEntropy.toFixed(2),
@@ -3134,6 +3170,14 @@ export function deconvolveRamanSpectrum(shiftArray, intensityArray) {
 
   const dToGRatio = gPeak > 0 ? +(dPeak / gPeak).toFixed(2) : 0;
 
+  // Point-to-point noise (robust: median absolute step, scaled to a standard deviation). A peak only means
+  // something next to the noise: without this, random wiggles were reported as carbon bands.
+  const steps = [];
+  for (let i = 1; i < n; i += 1) steps.push(Math.abs(raw[i] - raw[i - 1]));
+  steps.sort((a, b) => a - b);
+  const noise = steps.length ? (1.4826 * steps[steps.length >> 1]) / Math.SQRT2 : 0;
+  const carbonSnr = noise > 1e-9 ? Math.max(dPeak, gPeak) / noise : (Math.max(dPeak, gPeak) > 0 ? 99 : 0);
+
   return {
     shifts,
     raw,
@@ -3144,22 +3188,28 @@ export function deconvolveRamanSpectrum(shiftArray, intensityArray) {
     carbonDBand: +dPeak.toFixed(1),
     carbonGBand: +gPeak.toFixed(1),
     dToGRatio,
+    noise: +noise.toFixed(3),
+    carbonSnr: +Math.min(99, carbonSnr).toFixed(1),
   };
 }
 
 /**
  * Astrobiology Spectral Fingerprint Matcher
- * Cross-correlates deconvolved Raman peaks against the NASA Astrobiology Organic Library
- * using Spectral Angle Mapping (SAM) and lithological taphonomic weighting.
+ * Compares the positions of the deconvolved Raman peaks with the reference bands of a small organic library.
+ * A match is only claimed when a carbon D or G band stands clear of the noise: SNR >= 3 when the instrument's own
+ * SNR is given (options.carbonSnr, from SHERLOC), or >= 5 when it is estimated from the spectrum. The score comes
+ * from the spectrum alone; it does not depend on the rock's name.
  */
-export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, depthMm = 45) {
+export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, depthMm = 45, options = {}) {
   const peaks = Array.isArray(deconvolvedResult?.peaks) ? deconvolvedResult.peaks : [];
   const dToG = deconvolvedResult?.dToGRatio || 0;
   const dPeak = deconvolvedResult?.carbonDBand || 0;
   const gPeak = deconvolvedResult?.carbonGBand || 0;
 
   const rockType = rockTarget?.rockType || rockTarget?.summary || '';
-  const biosignaturePrior = rockTarget?.biosignatureScore || 50;
+  const measuredSnr = Number.isFinite(Number(options.carbonSnr)) ? Number(options.carbonSnr) : null;
+  const carbonSnr = measuredSnr ?? (deconvolvedResult?.carbonSnr || 0);
+  const signalDetected = carbonSnr >= (measuredSnr !== null ? 3 : 5);
 
   // Calculate UV photolysis degradation factor: near-surface (< 5 mm) UV flux destroys organics
   const uvBleachFactor = Math.exp(-depthMm / 3.2); // 1.0 at surface, 0.00004 at 35 mm
@@ -3197,34 +3247,13 @@ export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, de
       }
     }
 
-    // Lithological taphonomic bonus
-    let lithologyBonus = 0;
-    const nameStr = (rockTarget?.name || '').toLowerCase();
-    const isLacustrine = rockType.toLowerCase().includes('mudstone') || rockType.toLowerCase().includes('delta') || rockType.toLowerCase().includes('clay') || rockType.toLowerCase().includes('sedimentary') || rockType.toLowerCase().includes('sulfate');
+    const isLacustrine = /mudstone|delta|clay|sedimentary|sulfate/i.test(rockType);
 
-    if (nameStr.includes('berry') || rockType.toLowerCase().includes('sulfate')) {
-      // Berry Hollow / Sulfate: highest refractory kerogen and pyrene signals
-      lithologyBonus = compound.id === 'REFRACTORY_KEROGEN' ? 42 : compound.id === 'PYRENE' ? 12 : 4;
-    } else if (nameStr.includes('quartier')) {
-      // Quartier: Olivine igneous -> Naphthalene bicyclic aromatic
-      lithologyBonus = compound.id === 'NAPHTHALENE' ? 22 : compound.id === 'PHENANTHRENE' ? 8 : 2;
-    } else if (nameStr.includes('dourbes')) {
-      // Dourbes: Olivine with phosphate and Phenanthrene
-      lithologyBonus = compound.id === 'PHENANTHRENE' ? 22 : compound.id === 'ALANINE_PRECURSOR' ? 10 : 4;
-    } else if (nameStr.includes('bellegarde')) {
-      // Bellegarde: 4-ring peri-condensed Pyrene
-      lithologyBonus = compound.id === 'PYRENE' ? 22 : compound.id === 'PHENANTHRENE' ? 10 : 3;
-    } else if (nameStr.includes('belva') || isLacustrine) {
-      lithologyBonus = compound.category === 'PREBIOTIC_AMINO_ACID' ? 22 : compound.id === 'REFRACTORY_KEROGEN' ? 12 : 6;
-    } else {
-      lithologyBonus = compound.category === 'POLYCYCLIC_AROMATIC_HYDROCARBON' ? 12 : 2;
-    }
+    // Band overlap, scaled by the depth model; zero when there is no carbon signal to match
+    const rawScore = signalDetected ? matchScore * depthPreservationMultiplier : 0;
+    const confidencePercent = Math.max(0, Math.min(98.5, Math.round(rawScore * 10) / 10));
 
-    // Depth preservation scaling
-    const rawScore = (matchScore + lithologyBonus + (biosignaturePrior * 0.25)) * depthPreservationMultiplier;
-    const confidencePercent = Math.max(3.0, Math.min(98.5, Math.round(rawScore * 10) / 10));
-
-    // Biogenic vs Abiotic Genesis evaluation
+    // Illustrative biogenic score: zero without a carbon signal, otherwise set by compound type and setting
     let biogenicProb = 35.0;
     if (compound.category === 'PREBIOTIC_AMINO_ACID') {
       biogenicProb = isLacustrine ? 88.0 : 62.0;
@@ -3234,12 +3263,14 @@ export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, de
       biogenicProb = isLacustrine ? 48.0 : 25.0; // abiotic meteoritic / FTT
     }
 
+    if (!signalDetected) biogenicProb = 0;
+
     return {
       compound,
       confidencePercent,
       biogenicProbabilityPercent: Math.round(biogenicProb),
       matchedBands,
-      isDetected: confidencePercent >= 40.0,
+      isDetected: signalDetected && confidencePercent >= 40.0,
     };
   });
 
@@ -3247,7 +3278,9 @@ export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, de
   const best = candidates[0];
 
   let classification = 'PHOTO_OXIDIZED_RESIDUAL';
-  if (depthMm < 4.0) {
+  if (!signalDetected) {
+    classification = 'NO_ORGANIC_SIGNAL';
+  } else if (depthMm < 4.0) {
     classification = 'PHOTO_OXIDIZED_RESIDUAL';
   } else if (best.compound.category === 'PREBIOTIC_AMINO_ACID' && best.confidencePercent >= 55) {
     classification = 'PREBIOTIC_PATTERN';
@@ -3264,6 +3297,9 @@ export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, de
     confidencePercent: best.confidencePercent,
     biogenicProbabilityPercent: best.biogenicProbabilityPercent,
     classification,
+    signalDetected,
+    carbonSnr: +carbonSnr.toFixed(1),
+    snrSource: measuredSnr !== null ? 'SHERLOC' : 'estimated from the spectrum',
     matchedBands: best.matchedBands,
     allCandidates: candidates,
     carbonMetrics: {
@@ -3677,7 +3713,7 @@ export function calculateSubsurfaceDepthProfile(rockTarget, depthMm = 45, rockDa
   const depthBoost = activeLayer.depthBoost;
   const surfaceDecay = z <= 3.5 ? (z / 3.5) * 0.15 + 0.02 : 1.0;
   const organicPreservationScore = Math.max(5.0, Math.min(99.0, Math.round((baseBioScore + depthBoost) * (1.0 - uvBleachFactor * 0.85))));
-  const organicCarbonPpm = Math.round(Math.max(0.4, (organicPreservationScore * 1.55) * (1.0 - uvBleachFactor * 0.95) * surfaceDecay));
+  let organicCarbonPpm = Math.round(Math.max(0.4, (organicPreservationScore * 1.55) * (1.0 - uvBleachFactor * 0.95) * surfaceDecay));
 
   let shiftWl = [];
   let rawIntensity = [];
@@ -3789,9 +3825,17 @@ export function calculateSubsurfaceDepthProfile(rockTarget, depthMm = 45, rockDa
     }
   }
 
-  // Deconvolve and match
+  // Deconvolve and match. For a real rock the carbon signal is the SNR SHERLOC itself measured for the D and G
+  // bands on the abraded surface; the depth model reshapes the spectrum but cannot create a band that is not there.
   const deconvolved = deconvolveRamanSpectrum(shiftWl, rawIntensity);
-  const organicMatch = matchOrganicFingerprint(deconvolved, rockTarget, z);
+  const ramanBands = rockData?.sherloc?.raman?.bands;
+  const bandSnr = (key) => ramanBands?.find((b) => b.name?.includes(key))?.snr;
+  const measuredCarbonSnr = Array.isArray(ramanBands)
+    ? Math.max(Number(bandSnr('Carbon D')) || 0, Number(bandSnr('Carbon G')) || 0)
+    : undefined;
+  const organicMatch = matchOrganicFingerprint(deconvolved, rockTarget, z, { carbonSnr: measuredCarbonSnr });
+  // Without a detectable carbon band the modelled organic carbon stays near the floor
+  if (!organicMatch.signalDetected) organicCarbonPpm = Math.round(Math.max(0.4, organicCarbonPpm * 0.1));
 
   const baseProfile = {
     depthMm: z,

@@ -343,6 +343,26 @@ def train_models():
                 "gts_min": round(float(np.mean([r["gts_min"] for r in s_recs])), 1),
             }
 
+    # Finer climatology: 12 bins of 30° Ls, centred on 15°, 45°, ... The app interpolates between neighbouring bin
+    # centres, so the seasonal cycle is smooth; four 90° seasons were up to 10 °C and 76 Pa off the real averages.
+    by_ls = []
+    for b in range(12):
+        lo, hi = b * 30.0, (b + 1) * 30.0
+        b_recs = [r for r in records if lo <= r["ls"] < hi]
+        if not b_recs:
+            continue
+        by_ls.append({
+            "ls_center": lo + 15.0,
+            "n": len(b_recs),
+            "t_max": round(float(np.mean([r["t_max"] for r in b_recs])), 1),
+            "t_min": round(float(np.mean([r["t_min"] for r in b_recs])), 1),
+            "t_avg": round(float(np.mean([(r["t_max"] + r["t_min"]) / 2.0 for r in b_recs])), 1),
+            "pressure": round(float(np.mean([r["pressure"] for r in b_recs])), 1),
+            "gts_max": round(float(np.mean([r["gts_max"] for r in b_recs])), 1),
+            "gts_min": round(float(np.mean([r["gts_min"] for r in b_recs])), 1),
+        })
+    model_export["climatology_by_ls"] = by_ls
+
     # Save to public/data/ml/mars_weather_model.json and src/data/marsWeatherModel.json
     os.makedirs(os.path.dirname(OUTPUT_MODEL_PATH), exist_ok=True)
     with open(OUTPUT_MODEL_PATH, "w", encoding="utf-8") as f:

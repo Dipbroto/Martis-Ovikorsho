@@ -803,5 +803,127 @@
         "label": "proxy: diurnal range below 48 \u00b0C during Ls 160-330, not a catalogued storm"
       }
     }
-  }
+  },
+  "climatology_by_ls": [
+    {
+      "ls_center": 15.0,
+      "n": 405,
+      "t_max": -16.1,
+      "t_min": -75.7,
+      "t_avg": -45.9,
+      "pressure": 841.9,
+      "gts_max": 1.0,
+      "gts_min": -84.0
+    },
+    {
+      "ls_center": 45.0,
+      "n": 432,
+      "t_max": -23.1,
+      "t_min": -78.4,
+      "t_avg": -50.8,
+      "pressure": 869.4,
+      "gts_max": -6.2,
+      "gts_min": -85.5
+    },
+    {
+      "ls_center": 75.0,
+      "n": 460,
+      "t_max": -27.2,
+      "t_min": -81.4,
+      "t_avg": -54.3,
+      "pressure": 857.4,
+      "gts_max": -9.6,
+      "gts_min": -88.3
+    },
+    {
+      "ls_center": 105.0,
+      "n": 442,
+      "t_max": -24.6,
+      "t_min": -80.8,
+      "t_avg": -52.7,
+      "pressure": 787.6,
+      "gts_max": -8.1,
+      "gts_min": -87.5
+    },
+    {
+      "ls_center": 135.0,
+      "n": 388,
+      "t_max": -14.9,
+      "t_min": -77.3,
+      "t_avg": -46.1,
+      "pressure": 727.0,
+      "gts_max": -0.1,
+      "gts_min": -83.8
+    },
+    {
+      "ls_center": 165.0,
+      "n": 411,
+      "t_max": -6.5,
+      "t_min": -73.2,
+      "t_avg": -39.9,
+      "pressure": 722.9,
+      "gts_max": 8.0,
+      "gts_min": -79.9
+    },
+    {
+      "ls_center": 195.0,
+      "n": 380,
+      "t_max": -2.4,
+      "t_min": -70.1,
+      "t_avg": -36.2,
+      "pressure": 771.3,
+      "gts_max": 11.4,
+      "gts_min": -75.7
+    },
+    {
+      "ls_center": 225.0,
+      "n": 373,
+      "t_max": -2.1,
+      "t_min": -67.5,
+      "t_avg": -34.8,
+      "pressure": 847.9,
+      "gts_max": 9.6,
+      "gts_min": -73.8
+    },
+    {
+      "ls_center": 255.0,
+      "n": 332,
+      "t_max": -3.4,
+      "t_min": -68.6,
+      "t_avg": -36.0,
+      "pressure": 886.6,
+      "gts_max": 8.8,
+      "gts_min": -76.1
+    },
+    {
+      "ls_center": 285.0,
+      "n": 346,
+      "t_max": -2.9,
+      "t_min": -70.8,
+      "t_avg": -36.9,
+      "pressure": 861.1,
+      "gts_max": 10.5,
+      "gts_min": -78.7
+    },
+    {
+      "ls_center": 315.0,
+      "n": 394,
+      "t_max": -5.9,
+      "t_min": -70.8,
+      "t_avg": -38.4,
+      "pressure": 829.3,
+      "gts_max": 8.1,
+      "gts_min": -77.4
+    },
+    {
+      "ls_center": 345.0,
+      "n": 382,
+      "t_max": -9.3,
+      "t_min": -73.2,
+      "t_avg": -41.2,
+      "pressure": 819.3,
+      "gts_max": 6.2,
+      "gts_min": -81.8
+    }
+  ]
 }

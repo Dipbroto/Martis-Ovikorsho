@@ -525,7 +525,10 @@ function BiogenicGenesisDial({ biogenicProbabilityPercent, classification, depth
   let ratingLabel = 'Abiotic / Meteoritic Baseline';
   let badgeClass = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
 
-  if (prob >= 75) {
+  if (classification === 'NO_ORGANIC_SIGNAL') {
+    ratingLabel = 'No organic carbon signal to score';
+    badgeClass = 'bg-zinc-500/20 text-zinc-300 border-zinc-500/40';
+  } else if (prob >= 75) {
     dialColor = 'from-emerald-500 via-teal-400 to-cyan-400';
     ratingLabel = 'High preservation potential (not a detection)';
     badgeClass = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
@@ -898,7 +901,7 @@ export default function OrganicRamanInspector({
   }, [target?.id, target?.name, organicMatch?.bestMatch?.id]);
 
   const selectedCompound = ASTROBIOLOGY_ORGANIC_LIBRARY[selectedCompoundId] || organicMatch?.bestMatch;
-  const isBestMatch = selectedCompoundId === organicMatch?.bestMatch?.id;
+  const isBestMatch = Boolean(organicMatch?.signalDetected) && selectedCompoundId === organicMatch?.bestMatch?.id;
 
   return (
     <div
@@ -1001,7 +1004,7 @@ export default function OrganicRamanInspector({
             <div className="grid grid-cols-3 gap-1.5">
               {Object.values(ASTROBIOLOGY_ORGANIC_LIBRARY).map((comp) => {
                 const isSelected = selectedCompoundId === comp.id;
-                const isDetected = organicMatch.bestMatch.id === comp.id;
+                const isDetected = organicMatch.signalDetected && organicMatch.bestMatch.id === comp.id;
                 return (
                   <button
                     key={comp.id}

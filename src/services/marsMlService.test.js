@@ -368,8 +368,10 @@ describe('marsMlService (Client ML Inference)', () => {
       expect(flat.heartRateBpm).toBeGreaterThanOrEqual(65);
       expect(flat.heartRateBpm).toBeLessThanOrEqual(85);
       expect(flat.metabolicWatts).toBeGreaterThan(100);
-      expect(flat.o2FluxLpm).toBeGreaterThan(0.15);
-      expect(flat.o2FluxLpm).toBeLessThan(0.35);
+      // energy balance: each litre of O2 releases ~20.1 kJ
+      expect(flat.o2FluxLpm).toBeCloseTo((flat.metabolicWatts * 60) / 20100, 2);
+      // RQ 0.85 by volume means CO2 outweighs the O2 used (44 vs 32 g/mol)
+      expect(flat.co2FluxKgPerHour).toBeGreaterThan(flat.o2FluxKgPerHour);
     });
 
     it('elevates cardiac output and O2 consumption realistically on steep slopes', async () => {
@@ -752,8 +754,9 @@ describe('marsMlService (Client ML Inference)', () => {
       const northPole = resolveMartianProvince(84.9, 0.0);
       expect(northPole.id).toBe('planum_boreum');
 
+      // Planum Boreum is the NORTH polar cap: southern polar ground must not be mapped to it
       const southPole = resolveMartianProvince(-75.0, 120.0);
-      expect(southPole.id).toBe('planum_boreum');
+      expect(southPole.id).not.toBe('planum_boreum');
 
       // Olympus Mons
       const olympus = resolveMartianProvince(18.65, -133.80);
@@ -1037,7 +1040,9 @@ describe('marsMlService (Client ML Inference)', () => {
       const match = matchOrganicFingerprint(deconvolved, { rockType: 'Delta Mudstone', biosignatureScore: 88 }, 45);
 
       expect(match.bestMatch).toBeDefined();
-      expect(match.confidencePercent).toBeGreaterThan(40);
+      // clear D and G bands are detected; the score is band overlap alone (no bonus from the rock type)
+      expect(match.signalDetected).toBe(true);
+      expect(match.confidencePercent).toBeGreaterThan(20);
       expect(match.biogenicProbabilityPercent).toBeGreaterThan(30);
       expect(match.carbonMetrics.dToGRatio).toBeGreaterThan(0);
       expect(match.matchedBands.length).toBeGreaterThan(0);
@@ -1101,33 +1106,33 @@ describe('marsMlService (Client ML Inference)', () => {
       });
     });
 
-    it('produces distinct organic signatures and matches for different rock lithologies', async () => {
-      const { calculateSubsurfaceDepthProfile } = await import('./marsMlService');
+    it('claims an organic match only where SHERLOC measured a carbon band, never from the rock name', async () => {
+      const { calculateSubsurfaceDepthProfile, deconvolveRamanSpectrum, matchOrganicFingerprint } = await import('./marsMlService');
       const fs = await import('fs');
       const path = await import('path');
-
-      const rockIds = ['guillaumes', 'bellegarde', 'dourbes', 'quartier', 'montpezat', 'berry-hollow'];
       const campaigns = JSON.parse(fs.readFileSync(path.resolve('./public/data/science/campaigns.json'), 'utf8')).campaigns;
+      const load = (id) => JSON.parse(fs.readFileSync(path.resolve(`./public/data/science/${id}.json`), 'utf8'));
+      const carbonSnr = (d) => Math.max(...d.sherloc.raman.bands.filter((b) => /Carbon [DG]/.test(b.name)).map((b) => b.snr || 0));
 
-      for (const id of rockIds) {
-        const meta = campaigns.find(c => c.id === id);
-        const data = JSON.parse(fs.readFileSync(path.resolve(`./public/data/science/${id}.json`), 'utf8'));
-        const profile = calculateSubsurfaceDepthProfile(meta, 45.0, data);
-        console.log(`[ROCK AUDIT] ${meta.name} (${meta.rockType}):`);
-        console.log(`  -> Match: ${profile.organicMatch.bestMatch.name} (${profile.organicMatch.bestMatch.id})`);
-        console.log(`  -> Confidence: ${profile.organicMatch.confidencePercent}%, Biogenic: ${profile.organicMatch.biogenicProbabilityPercent}%`);
-        console.log(`  -> Carbon D/G: ${profile.organicMatch.carbonMetrics.dToGRatio}, TOC: ${profile.organicCarbonPpm} ug/g`);
+      for (const id of ['guillaumes', 'bellegarde', 'dourbes', 'quartier', 'montpezat', 'berry-hollow']) {
+        const data = load(id);
+        const profile = calculateSubsurfaceDepthProfile(campaigns.find((c) => c.id === id), 45.0, data);
+        // detection follows the measured carbon SNR, whatever the rock is called
+        expect(profile.organicMatch.signalDetected).toBe(carbonSnr(data) >= 3);
+        if (!profile.organicMatch.signalDetected) {
+          expect(profile.organicMatch.classification).toBe('NO_ORGANIC_SIGNAL');
+          expect(profile.organicMatch.biogenicProbabilityPercent).toBe(0);
+        }
       }
 
-      const quartier = calculateSubsurfaceDepthProfile(campaigns.find(c => c.id === 'quartier'), 45.0, JSON.parse(fs.readFileSync(path.resolve('./public/data/science/quartier.json'), 'utf8')));
-      const berryHollow = calculateSubsurfaceDepthProfile(campaigns.find(c => c.id === 'berry-hollow'), 45.0, JSON.parse(fs.readFileSync(path.resolve('./public/data/science/berry-hollow.json'), 'utf8')));
-      const dourbes = calculateSubsurfaceDepthProfile(campaigns.find(c => c.id === 'dourbes'), 45.0, JSON.parse(fs.readFileSync(path.resolve('./public/data/science/dourbes.json'), 'utf8')));
-      const belva = calculateSubsurfaceDepthProfile({ id: 'belva-fan', name: 'Belva Fan', rockType: 'Mudstone / Lacustrine delta' }, 45.0);
-
-      expect(quartier.organicMatch.bestMatch.id).toBe('NAPHTHALENE');
-      expect(berryHollow.organicMatch.bestMatch.id).toBe('REFRACTORY_KEROGEN');
-      expect(dourbes.organicMatch.bestMatch.id).toBe('PHENANTHRENE');
-      expect(belva.organicMatch.bestMatch.id).toBe('GLYCINE_PRECURSOR');
+      // A flat line and pure noise must not be matched to any compound
+      const shifts = []; for (let s = 800; s <= 2000; s += 5) shifts.push(s);
+      let seed = 3; const rnd = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+      for (const y of [shifts.map(() => 100), shifts.map(() => 100 + rnd() * 10)]) {
+        const m = matchOrganicFingerprint(deconvolveRamanSpectrum(shifts, y), { rockType: 'Basaltic igneous rock' }, 45);
+        expect(m.signalDetected).toBe(false);
+        expect(m.classification).toBe('NO_ORGANIC_SIGNAL');
+      }
     });
 
     it('projects multi-modal spectral features into 2D latent space and rejects abiotic null hypothesis', async () => {

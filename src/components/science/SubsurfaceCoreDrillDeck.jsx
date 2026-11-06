@@ -94,7 +94,7 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
   const handleSealSampleCore = () => {
     if (isSealingThisCore || !handleCacheSample) return;
     const tubeNumber = safeSamples.length + 1;
-    const notes = `[MSR CORE #${tubeNumber}] Target: ${target?.name || 'In-Situ'}. Modelled horizon: ${activeLayer.name} at ${activeDepthMm}mm depth. Closest library compound (illustrative): ${organicMatch.bestMatch.name}. Modelled TOC: ${organicCarbonPpm} ug/g.`;
+    const notes = `[MSR CORE #${tubeNumber}] Target: ${target?.name || 'In-Situ'}. Modelled horizon: ${activeLayer.name} at ${activeDepthMm}mm depth. ${organicMatch.signalDetected ? `Closest library compound (illustrative): ${organicMatch.bestMatch.name}` : `No organic Raman signal (carbon SNR ${organicMatch.carbonSnr})`}. Modelled TOC: ${organicCarbonPpm} ug/g.`;
 
     // the notes go in with the call: setting the field notes first would only reach the next render
     if (!handleCacheSample(notes)) return; // it also plays the seal sound
@@ -508,16 +508,26 @@ export default function SubsurfaceCoreDrillDeck({ id = 'core-drill-deck', target
               </span>
             </div>
 
-            <div className="mt-2">
-              <span className="text-xs font-mono text-zinc-400 block" title="The library compound whose Raman bands sit closest to the peaks in this spectrum. SHERLOC data alone cannot identify a specific molecule.">Closest library compound (illustrative):</span>
-              <h5 className="text-sm font-bold text-white mt-0.5">
-                {organicMatch.bestMatch.name}
-              </h5>
-              <div className="text-[11px] font-mono text-zinc-400 mt-1 flex items-center gap-2">
-                <span>Formula: <strong className="text-amber-300">{organicMatch.bestMatch.formula}</strong></span>
-                <span>MW: <strong className="text-white">{organicMatch.bestMatch.molecularWeight} g/mol</strong></span>
+            {organicMatch.signalDetected ? (
+              <div className="mt-2">
+                <span className="text-xs font-mono text-zinc-400 block" title="The library compound whose Raman bands sit closest to the peaks in this spectrum. SHERLOC data alone cannot identify a specific molecule.">Closest library compound (illustrative):</span>
+                <h5 className="text-sm font-bold text-white mt-0.5">
+                  {organicMatch.bestMatch.name}
+                </h5>
+                <div className="text-[11px] font-mono text-zinc-400 mt-1 flex items-center gap-2">
+                  <span>Formula: <strong className="text-amber-300">{organicMatch.bestMatch.formula}</strong></span>
+                  <span>Carbon SNR: <strong className="text-white">{organicMatch.carbonSnr}</strong></span>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="mt-2">
+                <span className="text-xs font-mono text-zinc-400 block">Organic carbon signal:</span>
+                <h5 className="text-sm font-bold text-zinc-200 mt-0.5">No clear organic Raman bands</h5>
+                <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                  The carbon D/G band signal-to-noise is {organicMatch.carbonSnr} ({organicMatch.snrSource}), below the detection level, so no compound is matched.
+                </p>
+              </div>
+            )}
 
             <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-mono">
               <div className="p-2 rounded-lg bg-black/40 border border-white/5">

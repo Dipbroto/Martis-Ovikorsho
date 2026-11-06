@@ -119,7 +119,7 @@ export default function ActiveLearningTriageDeck({ target, data, lab, className 
         <div className="p-3.5 rounded-xl border border-white/[0.07] bg-white/[0.02]">
           <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
             <span className="font-medium">Geochemical Novelty</span>
-            <span className="font-mono text-[10px] text-zinc-500">D_M = {mahalanobisDistance}σ</span>
+            <span className="font-mono text-[10px] text-zinc-500" title="Distance from average Martian crust over the oxides measured; an ordinary rock scores about the typical value">D = {mahalanobisDistance} (typical ≈ {triage.typicalDistance})</span>
           </div>
           <div className="flex items-baseline gap-2">
             <span
@@ -129,7 +129,7 @@ export default function ActiveLearningTriageDeck({ target, data, lab, className 
             >
               {noveltyPercent}%
             </span>
-            <span className="text-[11px] text-zinc-500">vs 4,700 sols baseline</span>
+            <span className="text-[11px] text-zinc-500" title="Share of ordinary rocks that are closer to average Martian crust than this one">percentile vs average crust</span>
           </div>
           <div className="mt-2.5 h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
             <div
