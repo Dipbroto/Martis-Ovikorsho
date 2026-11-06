@@ -501,7 +501,9 @@ export function classifyRockMineralogy(pixlStatsOrOxides, modelOverride = null) 
     return (val - m) / s;
   });
 
-  // Calculate logits for each class: logit_c = intercept_c + sum(coef_cj * z_j)
+  // Calculate logits for each class: logit_c = intercept_c + sum(coef_cj * z_j), divided by the calibration
+  // temperature so the confidence matches how often the model is right on rocks it has not seen
+  const temperature = model.calibration?.temperature || 1;
   const logits = model.classes.map((cls, classIdx) => {
     const intercept = model.intercept[classIdx] || 0;
     const coefs = model.coefficients[classIdx] || [];
@@ -509,7 +511,7 @@ export function classifyRockMineralogy(pixlStatsOrOxides, modelOverride = null) 
     for (let j = 0; j < scaledFeatures.length; j += 1) {
       sum += (coefs[j] || 0) * scaledFeatures[j];
     }
-    return sum;
+    return sum / temperature;
   });
 
   // Numerically stable softmax: p_k = exp(logit_k - max_logit) / sum(exp)
@@ -1087,6 +1089,8 @@ export function predictLibsChemometrics(pointOrLines) {
 
   const predictedOxides = {};
   const oxideUncertainties = {};
+  // false where the model did worse than "predict the training average" on rocks it had not seen
+  const oxideReliable = {};
   let totalWt = 0;
 
   for (const ox of model.oxide_targets) {
@@ -1095,6 +1099,7 @@ export function predictLibsChemometrics(pointOrLines) {
     const clamped = +Math.max(0.1, val).toFixed(2);
     predictedOxides[ox] = clamped;
     oxideUncertainties[ox] = model.uncertainties_ci90?.[ox] ?? 2.0;
+    oxideReliable[ox] = oxModel.beats_baseline !== false;
     totalWt += clamped;
   }
 
@@ -1118,6 +1123,7 @@ export function predictLibsChemometrics(pointOrLines) {
   return {
     oxides: predictedOxides,
     oxideUncertainties,
+    oxideReliable,
     uncertaintyCi90: oxideUncertainties,
     totalWtPercent: +totalWt.toFixed(1),
     cia,

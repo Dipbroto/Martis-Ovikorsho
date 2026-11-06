@@ -311,21 +311,34 @@ export default function LibsPanel({ target, data, lab }) {
             <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-1.5 font-mono text-center">
               {Object.entries(chemometrics.oxides).map(([ox, val]) => {
                 const uncert = chemometrics.oxideUncertainties?.[ox];
+                const reliable = chemometrics.oxideReliable?.[ox] !== false;
                 return (
-                  <div key={ox} className="bg-black/40 border border-white/5 rounded-lg p-1.5">
+                  <div
+                    key={ox}
+                    className={`rounded-lg p-1.5 border ${reliable ? 'bg-black/40 border-white/5' : 'bg-black/20 border-dashed border-amber-500/30 opacity-70'}`}
+                    title={reliable
+                      ? 'Beats "always predict the average" on rocks the model did not see'
+                      : 'Low skill: on rocks the model did not see, this oxide was predicted worse than "always predict the average". Use the PIXL value instead.'}
+                  >
                     <div className="text-[9px] text-zinc-400 font-sans">{ox}</div>
-                    <div className="text-xs font-bold text-white mt-0.5">
+                    <div className={`text-xs font-bold mt-0.5 ${reliable ? 'text-white' : 'text-zinc-400'}`}>
                       {val}<span className="text-[9px] font-normal text-zinc-500">%</span>
                     </div>
                     {uncert !== undefined && (
-                      <div className="text-[8px] text-violet-400/90 font-mono tracking-tighter" title="90% Confidence Interval (±1.645σ RMSE)">
+                      <div className="text-[8px] text-violet-400/90 font-mono tracking-tighter" title="90% interval from the error on rocks the model did not see">
                         ±{uncert}%
                       </div>
                     )}
+                    {!reliable && <div className="text-[8px] text-amber-300/90 font-sans">low skill</div>}
                   </div>
                 );
               })}
             </div>
+            {Object.values(chemometrics.oxideReliable || {}).some((r) => r === false) && (
+              <p className="text-[10px] text-zinc-400 leading-relaxed">
+                Dashed oxides are <span className="text-amber-300">low skill</span>: with only 6 rocks to learn from, the laser model predicts them worse than the plain average on a rock it has not seen. PIXL (Deck 2) measures them directly.
+              </p>
+            )}
 
             {/* Inferred Lithology Banner */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-zinc-300">

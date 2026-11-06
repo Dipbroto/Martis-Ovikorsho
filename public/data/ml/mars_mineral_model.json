@@ -206,6 +206,10 @@
     -1.0622323020154238,
     -4.584586933669709
   ],
+  "calibration": {
+    "temperature": 2.7595,
+    "method": "temperature scaling on leave-one-rock-out predictions of rocks whose class other rocks share"
+  },
   "preservation_priors": {
     "Basaltic Igneous": 22.0,
     "Olivine-Rich Cumulate": 14.0,

@@ -217,6 +217,7 @@ def train_and_export():
     # Leave-one-rock-out over the real rocks; synthetic points always stay in training
     groups = np.array([m['target'] for m in meta] + ['synthetic'] * (len(y) - len(meta)))
     loro = {}
+    held_logits, held_true = [], []  # held-out scores of learnable rocks, for calibrating the confidence
     print("\nLeave-one-rock-out accuracy:")
     for rock in sorted(set(m['target'] for m in meta)):
         tr, te = groups != rock, groups == rock
@@ -225,10 +226,30 @@ def train_and_export():
         rock_acc = float(accuracy_score(y[te], fold.predict(sc.transform(X[te]))))
         class_seen = bool(np.any(y[tr][groups[tr] != 'synthetic'] == y[te][0]))
         loro[rock] = {'accuracy': round(rock_acc, 4), 'true_class': str(y[te][0]), 'class_in_other_rocks': class_seen}
+        if class_seen:
+            held_logits.append(fold.decision_function(sc.transform(X[te])))
+            held_true.extend(int(np.where(fold.classes_ == c)[0][0]) for c in y[te])
         note = '' if class_seen else '  (no other rock of this class: cannot be learnt)'
         print(f"  {rock:13s} {y[te][0]:28s} {rock_acc * 100:5.1f}%{note}")
     loro_mean = float(np.mean([r['accuracy'] for r in loro.values()]))
     print(f"  mean over rocks: {loro_mean * 100:.1f}%")
+
+    # Temperature scaling: one number T that divides every logit, chosen so the held-out probabilities match
+    # how often the model is really right. T > 1 means the raw model is over-confident on rocks it has not seen.
+    # Rocks whose class no other rock has are left out: no confidence setting can fix an unlearnable class.
+    held_logits = np.vstack(held_logits)
+    held_true = np.array(held_true)
+
+    def held_out_nll(temp):
+        z = held_logits / temp
+        z = z - z.max(axis=1, keepdims=True)
+        log_p = z - np.log(np.exp(z).sum(axis=1, keepdims=True))
+        return float(-log_p[np.arange(len(held_true)), held_true].mean())
+
+    temps = np.exp(np.linspace(np.log(0.5), np.log(50.0), 400))
+    temperature = float(temps[int(np.argmin([held_out_nll(t) for t in temps]))])
+    print(f"\nConfidence calibration: temperature T = {temperature:.2f} "
+          f"(held-out log-loss {held_out_nll(1.0):.3f} -> {held_out_nll(temperature):.3f})")
 
     clf.fit(X_scaled, y)
     y_pred = clf.predict(X_scaled)
@@ -291,6 +312,11 @@ def train_and_export():
         },
         'coefficients': clf.coef_.tolist(),  # [n_classes, n_features]
         'intercept': clf.intercept_.tolist(), # [n_classes]
+        # divide the logits by this before the softmax, so confidence matches held-out accuracy
+        'calibration': {
+            'temperature': round(temperature, 4),
+            'method': 'temperature scaling on leave-one-rock-out predictions of rocks whose class other rocks share',
+        },
         'preservation_priors': PRESERVATION_PRIORS,
         'target_metadata': {
             'berry-hollow': {'verified_class': 'Sulfate-Rich Evaporite', 'bio_grade': 'HIGH'},

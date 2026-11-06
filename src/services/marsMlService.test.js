@@ -238,7 +238,8 @@ describe('marsMlService (Client ML Inference)', () => {
 
       const classification = classifyRockMineralogy(berryHollowStats);
       expect(classification.predictedClass).toBe('Sulfate-Rich Evaporite');
-      expect(classification.confidence).toBeGreaterThan(0.9);
+      // calibrated (temperature-scaled) confidence: clearly the top class, but no longer a near-certain 99%
+      expect(classification.confidence).toBeGreaterThan(0.75);
       expect(classification.biosignatureScore).toBeGreaterThan(75);
       expect(classification.preservationGrade).toBe('HIGH');
       expect(classification.cacheRecommendation).toContain('Top Priority Candidate');

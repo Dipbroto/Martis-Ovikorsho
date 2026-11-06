@@ -4,6 +4,7 @@ import { X, Database, Cpu, FlaskConical, ShieldCheck } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { EVA_ASSUMPTIONS } from '../terrain/evaModel';
 import { ROVER } from '../terrain/roverModel';
+import MlScorecard from './MlScorecard';
 
 // Every source the app draws on, grouped by what it is used for. Anything not listed here is not in the app.
 const GROUPS = [
@@ -212,8 +213,9 @@ const MODELS = [
 ];
 
 const SIMULATED = [
-  'Machine Learning Predictions: multi-sol weather and dust storm risks are inferred client-side from 4,700+ REMS sols; rock classifications and biosignatures are predicted from 5,300+ PIXL measurement points',
-  'Radiation Model: Ridge regressor anchored on Curiosity MSL RAD surface dosimetry and 11-year solar cycle heliospheric modulation',
+  'Machine learning: weather and dust-storm risk are learnt from 4,700+ Curiosity REMS sols (the storm label is a temperature-range proxy); rock types from 5,300+ PIXL points of 6 rocks; their scores are in the section above',
+  'Radiation, terramechanics, marsquake shaking and solar dust are ML surrogates: fitted to simulated data from physics formulas anchored to published Curiosity RAD, rover mobility, InSight and Opportunity benchmarks',
+  'Science Lab Core Drill and astrobiology scores: depth layers, organic carbon and the biogenic score are an illustrative model below the measured rock surface; ISRU Forge is a speculative concept',
   'Astronaut Biometrics: deterministic metabolic power expenditure derived from terrain slope via NASA SP-2010-3407 suited human models',
   'The walk and drive animation: speeds come from the empirical models above, sped up to watch',
   'Marsquake places are approximate (one seismometer), and risk zones are a derived index, not a hazard forecast',
@@ -336,6 +338,12 @@ export default function DataMethodsModal() {
                 ) : (
                   <p className="text-zinc-500 text-xs">Loading validation results...</p>
                 )}
+              </section>
+
+              <section>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-violet-300 mb-1"><Cpu className="w-4 h-4" />Machine learning: how good is each model?</h3>
+                <p className="text-xs text-zinc-400 mb-3">Every score is measured on data the model did not train on, next to the simple baseline it has to beat.</p>
+                <MlScorecard />
               </section>
 
               <section>
