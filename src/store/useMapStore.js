@@ -32,7 +32,8 @@ const UNDO_GROUP_MS = 250;
 const SAMPLES_KEY = 'mars_sealed_samples';
 const loadSamples = () => {
   try {
-    const saved = JSON.parse(localStorage.getItem(SAMPLES_KEY));
+    if (typeof window === 'undefined' || !window.localStorage) return [];
+    const saved = JSON.parse(window.localStorage.getItem(SAMPLES_KEY));
     return Array.isArray(saved) ? saved : [];
   } catch {
     return [];
@@ -915,7 +916,9 @@ useMapStore.subscribe((state, prev) => {
 useMapStore.subscribe((state, prev) => {
   if (state.collectedSamples === prev.collectedSamples) return;
   try {
-    localStorage.setItem(SAMPLES_KEY, JSON.stringify(state.collectedSamples || []));
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(SAMPLES_KEY, JSON.stringify(state.collectedSamples || []));
+    }
   } catch (e) {
     console.warn('Could not save the sealed samples:', e);
   }
