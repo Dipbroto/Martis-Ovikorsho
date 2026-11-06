@@ -32,16 +32,27 @@ function paintSmooth(grid, values, colorFor, scale = 3) {
   canvas.height = OH;
   const ctx = canvas.getContext('2d');
   const img = ctx.createImageData(OW, OH);
+  const px = img.data;
+  // The column positions are the same on every row: work them out once
+  const X0 = new Int32Array(OW), X1 = new Int32Array(OW), TX = new Float64Array(OW);
+  for (let x = 0; x < OW; x++) {
+    const fx = Math.min(W - 1, Math.max(0, (x + 0.5) / scale - 0.5));
+    X0[x] = fx | 0;
+    X1[x] = Math.min(W - 1, X0[x] + 1);
+    TX[x] = fx - X0[x];
+  }
   for (let y = 0; y < OH; y++) {
     const fy = Math.min(H - 1, Math.max(0, (y + 0.5) / scale - 0.5));
     const y0 = fy | 0, y1 = Math.min(H - 1, y0 + 1), ty = fy - y0;
-    for (let x = 0; x < OW; x++) {
-      const fx = Math.min(W - 1, Math.max(0, (x + 0.5) / scale - 0.5));
-      const x0 = fx | 0, x1 = Math.min(W - 1, x0 + 1), tx = fx - x0;
-      const top = values[y0 * W + x0] * (1 - tx) + values[y0 * W + x1] * tx;
-      const bottom = values[y1 * W + x0] * (1 - tx) + values[y1 * W + x1] * tx;
+    const r0 = y0 * W, r1 = y1 * W;
+    let o = y * OW * 4;
+    for (let x = 0; x < OW; x++, o += 4) {
+      const tx = TX[x];
+      const top = values[r0 + X0[x]] * (1 - tx) + values[r0 + X1[x]] * tx;
+      const bottom = values[r1 + X0[x]] * (1 - tx) + values[r1 + X1[x]] * tx;
       const c = colorFor(top * (1 - ty) + bottom * ty);
-      if (c) img.data.set(c, (y * OW + x) * 4);
+      // four byte writes are much cheaper than a typed-array set() per pixel
+      if (c) { px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = c[3]; }
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -69,12 +80,19 @@ export function renderReturnOverlay(grid, costToBase, costFromHere, remainingJ) 
     values[i] = Math.min(cap, costFromHere[i] + costToBase[i]);
   }
 
+  // Colours are made once, not per pixel (this runs ~1.8 million times); the green alpha is filled in per call
+  const OUTER_EDGE = [255, 30, 60, 245];
+  const INNER_EDGE = [255, 30, 60, 255];
+  const DANGER = [239, 68, 68, 205];
+  const CAUTION = [245, 158, 11, 190];
+  const SAFE = [16, 185, 129, 0];
+
   return paintSmooth(grid, values, (roundTrip) => {
     // 1. Outside life-support budget
     if (roundTrip > remainingJ) {
       // Outer fringe of the razor-sharp neon crimson contour (100% to 102.5%)
       if (roundTrip <= remainingJ * 1.025) {
-        return [255, 30, 60, 245];
+        return OUTER_EDGE;
       }
       return FATAL_VOID;
     }
@@ -84,26 +102,28 @@ export function renderReturnOverlay(grid, costToBase, costFromHere, remainingJ) 
 
     // Razor-sharp inner edge of the 100% boundary (96.5% to 100%)
     if (share >= 0.965) {
-      return [255, 30, 60, 255]; // Razor-sharp neon crimson isochrone contour
+      return INNER_EDGE; // Razor-sharp neon crimson isochrone contour
     }
 
     // Critical Danger Band (82% to 96.5%): intense warning red
     if (share > 0.82) {
-      return [239, 68, 68, 205];
+      return DANGER;
     }
 
     // Turn-Back Caution Margin (65% to 82%): tactical amber
     if (share > 0.65) {
-      return [245, 158, 11, 190];
+      return CAUTION;
     }
 
     // Safe Return Zone (0% to 65%): luminous emerald green gradient
-    const alpha = Math.round(85 + 85 * (1 - (share / 0.65)));
-    return [16, 185, 129, alpha];
+    SAFE[3] = Math.round(85 + 85 * (1 - (share / 0.65)));
+    return SAFE;
   }, 3);
 }
 
 export function renderCommsOverlay(grid, visible) {
   const values = Float32Array.from(visible, (v) => (v ? 1 : 0));
-  return paintSmooth(grid, values, (v) => (v >= 0.5 ? [34, 211, 238, 55] : [127, 29, 29, 120]));
+  const SEEN = [34, 211, 238, 55];
+  const HIDDEN = [127, 29, 29, 120];
+  return paintSmooth(grid, values, (v) => (v >= 0.5 ? SEEN : HIDDEN));
 }

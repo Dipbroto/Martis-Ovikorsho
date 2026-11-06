@@ -7,6 +7,10 @@ import { renderHillshade, toPixel } from '../../terrain/hillshade';
 // Shaded-relief previews are drawn once per grid and shared between cards
 const previews = new Map();
 
+const whenIdle = () => new Promise((done) => (
+  window.requestIdleCallback ? window.requestIdleCallback(done, { timeout: 1500 }) : setTimeout(done, 50)
+));
+
 /** A walk at one of the 200 m sites, previewed on its own terrain. */
 export default function SiteCard({ pair, index, onOpen }) {
   const ref = useRef(null);
@@ -22,7 +26,13 @@ export default function SiteCard({ pair, index, onOpen }) {
         const meta = idx.grids.find((g) => g.id !== 'global' && gridContains(g, pair.origin.lat, pair.origin.lon));
         if (!meta) return;
         const grid = await loadGrid(meta.id);
-        if (!previews.has(grid.id)) previews.set(grid.id, renderHillshade(grid).toDataURL('image/jpeg', 0.85));
+        if (!previews.has(grid.id)) {
+          // Each preview takes 30-90 ms and the cards come into view together: draw each in its own idle slot,
+          // so they spread out instead of freezing the scroll for half a second
+          await whenIdle();
+          if (cancelled) return;
+          if (!previews.has(grid.id)) previews.set(grid.id, renderHillshade(grid).toDataURL('image/jpeg', 0.85));
+        }
         if (cancelled) return;
         const a = toPixel(grid, pair.origin.lat, pair.origin.lon);
         const b = toPixel(grid, pair.destination.lat, pair.destination.lon);

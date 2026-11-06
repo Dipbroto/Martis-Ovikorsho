@@ -97,10 +97,25 @@ export default function TerrainDemo() {
   }, [grid, goal]);
 
   const budgetJ = usableBudgetJ({ ...EVA_ASSUMPTIONS, lifeSupportHours: hours });
-  const rangeImage = useMemo(
-    () => (grid && fields ? renderReturnOverlay(grid, fields.to, fields.from, budgetJ) : null),
-    [grid, fields, budgetJ],
-  );
+  // The walk-back overlay takes a few hundred ms to draw. Its first draw waits for an idle moment, because
+  // the fields arrive while the visitor may be scrolling further down; later redraws (the hours slider) are immediate.
+  const [rangeImage, setRangeImage] = useState(null);
+  const rangeDrawn = useRef(false);
+  useEffect(() => {
+    if (!grid || !fields) { setRangeImage(null); return undefined; }
+    let cancelled = false;
+    const draw = () => {
+      if (cancelled) return;
+      setRangeImage(renderReturnOverlay(grid, fields.to, fields.from, budgetJ));
+      rangeDrawn.current = true;
+    };
+    if (rangeDrawn.current || !window.requestIdleCallback) {
+      const t = setTimeout(draw, 0);
+      return () => { cancelled = true; clearTimeout(t); };
+    }
+    const id = window.requestIdleCallback(draw, { timeout: 1500 });
+    return () => { cancelled = true; window.cancelIdleCallback(id); };
+  }, [grid, fields, budgetJ]);
 
   const W = grid?.width || 445, H = grid?.height || 445;
   const routeD = useMemo(() => {

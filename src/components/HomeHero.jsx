@@ -9,6 +9,7 @@ import StatsBand from './home/StatsBand';
 import TerrainDemo from './home/TerrainDemo';
 import SurvivalAtlas from './home/SurvivalAtlas';
 import SiteCard from './home/SiteCard';
+import ErrorBoundary from './ErrorBoundary';
 
 const EXTRAS = [
   { key: 'science', title: 'Science Lab', desc: 'Analyse curated NASA rock targets', icon: FlaskConical, tint: 'from-sky-500/20' },
@@ -193,10 +194,15 @@ export default function HomeHero({ onSelectTab }) {
       <StatsBand />
 
       {/* Interactive how-it-works */}
-      <TerrainDemo />
+      {/* Each interactive section has its own boundary, so one failing section cannot blank the page */}
+      <ErrorBoundary onReset={() => {}}>
+        <TerrainDemo />
+      </ErrorBoundary>
 
       {/* Survive and explore: the whole planet */}
-      <SurvivalAtlas />
+      <ErrorBoundary onReset={() => {}}>
+        <SurvivalAtlas />
+      </ErrorBoundary>
 
       {/* START SOMEWHERE */}
       <section className="border-t border-white/[0.07] bg-[#04060a]">

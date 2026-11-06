@@ -192,7 +192,9 @@ function App() {
           className={activeTab === 'home' ? 'w-full h-full' : 'hidden'}
           aria-hidden={activeTab !== 'home'}
         >
-          <HomeHero onSelectTab={(tab) => setActiveTab(tab)} />
+          <ErrorBoundary>
+            <HomeHero onSelectTab={(tab) => setActiveTab(tab)} />
+          </ErrorBoundary>
         </div>
 
         {/* TAB 2: INTERACTIVE MARS MAP & 3D CARTOGRAPHY */}

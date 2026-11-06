@@ -3,7 +3,7 @@ import { motion, useInView } from 'framer-motion';
 import { Droplets, Mountain, Radiation, Wind, Loader2, MapPin, MousePointerClick, ArrowRight } from 'lucide-react';
 import { loadGrid, sampleGrid } from '../../terrain/dem';
 import { renderHillshade } from '../../terrain/hillshade';
-import { estimateRadiation, pressureAtElevation, marsDistance } from '../../utils/marsUtils';
+import { pressureAtElevation, marsDistance } from '../../utils/marsUtils';
 import { predictRadiationEnvironment } from '../../services/marsMlService';
 import { AUTONOMOUS_TARGET_PAIRS } from '../../utils/autonomousRouter';
 import useMapStore from '../../store/useMapStore';
@@ -43,7 +43,8 @@ const fmt = (n) => Math.round(n).toLocaleString();
 
 export default function SurvivalAtlas() {
   const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '300px' });
+  // start well before the section is on screen, so the relief is ready by the time it scrolls in
+  const inView = useInView(ref, { once: true, margin: '1200px' });
   const setGuidedPlannerOpen = useMapStore((s) => s.setGuidedPlannerOpen);
 
   const [grid, setGrid] = useState(null);
@@ -64,6 +65,9 @@ export default function SurvivalAtlas() {
         const g = await loadGrid('global');
         if (cancelled) return;
         setGrid(g);
+        // the relief image takes ~150 ms to draw: do it when the browser is idle, not in the middle of a scroll
+        await new Promise((done) => (window.requestIdleCallback ? window.requestIdleCallback(done, { timeout: 1500 }) : setTimeout(done, 50)));
+        if (cancelled) return;
         setRelief(renderHillshade(g, { exaggeration: 14 }).toDataURL('image/jpeg', 0.88));
       } catch {
         if (!cancelled) setFailed(true);
@@ -89,7 +93,7 @@ export default function SurvivalAtlas() {
     return {
       elevation,
       pressure: pressureAtElevation(elevation),
-      daily: rad.dailyDose,
+      daily: rad.daily,
       daysToLimit: rad.daysToLimit,
       water: h2o ? waterAt(h2o, pick.lat, pick.lon) : null,
       nearest,
@@ -178,7 +182,7 @@ export default function SurvivalAtlas() {
                 <dl className="mt-5 space-y-4">
                   <Row icon={Mountain} label="Elevation" value={`${fmt(report.elevation)} m`} note={report.elevation < -4000 ? 'Deep basin: thicker air, better shielding' : report.elevation > 6000 ? 'High ground: thin air, less shielding' : 'Mid elevation'} />
                   <Row icon={Wind} label="Air pressure" value={`${fmt(report.pressure)} Pa`} note="About 0.6% of Earth's. Not breathable anywhere." />
-                  <Row icon={Radiation} label="Radiation" value={`${report.daily.toFixed(2)} mSv/day`} note={`NASA's career limit is reached in about ${(report.daysToLimit / 365).toFixed(1)} years of living here (MSL RAD ML Model).`} tone={report.daily > 0.9 ? 'warn' : 'ok'} />
+                  <Row icon={Radiation} label="Radiation" value={`${report.daily.toFixed(2)} mSv/day`} note={`NASA's career limit is reached in about ${(report.daysToLimit / 365).toFixed(1)} years of living here (surrogate model anchored to Curiosity RAD).`} tone={report.daily > 0.9 ? 'warn' : 'ok'} />
                   <Row icon={Droplets} label="Water in the soil" value={report.water === null ? 'No data' : `${report.water.toFixed(1)}% by weight`} note={report.water === null ? 'The orbital instrument cannot see here (polar ice or too coarse).' : report.water > 5 ? 'Among the wettest ground on Mars.' : 'Regional average, not a site survey.'} tone={report.water !== null && report.water > 5 ? 'ok' : undefined} />
                   <Row icon={MapPin} label="Nearest cave candidate" value={report.nearest ? `${fmt(report.nearest.km)} km` : '…'} note={report.nearest ? `A ${report.nearest.cave.type.toUpperCase()} feature${report.nearest.cave.diameterM ? `, ~${report.nearest.cave.diameterM} m wide` : ''}. Unconfirmed from orbit.` : undefined} />
                 </dl>
