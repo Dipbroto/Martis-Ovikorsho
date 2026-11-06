@@ -1,7 +1,8 @@
 """
 NASA Mars Space Radiation & Solar Particle Event (SPE) Machine Learning Modeler
-Trained on empirical in-situ MSL RAD (Radiation Assessment Detector) surface dosimetry
-and NOAA/NASA Solar Cycle heliospheric modulation data.
+A surrogate model: the training rows are simulated from a dose formula anchored to published
+MSL RAD surface values (~0.67 mSv/day at Gale) and a solar-cycle modulation curve. No RAD time series
+is read, so the R² says how well it reproduces that formula, not how well it forecasts real doses.
 """
 
 import json
@@ -186,6 +187,8 @@ def train_and_export():
         'version': '1.0.0',
         'algorithm': 'Ridge Regressor (GCR) + Logistic Classifier (SPE) with Heliomagnetic Modulation',
         'trained_at': '2026-11-05',
+        'training_data': 'simulated',
+        'dataset': 'Simulated from a dose formula anchored to published MSL RAD surface values',
         'metrics': {
             'gcr_r2': float(r2_gcr),
             'gcr_mae_msv': float(mae_gcr),

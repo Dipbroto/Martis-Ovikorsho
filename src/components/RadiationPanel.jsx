@@ -66,7 +66,7 @@ const RadiationPanel = () => {
               <RadioTower className={isSPEActive ? "text-red-400 animate-pulse" : "text-yellow-400"} size={24} />
               Radiation Environment
             </h2>
-            <ProvenanceBadge type="ML_PREDICTION" size="xs" label="NASA RAD ML" />
+            <ProvenanceBadge type="ML_SURROGATE" size="xs" detail="Surrogate of a dose formula anchored to Curiosity RAD surface values (~0.67 mSv/day at Gale)" />
           </div>
           <div className="text-sm text-secondary flex items-center gap-2 mt-1 font-mono">
             <Activity size={14} />
@@ -120,7 +120,7 @@ const RadiationPanel = () => {
             <span className="text-xs uppercase font-mono tracking-wider text-space-400">
               In-Situ Dosimetry Metrics
             </span>
-            <ProvenanceBadge type="ML_PREDICTION" size="xs" label="NASA RAD ML" />
+            <ProvenanceBadge type="ML_SURROGATE" size="xs" detail="Surrogate of a dose formula anchored to Curiosity RAD surface values (~0.67 mSv/day at Gale)" />
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">

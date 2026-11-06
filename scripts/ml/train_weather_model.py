@@ -1,8 +1,12 @@
 """
 NASA Mars Atmospheric Telemetry ML Training Pipeline
 Trains predictive multi-step atmospheric forecasting and dust storm risk models
-directly on 4,700+ daily in-situ observations from the Curiosity (REMS) and Perseverance (MEDA) archives.
+directly on 4,700+ daily in-situ observations from the Curiosity REMS archive.
 Exports compact model weights to public/data/ml/mars_weather_model.json for zero-latency in-browser inference.
+
+Evaluation: the regressors are scored on the last 15% of sols (a chronological hold-out) next to a
+persistence baseline. The dust-storm classifier learns a proxy label (diurnal range below 48 °C during
+Ls 160-330); its ROC-AUC comes from forward-chaining time folds, because the hold-out holds no proxy sols.
 """
 
 import json
@@ -13,6 +17,7 @@ import numpy as np
 from sklearn.linear_model import Ridge, RidgeCV, LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, accuracy_score, roc_auc_score
+from sklearn.model_selection import TimeSeriesSplit
 
 API_URL = "https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json"
 CACHE_PATH = os.path.join("public", "data", "weather", "mars_msl_full_feed.json")
@@ -251,6 +256,10 @@ def train_models():
             mae = mean_absolute_error(y_te, preds)
             rmse = np.sqrt(mean_squared_error(y_te, preds))
             ci90 = 1.645 * rmse
+            # The bar to beat: "the next sols look like the last one", i.e. the lag-1 value of the same quantity
+            persist = X[split_idx:, feature_names.index(f"{k}_lag1")]
+            persist_r2 = r2_score(y_te, persist)
+            persist_mae = mean_absolute_error(y_te, persist)
 
             model_export["horizons"][f"sol_plus_{h}"]["regression"][k] = {
                 "intercept": round(float(reg.intercept_), 5),
@@ -264,10 +273,12 @@ def train_models():
                 "rmse": round(float(rmse), 3),
                 "ci90_half_width": round(float(ci90), 2),
                 "best_alpha": round(float(reg.alpha_), 3),
+                "persistence_r2": round(float(persist_r2), 4),
+                "persistence_mae": round(float(persist_mae), 3),
             }
 
             if h == 1:
-                print(f"  Horizon t+{h} [{k.upper()}]: R² = {r2:.4f} | MAE = {mae:.3f} | alpha = {reg.alpha_:.2f}")
+                print(f"  Horizon t+{h} [{k.upper()}]: R² = {r2:.4f} | MAE = {mae:.3f} | persistence R² = {persist_r2:.4f} | alpha = {reg.alpha_:.2f}")
 
         # Train Dust Storm Logistic Classifier
         y_d_tr = y_dust[h][:split_idx]
@@ -277,7 +288,20 @@ def train_models():
         clf.fit(X_train_scaled, y_d_tr)
         probs = clf.predict_proba(X_test_scaled)[:, 1]
 
-        auc = roc_auc_score(y_d_te, probs) if len(set(y_d_te)) > 1 else 0.9
+        # The last 15% of sols holds no storm-proxy sols at all, so ROC-AUC cannot be measured on it.
+        # Score it instead with forward-chaining folds (train on the past, test on the next block),
+        # keeping only folds whose test block has both classes. Never substitute a made-up value.
+        test_positives = int(np.sum(y_d_te))
+        fold_aucs = []
+        for tr_idx, te_idx in TimeSeriesSplit(n_splits=5).split(X):
+            y_tr_f, y_te_f = y_dust[h][tr_idx], y_dust[h][te_idx]
+            if len(set(y_tr_f)) < 2 or len(set(y_te_f)) < 2:
+                continue
+            sc_f = StandardScaler().fit(X[tr_idx])
+            clf_f = LogisticRegression(class_weight="balanced", max_iter=200, C=0.5).fit(sc_f.transform(X[tr_idx]), y_tr_f)
+            fold_aucs.append(roc_auc_score(y_te_f, clf_f.predict_proba(sc_f.transform(X[te_idx]))[:, 1]))
+        auc = float(np.mean(fold_aucs)) if fold_aucs else None
+        # with no positives in the hold-out, accuracy is the share of storm-free sols it correctly calls calm
         acc = accuracy_score(y_d_te, (probs >= 0.5).astype(int))
 
         model_export["horizons"][f"sol_plus_{h}"]["dust_classifier"] = {
@@ -285,10 +309,15 @@ def train_models():
             "coefficients": [round(float(c), 5) for c in clf.coef_[0]],
         }
         model_export["evaluation"][f"sol_plus_{h}"]["dust_storm"] = {
-            "roc_auc": round(float(auc), 4),
-            "accuracy": round(float(acc), 4)
+            "roc_auc": round(auc, 4) if auc is not None else None,
+            "roc_auc_method": f"mean of {len(fold_aucs)} forward-chaining time folds that contain storm-proxy sols",
+            "roc_auc_folds": [round(float(a), 4) for a in fold_aucs],
+            "holdout_storm_sols": test_positives,
+            "holdout_accuracy": round(float(acc), 4),
+            "label": "proxy: diurnal range below 48 °C during Ls 160-330, not a catalogued storm",
         }
-        print(f"  Horizon t+{h} [DUST_STORM_RISK]: ROC-AUC = {auc:.4f} | Accuracy = {acc:.4f}")
+        auc_text = f"{auc:.4f} over {len(fold_aucs)} time folds" if auc is not None else "not measurable"
+        print(f"  Horizon t+{h} [DUST_STORM_RISK]: ROC-AUC = {auc_text} | hold-out storm sols = {test_positives} | hold-out accuracy = {acc:.4f}")
 
     # Baseline climatology per season for pure Ls queries (when rover telemetry is offline)
     seasons = ["spring", "summer", "autumn", "winter"]

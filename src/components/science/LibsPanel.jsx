@@ -289,7 +289,7 @@ export default function LibsPanel({ target, data, lab }) {
                     <span className="text-xs font-bold text-white uppercase tracking-wider">
                       SuperCam In-Situ Chemometrics Regressor
                     </span>
-                    <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="LANL/IRAP PLSR Model" />
+                    <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Ridge regression on 30 laser points from 6 Jezero rocks; ± is the error on rocks it did not see" />
                   </div>
                   <span className="text-[10px] text-zinc-400">
                     Quantitative elemental oxide inversion from {point.lines?.length || 0} NIST atomic emission lines

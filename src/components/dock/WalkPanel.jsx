@@ -331,7 +331,7 @@ export default function WalkPanel() {
         <div className="mt-3">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-medium text-zinc-300">{started ? 'Conditions right here' : 'Conditions at the start'}</span>
-            <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Bekker-Wong Terramechanics & Seasonal Weather ML" />
+            <ProvenanceBadge type="ML_SURROGATE" size="xs" detail="Surrogate of Bekker-Wong terramechanics, with REMS seasonal weather" />
           </div>
           <div className="grid grid-cols-3 gap-1.5">
             <Tile icon={env.sunEl > 0 ? Sun : Moon} label="Local time" value={fmtLtst(env.ltst)} sub={`${env.phase} · Sun ${Math.round(env.sunEl)}°`} />

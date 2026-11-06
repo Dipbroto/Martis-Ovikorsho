@@ -1,8 +1,9 @@
 """
 NASA Mars Solar Array Dust Deposition & Power Degradation ML Model (Enhanced Physics + Uncertainty)
 Model 4 (Mission Longevity & Power Grid):
-1. Calibrated to 5,000 sols of empirical MER-B (Opportunity) Dust Factor (Df) logs
-   and InSight Lander daily electrical generation (Wh/sol) from NASA PDS archives.
+1. A surrogate model: it reads no mission files. The training rows are simulated from the formulas
+   below, with deposition and cleaning rates set by hand to resemble published MER-B (Opportunity)
+   Dust Factor behaviour. Its R² measures how well it reproduces those formulas, not real arrays.
 2. Inverts daily surface solar insolation G_daily(Ls, tau, latitude) using non-linear
    Beer-Lambert atmospheric transmittance T_total = exp(-tau/cos(theta_z)) + 0.28*(1 - exp(-0.85*tau)).
 3. Computes residual standard deviations (sigma) and 90% confidence bounds (CI90).
@@ -177,7 +178,8 @@ def train_solar_dust_models():
         'version': '2.0.0',
         'generated_at': '2026-11-05',
         'metadata': {
-            'dataset': 'MER-B Opportunity (5000 Sols) + InSight PDS Solar Telemetry',
+            'dataset': 'Simulated: insolation and dust-deposition formulas tuned to published MER-B Dust Factor trends',
+            'training_data': 'simulated',
             'r2_insolation': round(float(in_r2), 4),
             'r2_dust_rate': round(float(dr_r2), 4),
             'mae_insolation_wh_m2': round(float(in_mae), 4),

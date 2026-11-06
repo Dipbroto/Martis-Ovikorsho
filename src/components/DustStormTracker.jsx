@@ -93,7 +93,7 @@ const DustStormTracker = () => {
               </p>
             </div>
           </div>
-          <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Diurnal delta & pressure lag inference" />
+          <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Trained on a proxy storm label (REMS diurnal range below 48 °C in storm season); modest skill, time-fold ROC-AUC 0.62-0.70" />
         </div>
       )}
       <div className="flex justify-between items-center mb-2">
@@ -103,7 +103,7 @@ const DustStormTracker = () => {
               <Wind className="text-mars-400" size={24} />
               Dust Storm Tracker
             </h2>
-            <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Derived from 4,700+ REMS sols" />
+            <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Derived from 4,700+ REMS sols, using a proxy storm label" />
           </div>
           <div className="text-sm text-secondary flex items-center gap-2 mt-1 font-mono">
             <Eye size={14} />

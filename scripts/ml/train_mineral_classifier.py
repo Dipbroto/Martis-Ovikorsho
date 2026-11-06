@@ -1,7 +1,12 @@
 """
 NASA Mars Perseverance Rover - In-Situ Geochemical Mineral Classifier & Biosignature Preservation Scorer
-Trained on 14,000+ empirical PIXL micro-XRF measurement points from Jezero Crater
-and NASA PDS Geosciences reference libraries.
+Trained on ~5,400 empirical PIXL micro-XRF points from 6 Jezero Crater rocks (each point labelled with
+its rock's class) plus 2,000 synthetic points for the two classes no rock in the archive covers
+(delta mudstone and carbonate), drawn from literature means and spreads.
+
+Evaluation: the random 5-fold score mixes points of the same rock into training and test, so it mostly
+measures recognising a rock already seen. The leave-one-rock-out score is the honest one: each real
+rock is classified by a model that never saw any point of it.
 """
 
 import json
@@ -204,11 +209,27 @@ def train_and_export():
         random_state=42
     )
     
-    # 5-Fold Stratified Cross Validation
+    # 5-Fold Stratified Cross Validation (optimistic: points of one rock land on both sides)
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     scores = cross_val_score(clf, X_scaled, y, cv=cv, scoring='accuracy')
-    print(f"\n5-Fold Cross Validation Accuracy: {scores.mean():.4f} (+/- {scores.std():.4f})")
-    
+    print(f"\nRandom 5-fold accuracy (same rocks in train and test): {scores.mean():.4f} (+/- {scores.std():.4f})")
+
+    # Leave-one-rock-out over the real rocks; synthetic points always stay in training
+    groups = np.array([m['target'] for m in meta] + ['synthetic'] * (len(y) - len(meta)))
+    loro = {}
+    print("\nLeave-one-rock-out accuracy:")
+    for rock in sorted(set(m['target'] for m in meta)):
+        tr, te = groups != rock, groups == rock
+        sc = StandardScaler().fit(X[tr])
+        fold = LogisticRegression(solver='lbfgs', max_iter=1000, C=1.5, random_state=42).fit(sc.transform(X[tr]), y[tr])
+        rock_acc = float(accuracy_score(y[te], fold.predict(sc.transform(X[te]))))
+        class_seen = bool(np.any(y[tr][groups[tr] != 'synthetic'] == y[te][0]))
+        loro[rock] = {'accuracy': round(rock_acc, 4), 'true_class': str(y[te][0]), 'class_in_other_rocks': class_seen}
+        note = '' if class_seen else '  (no other rock of this class: cannot be learnt)'
+        print(f"  {rock:13s} {y[te][0]:28s} {rock_acc * 100:5.1f}%{note}")
+    loro_mean = float(np.mean([r['accuracy'] for r in loro.values()]))
+    print(f"  mean over rocks: {loro_mean * 100:.1f}%")
+
     clf.fit(X_scaled, y)
     y_pred = clf.predict(X_scaled)
     acc = accuracy_score(y, y_pred)
@@ -248,12 +269,17 @@ def train_and_export():
 
     # Export Model Artifact
     model_payload = {
-        'version': '1.0.0',
+        'version': '1.1.0',
         'algorithm': 'Multinomial Logistic Regression with Geochemical Alteration Indexing',
-        'trained_at': '2026-11-02',
+        'trained_at': '2026-11-06',
         'metrics': {
             'samples_count': int(X.shape[0]),
-            'cv_accuracy': float(scores.mean()),
+            'real_points': len(meta),
+            'synthetic_points': int(X.shape[0]) - len(meta),
+            'real_rocks': len(loro),
+            'leave_one_rock_out_accuracy': round(loro_mean, 4),
+            'leave_one_rock_out': loro,
+            'random_split_cv_accuracy': float(scores.mean()),
             'train_accuracy': float(acc),
             'features_count': int(X.shape[1]),
         },

@@ -10,6 +10,14 @@
 
 ---
 
+> **Validation update (6 November 2026).** Earlier versions of this document overstated several scores. The numbers below now come from data each model did not see:
+> - **Weather (MF-01)** is scored on the latest 15% of sols next to a persistence baseline ("tomorrow = today"); it beats it (e.g. $T_{\max}$ $R^2$ 0.888 vs 0.846).
+> - **Dust storm (MF-02)** learns a *proxy* label (diurnal range below 48 °C during Ls 160–330). The chronological hold-out contains no proxy sols, so the old $\text{ROC-AUC} = 0.900$ was a placeholder, not a measurement. Forward-chaining time folds give **0.62–0.70**.
+> - **Mineral classifier (MF-03)** and **LIBS (MF-06)** are scored **leave-one-rock-out** over the 6 Jezero rocks. A random split shares points of the same rock between train and test. Mineral accuracy on unseen rocks is **72.7%** (random split: 99.1%). LIBS beats "predict the training average" only for MgO, Al₂O₃, CaO and TiO₂.
+> - **Radiation, terramechanics, marsquake shaking and solar dust (MF-04, 05, 07, 08)** are **surrogates**: trained on data simulated from published formulas whose constants were tuned to a few NASA benchmarks. Their $R^2$ measures how well they reproduce those formulas. No mission time series is read by their training scripts.
+>
+> The trained model files (`src/data/mars*Model.json`) record these evaluations, and the app labels surrogates as "ML surrogate".
+
 ## 1. Executive Summary & Design Philosophy
 
 The MarsWalk platform integrates a comprehensive suite of **8 distinct machine learning model families** comprising **33 individual parametric sub-regressors and classifiers** (and 5 specialized kinematic/stochastic physical operators, totaling **38 mathematical engines**). These models deliver real-time environmental forecasting, geological triage, space radiation dosimetry, terramechanical mobility hazards, seismic ground motion attenuation, and power grid longevity predictions.
@@ -18,10 +26,10 @@ The MarsWalk platform integrates a comprehensive suite of **8 distinct machine l
 flowchart TD
     subgraph DataSources["NASA / ESA Empirical Telemetry & PDS Archives"]
         D1["Curiosity REMS Archive<br/>(4,711 Sols Gale Crater)"]
-        D2["Perseverance PIXL micro-XRF<br/>(14,000+ Jezero Targets)"]
-        D3["Curiosity RAD Dosimetry<br/>(Hassler et al. Science 2014)"]
-        D4["InSight SEIS MQS Catalog V14<br/>(672 Calibrated Marsquakes)"]
-        D5["MER-B Opportunity Telemetry<br/>(5,000 Sols Dust Factor & Purgatory)"]
+        D2["Perseverance PIXL micro-XRF<br/>(5,363 points, 6 Jezero rocks)"]
+        D3["Curiosity RAD published values<br/>(anchor for a simulated dose formula)"]
+        D4["InSight SEIS MQS Catalog V14<br/>(672 magnitudes & distances)"]
+        D5["Published MER-B benchmarks<br/>(anchor for simulated dust & slip physics)"]
         D6["SuperCam LIBS Spectra<br/>(240-850 nm NIST Transitions)"]
     end
 
@@ -60,8 +68,8 @@ flowchart TD
 
 1. **Zero-Latency In-Browser Inference**:
    Instead of bundling multi-megabyte PyTorch, TensorFlow, or ONNX runtimes that inflate bundle sizes and incur cold-start latency, all models are compiled into lightweight mathematical weight dictionaries (<43 KB total). Inferences are evaluated natively via vectorized JavaScript dot-products and activation functions in under **0.5 milliseconds**.
-2. **Empirical Ground-Truth Calibration**:
-   Every model is strictly calibrated against real in-situ data from NASA and ESA Mars missions—including Curiosity (REMS, RAD), Perseverance (PIXL, SuperCam, MEDA), InSight (SEIS, TWINS, Solar Arrays), and Opportunity (MER-B mobility and dust deposition logs).
+2. **Real Data Where It Exists, Surrogates Where It Does Not**:
+   The weather, dust-risk, mineral and LIBS models learn from real mission data (Curiosity REMS, Perseverance PIXL and SuperCam). The radiation, terramechanics, marsquake-shaking and solar-dust models are surrogates of physics formulas whose constants were tuned to published Curiosity RAD, MER/MSL mobility, InSight SEIS and Opportunity benchmarks.
 3. **Rigorous Uncertainty Quantification (UQ)**:
    All regression outputs export calibrated **90% Confidence Intervals ($\pm 1.645 \sigma$)** derived from out-of-sample residual variance. Astronauts and ground controllers never see an uncalibrated point estimate.
 4. **Physical Law Conservation**:
@@ -75,14 +83,14 @@ The table below enumerates all 8 model families, their sub-models, underlying al
 
 | Family ID | Model Family Name | Sub-Models / Target Horizons | Algorithm & Architecture | Primary Dataset & Source | Metric (Validation / Test) | Uncertainty Metric (90% CI) |
 |---|---|---|---|---|---|---|
-| **MF-01** | **Atmospheric Multi-Horizon Forecaster** | 15 regressors ($T_{\max}, T_{\min}, P, \text{GTS}_{\max}, \text{GTS}_{\min}$ across $t+1, t+2, t+3$) | Multi-Horizon Ridge Regression ($\alpha=10.0$) with 21 cyclical orbital & lag features | NASA Curiosity REMS (4,711 sols, Gale Crater) | Pressure $R^2 = 0.9950$, $T_{\max}$ $R^2 = 0.8251$, $T_{\min}$ $R^2 = 0.7932$ | $\pm 7.04^\circ\text{C}$ Air, $\pm 12.18^\circ\text{C}$ Soil, $\pm 4.11\text{ Pa}$ Barometric |
-| **MF-02** | **Martian Dust Storm Hazard Classifier** | 3 binary classifiers ($t+1, t+2, t+3$ storm probabilities) | L2-Regularized Logistic Regression ($C=0.5$) with balanced class weights | NASA Curiosity REMS / InSight global dust events | $\text{ROC-AUC} = 0.892$, Accuracy = $94.6\%$ | Calibrated sigmoid probability with 4 alert tiers |
-| **MF-03** | **Geochemical Mineral Classifier & Biosignature Prior** | 1 multinomial classifier (5 rock classes, 7 lithologies, 16 features) | Multinomial Logistic Regression ($C=1.0$) with geochemical alteration indices | NASA Perseverance PIXL micro-XRF (14,000+ points) & PDS Geosciences | 5-Fold Stratified CV = $99.13\%$, Test Accuracy = $99.27\%$ | Class posterior probabilities + Taphonomic Prior ($0\text{--}100$) |
-| **MF-04** | **Space Radiation & SPE Hazard Modeler** | 2 sub-models (GCR surface dose regressor + SPE event classifier) | RidgeCV Regressor ($\alpha=0.0197$) + Logistic Classifier with Schwabe solar modulation | NASA Curiosity RAD (Hassler et al. 2014) + NOAA Solar Cycle 24/25 | GCR $R^2 = 0.9904$ ($\text{MAE} = 0.0120\text{ mSv/day}$), SPE $\text{ROC-AUC} = 0.8668$ | Residual $\pm 0.0248\text{ mSv/day}$ ($\pm 1.645\sigma$) |
-| **MF-05** | **Rover Terramechanics & Dynamic Battery Discharge** | 3 sub-models (Wheel slip % + Traction Wh/km + Sand-trap hazard) | Bekker-Wong RidgeCV Regressors + Entrapment Logistic Classifier | 12,000 samples calibrated to MER Opportunity Purgatory Dune & Curiosity logs | Slip $R^2 = 0.8476$ ($\text{MAE} = 8.16\%$), Wh/km $R^2 = 0.8667$ ($\text{MAE} = 352.79\text{ Wh/km}$), Trap $\text{AUC} = 0.9993$ | $\pm 20.72\%$ Slip, $\pm 732.39\text{ Wh/km}$ Dynamic Energy |
-| **MF-06** | **SuperCam Quantitative LIBS Chemometrics Regressor** | 9 oxide regressors ($\text{SiO}_2, \text{FeO}, \text{MgO}, \text{Al}_2\text{O}_3, \text{CaO}, \text{Na}_2\text{O}, \text{K}_2\text{O}, \text{TiO}_2, \text{SO}_3$) | Multi-Target RidgeCV Regressors with Micro-Grain Variance Coupling (23 features) | 30 SuperCam LIBS spectra + 7,300 co-located PIXL micro-XRF targets (6,030 samples) | Mean $R^2 = 0.7786$, Mean $\text{MAE} = 1.557\text{ wt}\%$ | Individual 90% CI per oxide ($\pm 0.4\%\text{--}7.5\%$) |
-| **MF-07** | **InSight Marsquake Inversion & GMPE Attenuation** | 3 sub-models (Kinematic $S-P$ inversion + PGA regressor + PGV regressor) | Single-Station Kinematic Ray-Tracing + Log-linear GMPE Attenuation Regressor | InSight SEIS MQS Catalogue V14 (672 calibrated events, S1222a benchmark) | GMPE $R^2 = 0.9908$, $\text{MAE} = 0.1613\text{ m/s}^2$ | Log-normal $\sigma_{\ln} = 0.2342$ (Multiplicative CI90: $\times 1.47$) |
-| **MF-08** | **Solar Array Dust Deposition & ECLSS Power Forecaster** | 3 sub-models (Beer-Lambert insolation + Dust rate decay + Vortex clearing engine) | Physics-constrained RidgeCV Regressors + Stochastic Convective Vortex Engine | 5,000 sols MER-B Opportunity Dust Factor ($D_f$) + InSight Solar Array logs | Insolation $R^2 = 1.0000$ ($\text{MAE} = 3.14\times 10^{-10}\text{ Wh/m}^2$), Dust Rate $R^2 = 0.9949$ ($\text{RMSE} = 0.000261\text{ }D_f/\text{sol}$) | Daily Dust Rate 90% CI: $\pm 0.00043\text{ }D_f/\text{sol}$; 30-Sol CI: $\pm 0.0129\text{ }D_f$ |
+| **MF-01** | **Atmospheric Multi-Horizon Forecaster** | 15 regressors ($T_{\max}, T_{\min}, P, \text{GTS}_{\max}, \text{GTS}_{\min}$ across $t+1, t+2, t+3$) | Multi-Horizon RidgeCV Regression with 21 cyclical orbital & lag features | **Real:** NASA Curiosity REMS (4,745 sols, Gale Crater) | Latest 15% of sols: Pressure $R^2 = 0.9977$ (persistence 0.9963), $T_{\max}$ $R^2 = 0.888$ (0.846), $T_{\min}$ $R^2 = 0.818$ (0.740) | $\pm 5.53^\circ\text{C}$ $T_{\max}$, $\pm 4.04\text{ Pa}$ Barometric |
+| **MF-02** | **Martian Dust Storm Risk Classifier** | 3 binary classifiers ($t+1, t+2, t+3$) on a proxy label | L2-Regularized Logistic Regression ($C=0.5$) with balanced class weights | **Real:** Curiosity REMS; label = diurnal range below 48 °C in Ls 160–330 (not a storm catalogue) | Forward-chaining time folds: $\text{ROC-AUC} = 0.62\text{–}0.70$ | Sigmoid probability with 4 alert tiers |
+| **MF-03** | **Geochemical Mineral Classifier & Biosignature Prior** | 1 multinomial classifier (5 rock classes, 16 features) | Multinomial Logistic Regression ($C=1.5$) with geochemical alteration indices | **Real:** 5,363 PIXL points from 6 Jezero rocks; 2,000 synthetic points for mudstone and carbonate | Leave-one-rock-out accuracy = $72.7\%$ (random 5-fold: $99.1\%$, optimistic) | Class posterior probabilities + Taphonomic Prior ($0\text{--}100$) |
+| **MF-04** | **Space Radiation & SPE Hazard Modeler** | 2 sub-models (GCR surface dose regressor + SPE event classifier) | RidgeCV Regressor + Logistic Classifier with Schwabe solar modulation | **Surrogate:** dose formula anchored to Curiosity RAD (Hassler et al. 2014) + solar cycle curve | Fit to its formula: GCR $R^2 = 0.9904$, SPE $\text{ROC-AUC} = 0.8668$ | Residual $\pm 0.0248\text{ mSv/day}$ (vs the formula) |
+| **MF-05** | **Rover Terramechanics & Dynamic Battery Discharge** | 3 sub-models (Wheel slip % + Traction Wh/km + Sand-trap hazard) | Bekker-Wong RidgeCV Regressors + Entrapment Logistic Classifier | **Surrogate:** 12,000 simulations tuned to MER Purgatory Dune & Curiosity benchmarks | Fit to its formulas: Slip $R^2 = 0.8476$, Wh/km $R^2 = 0.8667$, Trap $\text{AUC} = 0.9993$ | $\pm 20.72\%$ Slip, $\pm 732.39\text{ Wh/km}$ (vs the formulas) |
+| **MF-06** | **SuperCam Quantitative LIBS Chemometrics Regressor** | 9 oxide regressors ($\text{SiO}_2, \text{FeO}, \text{MgO}, \text{Al}_2\text{O}_3, \text{CaO}, \text{Na}_2\text{O}, \text{K}_2\text{O}, \text{TiO}_2, \text{SO}_3$) | Multi-Target RidgeCV Regressors (23 features) | **Real:** 30 SuperCam laser points from 6 rocks, labelled with each rock's PIXL median; plus jittered copies and 2,400 synthetic spectra | Leave-one-rock-out: beats "predict the average" for MgO, Al₂O₃, CaO, TiO₂; worse for SiO₂, FeO, Na₂O, K₂O, SO₃ | Per-oxide 90% CI from the held-out-rock error ($\pm 0.6\%\text{--}16.8\%$) |
+| **MF-07** | **InSight Marsquake Inversion & GMPE Attenuation** | 3 sub-models (Kinematic $S-P$ inversion + PGA regressor + PGV regressor) | Single-Station Kinematic Ray-Tracing + Log-linear GMPE Attenuation Regressor | **Surrogate:** magnitudes and distances of 672 MQS V14 events; PGA/PGV from a hand-calibrated attenuation equation | Fit to its equation: PGA $R^2 = 0.9908$ | Log-normal $\sigma_{\ln} = 0.2342$ (vs the equation) |
+| **MF-08** | **Solar Array Dust Deposition & ECLSS Power Forecaster** | 3 sub-models (Beer-Lambert insolation + Dust rate decay + Vortex clearing engine) | Physics-constrained RidgeCV Regressors + Stochastic Convective Vortex Engine | **Surrogate:** formulas tuned to published Opportunity Dust Factor trends (no telemetry is read) | Fit to its formulas: Insolation $R^2 = 1.0000$, Dust Rate $R^2 = 0.9949$ | Daily Dust Rate 90% CI: $\pm 0.00043\text{ }D_f/\text{sol}$ (vs the formulas) |
 
 ---
 
@@ -135,7 +143,7 @@ $$\Delta T_{\text{diurnal}} = T_{\max} - T_{\min} < 48^\circ\text{C} \quad \text
 - **Algorithm**: L2-regularized Logistic Regression ($C=0.5$) with balanced class weighting (`class_weight='balanced'`) to overcome the class imbalance of storm sols.
 - **Loss Function**: Binary Cross-Entropy with L2 Penalty:
   $$\mathcal{L}(\beta) = -\sum_{i=1}^N \left[ y_i \ln \sigma(\mathbf{x}_i^T \beta) + (1 - y_i) \ln(1 - \sigma(\mathbf{x}_i^T \beta)) \right] + \frac{1}{2C} \|\beta\|_2^2$$
-- **Metrics**: $\text{ROC-AUC} = 0.892$, Accuracy = $94.6\%$ on out-of-sample sols.
+- **Metrics**: the latest 15% of sols holds no proxy storm sols, so ROC-AUC cannot be measured there. Forward-chaining time folds (train on the past, test on the next block) give $\text{ROC-AUC} = 0.62$ ($t+1$), $0.70$ ($t+2$) and $0.69$ ($t+3$): modest skill. The label is a temperature-range proxy, not a storm catalogue.
 - **Operational Hazard Tiers**:
   - **LOW** ($P < 0.25$): Atmospheric opacity nominal ($\tau \approx 0.4\text{--}0.6$). Nominal EVA operations.
   - **MODERATE** ($0.25 \le P < 0.50$): Local dust lifting detected. Narrowing diurnal $\Delta T$.
@@ -207,8 +215,8 @@ The feature vector combines 11 raw elemental oxides with 5 derived indices:
    $$\text{AR} = \frac{\text{Na}_2\text{O} + \text{K}_2\text{O}}{\text{Al}_2\text{O}_3}$$
 
 #### Training & Metrics
-- **Algorithm**: Multinomial Logistic Regression (`solver='lbfgs'`, $C=1.0$, `max_iter=1000`).
-- **Validation**: 5-fold Stratified Cross-Validation score: **$99.13\%$**; Train accuracy: **$99.27\%$**.
+- **Algorithm**: Multinomial Logistic Regression (`solver='lbfgs'`, $C=1.5$, `max_iter=1000`).
+- **Validation**: leave-one-rock-out accuracy **72.7%** over the 6 Jezero rocks (Bellegarde 98.7%, Guillaumes 99.7%, Dourbes 95.9%, Montpezat 73.3%, Quartier 68.8%, Berry Hollow 0%: the only sulfate rock, so its class cannot be learnt from the others). A random 5-fold split scores 99.1% because points of the same rock land on both sides. The mudstone and carbonate classes are synthetic, so their scores are not measured on real rocks.
 - **Biosignature Preservation Prior Matrix**:
   - Smectite Clay / Delta Mudstone: **92 / 100** (Exceptional clay lattice organic preservation).
   - Sulfate-Rich Evaporite: **82 / 100** (Halite/gypsum fluid inclusion entrapment).
@@ -318,19 +326,13 @@ SuperCam Laser Pulse ---> Plasma Emission ---> 2,048-Channel Spectrometer (240-8
 - **Sulfur (S)**: $543.28\text{ nm}, 545.38\text{ nm}$
 
 #### Training, Dataset & Performance
-- **Training Set**: 30 empirical SuperCam LIBS spectra paired with 7,300+ co-located PIXL micro-XRF quantitative ground truths across 6 Jezero rocks, augmented with physically coupled micro-grain variation and detector calibration archetypes to 6,030 samples.
-- **Model Architecture**: 9 independent target-specific `RidgeCV` regressors with calibrated 90% confidence uncertainty envelopes ($\pm 1.645 \sigma_{\text{RMSE}}$).
-- **Metrics (Test Set Out-of-Sample)**:
-  - Global Mean $R^2 = 0.7786$; Global Mean $\text{MAE} = 1.557\text{ wt}\%$.
-  - $\text{Al}_2\text{O}_3$: $R^2 = 0.9269$, $\text{MAE} = 0.94\text{ wt}\%$, 90% CI $= \pm 2.0\text{ wt}\%$ (best $\alpha = 0.75$).
-  - $\text{MgO}$: $R^2 = 0.8613$, $\text{MAE} = 1.75\text{ wt}\%$, 90% CI $= \pm 4.0\text{ wt}\%$ (best $\alpha = 0.75$).
-  - $\text{K}_2\text{O}$: $R^2 = 0.8134$, $\text{MAE} = 0.18\text{ wt}\%$, 90% CI $= \pm 0.4\text{ wt}\%$ (best $\alpha = 0.18$).
-  - $\text{TiO}_2$: $R^2 = 0.8040$, $\text{MAE} = 0.19\text{ wt}\%$, 90% CI $= \pm 0.4\text{ wt}\%$ (best $\alpha = 0.46$).
-  - $\text{CaO}$: $R^2 = 0.8024$, $\text{MAE} = 1.04\text{ wt}\%$, 90% CI $= \pm 2.4\text{ wt}\%$ (best $\alpha = 1.21$).
-  - $\text{Na}_2\text{O}$: $R^2 = 0.7814$, $\text{MAE} = 0.42\text{ wt}\%$, 90% CI $= \pm 0.9\text{ wt}\%$ (best $\alpha = 0.18$).
-  - $\text{FeO-T}$: $R^2 = 0.6839$, $\text{MAE} = 3.27\text{ wt}\%$, 90% CI $= \pm 7.5\text{ wt}\%$ (best $\alpha = 0.75$).
-  - $\text{SO}_3$: $R^2 = 0.6691$, $\text{MAE} = 3.27\text{ wt}\%$, 90% CI $= \pm 7.0\text{ wt}\%$ (best $\alpha = 0.46$).
-  - $\text{SiO}_2$: $R^2 = 0.6652$, $\text{MAE} = 2.95\text{ wt}\%$, 90% CI $= \pm 6.2\text{ wt}\%$ (best $\alpha = 1.96$).
+- **Training Set**: 30 empirical SuperCam LIBS points across 6 Jezero rocks, each labelled with the median PIXL composition of its rock (not a co-located PIXL spot), with 120 jittered copies per point and 2,400 synthetic spectra from 6 lithology archetypes (6,030 rows).
+- **Model Architecture**: 9 independent target-specific `RidgeCV` regressors; the shipped 90% intervals are $\pm 1.645 \times$ the held-out-rock RMSE.
+- **Metrics (leave-one-rock-out; baseline = always predict the training average)**:
+  - Beats the baseline: MgO (MAE 4.60 vs 7.40 wt%), CaO (2.56 vs 3.59), Al₂O₃ (2.18 vs 2.58), TiO₂ (0.30 vs 0.56).
+  - Worse than the baseline: SiO₂ (7.49 vs 5.62), FeO-T (7.76 vs 7.52), SO₃ (6.81 vs 6.41), Na₂O (0.87 vs 0.79), K₂O (0.28 vs 0.24).
+  - With only 6 rocks, the model mostly learns the gap between basaltic and olivine-rich rocks; more labelled targets are the main path to better accuracy.
+  - The earlier "mean $R^2 = 0.7786$" came from a random row split, where jittered copies of the same laser points sit on both sides.
 
 ---
 

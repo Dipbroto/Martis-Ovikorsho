@@ -6,10 +6,14 @@ spectral features (240 nm - 850 nm) directly to quantitative elemental weight pe
 
 Trained on:
 - 30 empirical SuperCam LIBS raster points across 6 Jezero Crater campaign rocks
-  (Guillaumes, Bellegarde, Dourbes, Quartier, Montpezat, Berry Hollow)
-- 7,300+ co-located NASA PIXL micro-XRF quantitative ground-truth oxide measurements
-- NIST atomic emission oscillator strengths and SuperCam spectrometer response curves
-  (LANL/IRAP SuperCam team calibration standard: Clegg et al., Anderson et al., Wiens et al.)
+  (Guillaumes, Bellegarde, Dourbes, Quartier, Montpezat, Berry Hollow), each labelled with the
+  median PIXL oxide composition of its rock, plus 120 jittered copies of every point
+- 2,400 synthetic spectra from 6 lithology archetypes (hand-set line-to-oxide response factors)
+
+Evaluation: leave-one-rock-out. Each real rock is predicted by a model that never saw any row of it,
+and the error is set against always predicting the training average. A random row split would put
+jittered copies of the same 30 laser points on both sides and overstate the accuracy.
+The shipped ±CI90 uncertainties come from this held-out-rock error.
 
 Outputs:
 - public/data/ml/mars_libs_model.json
@@ -22,8 +26,7 @@ import math
 import os
 import sys
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import Ridge, RidgeCV, ElasticNet
+from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
@@ -124,10 +127,12 @@ def build_chemometrics_dataset():
     and instrument response curves.
     """
     science_dir = os.path.join(ROOT_DIR, 'public', 'data', 'science')
-    campaign_files = [f for f in glob.glob(os.path.join(science_dir, '*.json')) if 'campaigns' not in f]
+    # sorted: the random jitter is drawn in file order, so the order must not depend on the filesystem
+    campaign_files = sorted(f for f in glob.glob(os.path.join(science_dir, '*.json')) if 'campaigns' not in f)
 
     X = []
     Y = []  # [SiO2, FeO-T, MgO, Al2O3, CaO, Na2O, K2O, TiO2, SO3]
+    G = []  # the rock each row comes from ('archetype' for the synthetic standards), for held-out-rock scoring
 
     print(f"Loading empirical LIBS spectra and PIXL ground truth from {len(campaign_files)} campaigns...")
 
@@ -136,6 +141,7 @@ def build_chemometrics_dataset():
     for cf in campaign_files:
         with open(cf, 'r', encoding='utf-8') as f:
             d = json.load(f)
+        rock_id = d.get('id') or os.path.splitext(os.path.basename(cf))[0]
 
         pixl_stats = d.get('pixl', {}).get('stats', {})
         pixl_med = {k: float(pixl_stats.get(k, {}).get('med', 0.0)) for k in OXIDE_TARGETS}
@@ -153,6 +159,7 @@ def build_chemometrics_dataset():
             y_row = [pixl_med[k] for k in OXIDE_TARGETS]
             X.append(feats)
             Y.append(y_row)
+            G.append(rock_id)
 
             # Physically coupled plasma & micro-grain heterogeneity modeling:
             # Local grain mineral variation scales the corresponding atomic emission lines
@@ -178,6 +185,7 @@ def build_chemometrics_dataset():
 
                 X.append(extract_features_from_lines(jittered_lines))
                 Y.append(y_jittered)
+                G.append(rock_id)
 
     # Diverse calibration standards covering the full Martian lithological spectrum
     # (Calibrated to SuperCam instrument response: intense Ca II 393 nm & Mg II 279 nm doublets)
@@ -225,11 +233,12 @@ def build_chemometrics_dataset():
 
             X.append(extract_features_from_lines(syn_lines))
             Y.append([ox[k] for k in OXIDE_TARGETS])
+            G.append('archetype')
 
     X = np.array(X, dtype=np.float64)
     Y = np.array(Y, dtype=np.float64)
 
-    return X, Y
+    return X, Y, np.array(G)
 
 
 def train_and_export():
@@ -237,33 +246,45 @@ def train_and_export():
     print("NASA SuperCam Quantitative LIBS Chemometrics ML Training Pipeline")
     print("=" * 70)
 
-    X, Y = build_chemometrics_dataset()
-    print(f"Compiled {len(X)} calibration samples with {X.shape[1]} spectral features.")
+    X, Y, G = build_chemometrics_dataset()
+    rocks = sorted(set(G) - {'archetype'})
+    print(f"Compiled {len(X)} calibration samples with {X.shape[1]} spectral features ({len(rocks)} real rocks).")
 
-    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42, shuffle=True)
+    alphas = np.logspace(-2, 3, 25)
 
+    # Leave-one-rock-out: predict every real rock with a model that never saw it
+    held_pred = np.zeros((0, len(OXIDE_TARGETS)))
+    held_true = np.zeros((0, len(OXIDE_TARGETS)))
+    held_base = np.zeros((0, len(OXIDE_TARGETS)))
+    for rock in rocks:
+        tr, te = G != rock, G == rock
+        sc = StandardScaler().fit(X[tr])
+        preds = np.column_stack([
+            RidgeCV(alphas=alphas).fit(sc.transform(X[tr]), Y[tr, i]).predict(sc.transform(X[te]))
+            for i in range(len(OXIDE_TARGETS))
+        ])
+        held_pred = np.vstack([held_pred, np.maximum(0.1, preds)])
+        held_true = np.vstack([held_true, Y[te]])
+        held_base = np.vstack([held_base, np.tile(Y[tr].mean(axis=0), (te.sum(), 1))])
+
+    # The shipped model learns from every row
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    X_scaled = scaler.fit_transform(X)
 
     oxide_models = {}
     evaluation_metrics = {}
 
-    print("\n--- Training Oxide Chemometrics Regressors (Target-Specific RidgeCV) ---")
-    alphas = np.logspace(-2, 3, 25)
-
+    print("\n--- Oxide Regressors (RidgeCV), scored leave-one-rock-out ---")
     for i, ox in enumerate(OXIDE_TARGETS):
-        y_tr = Y_train[:, i]
-        y_te = Y_test[:, i]
-
         reg = RidgeCV(alphas=alphas)
-        reg.fit(X_train_scaled, y_tr)
-        preds = reg.predict(X_test_scaled)
+        reg.fit(X_scaled, Y[:, i])
 
-        r2 = r2_score(y_te, preds)
-        mae = mean_absolute_error(y_te, preds)
-        rmse = np.sqrt(mean_squared_error(y_te, preds))
+        y_te, p = held_true[:, i], held_pred[:, i]
+        r2 = r2_score(y_te, p)
+        mae = mean_absolute_error(y_te, p)
+        rmse = np.sqrt(mean_squared_error(y_te, p))
         ci90 = 1.645 * rmse
+        base_mae = mean_absolute_error(y_te, held_base[:, i])
 
         oxide_models[ox] = {
             "intercept": round(float(reg.intercept_), 5),
@@ -273,9 +294,12 @@ def train_and_export():
             "mae_wt_pct": round(float(mae), 3),
             "rmse_wt_pct": round(float(rmse), 3),
             "ci90_wt_pct": round(float(ci90), 2),
+            "baseline_mae_wt_pct": round(float(base_mae), 3),
+            "beats_baseline": bool(mae < base_mae),
         }
-        evaluation_metrics[ox] = {"r2": r2, "mae": mae, "rmse": rmse, "ci90": ci90, "alpha": reg.alpha_}
-        print(f"  Target [{ox:<6}]: R² = {r2:.4f} | MAE = {mae:.2f} wt% (±{ci90:.1f}%) | alpha = {reg.alpha_:.2f}")
+        evaluation_metrics[ox] = {"r2": r2, "mae": mae, "rmse": rmse, "ci90": ci90, "alpha": reg.alpha_, "base_mae": base_mae}
+        verdict = "beats" if mae < base_mae else "WORSE than"
+        print(f"  Target [{ox:<6}]: held-out R² = {r2:.3f} | MAE = {mae:.2f} wt% (±{ci90:.1f}%) | {verdict} predicting the average ({base_mae:.2f} wt%)")
 
     # Benchmark test on known targets:
     print("\n--- Mission Ground-Truth Verification ---")
@@ -297,10 +321,10 @@ def train_and_export():
     # Assemble Model Export Object
     uncertainties = {ox: oxide_models[ox]["ci90_wt_pct"] for ox in OXIDE_TARGETS}
     model_export = {
-        "version": "2.1.0",
+        "version": "2.2.0",
         "uncertainties_ci90": uncertainties,
         "algorithm": "SuperCam LIBS Chemometrics (RidgeCV Regressor)",
-        "trained_at": "2026-11-05",
+        "trained_at": "2026-11-06",
         "feature_names": FEATURE_NAMES,
         "oxide_targets": OXIDE_TARGETS,
         "scaler": {
@@ -310,8 +334,13 @@ def train_and_export():
         "oxide_models": oxide_models,
         "diagnostic_lines": DIAGNOSTIC_LINES,
         "metrics": {
+            "evaluation_method": f"leave-one-rock-out over {len(rocks)} Jezero rocks (synthetic archetypes stay in training)",
             "mean_r2": round(float(np.mean([m['r2'] for m in evaluation_metrics.values()])), 4),
             "mean_mae": round(float(np.mean([m['mae'] for m in evaluation_metrics.values()])), 3),
+            "mean_baseline_mae": round(float(np.mean([m['base_mae'] for m in evaluation_metrics.values()])), 3),
+            "oxides_beating_baseline": [ox for ox, m in evaluation_metrics.items() if m['mae'] < m['base_mae']],
+            "real_rocks": rocks,
+            "real_laser_points": int(sum(1 for g in G if g != 'archetype') // 121),
             "samples_count": len(X)
         }
     }

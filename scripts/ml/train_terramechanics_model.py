@@ -1,8 +1,9 @@
 """
 NASA Planetary Terramechanics & Dynamic Battery Discharge ML Training Pipeline
 Model 1: Predicts wheel slip ratio (%) and dynamic battery traction energy consumption (Wh/km)
-trained on Bekker-Wong soil mechanics calibrated against NASA Mars Exploration Rover (MER),
-Curiosity (MSL), and Perseverance (M20) mobility telemetry.
+A surrogate model: the training rows are simulated from Bekker-Wong soil mechanics whose constants
+were set by hand against the published mobility benchmarks below (MER, Curiosity, Perseverance).
+No drive telemetry is read, so the R² says how well it reproduces those formulas.
 
 Key calibration benchmarks:
 - Opportunity Purgatory Dune trap (Sol 446-484: slip ~99.8% in low-TI drift sand, slope ~14 deg)
@@ -261,6 +262,8 @@ def train_and_export():
         "version": "1.0.0",
         "algorithm": "RidgeCV Regressor (Slip & Energy) + Logistic Classifier (Entrapment Hazard)",
         "trained_at": "2026-11-05",
+        "training_data": "simulated",
+        "dataset": "Simulated from Bekker-Wong soil mechanics, tuned by hand to published rover slip benchmarks",
         "specs": {
             "g_mars_m_s2": G_MARS,
             "default_rover_mass_kg": DEFAULT_ROVER_MASS,

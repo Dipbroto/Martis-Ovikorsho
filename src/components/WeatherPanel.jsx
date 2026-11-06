@@ -2,7 +2,19 @@ import { useMemo, useEffect } from 'react';
 import useMapStore from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
 import { generateForecast } from '../data/weatherSimulation';
-import { predictMultiSolForecast } from '../services/marsMlService';
+import { predictMultiSolForecast, getWeatherModel } from '../services/marsMlService';
+
+// The next-sol scores the trained model file reports, instead of numbers typed into the page
+const weatherScore = (() => {
+  const ev = getWeatherModel()?.evaluation?.sol_plus_1;
+  if (!ev?.t_max || !ev?.pressure) return null;
+  return {
+    tR2: ev.t_max.r2_score,
+    persistR2: ev.t_max.persistence_r2 ?? 'n/a',
+    pMae: ev.pressure.mae,
+    dustAuc: ev.dust_storm?.roc_auc,
+  };
+})();
 import { marsDateFromEarthDate } from '../utils/marsUtils';
 import {
   Thermometer,
@@ -464,9 +476,14 @@ const WeatherPanel = () => {
               3-SOL FORWARD LOOKAHEAD
             </span>
           </div>
-          <span className="text-[11px] font-mono text-zinc-400 whitespace-nowrap">
-            MAE: 1.55 Pa • T_max R²: 0.825
-          </span>
+          {weatherScore && (
+            <span
+              className="text-[11px] font-mono text-zinc-400 whitespace-nowrap"
+              title={`Scored on the latest 15% of sols, which the model did not see. Persistence ("tomorrow = today") scores T_max R² ${weatherScore.persistR2}. Dust risk ROC-AUC ${weatherScore.dustAuc ?? 'n/a'} over time folds, on a proxy storm label.`}
+            >
+              Pressure MAE {weatherScore.pMae} Pa • T_max R² {weatherScore.tR2} (persistence {weatherScore.persistR2})
+            </span>
+          )}
         </div>
 
         {/* 3-Sol ML Horizon Grid */}

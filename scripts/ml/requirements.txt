@@ -1,0 +1,6 @@
+# Python packages for the ML training scripts in scripts/ml (tested with these versions).
+# Install:  python3 -m venv .venv && .venv/bin/pip install -r scripts/ml/requirements.txt
+# Train:    .venv/bin/python scripts/ml/train_models.py   (run from the repository root)
+numpy==2.5.4
+scikit-learn==1.9.1
+pandas==3.1.1

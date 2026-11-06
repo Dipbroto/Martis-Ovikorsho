@@ -175,7 +175,7 @@ export default function QuakePanel() {
           <div className="pt-2 border-t border-white/[0.07] space-y-1.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <ProvenanceBadge type="OBSERVED" size="xs" detail="Faults: USGS SIM 3292, Geologic Map of Mars. Quakes: InSight Marsquake Service catalogue V14." />
-              <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="PGA ground shaking and hypocenter inversion: InSight SEIS ML model" />
+              <ProvenanceBadge type="ML_SURROGATE" size="xs" detail="PGA ground shaking: surrogate of a hand-calibrated attenuation equation. Hypocenter: S-P travel-time geometry" />
               <ProvenanceBadge type="DERIVED" size="xs" detail="Risk zones: mapped fault length per area, weighted by freshness" />
             </div>
             <p className="text-[11px] text-zinc-500 leading-snug">The risk zones are a relative index made in MarsWalk from real fault and quake data, not an official hazard map.</p>

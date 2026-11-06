@@ -2,6 +2,8 @@
   "version": "1.0.0",
   "algorithm": "RidgeCV Regressor (Slip & Energy) + Logistic Classifier (Entrapment Hazard)",
   "trained_at": "2026-11-05",
+  "training_data": "simulated",
+  "dataset": "Simulated from Bekker-Wong soil mechanics, tuned by hand to published rover slip benchmarks",
   "specs": {
     "g_mars_m_s2": 3.721,
     "default_rover_mass_kg": 3000.0,

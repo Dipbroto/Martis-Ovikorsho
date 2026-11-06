@@ -56,11 +56,21 @@ export const PROVENANCE_DEFINITIONS = {
   ML_PREDICTION: {
     label: 'ML PREDICTED',
     fullName: 'NASA Machine Learning Forecast',
-    description: 'Statistically predicted using zero-latency client-side ML models trained directly on 4,700+ daily NASA REMS/MEDA records and 14,000+ empirical Perseverance PIXL in-situ geochemical measurements.',
+    description: 'Predicted in the browser by a model trained on real mission data: 4,700+ daily Curiosity REMS records, or ~5,400 Perseverance PIXL points and 30 SuperCam laser points from 6 Jezero rocks. Scores are measured on sols or rocks the model did not see.',
     bgColor: 'bg-violet-950/70',
     textColor: 'text-violet-300',
     borderColor: 'border-violet-500/40',
     dotColor: 'bg-violet-400',
+    icon: Cpu,
+  },
+  ML_SURROGATE: {
+    label: 'ML SURROGATE',
+    fullName: 'ML Surrogate of a Physics Model',
+    description: 'A fast model fitted to simulated data from published physics formulas, with constants tuned to a few NASA benchmarks. It reproduces those formulas; it was not trained on mission measurements.',
+    bgColor: 'bg-amber-950/70',
+    textColor: 'text-amber-300',
+    borderColor: 'border-amber-500/40',
+    dotColor: 'bg-amber-400',
     icon: Cpu,
   },
 };
@@ -73,6 +83,7 @@ const SHORT = {
   NASA_SPEC: 'NASA spec',
   ML_PREDICTION: 'ML Predicted',
   PREDICTED_ML: 'ML Predicted',
+  ML_SURROGATE: 'ML surrogate',
 };
 
 /**

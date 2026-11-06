@@ -111,9 +111,9 @@ export default function SolarArrayPowerPanel() {
           </div>
         </div>
         <ProvenanceBadge
-          type="ML_PREDICTION"
+          type="ML_SURROGATE"
           size="xs"
-          detail="Trained on 5,000 sols MER Opportunity Dust Factor + InSight PDS generation logs"
+          detail="Fitted to simulated insolation and dust-deposition physics, tuned to published Opportunity Dust Factor trends"
         />
       </div>
 

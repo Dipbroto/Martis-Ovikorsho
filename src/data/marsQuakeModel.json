@@ -2,7 +2,8 @@
   "version": "1.0.0",
   "generated_at": "2026-11-05",
   "metadata": {
-    "dataset": "InSight Marsquake Service (MQS) Catalogue V14 (2,715 events)",
+    "dataset": "Simulated shaking: magnitudes and distances of 672 InSight MQS catalogue V14 events, PGA/PGV from a hand-calibrated attenuation equation plus noise",
+    "training_data": "simulated",
     "station": {
       "name": "InSight SEIS",
       "lat": 4.5024,

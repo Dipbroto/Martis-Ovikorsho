@@ -94,7 +94,7 @@ export default function QuakeMlEstimator() {
           <Activity className="w-4 h-4 text-rose-400" />
           <span>InSight Hypocentral & Shaking Estimator</span>
         </div>
-        <ProvenanceBadge type="ML_PREDICTION" size="xs" detail="Trained on InSight SEIS Catalogue V14 (2,715 events) + Mars crustal GMPE" />
+        <ProvenanceBadge type="ML_SURROGATE" size="xs" detail="Shaking from a hand-calibrated Mars attenuation equation, applied to InSight catalogue V14 magnitudes and distances" />
       </div>
 
       <p className="text-zinc-400 text-[11px] leading-relaxed">

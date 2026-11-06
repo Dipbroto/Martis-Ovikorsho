@@ -36,8 +36,10 @@ def load_insight_events():
 
 def simulate_ground_motion_dataset(events):
     """
-    Combines InSight SEIS observed peak accelerations (from S1222a, S0173a, S0235b, S1000a, S1022a)
-    with physical GMPE physics calibrated to the Martian crust (Boore 2003, Clinton et al. 2021, Lognonné 2020).
+    Takes the magnitude and distance of each catalogue event and computes its PGA and PGV from a GMPE
+    whose constants were set by hand against a few InSight SEIS benchmarks (S1222a, S0173a, S0235b,
+    S1000a, S1022a; Boore 2003, Clinton et al. 2021, Lognonné 2020). No measured accelerations are
+    read: the regressor learns this equation, so its R² says how well it reproduces it.
     """
     X = []
     Y_pga = []  # ln(PGA in m/s²)
@@ -260,7 +262,8 @@ def train_quake_models():
         'version': '1.0.0',
         'generated_at': '2026-11-05',
         'metadata': {
-            'dataset': 'InSight Marsquake Service (MQS) Catalogue V14 (2,715 events)',
+            'dataset': f'Simulated shaking: magnitudes and distances of {len(events)} InSight MQS catalogue V14 events, PGA/PGV from a hand-calibrated attenuation equation plus noise',
+            'training_data': 'simulated',
             'station': {'name': 'InSight SEIS', 'lat': INSIGHT_LAT, 'lon': INSIGHT_LON},
             'r2_score_pga': round(float(pga_r2), 4),
             'mae_pga': round(float(pga_mae), 4),

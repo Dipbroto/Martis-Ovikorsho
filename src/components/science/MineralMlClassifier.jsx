@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Sparkles, Dna, ShieldCheck, AlertCircle, Compass, Layers, CheckCircle2 } from 'lucide-react';
-import { classifyRockMineralogy, predictLibsChemometrics } from '../../services/marsMlService';
+import { classifyRockMineralogy, predictLibsChemometrics, getMineralModel } from '../../services/marsMlService';
 import ProvenanceBadge from '../ProvenanceBadge';
 
 /**
@@ -35,6 +35,14 @@ export default function MineralMlClassifier({ target, data, className = '' }) {
   }, [target, data, instrumentSource, libsChemometrics]);
 
   if (!mlResult) return null;
+
+  // How the model was trained and how it scores on rocks it has not seen, read from the model file
+  const modelMetrics = getMineralModel()?.metrics || {};
+  const heldOutAccuracy = modelMetrics.leave_one_rock_out_accuracy ?? null;
+  const realPoints = modelMetrics.real_points ?? 0;
+  const synthPoints = modelMetrics.synthetic_points ?? 0;
+  const realRocks = modelMetrics.real_rocks ?? 6;
+  const seenInTraining = Boolean(modelMetrics.leave_one_rock_out?.[target.id]);
 
   const {
     predictedClass,
@@ -77,8 +85,8 @@ export default function MineralMlClassifier({ target, data, className = '' }) {
             </div>
             <p className="text-xs text-zinc-400">
               {instrumentSource === 'libs'
-                ? 'Derived directly from SuperCam LIBS 2048-channel laser spark spectrum via PLSR chemometrics inversion'
-                : 'Multinomial Softmax inference trained on 14,000+ empirical NASA PIXL micro-XRF measurement points'}
+                ? 'Oxides estimated from the SuperCam laser lines by ridge regression, then classified'
+                : `Softmax classifier trained on ${realPoints.toLocaleString()} PIXL points from ${realRocks} Jezero rocks, plus ${synthPoints.toLocaleString()} synthetic points for mudstone and carbonate`}
             </p>
           </div>
         </div>
@@ -99,9 +107,20 @@ export default function MineralMlClassifier({ target, data, className = '' }) {
               SuperCam LIBS [ML]
             </button>
           </div>
-          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-violet-500/20 text-violet-200 border border-violet-400/30 tabular-nums">
-            {confidencePercent}% ML Confidence
+          <span
+            className="px-3 py-1 rounded-full text-xs font-semibold bg-violet-500/20 text-violet-200 border border-violet-400/30 tabular-nums"
+            title="How sure the model is about this rock. It is not its accuracy: see the held-out-rock score next to it."
+          >
+            {confidencePercent}% model confidence
           </span>
+          {heldOutAccuracy != null && (
+            <span
+              className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.04] text-zinc-300 border border-white/10 tabular-nums"
+              title="Mean accuracy when each Jezero rock is classified by a model that never saw it"
+            >
+              {Math.round(heldOutAccuracy * 100)}% on unseen rocks{seenInTraining ? ' · this rock is in its training set' : ''}
+            </span>
+          )}
         </div>
       </div>
 

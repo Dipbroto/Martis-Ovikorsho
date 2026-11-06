@@ -632,39 +632,57 @@
         "mae": 2.631,
         "rmse": 3.361,
         "ci90_half_width": 5.53,
-        "best_alpha": 88.587
+        "best_alpha": 88.587,
+        "persistence_r2": 0.8457,
+        "persistence_mae": 2.923
       },
       "t_min": {
         "r2_score": 0.8176,
         "mae": 1.13,
         "rmse": 1.923,
         "ci90_half_width": 3.16,
-        "best_alpha": 33.598
+        "best_alpha": 33.598,
+        "persistence_r2": 0.7401,
+        "persistence_mae": 1.242
       },
       "pressure": {
         "r2_score": 0.9977,
         "mae": 1.497,
         "rmse": 2.457,
         "ci90_half_width": 4.04,
-        "best_alpha": 0.695
+        "best_alpha": 0.695,
+        "persistence_r2": 0.9963,
+        "persistence_mae": 2.044
       },
       "gts_max": {
         "r2_score": 0.9256,
         "mae": 1.746,
         "rmse": 2.327,
         "ci90_half_width": 3.83,
-        "best_alpha": 7.848
+        "best_alpha": 7.848,
+        "persistence_r2": 0.9225,
+        "persistence_mae": 1.672
       },
       "gts_min": {
         "r2_score": 0.2021,
         "mae": 4.187,
         "rmse": 5.517,
         "ci90_half_width": 9.07,
-        "best_alpha": 12.743
+        "best_alpha": 12.743,
+        "persistence_r2": -0.1563,
+        "persistence_mae": 5.049
       },
       "dust_storm": {
-        "roc_auc": 0.9,
-        "accuracy": 0.699
+        "roc_auc": 0.6245,
+        "roc_auc_method": "mean of 3 forward-chaining time folds that contain storm-proxy sols",
+        "roc_auc_folds": [
+          0.7211,
+          0.735,
+          0.4174
+        ],
+        "holdout_storm_sols": 0,
+        "holdout_accuracy": 0.699,
+        "label": "proxy: diurnal range below 48 \u00b0C during Ls 160-330, not a catalogued storm"
       }
     },
     "sol_plus_2": {
@@ -673,39 +691,57 @@
         "mae": 2.743,
         "rmse": 3.481,
         "ci90_half_width": 5.73,
-        "best_alpha": 88.587
+        "best_alpha": 88.587,
+        "persistence_r2": 0.8296,
+        "persistence_mae": 3.132
       },
       "t_min": {
         "r2_score": 0.8035,
         "mae": 1.152,
         "rmse": 1.997,
         "ci90_half_width": 3.28,
-        "best_alpha": 33.598
+        "best_alpha": 33.598,
+        "persistence_r2": 0.7348,
+        "persistence_mae": 1.273
       },
       "pressure": {
         "r2_score": 0.9973,
         "mae": 1.655,
         "rmse": 2.674,
         "ci90_half_width": 4.4,
-        "best_alpha": 2.976
+        "best_alpha": 2.976,
+        "persistence_r2": 0.9941,
+        "persistence_mae": 2.727
       },
       "gts_max": {
         "r2_score": 0.9047,
         "mae": 2.025,
         "rmse": 2.633,
         "ci90_half_width": 4.33,
-        "best_alpha": 12.743
+        "best_alpha": 12.743,
+        "persistence_r2": 0.8985,
+        "persistence_mae": 1.977
       },
       "gts_min": {
         "r2_score": 0.2059,
         "mae": 4.198,
         "rmse": 5.505,
         "ci90_half_width": 9.06,
-        "best_alpha": 12.743
+        "best_alpha": 12.743,
+        "persistence_r2": -0.165,
+        "persistence_mae": 5.077
       },
       "dust_storm": {
-        "roc_auc": 0.9,
-        "accuracy": 0.6976
+        "roc_auc": 0.7009,
+        "roc_auc_method": "mean of 3 forward-chaining time folds that contain storm-proxy sols",
+        "roc_auc_folds": [
+          0.8272,
+          0.7614,
+          0.514
+        ],
+        "holdout_storm_sols": 0,
+        "holdout_accuracy": 0.6976,
+        "label": "proxy: diurnal range below 48 \u00b0C during Ls 160-330, not a catalogued storm"
       }
     },
     "sol_plus_3": {
@@ -714,39 +750,57 @@
         "mae": 2.769,
         "rmse": 3.528,
         "ci90_half_width": 5.8,
-        "best_alpha": 143.845
+        "best_alpha": 143.845,
+        "persistence_r2": 0.816,
+        "persistence_mae": 3.232
       },
       "t_min": {
         "r2_score": 0.7933,
         "mae": 1.175,
         "rmse": 2.049,
         "ci90_half_width": 3.37,
-        "best_alpha": 54.556
+        "best_alpha": 54.556,
+        "persistence_r2": 0.6706,
+        "persistence_mae": 1.346
       },
       "pressure": {
         "r2_score": 0.9971,
         "mae": 1.686,
         "rmse": 2.77,
         "ci90_half_width": 4.56,
-        "best_alpha": 2.976
+        "best_alpha": 2.976,
+        "persistence_r2": 0.9924,
+        "persistence_mae": 3.343
       },
       "gts_max": {
         "r2_score": 0.8936,
         "mae": 2.134,
         "rmse": 2.78,
         "ci90_half_width": 4.57,
-        "best_alpha": 12.743
+        "best_alpha": 12.743,
+        "persistence_r2": 0.8852,
+        "persistence_mae": 2.083
       },
       "gts_min": {
         "r2_score": 0.177,
         "mae": 4.247,
         "rmse": 5.603,
         "ci90_half_width": 9.22,
-        "best_alpha": 20.691
+        "best_alpha": 20.691,
+        "persistence_r2": -0.2386,
+        "persistence_mae": 5.28
       },
       "dust_storm": {
-        "roc_auc": 0.9,
-        "accuracy": 0.6765
+        "roc_auc": 0.6889,
+        "roc_auc_method": "mean of 3 forward-chaining time folds that contain storm-proxy sols",
+        "roc_auc_folds": [
+          0.7922,
+          0.7808,
+          0.4936
+        ],
+        "holdout_storm_sols": 0,
+        "holdout_accuracy": 0.6765,
+        "label": "proxy: diurnal range below 48 \u00b0C during Ls 160-330, not a catalogued storm"
       }
     }
   }
