@@ -9,7 +9,10 @@ import { routeDistance, estimateO2Consumption, estimateWaterConsumption, estimat
 import { getElevationProfile, getProfileStats } from '../utils/elevationService';
 import ProvenanceBadge from './ProvenanceBadge';
 import { generateFlightBrief } from '../services/aiService';
-import { Loader2, Sparkles, Flame, Dna } from 'lucide-react';
+import { Loader2, Sparkles, Flame, Dna, UploadCloud } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { fetchProfile } from '../services/profileService';
+import { marsAudio } from '../utils/audioSynthesizer';
 
 export default function FlightPlanModal() {
   const { 
@@ -26,6 +29,10 @@ export default function FlightPlanModal() {
   const [copied, setCopied] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [aiBrief, setAiBrief] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
+  const user = useMapStore((s) => s.user);
+  const setAuthModalOpen = useMapStore((s) => s.setAuthModalOpen);
 
   // Escape key to close (called unconditionally at top level)
   React.useEffect(() => {
@@ -127,6 +134,44 @@ export default function FlightPlanModal() {
     a.download = `MarsWalk_EVA_plan_sol_${currentSol}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleSyncMission = async () => {
+    if (!user) {
+      setAuthModalOpen(true);
+      return;
+    }
+    if (!waypoints || waypoints.length < 2) return;
+
+    setIsSyncing(true);
+    setSyncStatus('syncing');
+    try {
+      const distance = totalDist || routeDistance(waypoints);
+      const title = `Expedition: ${waypoints[0].name} to ${waypoints[waypoints.length - 1].name}`;
+
+      const { error } = await supabase.from('missions').insert({
+        user_id: user.id,
+        title,
+        waypoints,
+        total_distance: distance,
+        estimated_duration_hours: evaHours || estimateRouteEVA(waypoints).totalHours,
+        is_public: false,
+      });
+
+      if (error) throw error;
+
+      await fetchProfile(user.id);
+
+      setSyncStatus('success');
+      marsAudio.playQuindarTone?.(true);
+      setTimeout(() => setSyncStatus(null), 3000);
+    } catch (err) {
+      console.error('Mission sync failed:', err);
+      setSyncStatus('error');
+      setTimeout(() => setSyncStatus(null), 3000);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleCopyMarkdown = () => {
@@ -246,6 +291,24 @@ export default function FlightPlanModal() {
               {isAiGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
               <span>{isAiGenerating ? 'AI Generating...' : 'AI Mission Analyst'}</span>
             </button>
+
+            {waypoints && waypoints.length > 1 && (
+              <button
+                onClick={handleSyncMission}
+                disabled={isSyncing}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all border shrink-0 whitespace-nowrap text-xs font-mono font-bold ${
+                  syncStatus === 'success'
+                    ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500'
+                    : syncStatus === 'error'
+                    ? 'bg-rose-600/30 text-rose-300 border-rose-500'
+                    : 'bg-cyan-600/20 hover:bg-cyan-600/35 text-cyan-300 border-cyan-500/50 hover:border-cyan-400'
+                }`}
+                title="Save this Flight Route to My Missions in Astronaut Profile"
+              >
+                {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
+                <span>{syncStatus === 'success' ? 'Mission Saved!' : syncStatus === 'error' ? 'Save Failed' : 'Save to My Missions'}</span>
+              </button>
+            )}
 
             <button
               onClick={handleDownloadJSON}
