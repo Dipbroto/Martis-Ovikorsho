@@ -85,7 +85,7 @@ export default function AuthModal() {
                 <ShieldCheck className="w-5 h-5 text-mars-400" />
                 COMMAND AUTHORIZATION
               </h2>
-              <p className="text-space-400 text-xs font-mono mt-1">Nasa Space Apps - MarsWalk System</p>
+              <p className="text-space-400 text-xs font-mono mt-1">MarsWalk account (a NASA Space Apps 2026 project)</p>
             </div>
             <button 
               onClick={() => setAuthModalOpen(false)}
@@ -131,7 +131,7 @@ export default function AuthModal() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="astronaut@nasa.gov"
+                    placeholder="you@example.com"
                     className="w-full bg-space-900 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-mars-500 transition-colors"
                   />
                 </div>

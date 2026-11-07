@@ -38,7 +38,7 @@ export default function StatsBand() {
   }, []);
 
   const items = [
-    { value: stats.sites, label: 'landing areas mapped at 200 m per pixel' },
+    { value: stats.sites, label: 'areas of Mars mapped at 200 m per pixel' },
     { value: stats.roverKm, label: 'km of real Curiosity and Perseverance drives re-planned' },
     { value: stats.steepPct, label: 'of those rover paths rated too steep to walk', suffix: '%' },
     { value: stats.caves, label: 'cave candidates mapped as natural shelter' },

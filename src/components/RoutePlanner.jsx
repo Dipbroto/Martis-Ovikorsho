@@ -311,7 +311,7 @@ export default function RoutePlanner() {
                 <Compass className="w-3.5 h-3.5 text-mars-400" />
                 <span>Example expeditions</span>
               </span>
-              <ProvenanceBadge type="HISTORICAL" size="xs" detail="NASA Mission Traverses" />
+              <ProvenanceBadge type="DERIVED" size="xs" detail="Two follow real rover routes, two are imagined human EVAs" />
             </div>
             <select
               onChange={(e) => {

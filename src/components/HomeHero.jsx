@@ -166,7 +166,7 @@ function HomeHero({ onSelectTab }) {
                     <span className="text-[9px] text-violet-300 bg-violet-950/80 px-1 py-0.2 rounded border border-violet-700/50 font-mono">ML</span>
                   </dt>
                   <dd className="font-semibold tabular-nums text-sm">{weather?.temperature?.avg != null ? `${weather.temperature.avg}°C` : '--'}</dd>
-                  <dd className="text-[10px] text-zinc-400">Climatology</dd>
+                  <dd className="text-[10px] text-zinc-400">Gale Crater, sol average</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-zinc-300 font-sans flex items-center gap-1">
@@ -174,7 +174,7 @@ function HomeHero({ onSelectTab }) {
                     <span className="text-[9px] text-violet-300 bg-violet-950/80 px-1 py-0.2 rounded border border-violet-700/50 font-mono">ML</span>
                   </dt>
                   <dd className="font-semibold tabular-nums text-sm">{weather?.pressure?.value != null ? `${weather.pressure.value} Pa` : '--'}</dd>
-                  <dd className="text-[10px] text-zinc-400">Barometric</dd>
+                  <dd className="text-[10px] text-zinc-400">Gale Crater</dd>
                 </div>
               </dl>
             </div>
