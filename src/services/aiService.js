@@ -54,7 +54,7 @@ const ARES_TOOLS = [
         parameters: {
           type: T.OBJECT,
           properties: {
-            destination_name: { type: T.STRING, description: "Name of the destination, e.g. 'Belva Crater Delta Scarp Outcrop', 'Vera Rubin Ridge Sulfate Unit', 'North-West Lava Tube Skylight'" },
+            destination_name: { type: T.STRING, description: "Name of the destination, e.g. 'Belva Crater Delta Scarp Outcrop', 'Vera Rubin Ridge Sulfate Unit', 'Summit Plateau toward the Caldera'" },
             destination_lat: { type: T.NUMBER, description: "Destination latitude in decimal degrees" },
             destination_lon: { type: T.NUMBER, description: "Destination longitude in decimal degrees (-180 to 180)" },
             origin_name: { type: T.STRING, description: "Optional start point name. Omit to start from the nearest basecamp." },
@@ -266,29 +266,29 @@ VERIFIED NASA / JPL / USGS / ESA MARTIAN SCIENCE REFERENCE DATA
 6. VALIDATED 200m DEM TRAVERSE CORRIDORS IN MARSWALK EXPLORER:
 The application computes real A* walking traverses on 200m/px HRSC-MOLA digital elevation grids inside these 6 regions ONLY:
 1) Jezero Western Delta:
-   - Origin: Octavia E. Butler Base (Perseverance) [18.4447°N, 77.4508°E, Elev: -2,600m]
-   - Destination: Belva Crater Delta Scarp Outcrop [18.4985°N, 77.3450°E, Elev: -2,480m]
-   - Path metrics: ~9.2 km traverse, climbs ancient delta terrace front.
+   - Origin: Octavia E. Butler Base (Perseverance) [18.4447°N, 77.4508°E, Elev: -2,573m]
+   - Destination: Belva Crater Delta Scarp Outcrop [18.4985°N, 77.3450°E, Elev: -2,409m]
+   - Path: about 6.8 km, up the delta front.
 2) Gale Crater Mount Sharp:
-   - Origin: Bradbury Landing Base (Curiosity) [-4.5895°N, 137.4417°E, Elev: -4,500m]
-   - Destination: Vera Rubin Ridge Sulfate Unit [-4.6850°N, 137.3820°E, Elev: -4,120m]
-   - Path metrics: ~7.8 km ascent, gentle grade up hematite ridge.
-3) Olympus Mons Summit Caldera:
-   - Origin: Tharsis Recon Basecamp Alpha [18.2500°N, -134.2000°E, Elev: 19,500m]
-   - Destination: North-West Lava Tube Skylight [18.3800°N, -134.0500°E, Elev: 20,100m]
-   - Path metrics: ~11.4 km high-altitude volcano traverse along collapsed lava tubes.
-4) Valles Marineris (Coprates & Melas Chasma):
-   - Origin: Coprates Chasma Rim Refuge [-13.8500°N, -59.4500°E, Elev: -4,200m]
-   - Destination: Melas Chasma Sulfatic Layer Outcrop [-14.2800°N, -58.8200°E, Elev: -5,100m]
-   - Path metrics: ~18.5 km deep canyon floor exploration.
-5) Arcadia Planitia Subsurface Ice Reserve:
-   - Origin: Arcadia Primary ISRU Wellhead [39.1000°N, -171.4500°E, Elev: -4,050m]
-   - Destination: Deuteronilus Sinuous Ridge Ice Exposure [39.5500°N, -170.8500°E, Elev: -3,880m]
-   - Path metrics: ~16.2 km traverse over shallow subsurface glacial ice deposits.
-6) Elysium Planitia / InSight Seismology:
-   - Origin: InSight Landed Habitat Alpha [4.5024°N, 135.6234°E, Elev: -2,613m]
-   - Destination: Cerberus Fossae Tectonic Fault Fissure [4.7800°N, 135.9800°E, Elev: -2,420m]
-   - Path metrics: ~14.1 km volcanic plain traverse to seismic fault rifts.
+   - Origin: Bradbury Landing Base (Curiosity) [-4.5895°N, 137.4417°E, Elev: -4,503m]
+   - Destination: Vera Rubin Ridge Sulfate Unit [-4.6850°N, 137.3820°E, Elev: -4,374m]
+   - Path: about 7 km, a gentle climb toward the ridge.
+3) Olympus Mons summit:
+   - Origin: Olympus Mons Summit Camp [18.2500°N, -134.2000°E, Elev: 20,041m]
+   - Destination: Summit Plateau toward the Caldera [18.3800°N, -134.0500°E, Elev: 20,227m]
+   - Path: about 11.5 km across the summit plateau.
+4) Valles Marineris (Coprates Chasma):
+   - Origin: Coprates Chasma Bench Camp [-13.8500°N, -59.4500°E, Elev: -1,418m]
+   - Destination: Coprates Chasma Lower Slope [-14.2800°N, -58.8200°E, Elev: -2,292m]
+   - Path: about 51 km inside the canyon: a rover drive, far beyond one walking EVA.
+5) Arcadia Planitia (buried water ice):
+   - Origin: Arcadia Planitia Base [39.1000°N, -171.4500°E, Elev: -3,896m]
+   - Destination: Arcadia Ice Survey Point [39.5500°N, -170.8500°E, Elev: -3,653m]
+   - Path: about 39 km over the northern plains: a rover drive.
+6) Elysium Planitia (InSight):
+   - Origin: InSight Landing Site Base [4.5024°N, 135.6234°E, Elev: -2,617m]
+   - Destination: Elysium Plains Survey Point [4.7800°N, 135.9800°E, Elev: -2,670m]
+   - Path: about 27 km across flat volcanic plains: a rover drive.
 
 7. FULL LANDMARK DATABASE FOR NAVIGATION:
 ${MARS_LANDMARKS.map(

@@ -177,7 +177,7 @@ export default function GuidedPlannerModal() {
                       ))}
                     </div>
                     {result.metrics.budgetSharePct > 50 && (
-                      <p className="mt-2 flex items-start gap-2 text-xs text-rose-300"><AlertTriangle className="w-4 h-4 shrink-0" />One way uses over half the usable life support, so the walk back would not fit.</p>
+                      <p className="mt-2 flex items-start gap-2 text-xs text-rose-300"><AlertTriangle className="w-4 h-4 shrink-0" />{result.metrics.budgetSharePct > 100 ? `One way needs ${result.metrics.budgetSharePct}% of the usable life support: on foot the crew could not even get there. Drive it in the rover.` : 'One way uses over half the usable life support, so the walk back would not fit.'}</p>
                     )}
                     <ul className="mt-3 space-y-1.5 text-sm text-zinc-300 leading-relaxed">
                       {result.explainability.rationale.map((r) => <li key={r}>▸ {r}</li>)}

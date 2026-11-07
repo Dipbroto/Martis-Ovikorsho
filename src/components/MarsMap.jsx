@@ -22,7 +22,7 @@ import RouteDraftLayer from './dock/RouteDraftLayer';
 import QuakeLayer from './quakes/QuakeLayer';
 import { nearestPlace } from '../data/places';
 import { legCost, usableBudgetJ } from '../terrain/evaModel';
-import { roverLeg, roverTerramechanicsLeg, ROVER } from '../terrain/roverModel';
+import { roverTerramechanicsLeg, ROVER } from '../terrain/roverModel';
 
 // Leaflet's geodesic <Circle> converts metres to degrees with Earth's radius when using EPSG:4326,
 // so real Martian distances have to be scaled up to render at the correct size on this map.
@@ -449,6 +449,8 @@ const RoverSimulator = ({ waypoints }) => {
       hazardLevel: roverTerra.hazardLevel,
       advisory: roverTerra.advisory,
       batteryRemainingKwh: +Math.max(0, ((trackCost.roverBatteryWh || 60000) - currentRoverWh) / 1000).toFixed(1),
+      // On foot, the usable life support is gone and only the emergency reserve is left: the walk stops here
+      lifeOut: !rover && footLifeLeft <= 0 && distKm < routeDistances.totalDistKm - 0.01,
     });
     setRoverBatterySoC(Math.round(lifeLeft));
     setRoverCurrentPosition({ lat: sm.lat, lon: sm.lon, bearing: Math.round(heading), elevation: Math.round((sm.a.elevation || 0) + ((sm.b.elevation || 0) - (sm.a.elevation || 0)) * sm.f) });
@@ -556,6 +558,20 @@ const RoverSimulator = ({ waypoints }) => {
       }
 
       const sm = sample(dist);
+      // On foot the crew cannot walk on once the usable life support is spent: stop where it runs out
+      if (!rover) {
+        const usedJ = trackCost.cumE[sm.seg] + legCost(sm.segM, (sm.b.elevation || 0) - (sm.a.elevation || 0)).energyJ * sm.f;
+        if (usedJ >= trackCost.budgetJ) {
+          progRef.current = dist / totalDistKm;
+          setRoverProgress(progRef.current);
+          setRoverDriving(false);
+          marsAudio.playQuindarTone(false);
+          applyPosition(sm);
+          setAnchorCoord([sm.lat, sm.lon]);
+          publish(sm, dist);
+          return;
+        }
+      }
       if (sm.seg !== segIdxRef.current) {
         segIdxRef.current = sm.seg;
         setCurrentSegIdx(sm.seg);

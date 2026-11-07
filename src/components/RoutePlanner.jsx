@@ -763,7 +763,7 @@ export default function RoutePlanner() {
                   </div>
                   {generatedRouteResult.metrics.budgetSharePct > 50 && (
                     <p className="text-[10px] font-mono text-rose-300">
-                      One-way trip uses over half the usable budget: the walk back would not fit. Choose a closer objective.
+                      {generatedRouteResult.metrics.budgetSharePct > 100 ? 'One way needs more than the whole usable budget: on foot the crew could not even get there. Choose a closer objective or drive it.' : 'One-way trip uses over half the usable budget: the walk back would not fit. Choose a closer objective.'}
                     </p>
                   )}
                 </>

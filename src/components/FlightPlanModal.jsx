@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Printer, Download, ShieldCheck, Copy, Check } from 'lucide-react';
-import useMapStore from '../store/useMapStore';
+import useMapStore, { routeSignature } from '../store/useMapStore';
+import { EVA_ASSUMPTIONS } from '../terrain/evaModel';
 import { estimateRouteEVA } from '../terrain/routeEnergy';
 import { useShallow } from 'zustand/react/shallow';
 import { routeDistance, estimateO2Consumption, estimateWaterConsumption, estimatePowerConsumption } from '../utils/marsUtils';
@@ -19,7 +20,8 @@ export default function FlightPlanModal() {
     weather,
     currentSol,
     isruInventory,
-  } = useMapStore(useShallow((s) => ({ isFlightPlanOpen: s.isFlightPlanOpen, setFlightPlanOpen: s.setFlightPlanOpen, waypoints: s.waypoints, collectedSamples: s.collectedSamples, weather: s.weather, currentSol: s.currentSol, isruInventory: s.isruInventory })));
+    routeGeometry,
+  } = useMapStore(useShallow((s) => ({ isFlightPlanOpen: s.isFlightPlanOpen, setFlightPlanOpen: s.setFlightPlanOpen, waypoints: s.waypoints, collectedSamples: s.collectedSamples, weather: s.weather, currentSol: s.currentSol, isruInventory: s.isruInventory, routeGeometry: s.routeGeometry })));
 
   const [copied, setCopied] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -39,11 +41,24 @@ export default function FlightPlanModal() {
 
   if (!isFlightPlanOpen) return null;
 
-  const totalDist = routeDistance(waypoints || []);
+  // The route as planned on the terrain, when there is one; otherwise the straight legs between the stops
+  const planned = routeGeometry && routeGeometry.signature === routeSignature(waypoints || []) ? routeGeometry.metrics : null;
   const profile = getElevationProfile(waypoints || [], 100);
-  const stats = getProfileStats(profile);
-  const evaEst = estimateRouteEVA(waypoints || []);
-  const evaHours = typeof evaEst === 'object' ? evaEst.totalHours : evaEst;
+  const legStats = getProfileStats(profile);
+  const stats = planned
+    ? { ...legStats, maxSlope: planned.maxSlopeDeg, elevationGain: planned.totalAscentMeters, elevationLoss: planned.totalDescentMeters }
+    : legStats;
+  const totalDist = planned?.traverseDistanceKm ?? routeDistance(waypoints || []);
+  const evaEst = planned ? null : estimateRouteEVA(waypoints || []);
+  const evaHours = planned?.walkingHours ?? (typeof evaEst === 'object' ? evaEst.totalHours : evaEst);
+  const reservePct = Math.round(EVA_ASSUMPTIONS.reserveFraction * 100);
+  // The rules MarsWalk itself plans by (the same numbers the planner and the drills use)
+  const RULES = [
+    ['Turn-back', `Out and back must fit the usable life support; the last ${reservePct}% is held back as an emergency reserve.`],
+    ['Slope', `The planner never walks a step steeper than ${EVA_ASSUMPTIONS.maxSlopeDeg}°.`],
+    ['Dust storm', 'Tether to your partner and follow the recorded track home: walking pace about halves by dust optical depth 4.'],
+    ['Radiation storm', 'Get under shielding (habitat, rover or cave) by the fastest route; every minute outside adds dose.'],
+  ];
 
   const o2 = estimateO2Consumption(evaHours);
   const h2o = estimateWaterConsumption(evaHours);
@@ -62,7 +77,7 @@ export default function FlightPlanModal() {
 
   const handleDownloadJSON = () => {
     const flightPackage = {
-      missionTitle: 'MARSWALK EXPLORER EXPEDITION EVA-2026',
+      missionTitle: 'MarsWalk EVA plan (NASA Space Apps 2026 project, not an official NASA document)',
       sol: currentSol,
       generatedAt: new Date().toISOString(),
       weatherConditions: {
@@ -102,26 +117,21 @@ export default function FlightPlanModal() {
         { domain: 'Geodesic Navigation', source: 'IAU 2000 Spherical Planetocentric Math', type: 'DERIVED' },
         { domain: 'Bioenergetics & Shielding', source: 'NASA SP-2010-3407 & MSL RAD ML Model', type: 'ML_PREDICTION' },
       ],
-      flightRules: [
-        'EVA-FR-01: Maximum walkback limit fixed at 5.0 km radius from primary pressurized shelter.',
-        'EVA-FR-02: Terrain slope sections > 15 degrees require safety tether and CapCom abort check.',
-        'EVA-FR-03: Solar particle event (SPE) alarms require immediate abort within 20 minutes.',
-        'EVA-FR-04: Dust opacity exceeding tau 1.8 grounds rover travel and triggers suit beacon tracking.'
-      ]
+      planningRules: RULES.map(([k, v]) => `${k}: ${v}`)
     };
 
     const blob = new Blob([JSON.stringify(flightPackage, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `NASA_MARSWALK_EVA_PLAN_SOL_${currentSol}.json`;
+    a.download = `MarsWalk_EVA_plan_sol_${currentSol}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleCopyMarkdown = () => {
-    let md = `# NASA MARSWALK OPERATIONAL MISSION BRIEF\n`;
-    md += `**Document Code:** JPL-EVA-2026-MARS | **Mission Sol:** ${currentSol}\n`;
+    let md = `# MarsWalk EVA Plan Briefing\n`;
+    md += `_A NASA Space Apps 2026 project; not an official NASA document._ | **Mars Sol Date:** ${currentSol}\n`;
     md += `**Generated:** ${new Date().toISOString()} | **Challenge:** NASA Space Apps Challenge 2026\n\n`;
     
     md += `## 1. Executive Traverse Summary\n`;
@@ -134,7 +144,7 @@ export default function FlightPlanModal() {
     md += `## 2. Consumables & Life Support Budget\n`;
     md += `| Consumable | Quantity | Baseline Standard |\n`;
     md += `| :--- | :--- | :--- |\n`;
-    md += `| **Metabolic Oxygen (O₂)** | ${o2.totalKg} kg (${o2.totalLiters} L) | NASA STD-3001 EVA Human Rating |\n`;
+    md += `| **Metabolic Oxygen (O₂)** | ${o2.totalKg} kg (${o2.totalLiters} L) | Planning estimate at a moderate workload |\n`;
     md += `| **Potable Water (H₂O)** | ${h2o.totalLiters} L | Sublimator & Astronaut Hydration Loop |\n`;
     md += `| **Power Draw & Heating** | ${pwr.energyKWh} kWh (${pwr.powerWatts} W) | Active Thermal Control System (ATCS) |\n\n`;
 
@@ -157,16 +167,14 @@ export default function FlightPlanModal() {
     md += `| Planetary Geodesy | IAU 2000 Mars Constants (R=3389.5km) | [DERIVED] | Spherical Trigonometry |\n`;
     md += `| Radiation & Bioenergetics | MSL RAD Detector & Margaria-Minetti Model | [ML PREDICTED] | NASA SP-2010-3407 & MSL RAD ML |\n\n`;
 
-    md += `## 5. Contingency Planning Rules & Abort Limits (team planning assumptions, not NASA requirements)\n`;
-    md += `1. **EVA-FR-01 (Walkback Perimeter):** Planning assumption: keep the distance to the primary pressurized refuge within a 5.0 km radius.\n`;
-    md += `2. **EVA-FR-02 (Slope Hazard):** Traversing slopes > 15° requires CapCom clearance. Slopes > 25° are strictly prohibited.\n`;
-    md += `3. **EVA-FR-03 (Solar Proton Event):** Immediate traverse abort required within 25 minutes of SPE telemetry alert.\n`;
-    md += `4. **EVA-FR-04 (Dust Storm Inflow):** Ambient dust opacity (tau) > 1.8 grounds rover and engages emergency homing transponder.\n\n`;
+    md += `## 5. Planning Rules (MarsWalk's own assumptions, not NASA requirements)\n`;
+    RULES.forEach(([k, v], i) => { md += `${i + 1}. **${k}:** ${v}\n`; });
+    md += `\n`;
 
-    md += `## 6. Official Sign-Off & Flight Clearance\n`;
-    md += `- **Lead Astronaut (EVA-1):** _____________________ [APPROVED]\n`;
-    md += `- **CapCom (JPL / Houston):** _____________________ [CLEARED]\n`;
-    md += `- **Flight Director:** _____________________ [DISPATCHED]\n`;
+    md += `## 6. Sign-off\n`;
+    md += `- **EVA crew:** _____________________\n`;
+    md += `- **Habitat support:** _____________________\n`;
+    md += `- **Mission planner:** _____________________\n`;
 
     navigator.clipboard.writeText(md).then(() => {
       setCopied(true);
@@ -190,18 +198,18 @@ export default function FlightPlanModal() {
         {/* Modal Header (Horizontal Scrollable Menu Bar) */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-space-800 bg-space-900/60 shrink-0 print:hidden overflow-x-auto overflow-y-hidden custom-scrollbar-x gap-3">
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center font-display font-bold text-white text-xs border border-white/40 shadow-sm shrink-0">
-              NASA
+            <div className="w-9 h-9 rounded-full bg-[#F26A3D] flex items-center justify-center font-display font-bold text-white text-xs border border-white/40 shadow-sm shrink-0">
+              MW
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold text-white tracking-widest uppercase whitespace-nowrap">
-                  EVA FLIGHT PLAN & BRIEF
+                  EVA PLAN & BRIEFING
                 </h2>
                 <ProvenanceBadge type="DERIVED" size="xs" detail="MarsWalk planning tool" />
               </div>
               <p className="text-[10px] text-space-400 whitespace-nowrap">
-                DOCUMENT CODE: JPL-EVA-2026-MARS • SOL {currentSol} • EXPEDITION CLEARANCE
+                MARSWALK PLANNING TOOL • MARS SOL DATE {currentSol} • NOT AN OFFICIAL NASA DOCUMENT
               </p>
             </div>
           </div>
@@ -223,7 +231,7 @@ export default function FlightPlanModal() {
             <button
               onClick={() => window.print()}
               className="px-3 py-1.5 bg-space-800 hover:bg-space-700 text-white rounded-lg flex items-center gap-1.5 transition-colors border border-space-700 shrink-0 whitespace-nowrap"
-              title="Print Official Document"
+              title="Print the briefing"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Print Brief</span>
@@ -265,12 +273,9 @@ export default function FlightPlanModal() {
           <div className="hidden print:block border-b-2 border-black pb-4 mb-4">
             <div className="flex justify-between items-start">
               <div>
-                <h1 className="text-xl font-bold tracking-widest uppercase">NATIONAL AERONAUTICS AND SPACE ADMINISTRATION</h1>
-                <h2 className="text-lg font-semibold mt-1">HUMAN MARSWALK EXPLORATION TRAVERSE BRIEFING (EVA-2026)</h2>
-                <p className="text-sm font-mono text-gray-700">MISSION SOL: {currentSol} | SERIAL: JPL-EVA-2026-MARS | DSN REF: MARSWAY-01</p>
-              </div>
-              <div className="border-2 border-black px-3 py-1 text-center font-bold text-xs uppercase">
-                OFFICIAL FLIGHT DISPATCH
+                <h1 className="text-xl font-bold tracking-widest uppercase">MARSWALK EXPLORER</h1>
+                <h2 className="text-lg font-semibold mt-1">EVA PLAN BRIEFING</h2>
+                <p className="text-sm font-mono text-gray-700">MARS SOL DATE {currentSol} | NASA SPACE APPS 2026 PROJECT, NOT AN OFFICIAL NASA DOCUMENT</p>
               </div>
             </div>
           </div>
@@ -292,14 +297,14 @@ export default function FlightPlanModal() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] text-space-400 uppercase block print:text-gray-600">TOTAL DISTANCE</span>
-                <ProvenanceBadge type="DERIVED" size="xs" detail="IAU Geodesy" />
+                <ProvenanceBadge type="DERIVED" size="xs" detail={planned ? 'Planned route on the terrain' : 'Straight legs between stops'} />
               </div>
               <span className="text-base font-bold text-white print:text-black">{totalDist.toFixed(2)} km</span>
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] text-space-400 uppercase block print:text-gray-600">ESTIMATED DURATION</span>
-                <ProvenanceBadge type="DERIVED" size="xs" detail="0.38g Walk Model" />
+                <ProvenanceBadge type="DERIVED" size="xs" detail="MarsWalk walking model" />
               </div>
               <span className="text-base font-bold text-mars-400 print:text-black">{evaHours.toFixed(1)} hrs</span>
             </div>
@@ -323,27 +328,17 @@ export default function FlightPlanModal() {
             <h3 className="font-bold text-amber-400 flex items-center justify-between text-xs uppercase tracking-wider print:text-black">
               <span className="flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-amber-400 print:text-black" />
-                <span>Contingency Abort Matrix (planning assumptions)</span>
+                <span>Planning rules (MarsWalk assumptions)</span>
               </span>
-              <ProvenanceBadge type="NASA_SPEC" size="xs" detail="NASA Flight Rule Baseline" />
+              <ProvenanceBadge type="DERIVED" size="xs" detail="MarsWalk's own planning rules, not NASA flight rules" />
             </h3>
             <ul className="space-y-1.5 text-[11px] text-space-300 print:text-black">
-              <li className="flex items-start gap-2">
-                <span className="text-amber-400 font-bold print:text-black">FR-01:</span>
-                <span><strong>Walkback Limit:</strong> Planning assumption: keep the distance to the primary pressurized shelter within a 5.0 km radius.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-amber-400 font-bold print:text-black">FR-02:</span>
-                <span><strong>Slope Abort:</strong> Slopes &gt; 15° require tether anchors. Any slope &gt; 25° is designated an absolute no-go traverse zone.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-amber-400 font-bold print:text-black">FR-03:</span>
-                <span><strong>Environmental Hazard:</strong> Immediate abort required if atmospheric dust opacity exceeds τ 1.8 or UV index spikes above 14.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-amber-400 font-bold print:text-black">FR-04:</span>
-                <span><strong>Solar Particle Alert:</strong> Ground teams must seek regolith-shielded cavern within 25 minutes of SPE notification.</span>
-              </li>
+              {RULES.map(([k, v], i) => (
+                <li key={k} className="flex items-start gap-2">
+                  <span className="text-amber-400 font-bold print:text-black">{i + 1}.</span>
+                  <span><strong>{k}:</strong> {v}</span>
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -450,7 +445,7 @@ export default function FlightPlanModal() {
                   <tr>
                     <td className="p-2 font-bold text-white print:text-black">Cosmic Radiation Dose</td>
                     <td className="p-2 text-space-300 print:text-black">Curiosity RAD Radiation Assessment Detector</td>
-                    <td className="p-2"><ProvenanceBadge type="OBSERVED" size="xs" detail="Curiosity RAD 0.67 mSv/d" /></td>
+                    <td className="p-2"><ProvenanceBadge type="OBSERVED" size="xs" detail="Curiosity RAD surface dose" /></td>
                     <td className="p-2 text-amber-400 print:text-black">Southwest Research Inst</td>
                   </tr>
                 </tbody>
@@ -465,7 +460,7 @@ export default function FlightPlanModal() {
                 <Flame className="w-3.5 h-3.5 text-amber-400" />
                 <span>ISRU Surface Forge & MAV Ascent Propellant Depot</span>
               </h3>
-              <ProvenanceBadge type="DERIVED" size="xs" detail="SuperCam In-Situ Smelting Synthesis" />
+              <ProvenanceBadge type="DERIVED" size="xs" detail="Your Science Lab inventory (gameplay, not a NASA process)" />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 print:border print:border-black">
               {/* Methalox Fuel */}
@@ -583,34 +578,15 @@ export default function FlightPlanModal() {
             )}
           </div>
 
-          {/* Official Sign-Off Authorization (Visible in UI and Print) */}
+          {/* Sign-off lines for a crew that prints the plan */}
           <div className="p-4 rounded-xl border border-space-800 bg-space-900/40 print:border-black print:bg-white print:text-black">
-            <h4 className="font-bold text-xs uppercase tracking-wider mb-3 text-white print:text-black">
-              Official NASA Mission Clearance & Sign-Off
-            </h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[10px]">
-              <div className="border-t border-space-700 pt-2 print:border-black">
-                <span className="text-space-400 block uppercase print:text-gray-600">LEAD ASTRONAUT (EVA-1)</span>
-                <span className="font-bold text-white font-sans text-xs print:text-black">Cmdr. A. Vance</span>
-                <span className="text-emerald-400 block font-mono print:text-black">✓ SUIT GO NOMINAL</span>
-              </div>
-              <div className="border-t border-space-700 pt-2 print:border-black">
-                <span className="text-space-400 block uppercase print:text-gray-600">CAPCOM (HOUSTON MCC)</span>
-                <span className="font-bold text-white font-sans text-xs print:text-black">Dr. M. Chen</span>
-                <span className="text-emerald-400 block font-mono print:text-black">✓ TRAVERSE CLEARED</span>
-              </div>
-              <div className="border-t border-space-700 pt-2 print:border-black">
-                <span className="text-space-400 block uppercase print:text-gray-600">FLIGHT DIRECTOR</span>
-                <span className="font-bold text-white font-sans text-xs print:text-black">J. R. Holloway</span>
-                <span className="text-cyan-400 block font-mono print:text-black">✓ DISPATCH AUTHORIZED</span>
-              </div>
-              <div className="border-t border-space-700 pt-2 print:border-black">
-                <span className="text-space-400 block uppercase print:text-gray-600">MAV ASCENT OFFICER</span>
-                <span className="font-bold text-white font-sans text-xs print:text-black">ISRU Depot</span>
-                <span className="${isruInventory?.methaloxFuelKg >= 50 ? 'text-emerald-400' : 'text-amber-400'} block font-mono print:text-black">
-                  {isruInventory?.methaloxFuelKg >= 50 ? '✓ MAV PROPELLANT LOADED' : '⏳ PENDING FUEL SYNTHESIS'}
-                </span>
-              </div>
+            <h4 className="font-bold text-xs uppercase tracking-wider mb-3 text-white print:text-black">Sign-off</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-[10px]">
+              {['EVA crew', 'Habitat support', 'Mission planner'].map((role) => (
+                <div key={role} className="border-t border-space-700 pt-6 print:border-black">
+                  <span className="text-space-400 block uppercase print:text-gray-600">{role}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

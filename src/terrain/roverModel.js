@@ -86,12 +86,15 @@ const haversineKm = (a, b) => {
   return 2 * 3389.5 * Math.asin(Math.sqrt(h));
 };
 
-/** Drive time in hours along a path of [lat, lon, elevation] points. */
-export function roverRouteHours(points, r = ROVER) {
+/**
+ * Drive time in hours along a path of [lat, lon, elevation] points, with the same terramechanics legs the map
+ * drives the rover with, so the planned time is the time the drive takes.
+ */
+export function roverRouteHours(points) {
   let s = 0;
   for (let i = 1; i < points.length; i++) {
     const m = haversineKm(points[i - 1], points[i]) * 1000;
-    s += roverLeg(m, (points[i][2] || 0) - (points[i - 1][2] || 0), r).timeS;
+    s += roverTerramechanicsLeg(m, (points[i][2] || 0) - (points[i - 1][2] || 0)).timeS;
   }
   return s / 3600;
 }

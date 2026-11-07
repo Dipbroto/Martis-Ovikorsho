@@ -5,6 +5,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { marsAudio } from '../utils/audioSynthesizer';
 import { marsDistance, calculateSlope, lonDelta } from '../utils/marsUtils';
 import { predictMetabolicBiometrics } from '../services/marsMlService';
+import { environmentAt, startDateFor } from './dock/walkEnvironment';
+import { EVA_ASSUMPTIONS } from '../terrain/evaModel';
 
 export default function EVAHelmetHUD() {
   const { 
@@ -20,14 +22,19 @@ export default function EVAHelmetHUD() {
     setRoverProgress,
     roverBatterySoC,
     setDriveTargetWaypointId,
-  } = useMapStore(useShallow((s) => ({ isEVASimulating: s.isEVASimulating, setEVASimulating: s.setEVASimulating, waypoints: s.waypoints, evaCurrentWaypointIndex: s.evaCurrentWaypointIndex, setEVACurrentWaypointIndex: s.setEVACurrentWaypointIndex, currentSol: s.currentSol, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, roverBatterySoC: s.roverBatterySoC, setDriveTargetWaypointId: s.setDriveTargetWaypointId })));
+    travelMode,
+    walkStartLtst,
+    walkHours,
+    crewPos,
+  } = useMapStore(useShallow((s) => ({ travelMode: s.travelMode, walkStartLtst: s.walkStartLtst, walkHours: s.walkTelemetry?.hours ?? 0, crewPos: s.roverCurrentPosition, isEVASimulating: s.isEVASimulating, setEVASimulating: s.setEVASimulating, waypoints: s.waypoints, evaCurrentWaypointIndex: s.evaCurrentWaypointIndex, setEVACurrentWaypointIndex: s.setEVACurrentWaypointIndex, currentSol: s.currentSol, isRoverDriving: s.isRoverDriving, setRoverDriving: s.setRoverDriving, roverProgress: s.roverProgress, setRoverProgress: s.setRoverProgress, roverBatterySoC: s.roverBatterySoC, setDriveTargetWaypointId: s.setDriveTargetWaypointId })));
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [lidarEnabled, setLidarEnabled] = useState(true);
   const [isMinimized, setIsMinimized] = useState(false);
   const [nasaMicActive, setNasaMicActive] = useState(false);
+  // Earth is 4 to 24 light-minutes away, so a live voice loop with Houston is impossible: the habitat crew runs the EVA
   const [commsLog, setCommsLog] = useState([
-    { id: 1, sender: 'CAPCOM (Houston)', text: 'Marswalk Explorer, EVA telemetry is green. Proceed with planned traverse.' },
+    { id: 1, sender: 'HABITAT', text: 'Suit checks are green. Proceed with the planned traverse. (Earth is minutes away by radio, so the habitat crew supports this EVA.)' },
   ]);
 
   const canvasRef = useRef(null);
@@ -63,6 +70,19 @@ export default function EVAHelmetHUD() {
     return predictMetabolicBiometrics(slopeDeg, walkingSpeed);
   }, [slopeDeg, isPlaying]);
   const currentBPM = biometrics.heartRateBpm;
+
+  // The same weather and life support the map panel shows, at the crew's position on the walk
+  const here = crewPos || currentWP;
+  const startDate = useMemo(() => startDateFor(waypoints?.[0]?.lon ?? here.lon, walkStartLtst), [waypoints, walkStartLtst]); // eslint-disable-line react-hooks/exhaustive-deps
+  const env = useMemo(
+    () => environmentAt({ lat: here.lat, lon: here.lon, elevation: here.elevation ?? 0, start: startDate, hours: walkHours }),
+    // the readout only needs to follow the hundredth of a degree and a few minutes of walking
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [Math.round(here.lat * 100), Math.round(here.lon * 100), Math.round(walkHours * 20), startDate],
+  );
+  const onFoot = travelMode === 'foot';
+  const usableHours = EVA_ASSUMPTIONS.lifeSupportHours * (1 - EVA_ASSUMPTIONS.reserveFraction);
+  const lifePct = onFoot ? Math.max(0, Math.round(roverBatterySoC)) : null;
 
   // Compass Heading calculation
   const headingDeg = nextWP 
@@ -116,7 +136,7 @@ export default function EVAHelmetHUD() {
         setIsPlaying(false);
         marsAudio.playQuindarTone(false);
         setCommsLog(c => [
-          { id: Date.now(), sender: 'CAPCOM', text: 'Traverse complete. Mission objectives achieved. Habitat airlock clearance granted.' },
+          { id: Date.now(), sender: 'HABITAT', text: 'Traverse complete. Airlock is ready for you.' },
           ...c.slice(0, 4)
         ]);
       } else {
@@ -231,10 +251,10 @@ export default function EVAHelmetHUD() {
                   ? 'bg-amber-500/30 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
                   : 'bg-black/60 border-white/20 text-zinc-300 hover:text-white'
               }`}
-              title="Stream real Perseverance SuperCam acoustic microphone recording of Martian wind"
+              title="Play a real recording of Martian wind from Perseverance's SuperCam microphone (not live)"
             >
               <Mic className={`w-3.5 h-3.5 ${nasaMicActive ? 'text-amber-400 animate-pulse' : ''}`} />
-              <span>{nasaMicActive ? 'NASA LIVE MIC [ON]' : 'NASA LIVE MIC'}</span>
+              <span>{nasaMicActive ? 'MARS WIND (RECORDED) [ON]' : 'MARS WIND (RECORDED)'}</span>
             </button>
             <button
               onClick={() => {
@@ -263,7 +283,7 @@ export default function EVAHelmetHUD() {
             {/* Target Waypoint Indicator */}
             {nextWP && (
               <div className="absolute top-4 text-[10px] text-cyan-300 font-bold bg-black/60 px-2 py-0.5 rounded border border-cyan-400/40">
-                TARGET: {nextWP.name} ({distToNextKm.toFixed(2)} km)
+                TARGET: {nextWP.name} ({distToNextKm.toFixed(2)} km straight line)
               </div>
             )}
           </div>
@@ -373,8 +393,8 @@ export default function EVAHelmetHUD() {
                 <span className="text-white font-bold">29.6 kPa (4.3 psi)</span>
               </div>
               <div className="bg-space-900/60 p-1.5 rounded border border-space-800">
-                <span className="text-space-400 block">O₂ RESERVE</span>
-                <span className="text-cyan-400 font-bold">84% (5.8 hrs)</span>
+                <span className="text-space-400 block">LIFE SUPPORT</span>
+                <span className="text-cyan-400 font-bold">{onFoot ? `${lifePct}% (${(usableHours * lifePct / 100).toFixed(1)} h)` : 'Rover supply'}</span>
               </div>
               <div className="bg-space-900/60 p-1.5 rounded border border-space-800">
                 <span className="text-space-400 block">SUIT THERMAL</span>
@@ -382,7 +402,7 @@ export default function EVAHelmetHUD() {
               </div>
               <div className="bg-space-900/60 p-1.5 rounded border border-space-800">
                 <span className="text-space-400 block">MARS AMBIENT</span>
-                <span className="text-blue-300 font-bold">-64°C / 642 Pa</span>
+                <span className="text-blue-300 font-bold">{Math.round(env.temp)}°C / {env.pressure} Pa</span>
               </div>
             </div>
           </div>
@@ -462,7 +482,7 @@ export default function EVAHelmetHUD() {
                 <strong className={isPlaying ? 'text-green-400 animate-pulse' : 'text-space-400'}>
                   {isPlaying ? 'IN SYNC' : 'STANDBY'}
                 </strong>
-                {' '}• {(roverProgress * 100).toFixed(0)}% done • life support {Math.round(roverBatterySoC)}%
+                {' '}• {(roverProgress * 100).toFixed(0)}% done • {onFoot ? `life support ${lifePct}%` : `rover battery ${Math.round(roverBatterySoC)}%`}
               </span>
             </div>
           </div>
@@ -472,7 +492,7 @@ export default function EVAHelmetHUD() {
             <div className="flex items-center justify-between text-amber-400 font-bold border-b border-amber-500/30 pb-1">
               <span className="flex items-center gap-1.5">
                 <Radio className="w-4 h-4 text-amber-400" />
-                <span>VOICE COMMS (HOUSTON)</span>
+                <span>HABITAT COMMS</span>
               </span>
               <button
                 onClick={() => setLidarEnabled(!lidarEnabled)}

@@ -9,7 +9,7 @@ export default function EvaProactiveAdvisor() {
   const routeGeometry = useMapStore((s) => s.routeGeometry);
   const terrainOverlayStatus = useMapStore((s) => s.terrainOverlayStatus);
   const isRoverDriving = useMapStore((s) => s.isRoverDriving);
-  const activeContingency = useMapStore((s) => s.activeContingency);
+  const activeContingency = useMapStore((s) => s.contingencyDetails);
   const travelMode = useMapStore((s) => s.travelMode);
   const setTravelMode = useMapStore((s) => s.setTravelMode);
   const setTerrainOverlay = useMapStore((s) => s.setTerrainOverlay);
@@ -88,7 +88,6 @@ export default function EvaProactiveAdvisor() {
     // Calculate distance and max slope
     let totalDistKm = 0;
     let maxSlope = 0;
-    let steepestIdx = 0;
 
     for (let i = 1; i < waypoints.length; i++) {
       const a = waypoints[i - 1];
@@ -99,15 +98,16 @@ export default function EvaProactiveAdvisor() {
       const riseM = Math.abs((b.elevation || 0) - (a.elevation || 0));
       const distM = d * 1000;
       const slope = Math.atan(riseM / Math.max(1, distM)) * (180 / Math.PI);
-      if (slope > maxSlope) {
-        maxSlope = slope;
-        steepestIdx = i;
-      }
+      if (slope > maxSlope) maxSlope = slope;
     }
 
-    // The distance and time of the route as planned on the terrain, which is longer than the straight legs between stops
+    // The distance, slope and time of the route as planned on the terrain: longer and steeper in places than
+    // the straight legs between stops
     const planned = routeGeometry && routeGeometry.signature === routeSignature(waypoints);
-    if (planned && routeGeometry.metrics?.distanceM) totalDistKm = routeGeometry.metrics.distanceM / 1000;
+    const pm = planned ? routeGeometry.metrics : null;
+    if (pm?.traverseDistanceKm != null) totalDistKm = pm.traverseDistanceKm;
+    else if (pm?.distanceM) totalDistKm = pm.distanceM / 1000;
+    if (pm?.maxSlopeDeg != null) maxSlope = pm.maxSlopeDeg;
     const tripMinutes = travelMode === 'rover' && planned
       ? Math.round(roverRouteHours(routeGeometry.points) * 60)
       : Math.round((totalDistKm / (travelMode === 'rover' ? 10 : 3.0)) * 60);
@@ -125,7 +125,7 @@ export default function EvaProactiveAdvisor() {
         id: `slope-hazard-${routeKey}`,
         type: 'warning',
         title: 'TERRAIN HAZARD ADVISORY',
-        text: `Commander, Waypoint ${steepestIdx + 1} climbs a steep ${maxSlope.toFixed(1)}° incline. Suited walking burns ~${Math.round(380 + maxSlope * 12)} W in loose scree. Recommend reviewing Slope overlay or skirting the ridge.`,
+        text: `The route climbs a ${maxSlope.toFixed(1)}° grade in places (the walking limit is 20°). Steep ground slows the walk and costs more life support: check the Slope overlay before you set off.`,
         primaryAction: {
           label: 'View Slope Overlay',
           action: () => {
@@ -137,19 +137,42 @@ export default function EvaProactiveAdvisor() {
         secondaryAction: {
           label: 'Optimize Route',
           action: () => {
-            setCopilotPrefillQuery(`How can we optimize our route around the steep ${maxSlope.toFixed(1)}° gradient at Waypoint ${steepestIdx + 1}?`);
+            setCopilotPrefillQuery(`How can we optimize our route around the steep ${maxSlope.toFixed(1)}° gradient?`);
             setAresCopilotOpen(true);
             dismissEvaCallout();
           },
         },
       }, 18000);
-    } else if (totalDistKm > 6.0 && travelMode === 'foot') {
+    } else if (travelMode === 'foot' && planned && pm?.budgetSharePct > 50) {
+      // One way takes over half the usable life support, so out and back cannot fit
+      triggerCallout({
+        id: `no-return-${routeKey}`,
+        type: 'warning',
+        title: 'WALK BACK DOES NOT FIT',
+        text: `One way uses ${pm.budgetSharePct}% of the usable life support, so the crew could not walk all the way back${pm.budgetSharePct > 100 ? ', and would run out before even getting there' : ''}. Use the Safety Scan's turn-back point or the rover.`,
+        primaryAction: {
+          label: 'Switch to Rover',
+          action: () => {
+            setTravelMode('rover');
+            dismissEvaCallout();
+            marsAudio.playUiClick?.();
+          },
+        },
+        secondaryAction: {
+          label: 'Safety Scan',
+          action: () => {
+            setRouteScanOpen(true);
+            dismissEvaCallout();
+          },
+        },
+      }, 16000);
+    } else if (totalDistKm > 10 && travelMode === 'foot') {
       // Long Walk Fatigue
       triggerCallout({
         id: `fatigue-${routeKey}`,
         type: 'warning',
         title: 'TRAVERSE FATIGUE ADVISORY',
-        text: `Planned walk is ${totalDistKm.toFixed(1)} km. NASA single-sortie walking limit is 5.0 km to prevent crew exhaustion in 140 kg suits. Recommend switching to Rover mode.`,
+        text: `Planned walk is ${totalDistKm.toFixed(1)} km, about ${tripText} in a suit. Long suited walks are tiring and leave little margin: consider the rover.`,
         primaryAction: {
           label: 'Switch to Rover',
           action: () => {
@@ -163,29 +186,6 @@ export default function EvaProactiveAdvisor() {
           action: () => {
             setCopilotPrefillQuery(`Can our crew safely complete this ${totalDistKm.toFixed(1)} km walk on foot, or should we use the pressurized rover?`);
             setAresCopilotOpen(true);
-            dismissEvaCallout();
-          },
-        },
-      }, 16000);
-    } else if (travelMode === 'foot' && planned && routeGeometry.metrics?.budgetSharePct > 50) {
-      // One way takes over half the usable life support, so out and back cannot fit
-      triggerCallout({
-        id: `no-return-${routeKey}`,
-        type: 'warning',
-        title: 'WALK BACK DOES NOT FIT',
-        text: `One way uses ${routeGeometry.metrics.budgetSharePct}% of the usable life support, so the crew could not walk all the way back. Recommend the Safety Scan's turn-back point or Rover mode.`,
-        primaryAction: {
-          label: 'Switch to Rover',
-          action: () => {
-            setTravelMode('rover');
-            dismissEvaCallout();
-            marsAudio.playUiClick?.();
-          },
-        },
-        secondaryAction: {
-          label: 'Safety Scan',
-          action: () => {
-            setRouteScanOpen(true);
             dismissEvaCallout();
           },
         },
@@ -224,7 +224,7 @@ export default function EvaProactiveAdvisor() {
         id: 'traverse-driving',
         type: 'info',
         title: 'SORTIE UNDERWAY',
-        text: `Traverse initiated. Monitoring crew heart rate, spacesuit sublimator cooling pressure, and slope telemetry in real time.`,
+        text: travelMode === 'rover' ? 'Drive under way. Eva follows the slope, light, weather and battery along the route.' : 'Walk under way. Eva follows the slope, light, weather and life support along the route.',
         primaryAction: {
           label: 'Open Helmet HUD',
           action: () => {
@@ -246,7 +246,7 @@ export default function EvaProactiveAdvisor() {
         id: `contingency-${activeContingency.id || activeContingency.title}`,
         type: 'warning',
         title: `CONTINGENCY: ${activeContingency.title?.toUpperCase() || 'EMERGENCY'}`,
-        text: `${activeContingency.description || 'Emergency contingency active.'} Eva is monitoring crew telemetry and life-support margin.`,
+        text: `${activeContingency.narrative || 'Emergency contingency active.'} ${activeContingency.actionRequired || ''}`.trim(),
         primaryAction: {
           label: 'Check Return Limit',
           action: () => {

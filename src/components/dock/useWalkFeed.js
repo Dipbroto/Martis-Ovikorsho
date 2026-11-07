@@ -7,7 +7,7 @@ import { nearestPlace } from '../../data/places';
  * Turns the walk into a short story: as the crew moves, notes appear about the weather, the ground,
  * the light and the life support. Each note fires once per walk.
  */
-export default function useWalkFeed({ active, progress, telemetry, position, env, lifeLeft, maxSlope, names, rover }) {
+export default function useWalkFeed({ active, progress, telemetry, position, env, lifeLeft, maxSlope, names, rover, totalKm }) {
   const [items, setItems] = useState([]);
   const fired = useRef(new Set());
   const lastPhase = useRef(null);
@@ -50,6 +50,7 @@ export default function useWalkFeed({ active, progress, telemetry, position, env
 
     const spare = lifeLeft * 2 - 100;
     if (!rover && spare < 25 && spare >= 0 && progress < 0.99) once('spare-low', { icon: AlertTriangle, tone: 'warn', title: 'Spare life support is running low', text: `Walking back from here would use almost everything that is left (${Math.round(spare)}% spare).` });
+    if (!rover && telemetry.lifeOut && progress < 0.99) once('life-out', { icon: AlertTriangle, tone: 'bad', title: 'Life support used up', text: `The usable life support runs out ${dist} out, ${Math.max(0, (totalKm ?? telemetry.totalKm ?? 0) - telemetry.distKm).toFixed(1)} km short of ${names.end}. Only the emergency reserve is left: stop and call the rover.` });
     if (!rover && spare < 0 && progress < 0.99) once('no-return', { icon: AlertTriangle, tone: 'bad', title: 'Past the point of no return', text: 'There is not enough life support left to walk all the way back on foot from here.' });
 
     // Rover Terramechanics & Battery alerts
@@ -73,10 +74,12 @@ export default function useWalkFeed({ active, progress, telemetry, position, env
       });
     }
 
-    if (progress >= 0.99) once('arrive', { icon: Flag, tone: 'good', title: `Arrived at ${names.end}`, text: rover ? `${dist} in ${fmtDuration(telemetry.hours)} by rover.` : `${dist} in ${fmtDuration(telemetry.hours)} on foot, with ${Math.round(lifeLeft)}% of the life support left.` });
+    // the walk counts as arrived from 99% of the way, so give the route's full length
+    const fullDist = `${(totalKm ?? telemetry.totalKm ?? telemetry.distKm).toFixed(1)} km`;
+    if (progress >= 0.99) once('arrive', { icon: Flag, tone: 'good', title: `Arrived at ${names.end}`, text: rover ? `${fullDist} in ${fmtDuration(telemetry.hours)} by rover.` : `${fullDist} in ${fmtDuration(telemetry.hours)} on foot, with ${Math.round(lifeLeft)}% of the life support left.` });
 
     if (out.length) setItems((prev) => [...out.reverse(), ...prev].slice(0, 9));
-  }, [active, progress, telemetry, position, env, lifeLeft, maxSlope, names, rover]);
+  }, [active, progress, telemetry, position, env, lifeLeft, maxSlope, names, rover, totalKm]);
 
   return items;
 }

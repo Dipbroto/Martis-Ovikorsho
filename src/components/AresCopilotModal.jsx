@@ -99,7 +99,7 @@ export default function AresCopilotModal() {
           const m = result.metrics;
           summaryText = `Planned ${m.traverseDistanceKm} km route to ${args.destination_name || 'target'} (${result.waypoints.length} waypoints)`;
           reply = `Route computed on ${result.grid.metersPerPixel} m NASA terrain data: ${m.traverseDistanceKm} km, steepest step ${m.maxSlopeDeg}°, climb ${m.totalAscentMeters} m, about ${m.walkingHours} h on foot (${m.budgetSharePct}% of the usable life-support budget one way).`
-            + (m.budgetSharePct > 50 ? ' WARNING: this is too far for one EVA, since the walk back would not fit. Pick a closer objective or plan a rover leg.' : '');
+            + (m.budgetSharePct > 100 ? ' WARNING: one way needs more than the whole usable life support, so on foot the crew could not even get there. Drive it in the rover or pick a closer objective.' : m.budgetSharePct > 50 ? ' WARNING: this is too far for one EVA, since the walk back would not fit. Pick a closer objective or plan a rover leg.' : '');
         } catch (err) {
           summaryText = `Route not planned: ${err.message}`;
           reply = `I could not plan that route. ${err.message}`;

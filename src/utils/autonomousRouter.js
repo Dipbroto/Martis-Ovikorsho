@@ -5,7 +5,8 @@
 import { planTraverse, isCoarseGrid } from '../terrain/terrainClient';
 import { EVA_ASSUMPTIONS, energyToHours, usableBudgetJ } from '../terrain/evaModel';
 
-// Predefined NASA Mission Pairs for Quick Autonomous Routing
+// Ready-made walks. Names describe where the points really are; elevations are read from the 200 m
+// HRSC-MOLA grid at each point (the planner uses the grid itself, these are for labels only).
 export const AUTONOMOUS_TARGET_PAIRS = [
   {
     id: 'jezero-delta',
@@ -17,13 +18,13 @@ export const AUTONOMOUS_TARGET_PAIRS = [
       name: 'Octavia E. Butler Base (Perseverance)',
       lat: 18.4447,
       lon: 77.4508,
-      elevation: -2600,
+      elevation: -2573,
     },
     destination: {
       name: 'Belva Crater Delta Scarp Outcrop',
       lat: 18.4985,
       lon: 77.3450,
-      elevation: -2480,
+      elevation: -2409,
     },
   },
   {
@@ -42,83 +43,83 @@ export const AUTONOMOUS_TARGET_PAIRS = [
       name: 'Vera Rubin Ridge Sulfate Unit',
       lat: -4.6850,
       lon: 137.3820,
-      elevation: -4120,
+      elevation: -4374,
     },
   },
   {
     id: 'olympus-escarpment',
-    name: 'Olympus Mons Basal Escarpment',
-    location: 'Tharsis Rise (Volcano Shield)',
+    name: 'Olympus Mons Summit Walk',
+    location: 'Olympus Mons, 20 km up',
     center: [18.3150, -134.1250],
     zoom: 6,
     origin: {
-      name: 'Tharsis Recon Basecamp Alpha',
+      name: 'Olympus Mons Summit Camp',
       lat: 18.2500,
       lon: -134.2000,
-      elevation: 19500,
+      elevation: 20041,
     },
     destination: {
-      name: 'North-West Lava Tube Skylight',
+      name: 'Summit Plateau toward the Caldera',
       lat: 18.3800,
       lon: -134.0500,
-      elevation: 20100,
+      elevation: 20227,
     },
   },
   {
     id: 'valles-marineris',
-    name: 'Valles Marineris Grand Canyon Floor',
-    location: 'Coprates Chasma (7km Deep Abyss)',
+    name: 'Coprates Chasma Canyon Walk',
+    location: 'Valles Marineris (9 km deep here)',
     center: [-14.0500, -59.1500],
     zoom: 6,
     origin: {
-      name: 'Coprates Chasma Rim Refuge',
+      name: 'Coprates Chasma Bench Camp',
       lat: -13.8500,
       lon: -59.4500,
-      elevation: -4200,
+      elevation: -1418,
     },
     destination: {
-      name: 'Melas Chasma Sulfatic Layer Outcrop',
+      name: 'Coprates Chasma Lower Slope',
       lat: -14.2800,
       lon: -58.8200,
-      elevation: -5100,
+      elevation: -2292,
     },
   },
   {
     id: 'arcadia-glacier',
-    name: 'Arcadia Planitia Human Ice Reserve',
-    location: 'Northern Plains (Subsurface Water Ice)',
+    name: 'Arcadia Planitia Ice Plains',
+    location: 'Northern plains (buried water ice)',
     center: [39.3000, -171.1500],
     zoom: 6,
     origin: {
-      name: 'Arcadia Primary ISRU Wellhead',
+      name: 'Arcadia Planitia Base',
       lat: 39.1000,
       lon: -171.4500,
-      elevation: -4050,
+      elevation: -3896,
     },
     destination: {
-      name: 'Deuteronilus Sinuous Ridge Ice Exposure',
+      name: 'Arcadia Ice Survey Point',
       lat: 39.5500,
       lon: -170.8500,
-      elevation: -3880,
+      elevation: -3653,
     },
   },
   {
     id: 'elysium-plains',
     name: 'Elysium Planitia Volcanic Plains',
-    location: 'Cerberus Fossae (InSight Seismology)',
+    location: 'Elysium Planitia (InSight)',
     center: [4.6200, 135.7800],
     zoom: 6,
     origin: {
-      name: 'InSight Landed Habitat Alpha',
+      name: 'InSight Landing Site Base',
       lat: 4.5024,
       lon: 135.6234,
-      elevation: -2613,
+      elevation: -2617,
     },
     destination: {
-      name: 'Cerberus Fossae Tectonic Fault Fissure',
+      name: 'Elysium Plains Survey Point',
       lat: 4.7800,
       lon: 135.9800,
-      elevation: -2420,
+      elevation: -2670,
     },
   },
 ];
@@ -176,12 +177,14 @@ export async function generateAutonomousTraverse(origin, destination, options = 
 
   let rationale = [];
   if (mode === 'terramechanics') {
+    // Only the numbers the planner worked out; a missing one is left out rather than filled in
+    const kwh = metrics.batteryKwh ?? (metrics.batteryWh != null ? +(metrics.batteryWh / 1000).toFixed(2) : null);
     rationale = [
-      `NASA Bekker-Wong ML Terramechanics: Navigates optimal traction corridors, avoiding high-slip sand dunes and drift hazards.`,
-      `Rover Battery Energy: ${metrics.batteryKwh || (metrics.batteryWh ? (metrics.batteryWh / 1000).toFixed(2) : '1.85')} kWh (${metrics.batterySoCUsedPct || 3}% of 60 kWh pack).`,
-      `Wheel Slip Profile: Average ${metrics.avgSlipPct || 3.1}%, peak slip capped at ${metrics.maxSlopeDeg ? (metrics.maxSlipPct || 7.8) : 0}% (safe below 40% trap threshold).`,
-      `Drive time: about ${(metrics.driveTimeHours || (distanceKm / 10)).toFixed(1)} h at cruise speed. Total climb ${Math.round(metrics.ascentM)} m, descent ${Math.round(metrics.descentM)} m on ${grid.source}.`,
-    ];
+      'Rover route from the terramechanics surrogate (Bekker-Wong soil model): prefers firm ground and avoids high-slip slopes.',
+      kwh != null && `Rover battery: ${kwh} kWh${metrics.batterySoCUsedPct != null ? ` (${metrics.batterySoCUsedPct}% of the 60 kWh pack)` : ''}.`,
+      metrics.avgSlipPct != null && `Wheel slip: average ${metrics.avgSlipPct}%${metrics.maxSlipPct != null ? `, peak ${metrics.maxSlipPct}%` : ''} (sand-trap threshold 40%).`,
+      `${metrics.driveTimeHours != null ? `Drive time about ${metrics.driveTimeHours.toFixed(1)} h. ` : ''}Total climb ${Math.round(metrics.ascentM)} m, descent ${Math.round(metrics.descentM)} m on ${grid.source}.`,
+    ].filter(Boolean);
   } else {
     rationale = [
       `Walks ${distanceKm.toFixed(2)} km vs ${straightKm.toFixed(2)} km straight line (${detourPct >= 0 ? '+' : ''}${detourPct}%) so no step exceeds ${EVA_ASSUMPTIONS.maxSlopeDeg}°; steepest step on the route is ${metrics.maxSlopeDeg.toFixed(1)}°.`,
@@ -194,7 +197,7 @@ export async function generateAutonomousTraverse(origin, destination, options = 
   }
 
   const summary = mode === 'terramechanics'
-    ? `ML Terramechanics route on ${coarse ? 'coarse global' : `${grid.metersPerPixel} m`} terrain: ${distanceKm.toFixed(2)} km, ${metrics.batteryKwh || '2.1'} kWh battery draw, peak slip ${metrics.maxSlipPct || '8.2'}%, zero sand-trap hazard.`
+    ? `ML Terramechanics route on ${coarse ? 'coarse global' : `${grid.metersPerPixel} m`} terrain: ${distanceKm.toFixed(2)} km${metrics.batteryKwh != null ? `, ${metrics.batteryKwh} kWh battery draw` : ''}${metrics.maxSlipPct != null ? `, peak slip ${metrics.maxSlipPct}%` : ''}.`
     : `${ROUTING_MODES[mode].label} route on ${coarse ? 'coarse global' : `${grid.metersPerPixel} m`} terrain: ${distanceKm.toFixed(2)} km, steepest step ${metrics.maxSlopeDeg.toFixed(1)}°, about ${(metrics.timeS / 3600).toFixed(1)} h on foot.`;
 
   return {

@@ -73,16 +73,17 @@ export default function WalkPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [at && Math.round(at.lat * 100), at && Math.round(at.lon * 100), Math.round(s.tel.hours * 20), at?.elevation, startDate],
   );
-  const feed = useWalkFeed({ active: progress > 0.003, progress, telemetry: s.tel, position: s.pos, env, lifeLeft: s.life, maxSlope, names, rover });
+  const feed = useWalkFeed({ active: progress > 0.003, progress, telemetry: s.tel, position: s.pos, env, lifeLeft: s.life, maxSlope, names, rover, totalKm: km });
 
   const started = progress > 0.003;
   const arrived = progress >= 0.99 && !driving;
+  const lifeOut = !rover && !driving && !arrived && started && s.tel.lifeOut;
   const spare = s.life * 2 - 100; // walking back costs about what the walk out has cost
   const spareTone = spare < 0 ? 'text-rose-300' : spare < 25 ? 'text-amber-300' : 'text-emerald-300';
 
   const playPause = () => {
     if (driving) { s.setDriving(false); return; }
-    if (arrived) s.setProgress(0);
+    if (arrived || lifeOut) s.setProgress(0);
     s.setDriving(true);
   };
 
@@ -110,7 +111,7 @@ export default function WalkPanel() {
   };
 
   const subtitle = metrics ? `${km.toFixed(1)} km · ${fmtDuration(tripHours)} ${rover ? 'by rover' : 'on foot'}` : `${km.toFixed(1)} km, drawn by hand`;
-  const title = arrived ? 'You made it' : started ? `${driving ? (rover ? 'Driving to' : 'Walking to') : 'Paused on the way to'} ${names.end}` : 'Your route';
+  const title = arrived ? 'You made it' : lifeOut ? `Stopped ${s.tel.distKm.toFixed(1)} km out: life support used up` : started ? `${driving ? (rover ? 'Driving to' : 'Walking to') : 'Paused on the way to'} ${names.end}` : 'Your route';
 
   return (
     <DockCard id="route" title={title} subtitle={subtitle} icon={Footprints} accent="#F26A3D">
@@ -149,7 +150,7 @@ export default function WalkPanel() {
           ))}
         </div>
       )}
-      {metrics?.budgetSharePct > 50 && !started && !rover && <p className="mt-2 text-xs text-rose-300 leading-snug">One way uses over half the usable life support, so walking back would not fit.</p>}
+      {metrics?.budgetSharePct > 50 && !started && !rover && <p className="mt-2 text-xs text-rose-300 leading-snug">{metrics.budgetSharePct > 100 ? `One way needs ${metrics.budgetSharePct}% of the usable life support: on foot the crew could not even get there.` : 'One way uses over half the usable life support, so walking back would not fit.'}</p>}
       {terraSummary?.criticalTrapRisk && !started && rover && (
         <div className="mt-2 text-xs text-amber-300 bg-amber-950/40 border border-amber-500/40 rounded-xl p-2.5 leading-snug flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
@@ -204,7 +205,7 @@ export default function WalkPanel() {
           className={`relative flex-1 h-12 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer text-white overflow-hidden ${driving ? 'bg-white/15 hover:bg-white/20' : 'bg-gradient-to-r from-[#F26A3D] to-[#ff9a4d] shadow-[0_8px_26px_rgba(242,106,61,0.4)] hover:brightness-110'}`}
         >
           {!driving && !started && <span className="absolute inset-0 walk-cta-shine pointer-events-none" aria-hidden="true" />}
-          {driving ? <><Pause className="w-4 h-4 fill-current" />Pause</> : arrived ? <><RotateCcw className="w-4 h-4" />Go again</> : started ? <><Play className="w-4 h-4 fill-current" />Resume</> : <><Play className="w-4 h-4 fill-current" />{rover ? 'Start driving' : 'Start walking'}</>}
+          {driving ? <><Pause className="w-4 h-4 fill-current" />Pause</> : arrived || lifeOut ? <><RotateCcw className="w-4 h-4" />{lifeOut ? 'Start over' : 'Go again'}</> : started ? <><Play className="w-4 h-4 fill-current" />Resume</> : <><Play className="w-4 h-4 fill-current" />{rover ? 'Start driving' : 'Start walking'}</>}
         </motion.button>
         <div className="flex rounded-xl bg-white/[0.06] p-1 gap-0.5" role="radiogroup" aria-label="Walking speed">
           {SPEEDS.map((v) => (

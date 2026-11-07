@@ -87,12 +87,8 @@ export default function RouteBuilder() {
     marsAudio.playUiClick?.();
     try {
       await planAndApplyRoute({ origin, destination, mode: m });
+      // The route waits at the start, so rover or on foot and the start time can be chosen before setting off
       setRouteEditing(false);
-      // the trip starts by itself once the map has framed the new route (about 1.2 s)
-      setTimeout(() => {
-        const st = useMapStore.getState();
-        if (st.waypoints.length > 1 && !st.isRoverDriving) { st.setRoverProgress(0); st.setRoverDriving(true); }
-      }, 1500);
     } catch (err) {
       setError(err.message || 'That route could not be planned.');
     } finally {
