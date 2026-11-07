@@ -3215,6 +3215,15 @@ export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, de
   const uvBleachFactor = Math.exp(-depthMm / 3.2); // 1.0 at surface, 0.00004 at 35 mm
   const depthPreservationMultiplier = Math.max(0.08, 1.0 - uvBleachFactor * 0.92);
 
+  // Peaks a rock's minerals produce are not organic evidence: without this, olivine (~850), sulfate or
+  // perchlorate (~1010) and carbonate (~1085) bands were read as amino-acid or PAH bands
+  const MINERAL_BANDS = [[815, 870], [950, 975], [975, 1030], [1075, 1095]];
+  const isMineralBand = (shift) => MINERAL_BANDS.some(([lo, hi]) => shift >= lo && shift <= hi);
+  const isCarbonBand = (shift) => (shift >= 1305 && shift <= 1395) || (shift >= 1555 && shift <= 1645);
+  const noise = Number(deconvolvedResult?.noise) || 0;
+  const peakSnr = (p) => (noise > 0 ? p.intensity / noise : Infinity);
+  const organicPeaks = peaks.filter((p) => !isMineralBand(p.shift));
+
   const candidates = Object.values(ASTROBIOLOGY_ORGANIC_LIBRARY).map((compound) => {
     let matchScore = 0;
     const matchedBands = [];
@@ -3223,7 +3232,7 @@ export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, de
       let closestDist = Infinity;
       let matchedPeak = null;
 
-      for (const p of peaks) {
+      for (const p of organicPeaks) {
         const dist = Math.abs(p.shift - libBand.cm1);
         if (dist < closestDist) {
           closestDist = dist;
@@ -3249,8 +3258,13 @@ export function matchOrganicFingerprint(deconvolvedResult, rockTarget = null, de
 
     const isLacustrine = /mudstone|delta|clay|sedimentary|sulfate/i.test(rockType);
 
+    // An amino acid is not carbon D/G bands: it needs at least two of its own bands (outside the carbon and
+    // mineral windows), each clear of the noise. Otherwise it is not a candidate at all.
+    const ownBands = matchedBands.filter((b) => !isCarbonBand(b.measuredCm1) && peakSnr({ intensity: b.signalIntensity }) >= 3);
+    const qualifies = compound.category !== 'PREBIOTIC_AMINO_ACID' || ownBands.length >= 2;
+
     // Band overlap, scaled by the depth model; zero when there is no carbon signal to match
-    const rawScore = signalDetected ? matchScore * depthPreservationMultiplier : 0;
+    const rawScore = signalDetected && qualifies ? matchScore * depthPreservationMultiplier : 0;
     const confidencePercent = Math.max(0, Math.min(98.5, Math.round(rawScore * 10) / 10));
 
     // Illustrative biogenic score: zero without a carbon signal, otherwise set by compound type and setting
