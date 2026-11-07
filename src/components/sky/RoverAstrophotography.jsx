@@ -28,23 +28,23 @@ export const HISTORIC_OBSERVATIONS = [
     siteName: 'Gale Crater',
     sol: 529,
     earthDate: 'January 31, 2014',
-    lst: 18.7, // 18:42 LST
-    lstStr: '18:42 LST',
-    camera: 'Mastcam 100mm Telephoto (M-100)',
+    lst: 19.3, // about 80 minutes after sunset (Photojournal); approximate
+    lstStr: '~19:20 LST (approx.)',
+    camera: 'Mastcam left eye (34 mm, M-34)',
     nasaId: 'PIA17936',
     credit: 'NASA / JPL-Caltech / MSSS / TAMU',
     pdsUrl: 'https://photojournal.jpl.nasa.gov/catalog/PIA17936',
     imageSrc: '/textures/PIA17936_earth_from_mars.jpg',
     loupeCenter: { x: 50, y: 50 },
-    exposure: '0.25 s · f/10',
-    filter: 'L0 (Clear 440nm) + R0 (Red 676nm)',
-    fov: '1.25° × 1.25° telephoto',
-    altAz: '14.2° Alt · 252° WSW Az',
-    summary: 'First photo of Earth and the Moon ever taken from the surface of an extraterrestrial world.',
+    exposure: 'Processed by NASA',
+    filter: 'Cosmic-ray hits removed',
+    fov: null,
+    altAz: null,
+    summary: 'Earth and the Moon as two bright evening stars over Gale Crater.',
     description:
-      'Approximately 80 minutes after Martian sunset on Sol 529, Curiosity pointed its 100mm telephoto Mastcam toward the dusk sky over the northern rim of Gale Crater. Both Earth and Luna appear as distinct, brilliant evening stars. This genuine photograph is unretouched; to human eyes standing on Mars, Earth shines as the brightest beacon in the twilight sky.',
+      'Approximately 80 minutes after Martian sunset on Sol 529, Curiosity pointed its 100mm telephoto Mastcam toward the dusk sky over the northern rim of Gale Crater. Earth is the brightest point of light in the sky, with the Moon just below it. NASA processed the image to remove cosmic-ray hits. A person standing on Mars could easily see the two as distinct, bright "evening stars".',
     scienceNote:
-      'Curiosity took left-eye and right-eye telephoto exposures. Sub-pixel centroid analysis of Earth’s disk allows optical triangulation of the rover’s position on Mars and confirmed the atmospheric dust optical depth (tau ~ 0.55).',
+      'Earth and Mars were about 160 million km apart when this was taken, so light from Earth took about 9 minutes to reach the rover.',
   },
   {
     id: 'phobos-eclipse',
@@ -55,21 +55,22 @@ export const HISTORIC_OBSERVATIONS = [
     siteName: 'Jezero Crater',
     sol: 397,
     earthDate: 'April 2, 2022',
-    lst: 11.3, // 11:18 LST
-    lstStr: '11:18 LST',
+    lst: 11.3, // approximate
+    lstStr: '~11:18 LST (approx.)',
     camera: 'Mastcam-Z Right 110mm Zoom',
-    nasaId: 'PIA25206',
+    nasaId: 'Mastcam-Z, sol 397',
     credit: 'NASA / JPL-Caltech / ASU / MSSS',
-    pdsUrl: 'https://photojournal.jpl.nasa.gov/catalog/PIA25206',
+    // PIA25206 (used before) is a Mars Odyssey THEMIS image of Galaxias Fossae, not this eclipse
+    pdsUrl: 'https://images.nasa.gov/search?q=Perseverance%20Phobos%20eclipse',
     imageSrc: '/textures/PIA25206_phobos_eclipse.jpg',
     loupeCenter: { x: 49, y: 50 },
-    exposure: '0.002 s · Solar ND 5.0',
-    filter: 'Neutral Density (1/100,000 transmission)',
-    fov: '1.1° × 1.1° at 110mm zoom',
-    altAz: '68.4° Alt · 174° S Az',
+    exposure: 'Solar filter',
+    filter: 'Mastcam-Z',
+    fov: null,
+    altAz: null,
     summary: 'High-speed telescopic frame of Phobos’s potato-shaped silhouette transiting the Sun.',
     description:
-      'Perseverance captured the highest-resolution observation of a Phobos solar transit in history (4 frames per second). Phobos is so close to Mars that its jagged ridges, boulder fields, and the crater rim of Stickney are clearly silhouetted against the bright solar photosphere in this real photographic frame.',
+      'Perseverance filmed Phobos crossing the Sun on April 2, 2022, one of the most detailed views of a Phobos eclipse taken from the Martian surface. The moon\u2019s lumpy outline is visible against the Sun, and the whole crossing took well under a minute.',
     scienceNote:
       'Observing the precise timing of Phobos’s shadow tests models of tidal dissipation within Mars’s mantle, revealing that Phobos is slowly spiraling inward at ~1.8 cm per year.',
   },
@@ -82,18 +83,18 @@ export const HISTORIC_OBSERVATIONS = [
     siteName: 'Gale Crater',
     sol: 956,
     earthDate: 'April 15, 2015',
-    lst: 17.87, // 17:52 LST
-    lstStr: '17:52 LST',
+    lst: 17.87, // at sunset; approximate
+    lstStr: '~17:52 LST (approx.)',
     camera: 'Mastcam Left 34mm (M-34)',
     nasaId: 'PIA19400',
     credit: 'NASA / JPL-Caltech / MSSS',
     pdsUrl: 'https://photojournal.jpl.nasa.gov/catalog/PIA19400',
     imageSrc: '/textures/PIA19400_blue_sunset.jpg',
     loupeCenter: { x: 50, y: 55 },
-    exposure: '0.08 s · Multispectral sequence',
-    filter: 'RGB Composite (440nm, 550nm, 676nm)',
-    fov: '15° × 10° wide perspective',
-    altAz: '1.8° Alt · 268° W Az',
+    exposure: 'Colour calibrated',
+    filter: 'White-balanced by NASA',
+    fov: null,
+    altAz: null,
     summary: 'Forward Mie dust scattering creates Mars’s signature electric-blue twilight glow.',
     description:
       'On Earth, tiny nitrogen and oxygen molecules scatter blue light in every direction (Rayleigh scattering), giving a blue midday sky and red sunset. On Mars, fine iron oxide dust particles (~0.5 μm) preferentially scatter blue light forward directly along the line of sight, creating an electric-blue halo around the setting Sun.',
@@ -102,55 +103,55 @@ export const HISTORIC_OBSERVATIONS = [
   },
   {
     id: 'noctilucent-clouds',
-    title: 'Mesospheric Iridescent Clouds',
+    title: 'Feather-Shaped Iridescent Cloud',
     shortTitle: 'Twilight Clouds',
     rover: 'Curiosity (MSL)',
     siteId: 'gale',
     siteName: 'Gale Crater',
-    sol: 3048,
-    earthDate: 'March 5, 2021',
-    lst: 18.25, // 18:15 LST
-    lstStr: '18:15 LST',
+    sol: 3724,
+    earthDate: 'January 27, 2023',
+    lst: 18.25, // just after sunset; approximate
+    lstStr: '~18:15 LST (approx.)',
     camera: 'Mastcam 100mm Telephoto (M-100)',
     nasaId: 'PIA25740',
     credit: 'NASA / JPL-Caltech / MSSS',
     pdsUrl: 'https://photojournal.jpl.nasa.gov/catalog/PIA25740',
     imageSrc: '/textures/PIA25740_iridescent_clouds.jpg',
     loupeCenter: { x: 52, y: 46 },
-    exposure: '1.2 s · High-gain twilight',
-    filter: 'Clear Luminance (L0)',
-    fov: '5.4° × 5.4° field',
-    altAz: '24.5° Alt · 260° W Az',
-    summary: 'Rare mother-of-pearl dry ice crystal clouds glowing 60 km above the surface.',
+    exposure: 'Mosaic of 28 images',
+    filter: 'Highlights emphasised by NASA',
+    fov: null,
+    altAz: null,
+    summary: 'An iridescent cloud just after sunset, likely made of carbon dioxide ice.',
     description:
-      'In the ultra-cold Martian mesosphere (−130°C), trace amounts of carbon dioxide and water freeze onto microscopic dust grains, forming shimmering iridescent clouds. Because they drift 60 km up, they catch sunlight long after the ground below has plunged into complete darkness.',
+      'Most Martian clouds stay below about 60 km and are made of water ice. This one appears to be higher, where it is very cold, which suggests carbon dioxide (dry) ice. High clouds still catch sunlight after the ground below has gone dark, so they shine at twilight.',
     scienceNote:
-      'Their delicate rainbow iridescence (mother-of-pearl coloration) proved to atmospheric scientists that the ice crystals were uniform in size (under 1 micron across) and formed of frozen CO2.',
+      'The colours in iridescent clouds tell scientists about the size of the particles in them and how they grow over time.',
   },
   {
     id: 'moon-conjunction',
-    title: 'Phobos & Deimos Dual Moons',
-    shortTitle: 'Dual Moons',
+    title: 'How Big the Moons of Mars Look',
+    shortTitle: 'Moon Sizes',
     rover: 'Curiosity (MSL)',
     siteId: 'gale',
     siteName: 'Gale Crater',
-    sol: 393,
+    sol: 351,
     earthDate: 'August 1, 2013',
-    lst: 23.75, // 23:45 LST
-    lstStr: '23:45 LST',
+    lst: 23.75, // time not given by NASA; approximate
+    lstStr: 'night (time not given)',
     camera: 'Mastcam 100mm Telephoto (M-100)',
     nasaId: 'PIA17351',
     credit: 'NASA / JPL-Caltech / MSSS / TAMU',
     pdsUrl: 'https://photojournal.jpl.nasa.gov/catalog/PIA17351',
     imageSrc: '/textures/PIA17351_phobos_deimos.jpg',
     loupeCenter: { x: 50, y: 50 },
-    exposure: '0.1 s per frame · sequence',
-    filter: 'Clear L0 (440nm)',
-    fov: '1.8° × 1.8°',
-    altAz: '42.1° Alt · 142° SE Az',
-    summary: 'Curiosity resolves the apparent size and speed contrast of Mars’s two natural satellites.',
+    exposure: 'NASA illustration',
+    filter: 'Built from Mastcam photos',
+    fov: null,
+    altAz: null,
+    summary: 'A NASA size comparison: Phobos and Deimos as Curiosity photographed them, next to Earth\u2019s Moon.',
     description:
-      'Curiosity pointed its telephoto Mastcam to capture Mars’s two moons in the deep night sky over Gale Crater. Phobos (orbiting at only 6,000 km) appears significantly larger and faster than tiny Deimos (20,500 km away), demonstrating the unique Martian orbital mechanics from ground level.',
+      'This is an illustration, not a single raw frame. NASA placed Mastcam photos of Deimos and Phobos, taken on August 1, 2013, beside Earth\u2019s Moon as it looks from Earth. At the time, Phobos was about 6,240 km from the rover and Deimos about 20,500 km.',
     scienceNote:
       'Because Phobos circles Mars in just 7 hours and 39 minutes—faster than Mars itself rotates—it rises in the west and sets in the east, whereas Deimos takes over 30 hours to traverse the sky.',
   },
@@ -334,11 +335,11 @@ function ObservationCanvas({
               />
               <line x1="337" y1="195" x2="375" y2="185" strokeOpacity="0.8" />
               <text x="380" y="188" fill="#38bdf8" fontSize="10" fontFamily="monospace" fontWeight="bold">
-                EARTH (mag −2.5)
+                EARTH
               </text>
               <line x1="337" y1="207" x2="375" y2="215" strokeOpacity="0.8" />
               <text x="380" y="218" fill="#94a3b8" fontSize="9" fontFamily="monospace">
-                THE MOON (sep 30″)
+                THE MOON (~8′ from Earth)
               </text>
             </g>
           )}
@@ -377,15 +378,7 @@ function ObservationCanvas({
             </g>
           )}
 
-          {/* Angular Scale Bar in Bottom Right (positioned above OSD banner) */}
-          <g transform="translate(480, 345)">
-            <line x1="0" y1="0" x2="100" y2="0" stroke="#ffffff" strokeWidth="1.2" strokeOpacity="0.7" />
-            <line x1="0" y1="-4" x2="0" y2="4" stroke="#ffffff" strokeWidth="1.2" strokeOpacity="0.7" />
-            <line x1="100" y1="-4" x2="100" y2="4" stroke="#ffffff" strokeWidth="1.2" strokeOpacity="0.7" />
-            <text x="28" y="-5" fill="#e2e8f0" fontSize="8" fontFamily="monospace">
-              {obs.id === 'earth-moon' ? '30 ARCSEC' : obs.id === 'phobos-eclipse' ? '0.5 DEG' : '5 DEGREES'}
-            </text>
-          </g>
+          {/* No angular scale bar: the photos' plate scales are not given here, so a bar would be a guess */}
         </svg>
       )}
 
@@ -401,20 +394,23 @@ function ObservationCanvas({
         </div>
 
         <div className="text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 shadow-lg flex items-center gap-1.5 shrink-0">
-          <span className="text-zinc-400 hidden xs:inline">PDS:</span>
+          <span className="text-zinc-400 hidden xs:inline">NASA:</span>
           <span className="text-white font-semibold">{obs.nasaId}</span>
           <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
         </div>
       </div>
 
       <div className="absolute bottom-2 sm:bottom-2.5 left-2 sm:left-3 right-2 sm:right-3 flex items-center justify-between pointer-events-none gap-1.5 z-10 min-w-0">
+        {/* Only details NASA published are shown: field of view and pointing appear when they are known */}
         <div className="text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 truncate max-w-[60%] sm:max-w-none min-w-0">
-          <span className="hidden sm:inline">FOV </span>{obs.fov} <span className="hidden md:inline">· {obs.filter}</span>
+          {obs.fov ? <><span className="hidden sm:inline">FOV </span>{obs.fov} <span className="hidden md:inline">· </span></> : null}<span className={obs.fov ? 'hidden md:inline' : ''}>{obs.filter}</span>
         </div>
 
-        <div className="text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 shrink-0">
-          <span className="hidden sm:inline">COORD: </span><span className="text-amber-200 font-semibold">{obs.altAz}</span>
-        </div>
+        {obs.altAz && (
+          <div className="text-[9px] sm:text-[10px] font-mono text-zinc-300 bg-black/85 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur border border-white/10 shrink-0">
+            <span className="hidden sm:inline">COORD: </span><span className="text-amber-200 font-semibold">{obs.altAz}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -437,7 +433,7 @@ export default function RoverAstrophotography({ onSyncMoment }) {
     playUiClick?.();
     setAligned(true);
     // 1. Synchronize the ephemeris calculation to the exact site, sol, and local solar time
-    onSyncMoment?.(current.sol, current.lst, current.siteId);
+    onSyncMoment?.(current.sol, current.lst, current.siteId, current.rover);
     // 2. Smoothly scroll directly to the Sky Overhead dome section
     setTimeout(() => {
       const el = document.getElementById('sky-overhead-section');
@@ -460,11 +456,11 @@ export default function RoverAstrophotography({ onSyncMoment }) {
               </h3>
             </div>
             <span className="text-[9px] sm:text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 font-semibold shrink-0">
-              Genuine NASA Raw Frames
+              Real NASA images
             </span>
           </div>
           <p className="text-xs text-zinc-400 mt-1 line-clamp-2 sm:line-clamp-none">
-            Authentic photographic image files captured from the surface of Mars by Curiosity &amp; Perseverance
+            Photos from Curiosity and Perseverance, as published by NASA (some are processed or composited: see each caption)
           </p>
         </div>
 

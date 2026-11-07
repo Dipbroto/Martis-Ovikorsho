@@ -6,7 +6,7 @@ import { playUiClick } from '../utils/audioSynthesizer';
 import TransitViewer from './sky/TransitViewer';
 import RoverAstrophotography from './sky/RoverAstrophotography';
 import { skyAt, solTimeline, nextTransitSol, starsAndPlanets } from '../utils/marsSky';
-import { lsFromMsd, seasonFromLs, MARS_SOL_HOURS } from '../utils/marsSolar';
+import { lsFromMsd, seasonFromLs, MARS_SOL_HOURS, localTrueSolarTime, msdFromLocalSolarTime } from '../utils/marsSolar';
 
 const SITES = [
   { id: 'jezero', name: 'Jezero Crater', sub: 'Perseverance', lat: 18.44, lon: 77.45 },
@@ -24,8 +24,9 @@ const BODIES = {
   earth: { name: 'Earth', color: '#60a5fa', icon: Globe2 },
 };
 
-/** Mars Sol Date right now (Allison & McEwen 2000). */
-const msdNow = () => ((Date.now() / 86400000 + 2440587.5 + 69.184 / 86400) - 2405522.0028779) / 1.0274912517;
+// A rover photo's mission sol is counted in local sols from landing; adding these gives the local sol on the
+// MSD scale the sky uses (Curiosity landed on local MSD 49269, Perseverance on 52304)
+const MISSION_SOL0 = { 'Curiosity (MSL)': 49269, 'Perseverance (M2020)': 52304 };
 const fmt = (h) => {
   const x = ((h % 24) + 24) % 24;
   const m = Math.round(x * 60);
@@ -284,11 +285,9 @@ function SkyDome({ sky, objects, timeline, selected, onSelect, onDragTime }) {
 
 function MartianSkyEphemeris() {
   const [site, setSite] = useState(() => SITES.find((x) => x.id === 'gale'));
-  const [sol, setSol] = useState(() => Math.floor(msdNow()));
-  const [lst, setLst] = useState(() => {
-    const m = msdNow();
-    return ((((m % 1) * 24 + SITES.find((x) => x.id === 'gale').lon / 15) % 24) + 24) % 24;
-  });
+  // Local sol and local TRUE solar time at the site (the sky model puts the Sun due south or north at 12:00)
+  const [sol, setSol] = useState(() => localTrueSolarTime(SITES.find((x) => x.id === 'gale').lon).sol);
+  const [lst, setLst] = useState(() => localTrueSolarTime(SITES.find((x) => x.id === 'gale').lon).lst);
   const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState('phobos');
   const [search, setSearch] = useState(null); // null | 'busy' | { sol } | { none: true }
@@ -298,9 +297,9 @@ function MartianSkyEphemeris() {
     playUiClick?.();
     setSearch('busy');
     setTimeout(() => {
-      const found = nextTransitSol(site.lat, sol + 1, 400);
+      const found = nextTransitSol(site.lat, sol + 1, 400, site.lon);
       if (found == null) { setSearch({ none: true }); return; }
-      const tl = solTimeline(site.lat, found, 1);
+      const tl = solTimeline(site.lat, found, 1, site.lon);
       setPlaying(false);
       setSol(found);
       setLst(Math.max(0, tl.transit.lst - 0.03));
@@ -309,21 +308,23 @@ function MartianSkyEphemeris() {
     }, 30);
   };
 
-  // "Now" in local mean solar time at a site
+  // "Now" in local true solar time at a site
   const goNow = (s = site) => {
     setSearch(null);
-    const m = msdNow();
-    setSol(Math.floor(m));
-    setLst(((((m % 1) * 24 + s.lon / 15) % 24) + 24) % 24);
+    const now = localTrueSolarTime(s.lon);
+    setSol(now.sol);
+    setLst(now.lst);
   };
 
-  const syncToMoment = (solNum, lstHour, siteId) => {
+  // A rover photo gives its mission sol: turn it into the local sol on the MSD scale before showing that sky
+  const syncToMoment = (missionSol, lstHour, siteId, rover) => {
     playUiClick?.();
     setSearch(null);
     setPlaying(false);
     const s = SITES.find((x) => x.id === siteId);
     if (s) setSite(s);
-    setSol(solNum);
+    const base = MISSION_SOL0[rover];
+    setSol(base !== undefined ? base + missionSol : missionSol);
     setLst(lstHour);
   };
 
@@ -337,10 +338,10 @@ function MartianSkyEphemeris() {
     return () => clearInterval(t);
   }, [playing]);
 
-  const sky = useMemo(() => skyAt(site.lat, sol, lst), [site, sol, lst]);
-  const objects = useMemo(() => starsAndPlanets(site.lat, sol, lst, FAINT_STARS), [site, sol, lst]);
-  const timeline = useMemo(() => solTimeline(site.lat, sol, 0.1), [site, sol]);
-  const ls = lsFromMsd(sol + lst / 24);
+  const sky = useMemo(() => skyAt(site.lat, sol, lst, site.lon), [site, sol, lst]);
+  const objects = useMemo(() => starsAndPlanets(site.lat, sol, lst, FAINT_STARS, site.lon), [site, sol, lst]);
+  const timeline = useMemo(() => solTimeline(site.lat, sol, 0.1, site.lon), [site, sol]);
+  const ls = lsFromMsd(msdFromLocalSolarTime(sol, lst, site.lon));
 
   const nextEvent = (key, kind) => {
     const list = timeline.events[key][kind];
@@ -410,7 +411,7 @@ function MartianSkyEphemeris() {
           <div className="lg:col-span-5 rounded-2xl border border-white/10 bg-[#070a12]/70 backdrop-blur-xl p-4 flex flex-col justify-between gap-3">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <div className="text-xs text-zinc-400">Local solar time · Sol {sol}</div>
+                <div className="text-xs text-zinc-400" title="Local true solar time (the Sun is highest at 12:00). The number is the Mars Sol Date, the sol count used for the whole planet.">Local solar time · Mars Sol Date {sol}</div>
                 <div className="text-4xl font-semibold tabular-nums font-mono">{fmt(lst)}</div>
                 <div className="text-xs text-zinc-400 mt-0.5">{seasonFromLs(ls)} · Ls {ls.toFixed(0)}°</div>
               </div>
@@ -538,6 +539,9 @@ function MartianSkyEphemeris() {
                     {search === 'busy' ? 'Searching the coming sols…' : 'Find the next transit from here'}
                   </button>
                   {search?.none && <p className="mt-2 text-xs text-zinc-400">No transit from this site in the next 400 sols.</p>}
+                  <p className="mt-3 text-[11px] text-zinc-500 leading-relaxed">
+                    The Sun, Earth and planets come from orbital elements. Phobos and Deimos use simple circular orbits, so their positions and transit times are approximate: the transit dates here do not match the real ones rovers photographed.
+                  </p>
                 </>
               )}
             </Panel>

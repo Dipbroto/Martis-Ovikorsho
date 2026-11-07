@@ -11,7 +11,7 @@
 // sits in the x-z plane. An observer at local solar time LST is at longitude (LST - 12) x 15 degrees in
 // that frame, so the Sun is due south/north at local noon.
 
-import { jdFromMsd, lsFromMsd, solarDeclination, MARS_SOL_HOURS } from './marsSolar';
+import { jdFromMsd, lsFromMsd, solarDeclination, MARS_SOL_HOURS, msdFromLocalSolarTime } from './marsSolar';
 
 const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
@@ -20,8 +20,11 @@ export const AU_KM = 149597870.7;
 const LIGHT_SECONDS_PER_AU = 499.004784;
 
 export const MOONS = {
-  phobos: { name: 'Phobos', aKm: 9376, periodH: 7.6539, diameterKm: 22.2, phase0: 0.137 },
-  deimos: { name: 'Deimos', aKm: 23463, periodH: 30.312, diameterKm: 12.4, phase0: 0.61 },
+  // Sidereal periods from JPL (Phobos 0.31891023 d, Deimos 1.2624407 d). The orbits are circular and in Mars's
+  // equator, with arbitrary starting phases: positions are illustrative, not an ephemeris (they do not reproduce the
+  // dated transits Curiosity and Perseverance photographed).
+  phobos: { name: 'Phobos', aKm: 9376, periodH: 7.65384552, diameterKm: 22.2, phase0: 0.137 },
+  deimos: { name: 'Deimos', aKm: 23463, periodH: 30.29857680, diameterKm: 12.4, phase0: 0.61 },
 };
 
 // ---------- small vector helpers ----------
@@ -31,6 +34,15 @@ const len = (a) => Math.hypot(a[0], a[1], a[2]);
 const norm = (a) => { const l = len(a); return [a[0] / l, a[1] / l, a[2] / l]; };
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const scale = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+
+/**
+ * The moment (MSD) a sky is drawn for. With the site's east longitude, `lst` is local TRUE solar time and `msd`'s
+ * integer part the local sol, so the moons, Earth and the season are for the real moment at that site. Without a
+ * longitude (older callers), the local time is simply added to the sol.
+ */
+const momentOf = (msd, lst, lonEastDeg) => (
+  Number.isFinite(lonEastDeg) ? msdFromLocalSolarTime(Math.floor(msd), lst, lonEastDeg) : Math.floor(msd) + lst / 24
+);
 
 /** Observer position (km) and local up / east / north unit vectors in the sun-fixed frame. */
 function observer(latDeg, lstHours) {
@@ -409,8 +421,8 @@ const sunFixed = (eq, raSun) => {
  * Stars are fixed (J2000, no precession: fine for a sky chart). Planets from the same Keplerian
  * elements as Earth, as seen from Mars.
  */
-export function starsAndPlanets(latDeg, msd, lst, background = []) {
-  const t = Math.floor(msd) + lst / 24;
+export function starsAndPlanets(latDeg, msd, lst, background = [], lonEastDeg = null) {
+  const t = momentOf(msd, lst, lonEastDeg);
   const jd = jdFromMsd(t);
   const obs = observer(latDeg, lst);
   const mars = heliocentric('mars', jd);
@@ -439,8 +451,8 @@ export function starsAndPlanets(latDeg, msd, lst, background = []) {
 // ---------- the sky at one moment ----------
 
 /** Sun and Phobos only (no Earth), for fast transit searches. */
-function sunAndPhobos(latDeg, msd, lst) {
-  const t = Math.floor(msd) + lst / 24;
+function sunAndPhobos(latDeg, msd, lst, lonEastDeg = null) {
+  const t = momentOf(msd, lst, lonEastDeg);
   const dec = solarDeclination(lsFromMsd(t)) * D2R;
   const obs = observer(latDeg, lst);
   const m = MOONS.phobos;
@@ -450,10 +462,10 @@ function sunAndPhobos(latDeg, msd, lst) {
 }
 
 /** Closest Phobos-Sun approach on one sol (coarse), in degrees and local time. */
-function closestPass(latDeg, msd) {
+function closestPass(latDeg, msd, lonEastDeg = null) {
   let best = { sep: Infinity, lst: 0 };
   for (let lst = 0; lst <= 24; lst += 0.02) {
-    const s = sunAndPhobos(latDeg, msd, lst);
+    const s = sunAndPhobos(latDeg, msd, lst, lonEastDeg);
     if (s.sun.alt < 0 || s.phobos.alt < 0) continue;
     const sep = separation(s.sun, s.phobos);
     if (sep < best.sep) best = { sep, lst };
@@ -465,12 +477,12 @@ function closestPass(latDeg, msd) {
  * First sol (from `fromSol`, up to `maxSols` ahead) on which Phobos crosses the Sun as seen from the site.
  * Returns the sol number, or null if none within the search.
  */
-export function nextTransitSol(latDeg, fromSol, maxSols = 120) {
+export function nextTransitSol(latDeg, fromSol, maxSols = 120, lonEastDeg = null) {
   for (let k = 0; k <= maxSols; k++) {
     const sol = Math.floor(fromSol) + k;
-    const best = closestPass(latDeg, sol);
+    const best = closestPass(latDeg, sol, lonEastDeg);
     if (!Number.isFinite(best.sep) || best.sep > 1.5) continue;
-    const tl = solTimeline(latDeg, sol, 1);
+    const tl = solTimeline(latDeg, sol, 1, lonEastDeg);
     if (tl.transit?.happens) return sol;
   }
   return null;
@@ -481,8 +493,8 @@ export function nextTransitSol(latDeg, fromSol, maxSols = 120) {
  * Positions of the Sun, Phobos, Deimos and Earth for an observer.
  * `msd` is the Mars Sol Date (integer part = sol), `lst` local solar time in Mars hours (0-24).
  */
-export function skyAt(latDeg, msd, lst) {
-  const t = Math.floor(msd) + lst / 24;
+export function skyAt(latDeg, msd, lst, lonEastDeg = null) {
+  const t = momentOf(msd, lst, lonEastDeg);
   const ls = lsFromMsd(t);
   const dec = solarDeclination(ls) * D2R;
   const obs = observer(latDeg, lst);
@@ -542,10 +554,10 @@ export function overlapFraction(d, r) {
  * Samples a whole sol: altitude curves, rise/set times and the closest Phobos-Sun approach.
  * Returns { samples: [{lst, sun, phobos, deimos, earth, az}], events, transit }.
  */
-export function solTimeline(latDeg, msd, stepH = 0.1) {
+export function solTimeline(latDeg, msd, stepH = 0.1, lonEastDeg = null) {
   const samples = [];
   for (let lst = 0; lst <= 24 + 1e-9; lst += stepH) {
-    const s = skyAt(latDeg, msd, lst);
+    const s = skyAt(latDeg, msd, lst, lonEastDeg);
     samples.push({
       lst: Math.round(lst * 100) / 100,
       sun: s.sun.alt, phobos: s.phobos.alt, deimos: s.deimos.alt, earth: s.earth.alt,
@@ -564,23 +576,23 @@ export function solTimeline(latDeg, msd, stepH = 0.1) {
   const events = { sun: crossings('sun'), phobos: crossings('phobos'), deimos: crossings('deimos'), earth: crossings('earth') };
 
   // Phobos transit search: coarse scan for the closest approach to the Sun, then refine
-  const best = closestPass(latDeg, msd);
+  const best = closestPass(latDeg, msd, lonEastDeg);
   let transit = null;
   if (Number.isFinite(best.sep)) {
     let lo = Math.max(0, best.lst - 0.03), hi = Math.min(24, best.lst + 0.03);
     for (let i = 0; i < 40; i++) {
       const m1 = lo + (hi - lo) / 3, m2 = hi - (hi - lo) / 3;
-      const f = (x) => { const s = sunAndPhobos(latDeg, msd, x); return separation(s.sun, s.phobos); };
+      const f = (x) => { const s = sunAndPhobos(latDeg, msd, x, lonEastDeg); return separation(s.sun, s.phobos); };
       if (f(m1) < f(m2)) hi = m2; else lo = m1;
     }
     const lst = (lo + hi) / 2;
-    const s = skyAt(latDeg, msd, lst);
+    const s = skyAt(latDeg, msd, lst, lonEastDeg);
     const sunR = s.sun.angularDiamDeg / 2;
     const phobosR = s.phobos.angularDiamDeg / 2;
     const sep = separation(s.sun, s.phobos);
     // Apparent angular speed of Phobos across the sky at that moment (deg per real second)
     const dt = 0.002; // Mars hours
-    const s2 = skyAt(latDeg, msd, lst + dt);
+    const s2 = skyAt(latDeg, msd, lst + dt, lonEastDeg);
     const speedDegPerSec = separation(s.phobos, s2.phobos) / (dt * (MARS_SOL_HOURS / 24) * 3600);
     const chord = 2 * Math.sqrt(Math.max(0, (sunR + phobosR) ** 2 - sep ** 2));
     transit = {

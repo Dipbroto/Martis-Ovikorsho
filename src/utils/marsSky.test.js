@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { earthFromMars, overlapFraction, skyAt, solTimeline, starsAndPlanets } from './marsSky';
-import { jdFromMsd, lsFromMsd, solarDeclination, sunElevation } from './marsSolar';
+import { jdFromMsd, lsFromMsd, solarDeclination, sunElevation, localTrueSolarTime, msdFromLocalSolarTime, subsolarPoint } from './marsSolar';
 
 const MSD = 53000;
 
@@ -65,5 +65,26 @@ describe('Mars sky', () => {
     const planets = starsAndPlanets(0, MSD, 0).filter((o) => o.kind === 'planet');
     expect(planets.map((p) => p.name)).toEqual(['Mercury', 'Venus', 'Jupiter', 'Saturn']);
     planets.forEach((p) => expect(p.distAu).toBeGreaterThan(0.3));
+  });
+});
+
+describe('Sky time at a real site', () => {
+  it('turns local true solar time back into the same moment', () => {
+    const date = new Date('2026-11-07T05:00:00Z');
+    for (const lon of [77.45, 137.44, -133.8]) {
+      const { sol, lst, msd } = localTrueSolarTime(lon, date);
+      expect(msdFromLocalSolarTime(sol, lst, lon)).toBeCloseTo(msd, 5);
+    }
+  });
+
+  it('puts the Sun where the sub-solar point says, at the real moment', () => {
+    const date = new Date('2026-11-07T05:00:00Z');
+    const lat = -4.59, lon = 137.44;
+    const { sol, lst } = localTrueSolarTime(lon, date);
+    const ss = subsolarPoint(date);
+    const r = Math.PI / 180;
+    let dl = lon - ss.lon; while (dl > 180) dl -= 360; while (dl < -180) dl += 360;
+    const expected = Math.asin(Math.sin(lat * r) * Math.sin(ss.lat * r) + Math.cos(lat * r) * Math.cos(ss.lat * r) * Math.cos(dl * r)) / r;
+    expect(skyAt(lat, sol, lst, lon).sun.alt).toBeCloseTo(expected, 0);
   });
 });

@@ -50,6 +50,34 @@ export function subsolarPoint(date = new Date()) {
 }
 export const lsFromMsd = (msd) => lsFromJd(jdFromMsd(msd));
 
+/** Equation of time in degrees (true minus mean solar time) at a Mars Sol Date (A&M 2000 eq. C-1). */
+export function equationOfTimeDeg(msd) {
+  const { ls, eqCenter } = solarTerms(jdFromMsd(msd));
+  const L = rad(ls);
+  return 2.861 * Math.sin(2 * L) - 0.071 * Math.sin(4 * L) + 0.002 * Math.sin(6 * L) - eqCenter;
+}
+
+/**
+ * Local sol and local TRUE solar time (hours, Sun due south/north at 12:00) at an east longitude and moment.
+ * The sol is the local day number on the MSD scale, so that sol + (lst - EoT - lon/15) / 24 gives back the MSD.
+ */
+export function localTrueSolarTime(lonEastDeg, date = new Date()) {
+  const msd = msdFromDate(date);
+  const eotH = equationOfTimeDeg(msd) / 15;
+  const localHours = (msd % 1) * 24 + lonEastDeg / 15 + eotH; // may fall outside 0-24
+  const sol = Math.floor(msd) + Math.floor(localHours / 24);
+  return { sol, lst: ((localHours % 24) + 24) % 24, msd };
+}
+
+/** The moment (MSD) for a local sol, a local true solar time and an east longitude: the inverse of the above. */
+export function msdFromLocalSolarTime(sol, lstHours, lonEastDeg) {
+  // the equation of time is taken at the moment itself (one refinement step is enough: it changes slowly)
+  const base = Math.floor(sol) + (lstHours - lonEastDeg / 15) / 24;
+  let t = base - equationOfTimeDeg(base) / 15 / 24;
+  t = base - equationOfTimeDeg(t) / 15 / 24;
+  return t;
+}
+
 // Curiosity's mission sol 0 began at MSD 49269.2 (landing, 6 August 2012). Checked against REMS downlinks
 // from sol 1 to sol 4995: MSD minus mission sol stays at 49269.1 to 49269.5.
 export const CURIOSITY_SOL0_MSD = 49269.2;
