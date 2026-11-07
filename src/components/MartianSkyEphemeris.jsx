@@ -292,20 +292,29 @@ function MartianSkyEphemeris() {
   const [selected, setSelected] = useState('phobos');
   const [search, setSearch] = useState(null); // null | 'busy' | { sol } | { none: true }
 
-  // Jump to the next sol with a Phobos transit visible from this site (runs after a paint so the button can show progress)
+  // Jump to the next sol with a Phobos transit visible from this site. The 400-sol search takes about 2 s, so it
+  // runs in batches of 20 sols with a pause between them: the page stays responsive and the spinner keeps turning.
   const findTransit = () => {
     playUiClick?.();
     setSearch('busy');
-    setTimeout(() => {
-      const found = nextTransitSol(site.lat, sol + 1, 400, site.lon);
-      if (found == null) { setSearch({ none: true }); return; }
-      const tl = solTimeline(site.lat, found, 1, site.lon);
-      setPlaying(false);
-      setSol(found);
-      setLst(Math.max(0, tl.transit.lst - 0.03));
-      setSelected('phobos');
-      setSearch({ sol: found });
-    }, 30);
+    const at = site;
+    const BATCH = 20;
+    const MAX = 400;
+    const step = (from) => {
+      const found = nextTransitSol(at.lat, from, BATCH - 1, at.lon);
+      if (found != null) {
+        const tl = solTimeline(at.lat, found, 1, at.lon);
+        setPlaying(false);
+        setSol(found);
+        setLst(Math.max(0, tl.transit.lst - 0.03));
+        setSelected('phobos');
+        setSearch({ sol: found });
+        return;
+      }
+      if (from + BATCH > sol + MAX) { setSearch({ none: true }); return; }
+      setTimeout(() => step(from + BATCH), 0);
+    };
+    setTimeout(() => step(sol + 1), 30);
   };
 
   // "Now" in local true solar time at a site
@@ -443,7 +452,9 @@ function MartianSkyEphemeris() {
           <div className="lg:col-span-5 flex flex-col gap-3">
             <Panel title="In the sky now" icon={Clock}>
               <div className="space-y-2">
-                {row('sun', sunUp.rises.length || sunUp.sets.length ? <span>{Math.round(sky.sun.fluxWm2)} W/m² above the air</span> : <span>{timeline.samples.some((p) => p.sun > 0) ? 'Up all sol' : 'Polar night'}</span>)}
+                {row('sun', sunUp.rises.length || sunUp.sets.length
+                  ? <span title="Sunlight arriving at the top of the atmosphere, on a surface facing the Sun">{sky.sun.alt > 0 ? `${Math.round(sky.sun.fluxWm2)} W/m² above the air` : 'Night: no sunlight'}</span>
+                  : <span>{timeline.samples.some((p) => p.sun > 0) ? 'Up all sol' : 'Polar night'}</span>)}
                 {row('phobos', site.lat > 70 ? <span>Never rises this far north</span> : <span>{sky.phobos.eclipsed ? "In Mars's shadow" : `${Math.round(sky.phobos.illumination * 100)}% lit`} · {Math.round(sky.phobos.distKm).toLocaleString()} km</span>)}
                 {row('deimos', <span>{Math.round(sky.deimos.illumination * 100)}% lit · looks like a bright star</span>)}
                 {row('earth', <span>{sky.earth.distAu.toFixed(2)} AU away</span>)}
