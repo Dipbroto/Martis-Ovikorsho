@@ -212,6 +212,7 @@ export function recommendation(r) {
   if (!r.makesIt) {
     if (id === 'spe' && r.cave && r.cave.hours < r.returnH && r.cave.hours <= r.remainingH) return `Do not walk home. Head for the cave ${r.cave.km.toFixed(1)} km away and call the rover to you.`;
     if (rover?.makesIt) return `Do not walk home: the suit would run out. Rest to save oxygen and call the rover: it reaches you in ${fmtH(rover.h)}, with ${fmtH(rover.leftH)} of life support to spare.`;
+    if (!rover) return 'There is no rover to call and the walk home does not fit the life support left. Report your position, rest to save oxygen and wait for help from the habitat.';
     return 'Neither walking home nor waiting for the rover fits the life support left. Stop, conserve oxygen, call the rover and head for the nearest shelter.';
   }
   if (id === 'spe') {
@@ -238,7 +239,7 @@ export function recommendation(r) {
  * Runs one drill. `planTraverse(start, goal, options)` is the terrain planner (injected so this
  * stays testable). `caves` is the cave catalog list (optional, for radiation shelter).
  */
-export async function runDrill({ points, scenarioId, fraction, value, planTraverse, caves = [] }) {
+export async function runDrill({ points, scenarioId, fraction, value, planTraverse, caves = [], roverDelayMin = 0 }) {
   const scenario = SCENARIOS[scenarioId];
   const along = alongPath(points);
   const here = pointAt(points, along, fraction);
@@ -273,15 +274,19 @@ export async function runDrill({ points, scenarioId, fraction, value, planTraver
   };
 
   // The rover option as the decision drill plays it: it drives out along the way home while the crew rests
-  const roverS = DECISION_ASSUMPTIONS.roverPrepMin * 60
-    + (result.returnKm / (DECISION_ASSUMPTIONS.roverKmh * (scenarioId === 'dust_storm' ? stormPaceShare(value) : 1))) * H;
-  const roverJ = EVA_ASSUMPTIONS.restingPowerW * roverS;
-  result.rover = {
-    h: roverS / H,
-    leftH: energyToHours(Math.max(0, remaining - roverJ)),
-    makesIt: roverJ <= remaining,
-    dose: scenarioId === 'spe' ? value * (roverS / H) : 0,
-  };
+  if (roverDelayMin != null) {
+    const roverS = (DECISION_ASSUMPTIONS.roverPrepMin + roverDelayMin) * 60
+      + (result.returnKm / (DECISION_ASSUMPTIONS.roverKmh * (scenarioId === 'dust_storm' ? stormPaceShare(value) : 1))) * H;
+    const roverJ = EVA_ASSUMPTIONS.restingPowerW * roverS;
+    result.rover = {
+      h: roverS / H,
+      leftH: energyToHours(Math.max(0, remaining - roverJ)),
+      makesIt: roverJ <= remaining,
+      dose: scenarioId === 'spe' ? value * (roverS / H) : 0,
+    };
+  } else {
+    result.rover = null;
+  }
 
   if (scenarioId === 'rockfall') {
     // Compare with the walk back if nothing had fallen
@@ -324,6 +329,14 @@ export function verdict(r) {
 // After the emergency the crew has to choose. Each choice is played out with the same terrain planner
 // and energy model; waiting uses the suit's resting load. Assumptions are named in DECISION_ASSUMPTIONS.
 
+/** Where the habitat's rover is when the alarm sounds (a setting: extra minutes before it can set off). */
+export const ROVER_STATUS = {
+  ready: { label: 'Ready at base', delayMin: 0 },
+  busy: { label: 'Busy, 1 h away', delayMin: 60 },
+  far: { label: 'Busy, 3 h away', delayMin: 180 },
+  none: { label: 'No rover', delayMin: null },
+};
+
 export const DECISION_ASSUMPTIONS = {
   roverKmh: 10,          // NASA's Lunar Electric Rover / SEV concept top speed
   roverPrepMin: 20,      // time to crew up and drive out
@@ -349,7 +362,7 @@ function runsOutKm(path, remainingJ) {
  * Returns { kind, terminal, survived, durationS, energyJ, doseMSv, path, cave, endRemainingJ, story }.
  */
 export async function playChoice(choice, state, ctx) {
-  const { scenarioId, value, assumptions, blocked, base, planTraverse } = ctx;
+  const { scenarioId, value, assumptions, blocked, base, planTraverse, roverDelayMin = 0 } = ctx;
   const doseRate = scenarioId === 'spe' ? value : 0; // mSv per hour outside
   const restW = EVA_ASSUMPTIONS.restingPowerW;
   const stormPace = scenarioId === 'dust_storm' ? stormPaceShare(value) : 1;
@@ -379,12 +392,16 @@ export async function playChoice(choice, state, ctx) {
     };
   }
 
-  // The rover drives the walking route in reverse, at its own speed
+  // The rover drives the walking route in reverse, at its own speed, once it is free to set off
   const roverTrip = async (to) => {
     const plan = await planTraverse(base, to, { mode: 'fastest', blocked });
     const km = plan.metrics.distanceM / 1000;
-    return { km, s: (DECISION_ASSUMPTIONS.roverPrepMin * 60) + (km / (DECISION_ASSUMPTIONS.roverKmh * stormPace)) * H };
+    return { km, s: (DECISION_ASSUMPTIONS.roverPrepMin + roverDelayMin) * 60 + (km / (DECISION_ASSUMPTIONS.roverKmh * stormPace)) * H };
   };
+
+  if ((choice === 'rover' || choice === 'cave') && roverDelayMin == null) {
+    return { kind: choice, terminal: true, survived: false, durationS: 0, energyJ: 0, doseMSv: 0, endRemainingJ: state.remainingJ, story: 'There is no rover to come for you.' };
+  }
 
   if (choice === 'rover') {
     const trip = await roverTrip(here);
@@ -446,7 +463,8 @@ export function nearestCave(here, caves = []) {
 export function scoreOutcome({ survived, endRemainingJ, doseMSv, sample }) {
   if (!survived) return 0;
   const margin = Math.max(0, Math.min(1, endRemainingJ / lifeSupportBudgetJ()));
-  const dosePenalty = Math.min(25, doseMSv / 10);
+  // One point per 2 mSv (capped): cutting a storm dose by 10 mSv matters more than a few minutes of margin
+  const dosePenalty = Math.min(30, doseMSv / 2);
   const bonus = sample && margin >= EVA_ASSUMPTIONS.reserveFraction ? 10 : 0;
   return Math.max(0, Math.round(60 + 30 * margin - dosePenalty + bonus));
 }

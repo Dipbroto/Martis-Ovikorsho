@@ -83,6 +83,11 @@ describe('decision drill', () => {
     expect(task.endRemainingJ).toBeLessThan(state.remainingJ);
     // Waiting burns life support at the resting rate only
     expect(rover.energyJ).toBeCloseTo(A.restingPowerW * rover.durationS, 3);
+    // A busy rover arrives later; with no rover, waiting for one is no option
+    const late = await playChoice('rover', state, { ...ctx, roverDelayMin: 60 });
+    expect(late.durationS - rover.durationS).toBeCloseTo(3600, 3);
+    const none = await playChoice('rover', state, { ...ctx, roverDelayMin: null });
+    expect(none.survived).toBe(false);
     expect(scoreOutcome({ survived: false })).toBe(0);
     expect(scoreOutcome({ survived: true, endRemainingJ: 1e6, doseMSv: 0, sample: true })).toBeGreaterThan(60);
     // The sample bonus only counts with the reserve untouched
@@ -116,5 +121,16 @@ describe('decision drill', () => {
     const { points: prof, noReturnKm } = survivalProfile({ points, along, scenarioId: 'rockfall', value: 500, homeCostAt, isBlocked, samples: 60 });
     expect(prof.some((p) => p.blocked)).toBe(true);
     expect(noReturnKm).toBeLessThanOrEqual(2.01);
+  });
+
+  it('the crew advice weighs the rover the same way the decision drill does', async () => {
+    const { recommendation } = await import('./drills');
+    const args = { points, scenarioId: 'o2_leak', fraction: 0.6, value: 40, planTraverse };
+    const ready = await runDrill({ ...args, roverDelayMin: 0 });
+    const none = await runDrill({ ...args, roverDelayMin: null });
+    expect(ready.rover.makesIt).toBe(true);
+    expect(recommendation(ready)).toMatch(/rover/);
+    expect(none.rover).toBeNull();
+    expect(recommendation(none)).not.toMatch(/call the rover/);
   });
 });

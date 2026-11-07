@@ -15,11 +15,24 @@ import { MapContainer, TileLayer, Polyline, CircleMarker, Circle, Tooltip, ZoomC
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { marsLayers } from '../data/marsLayers';
-import { SCENARIOS, runDrill, verdict, alongPath, scenarioSetup, survivalProfile, severityLabel, recommendation, playChoice, nearestCave, scoreOutcome, reachablePart, DECISION_ASSUMPTIONS } from '../utils/drills';
+import { SCENARIOS, runDrill, verdict, alongPath, scenarioSetup, survivalProfile, severityLabel, recommendation, playChoice, nearestCave, scoreOutcome, reachablePart, DECISION_ASSUMPTIONS, ROVER_STATUS } from '../utils/drills';
 import { EVA_ASSUMPTIONS } from '../terrain/evaModel';
 import { marsDistance } from '../utils/marsUtils';
 import { energyToHours, lifeSupportBudgetJ } from '../terrain/evaModel';
 import { playUiClick } from '../utils/audioSynthesizer';
+
+// The preset walks, plus one beside a real chain of lava-tube skylights (USGS cave candidates CC0226-CC0241,
+// Arsia Mons north-west flank) so the cave-shelter call can be drilled. Its terrain is NASA's 200 m DEM, fetched on demand.
+const DRILL_WALKS = [
+  ...AUTONOMOUS_TARGET_PAIRS,
+  {
+    id: 'arsia-skylights',
+    name: 'Arsia Mons Skylight Chain',
+    location: 'Tharsis (lava-tube skylights)',
+    origin: { name: 'Arsia North-West Flank Habitat', lat: -3.300, lon: -123.790, elevation: 4614 },
+    destination: { name: 'Tube skylight CC0796', lat: -3.200, lon: -123.860, elevation: 4544 },
+  },
+];
 
 const NOUN = { o2_leak: 'oxygen fault', dust_storm: 'dust storm', spe: 'radiation storm', rockfall: 'rockfall' };
 const ICONS = { o2_leak: ShieldAlert, dust_storm: Wind, spe: Radiation, rockfall: Mountain };
@@ -173,15 +186,16 @@ function Rolling({ value, format }) {
  * Decision drill: the emergency has hit, the crew must choose. Every choice is played out on the
  * real terrain with the energy model, then compared with the best call Mission Control would make.
  */
-function DecisionDrill({ points, result, scenarioId, value, caves }) {
+function DecisionDrill({ points, result, scenarioId, value, caves, roverDelayMin }) {
   const total = lifeSupportBudgetJ();
   const ctx = useMemo(() => {
     // switching walks clears the points one render before the old result goes away
     if (!result || result.error || !points?.length) return null;
     const along = result.along;
     const { assumptions, blocked } = scenarioSetup(scenarioId, value, points, along, result.here.km / along.totalKm);
-    return { base: { lat: points[0][0], lon: points[0][1] }, scenarioId, value, assumptions, blocked, caves, planTraverse };
-  }, [result, scenarioId, value, points, caves]);
+    return { base: { lat: points[0][0], lon: points[0][1] }, scenarioId, value, assumptions, blocked, caves, planTraverse, roverDelayMin };
+  }, [result, scenarioId, value, points, caves, roverDelayMin]);
+  const noRover = roverDelayMin == null;
 
   const start = useMemo(() => (result && !result.error ? {
     lat: result.here.lat, lon: result.here.lon,
@@ -223,7 +237,7 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
         outcome.score = scoreOutcome(outcome);
         setEnding(outcome);
         // Mission Control's call: the best terminal choice from the moment the emergency hit
-        const options = await Promise.all(choicesFor(scenarioId).filter((c) => c !== 'task').map(async (c) => {
+        const options = await Promise.all(choicesFor(scenarioId).filter((c) => c !== 'task' && !(noRover && (c === 'rover' || c === 'cave'))).map(async (c) => {
           const o = await playChoice(c, start, ctx).catch(() => null);
           return o && { c, ...o, score: scoreOutcome({ ...o, sample: false }) };
         }));
@@ -325,7 +339,7 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
             <div className="grid sm:grid-cols-2 gap-3">
               {choicesFor(scenarioId).map((c) => {
                 const C = CHOICES[c];
-                const disabled = !!busy || (c === 'task' && state.sample) || (c === 'cave' && !caveInReach);
+                const disabled = !!busy || (c === 'task' && state.sample) || (c === 'cave' && !caveInReach) || (noRover && (c === 'rover' || c === 'cave'));
                 return (
                   <motion.button
                     key={c}
@@ -339,7 +353,7 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
                       <span className="font-semibold">{C.label}</span>
                     </div>
                     <p className="mt-2 text-xs text-zinc-400">
-                      {c === 'cave' ? (caveNear ? (() => {
+                      {noRover && (c === 'rover' || c === 'cave') ? 'No rover is available in this drill.' : c === 'cave' ? (caveNear ? (() => {
                         const km = caveNear.km < 10 ? caveNear.km.toFixed(1) : Math.round(caveNear.km);
                         return caveInReach ? `${C.hint}. Nearest: ${km} km away (USGS catalog).` : `Out of reach: the nearest cave candidate is ${km} km away, farther than the suit can walk.`;
                       })() : 'No cave candidates nearby.') : c === 'task' && state.sample ? 'Already collected.' : C.hint}
@@ -415,7 +429,7 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
       {/* Assumptions behind every choice */}
       <div className="lg:col-span-12">
         <p className="text-[11px] text-zinc-500 leading-relaxed">
-          Walking uses the planner’s energy model; waiting uses the suit’s resting load ({EVA_ASSUMPTIONS.restingPowerW} W). Rover: {DECISION_ASSUMPTIONS.roverKmh} km/h (NASA’s pressurised rover concept) plus {DECISION_ASSUMPTIONS.roverPrepMin} min to set off. Caves block an assumed {Math.round(DECISION_ASSUMPTIONS.caveShielding * 100)}% of storm dose. The sample adds to the score only if the crew gets home with the {Math.round(EVA_ASSUMPTIONS.reserveFraction * 100)}% reserve untouched.
+          Walking uses the planner’s energy model; waiting uses the suit’s resting load ({EVA_ASSUMPTIONS.restingPowerW} W). Rover: {noRover ? 'none in this drill' : <>{DECISION_ASSUMPTIONS.roverKmh} km/h (NASA’s pressurised rover concept), setting off {DECISION_ASSUMPTIONS.roverPrepMin + roverDelayMin} min after the call</>}. Caves block an assumed {Math.round(DECISION_ASSUMPTIONS.caveShielding * 100)}% of storm dose. The sample adds to the score only if the crew gets home with the {Math.round(EVA_ASSUMPTIONS.reserveFraction * 100)}% reserve untouched.
         </p>
       </div>
     </div>
@@ -498,13 +512,16 @@ function ContingencySimulatorPage() {
   const [values, setValues] = useState(() => Object.fromEntries(Object.values(SCENARIOS).map((x) => [x.id, x.param.def])));
   const value = values[scenarioId];
   const [fraction, setFraction] = useState(0.8);
+  // Where the rover is when the alarm sounds: with a rover always ready, waiting for it would nearly always win
+  const [roverId, setRoverId] = useState('busy');
+  const roverDelayMin = ROVER_STATUS[roverId].delayMin;
   const [drillResult, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [walkProfile, setProfile] = useState(null);
   const [profileBusy, setProfileBusy] = useState(false);
   const [caves, setCaves] = useState([]);
 
-  const pair = AUTONOMOUS_TARGET_PAIRS.find((p) => p.id === activeSource);
+  const pair = DRILL_WALKS.find((p) => p.id === activeSource);
   // Plan each preset walk once. A plan that is still running when you pick another walk is kept, not thrown away.
   useEffect(() => {
     if (activeSource === 'mine' || !pair || planned[pair.id] || inFlight.current.has(pair.id)) return;
@@ -538,13 +555,13 @@ function ContingencySimulatorPage() {
     const id = ++runId.current;
     setBusy(true);
     const t = setTimeout(() => {
-      runDrill({ points, scenarioId, fraction, value, planTraverse, caves })
+      runDrill({ points, scenarioId, fraction, value, planTraverse, caves, roverDelayMin })
         .then((r) => { if (id === runId.current) setResult(r); })
         .catch(() => { if (id === runId.current) setResult(null); })
         .finally(() => { if (id === runId.current) setBusy(false); });
     }, 220);
     return () => clearTimeout(t);
-  }, [points, scenarioId, fraction, value, caves]);
+  }, [points, scenarioId, fraction, value, caves, roverDelayMin]);
 
   // The same emergency at every point of the walk, from one return-cost field over the terrain.
   // The field only depends on the walk and, for storms and rockfalls, on the slider.
@@ -634,7 +651,7 @@ function ContingencySimulatorPage() {
                   <div className="text-xs text-zinc-400 truncate">{s.waypoints[0]?.name}</div>
                 </button>
               )}
-              {AUTONOMOUS_TARGET_PAIRS.map((p) => (
+              {DRILL_WALKS.map((p) => (
                 <button key={p.id} onClick={() => setSource(p.id)} className={`text-left rounded-xl border px-3 py-2 cursor-pointer transition-colors ${activeSource === p.id ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
                   <div className="text-sm font-semibold leading-tight truncate">{p.name}</div>
                   <div className="text-xs text-zinc-400 truncate">{p.location}</div>
@@ -671,6 +688,14 @@ function ContingencySimulatorPage() {
                 <div className="flex justify-between text-sm gap-2"><label htmlFor="sev" className="text-zinc-300">{scenario.param.label}</label><span className="tabular-nums font-semibold shrink-0">{value}{scenario.param.unit}</span></div>
                 <input id="sev" type="range" min={scenario.param.min} max={scenario.param.max} step={scenario.param.step} value={value} onChange={(e) => setValues((m) => ({ ...m, [scenarioId]: Number(e.target.value) }))} className="mt-2 w-full accent-amber-400 cursor-pointer" />
                 <div className={`mt-1 inline-flex text-[11px] px-2 py-0.5 rounded-full border ${T.ring} ${T.text}`}>{severityLabel(scenarioId, value)}</div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm gap-2"><span className="text-zinc-300">Rover at the habitat</span><span className="text-[11px] text-zinc-500 self-center">assumption</span></div>
+                <div className="mt-2 grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Rover at the habitat">
+                  {Object.entries(ROVER_STATUS).map(([id, r]) => (
+                    <button key={id} role="radio" aria-checked={roverId === id} onClick={() => { playUiClick?.(); setRoverId(id); }} className={`rounded-lg border px-2 py-1.5 text-[11px] text-left cursor-pointer transition-colors ${roverId === id ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10 text-white' : 'border-white/[0.08] text-zinc-400 hover:bg-white/[0.05]'}`}>{r.label}</button>
+                  ))}
+                </div>
               </div>
             </div>
           </Step>
@@ -749,6 +774,7 @@ function ContingencySimulatorPage() {
                           ? <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm bg-white/25" />Spare · {hm(spare)}</span>
                           : <span className="flex items-center gap-1.5 text-rose-300"><i className="w-2.5 h-2.5 rounded-sm bg-rose-500" />Short by · {hm(short)}</span>}
                       </div>
+                      <p className="mt-2 text-[11px] text-zinc-500 leading-snug">Life support is counted in hours at a normal walking effort: it runs down faster than the clock on steep or rough ground and slower while resting, so it can differ from walking time.</p>
                     </>
                   );
                 })()}
@@ -790,7 +816,7 @@ function ContingencySimulatorPage() {
 
         {/* Decision drill */}
         <Panel title="Decision drill: what would you do?" icon={Timer} className="mt-6" right={<span className="text-xs text-zinc-400">Every choice is played out on the real terrain</span>}>
-          <DecisionDrill points={points || []} result={result} scenarioId={scenarioId} value={value} caves={caves} />
+          <DecisionDrill points={points || []} result={result} scenarioId={scenarioId} value={value} caves={caves} roverDelayMin={roverDelayMin} />
         </Panel>
 
         <p className="mt-6 text-xs text-zinc-500 flex items-start gap-2 max-w-4xl">
