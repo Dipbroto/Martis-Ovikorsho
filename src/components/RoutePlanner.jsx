@@ -408,7 +408,7 @@ export default function RoutePlanner() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="text-center py-6 text-space-400 text-sm flex flex-col items-center justify-center h-full"
+                  className="text-center py-3 text-space-400 text-sm flex flex-col items-center justify-center"
                 >
                   <MapPin className="w-8 h-8 text-space-600 mb-2" />
                   <p className="font-medium text-space-300">No waypoints added</p>
@@ -561,7 +561,7 @@ export default function RoutePlanner() {
 
       {/* AUTONOMOUS ROUTER VIEW */}
       {activeTab === 'auto' && (
-        <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+        <div className="space-y-3 pr-1">
           {/* Target Corridor Picker */}
           <div className="bg-space-900/80 p-3 rounded-xl border border-space-700/60 space-y-2">
             <span className="text-[10px] uppercase font-mono tracking-wider text-space-400 block">

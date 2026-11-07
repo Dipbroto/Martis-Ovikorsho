@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, memo } from 'react';
+import { useEffect, useRef, useState, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, Layers, Route, MapPin, Rocket, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
@@ -16,6 +16,15 @@ function Sidebar() {
   const setSidebarOpen = useMapStore(s => s.setSidebarOpen);
   const sidebarTab = useMapStore(s => s.sidebarTab);
   const setSidebarTab = useMapStore(s => s.setSidebarTab);
+  const bottomPanelOpen = useMapStore(s => s.bottomPanelOpen);
+  const toolbarCollapsed = useMapStore(s => s.toolbarCollapsed);
+
+  const maxHeightStyle = useMemo(() => {
+    const topMargin = toolbarCollapsed ? 140 : 160;
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    const bottomMargin = bottomPanelOpen ? (isMobile ? 325 : 36) : 36;
+    return `calc(100dvh - ${topMargin + bottomMargin}px)`;
+  }, [toolbarCollapsed, bottomPanelOpen]);
 
   // Framer can only animate between plain numbers, so the open width is measured, not a CSS min()
   const [openWidth, setOpenWidth] = useState(() => Math.min(380, window.innerWidth - 32));
@@ -81,9 +90,13 @@ function Sidebar() {
       animate={{ width: sidebarOpen ? openWidth : 56 }}
       transition={{ type: 'spring', stiffness: 420, damping: 40, mass: 0.8 }}
       aria-label="Map panel"
-      className="relative z-30 flex flex-col h-full max-h-full rounded-2xl border border-white/[0.09] bg-[#0B0D12]/90 backdrop-blur-xl shrink-0 shadow-[0_18px_50px_rgba(0,0,0,0.5)] will-change-[width] overflow-hidden"
+      className="relative z-30 flex flex-col rounded-2xl border border-white/[0.09] bg-[#0B0D12]/90 backdrop-blur-xl shrink-0 shadow-[0_18px_50px_rgba(0,0,0,0.5)] will-change-[width] overflow-hidden"
+      style={{
+        maxHeight: maxHeightStyle,
+        height: '100%',
+      }}
     >
-      <div className="flex flex-col min-h-0 h-full max-h-full overflow-hidden rounded-2xl">
+      <div className="flex flex-col min-h-0 h-full max-h-full overflow-hidden rounded-2xl" style={{ maxHeight: '100%', height: '100%' }}>
         {sidebarOpen ? (
           <>
             {/* Header: what you are looking at, and an always-visible way to put the panel away */}

@@ -237,8 +237,16 @@ function App() {
               </ErrorBoundary>
 
               {/* FIXED LEFT SIDEBAR */}
-              <div className={`fixed left-3 z-[400] pointer-events-none flex flex-col items-start transition-[top,bottom] duration-300 ${toolbarCollapsed ? 'top-[132px]' : 'top-[172px] sm:top-[150px]'} ${bottomPanelOpen ? 'bottom-[318px] sm:bottom-24' : 'bottom-24'}`}>
-                <div className="pointer-events-auto flex flex-col min-h-0 max-h-full h-full">
+              <div
+                className={`fixed left-3 z-[400] pointer-events-none flex flex-col items-start transition-[top,bottom] duration-300 ${toolbarCollapsed ? 'top-[132px]' : 'top-[172px] sm:top-[150px]'} ${bottomPanelOpen ? 'bottom-[318px] sm:bottom-6' : 'bottom-6'}`}
+                style={{
+                  maxHeight: `calc(100dvh - ${toolbarCollapsed ? 140 : 160}px - ${bottomPanelOpen ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 325 : 36) : 36}px)`,
+                }}
+              >
+                <div
+                  className="pointer-events-auto flex flex-col min-h-0 h-full max-h-full"
+                  style={{ maxHeight: '100%', height: '100%' }}
+                >
                   <ErrorBoundary>
                     <Suspense fallback={null}>
                       <Sidebar />
