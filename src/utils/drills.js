@@ -2,7 +2,7 @@
 // The walk back is planned on the real terrain with the same planner and energy model as the
 // route itself; each emergency changes one thing about it (life support, pace, the way home, dose).
 
-import { EVA_ASSUMPTIONS, energyToHours, legCost, lifeSupportBudgetJ } from '../terrain/evaModel';
+import { EVA_ASSUMPTIONS, energyToHours, legCost, lifeSupportBudgetJ, usableBudgetJ } from '../terrain/evaModel';
 import { marsDistance } from './marsUtils';
 
 /**
@@ -82,6 +82,35 @@ export const stormPowerShare = (tau) => Math.exp(-0.3 * tau) / Math.exp(-0.3 * 0
 /** Walking pace in poor visibility, as a share of normal (assumption: halves by τ = 4, floor 30%). */
 export const stormPaceShare = (tau) => Math.max(0.3, 1 - 0.125 * Math.max(0, tau - 0.5));
 
+/**
+ * How far one suit reaches walking home in a dust storm, as a share of normal: walking slower costs
+ * more resting load per kilometre (level ground, same energy model as the planner).
+ */
+export const stormReachShare = (tau) => {
+  const slow = { ...EVA_ASSUMPTIONS, flatSpeedKmh: EVA_ASSUMPTIONS.flatSpeedKmh * stormPaceShare(tau) };
+  return legCost(1000, 0).energyJ / legCost(1000, 0, slow).energyJ;
+};
+
+/**
+ * The part of a walk one suit can cover out and back with the reserve kept: up to the farthest point
+ * whose round trip (out along the walk, back the same way) fits the usable life-support budget.
+ * Longer walks are a multi-sol traverse, not one EVA, so a drill on them would be meaningless.
+ */
+export function reachablePart(points) {
+  const budget = usableBudgetJ();
+  let roundTripJ = 0, last = 0;
+  for (let i = 1; i < points.length; i++) {
+    const [la1, lo1, e1] = points[i - 1];
+    const [la2, lo2, e2] = points[i];
+    const dM = marsDistance(la1, lo1, la2, lo2) * 1000;
+    const rise = (e2 || 0) - (e1 || 0);
+    roundTripJ += legCost(dM, rise).energyJ + legCost(dM, -rise).energyJ;
+    if (roundTripJ > budget) break;
+    last = i;
+  }
+  return last >= points.length - 1 ? points : points.slice(0, Math.max(2, last + 1));
+}
+
 /** Cumulative distance (km), metabolic energy (J) and time (s) along a path of [lat, lon, elev]. */
 export function alongPath(points) {
   const km = [0], energy = [0], time = [0];
@@ -157,6 +186,7 @@ export function survivalProfile({ points, along, scenarioId, value, homeCostAt, 
   const { keep } = scenarioSetup(scenarioId, value, points, along, 1);
   const out = [];
   let noReturnKm = null;
+  let lastSafeKm = null;
   for (let i = 0; i <= samples; i++) {
     const f = i / samples;
     const p = pointAt(points, along, f);
@@ -165,9 +195,11 @@ export function survivalProfile({ points, along, scenarioId, value, homeCostAt, 
     const remaining = (total - p.energyJ) * keep;
     const need = homeCostAt(p.lat, p.lon);
     const spare = Number.isFinite(need) ? energyToHours(remaining - need) : -energyToHours(total);
-    out.push({ f, km: Math.round(p.km * 100) / 100, spare: Math.round(spare * 100) / 100 });
-    if (noReturnKm === null && spare < 0) noReturnKm = i === 0 ? 0 : out[i - 1].km;
-    // A gap from a blocked area does not count as the last safe point
+    const km = Math.round(p.km * 100) / 100;
+    out.push({ f, km, spare: Math.round(spare * 100) / 100 });
+    // The turn-back point is the last point that still gets home; a gap from a blocked area does not count
+    if (noReturnKm === null && spare < 0) noReturnKm = lastSafeKm ?? 0;
+    if (spare >= 0) lastSafeKm = km;
   }
   return { points: out, noReturnKm };
 }
@@ -177,7 +209,7 @@ export function recommendation(r) {
   if (!r || r.error) return 'Stay put, report your position and wait for the rover: there is no walkable way home from here.';
   const id = r.scenario.id;
   if (!r.makesIt) {
-    if (id === 'spe' && r.cave && r.cave.hours < r.returnH) return `Do not walk home. Head for the cave ${r.cave.km.toFixed(1)} km away and call the rover to you.`;
+    if (id === 'spe' && r.cave && r.cave.hours < r.returnH && r.cave.hours <= r.remainingH) return `Do not walk home. Head for the cave ${r.cave.km.toFixed(1)} km away and call the rover to you.`;
     return 'Do not start the walk home alone. Stop, conserve oxygen and call the rover to come to you.';
   }
   if (id === 'spe') {
@@ -185,7 +217,10 @@ export function recommendation(r) {
     return 'Walk straight home by the fastest route; drop anything that slows you down.';
   }
   if (id === 'dust_storm') return 'Tether up and follow your recorded track home. The habitat should switch to storm power now.';
-  if (id === 'rockfall') return `Take the new route around the slide (${r.detourKm != null ? `+${r.detourKm.toFixed(1)} km` : 'a detour'}). Stay off fresh slopes.`;
+  if (id === 'rockfall') {
+    if (r.detourKm != null && r.detourKm < 0.05) return 'The slide is not on the fastest way home: walk back by that route and stay off fresh slopes.';
+    return `Take the new route around the slide (${r.detourKm != null ? `+${r.detourKm.toFixed(1)} km` : 'a detour'}). Stay off fresh slopes.`;
+  }
   return r.marginShare < 0.12 ? 'Turn back immediately on the planned route and report pressure every 10 minutes.' : 'Turn back now on the planned route; there is enough oxygen if you keep moving.';
 }
 
@@ -207,7 +242,7 @@ export async function runDrill({ points, scenarioId, fraction, value, planTraver
   try {
     back = await planTraverse({ lat: here.lat, lon: here.lon }, base, { mode: 'fastest', assumptions, blocked });
   } catch (err) {
-    return { scenario, here, along, block, error: err.message };
+    return { points, scenario, here, along, block, error: err.message };
   }
   const returnJ = back.metrics.energyJ;
   const returnS = back.metrics.timeS;
@@ -215,7 +250,7 @@ export async function runDrill({ points, scenarioId, fraction, value, planTraver
   const leftH = energyToHours(Math.max(0, leftJ));
 
   const result = {
-    scenario, here, along, block, back,
+    points, scenario, here, along, block, back,
     usedH: energyToHours(here.energyJ),
     remainingH: energyToHours(Math.max(0, remaining)),
     returnH: returnS / 3600,
@@ -359,13 +394,16 @@ export async function playChoice(choice, state, ctx) {
     const waitS = trip ? Math.max(0, trip.s - walkS) : Infinity;
     const energyJ = walkJ + restW * waitS;
     const survived = Number.isFinite(energyJ) && energyJ <= state.remainingJ;
+    const place = { sky: 'skylight', pit: 'pit' }[cave.c.type] || 'cave candidate';
     const dose = doseRate * (walkS / H) + doseRate * (1 - DECISION_ASSUMPTIONS.caveShielding) * (Number.isFinite(waitS) ? waitS / H : 0);
     return {
       kind: choice, terminal: true, survived, durationS: walkS + (Number.isFinite(waitS) ? waitS : 0), energyJ, doseMSv: dose,
       path: walk.path.map((p) => [p.lat, p.lon]), cave, endRemainingJ: state.remainingJ - energyJ,
       story: survived
-        ? `You reach the ${cave.c.type === 'sky' ? 'skylight' : 'pit'} ${cave.km.toFixed(1)} km away in ${fmtH(walkS / H)} and wait under rock for the rover.`
-        : `You reach the cave, but the rover takes too long and the suit runs out while you wait.`,
+        ? `You reach the ${place} ${cave.km.toFixed(1)} km away in ${fmtH(walkS / H)} and wait under rock for the rover.`
+        : walkJ > state.remainingJ
+          ? `The suit runs out before you reach the ${place} ${cave.km.toFixed(1)} km away.`
+          : `You reach the ${place}, but the rover takes too long and the suit runs out while you wait.`,
     };
   }
   throw new Error(`Unknown choice ${choice}`);
@@ -380,12 +418,16 @@ export function nearestCave(here, caves = []) {
   return best;
 }
 
-/** Score out of 100: getting home first, then margin, dose and the bonus sample. */
+/**
+ * Score out of 100: getting home first, then margin, dose and the bonus sample. The sample only counts
+ * if the crew got home with the emergency reserve untouched: a sample is never worth eating into it.
+ */
 export function scoreOutcome({ survived, endRemainingJ, doseMSv, sample }) {
   if (!survived) return 0;
   const margin = Math.max(0, Math.min(1, endRemainingJ / lifeSupportBudgetJ()));
   const dosePenalty = Math.min(25, doseMSv / 10);
-  return Math.max(0, Math.round(60 + 30 * margin - dosePenalty + (sample ? 10 : 0)));
+  const bonus = sample && margin >= EVA_ASSUMPTIONS.reserveFraction ? 10 : 0;
+  return Math.max(0, Math.round(60 + 30 * margin - dosePenalty + bonus));
 }
 
 function fmtH(h) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { alongPath, pointAt, runDrill, stormPaceShare, stormPowerShare, verdict } from './drills';
-import { lifeSupportBudgetJ, energyToHours } from '../terrain/evaModel';
+import { alongPath, pointAt, reachablePart, runDrill, stormPaceShare, stormPowerShare, stormReachShare, survivalProfile, verdict } from './drills';
+import { lifeSupportBudgetJ, energyToHours, usableBudgetJ } from '../terrain/evaModel';
 
 // A flat 6 km walk east along the equator
 const points = Array.from({ length: 61 }, (_, i) => [0, i * (0.1 / 59.16) * 1, 0]);
@@ -85,5 +85,36 @@ describe('decision drill', () => {
     expect(rover.energyJ).toBeCloseTo(A.restingPowerW * rover.durationS, 3);
     expect(scoreOutcome({ survived: false })).toBe(0);
     expect(scoreOutcome({ survived: true, endRemainingJ: 1e6, doseMSv: 0, sample: true })).toBeGreaterThan(60);
+    // The sample bonus only counts with the reserve untouched
+    const thin = 0.05 * lifeSupportBudgetJ(), ample = 0.5 * lifeSupportBudgetJ();
+    expect(scoreOutcome({ survived: true, endRemainingJ: thin, doseMSv: 0, sample: true })).toBe(scoreOutcome({ survived: true, endRemainingJ: thin, doseMSv: 0, sample: false }));
+    expect(scoreOutcome({ survived: true, endRemainingJ: ample, doseMSv: 0, sample: true })).toBe(scoreOutcome({ survived: true, endRemainingJ: ample, doseMSv: 0, sample: false }) + 10);
+  });
+
+  it('keeps a walk to what one suit can do out and back', () => {
+    // The 6 km walk fits; a 60 km walk is cut where the round trip uses up the usable budget
+    expect(reachablePart(points)).toBe(points);
+    const long = Array.from({ length: 601 }, (_, i) => [0, i * (0.1 / 59.16), 0]);
+    const part = reachablePart(long);
+    const a = alongPath(part);
+    expect(part.length).toBeLessThan(long.length);
+    expect(a.energy[a.energy.length - 1] * 2).toBeLessThanOrEqual(usableBudgetJ() * 1.0001);
+    expect(a.totalKm).toBeGreaterThan(5);
+  });
+
+  it('a storm cuts how far the suit reaches walking home', () => {
+    expect(stormReachShare(0.5)).toBeCloseTo(1, 5);
+    expect(stormReachShare(4)).toBeLessThan(1);
+    expect(stormReachShare(4)).toBeGreaterThan(0.3);
+  });
+
+  it('the turn-back point skips a blocked gap', () => {
+    const along = alongPath(points);
+    // Blocked between 2 and 3 km out, no way home past 3 km
+    const isBlocked = (lat, lon) => lon * 59.16 > 2 && lon * 59.16 < 3;
+    const homeCostAt = (lat, lon) => (lon * 59.16 >= 3 ? Infinity : 0);
+    const { points: prof, noReturnKm } = survivalProfile({ points, along, scenarioId: 'rockfall', value: 500, homeCostAt, isBlocked, samples: 60 });
+    expect(prof.some((p) => p.blocked)).toBe(true);
+    expect(noReturnKm).toBeLessThanOrEqual(2.01);
   });
 });

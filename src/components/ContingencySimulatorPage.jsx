@@ -15,7 +15,7 @@ import { MapContainer, TileLayer, Polyline, CircleMarker, Circle, Tooltip, ZoomC
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { marsLayers } from '../data/marsLayers';
-import { SCENARIOS, runDrill, verdict, alongPath, scenarioSetup, survivalProfile, severityLabel, recommendation, playChoice, nearestCave, scoreOutcome, DECISION_ASSUMPTIONS } from '../utils/drills';
+import { SCENARIOS, runDrill, verdict, alongPath, scenarioSetup, survivalProfile, severityLabel, recommendation, playChoice, nearestCave, scoreOutcome, reachablePart, DECISION_ASSUMPTIONS } from '../utils/drills';
 import { EVA_ASSUMPTIONS } from '../terrain/evaModel';
 import { marsDistance } from '../utils/marsUtils';
 import { energyToHours, lifeSupportBudgetJ } from '../terrain/evaModel';
@@ -73,8 +73,9 @@ function FitTo({ bounds }) {
 }
 
 /** The route on real NASA imagery: outbound walk, where the emergency hits, and the way home. */
-function DrillMap({ points, result }) {
+function DrillMap({ points, rest, result }) {
   const out = useMemo(() => points.map(([la, lo]) => [la, lo]), [points]);
+  const beyond = useMemo(() => (rest || []).map(([la, lo]) => [la, lo]), [rest]);
   const back = useMemo(() => result?.back?.path?.map((p) => [p.lat, p.lon]) || [], [result]);
   // Fit the camera to the route only (not every re-plan), so the view stays put while you drag sliders
   const bounds = useMemo(() => {
@@ -107,6 +108,7 @@ function DrillMap({ points, result }) {
         <TileLayer url={HD.ctxUrl} noWrap tileSize={512} zoomOffset={-1} minZoom={8} maxNativeZoom={13} maxZoom={14} />
         <TileLayer url={VIKING.url} className="tile-blend-color" opacity={0.9} noWrap maxNativeZoom={VIKING.maxZoom} maxZoom={14} />
 
+        {beyond.length > 1 && <Polyline positions={beyond} pathOptions={{ color: '#a1a1aa', weight: 2, opacity: 0.5, dashArray: '2 6', interactive: false }} />}
         <Polyline positions={out} pathOptions={{ color: '#000', weight: 8, opacity: 0.45, interactive: false }} />
         <Polyline positions={out.slice(idx)} pathOptions={{ color: '#F26A3D', weight: 3, opacity: 0.55, dashArray: '6 7', interactive: false }} />
         <Polyline positions={out.slice(0, idx + 1).concat(here ? [here] : [])} pathOptions={{ color: '#F26A3D', weight: 4, interactive: false }} />
@@ -192,14 +194,21 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
   const [busy, setBusy] = useState(null);
   const [best, setBest] = useState(null);
   const [options, setOptions] = useState([]);
-  useEffect(() => { setState(start); setLog([]); setEnding(null); setBest(null); setOptions([]); }, [start]);
+  const [failed, setFailed] = useState(null);
+  // A new emergency (slider, walk or scenario changed) starts a new drill; answers for the old one are dropped
+  const drillId = useRef(0);
+  const reset = () => { drillId.current++; setState(start); setLog([]); setEnding(null); setBest(null); setOptions([]); setFailed(null); setBusy(null); };
+  useEffect(reset, [start]);
 
   const choose = async (choice) => {
     if (!state || !ctx || busy || ending) return;
     playUiClick?.();
+    const id = drillId.current;
     setBusy(choice);
+    setFailed(null);
     try {
       const r = await playChoice(choice, state, ctx);
+      if (id !== drillId.current) return;
       const next = {
         ...state,
         remainingJ: r.endRemainingJ,
@@ -218,12 +227,15 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
           const o = await playChoice(c, start, ctx).catch(() => null);
           return o && { c, ...o, score: scoreOutcome({ ...o, sample: false }) };
         }));
+        if (id !== drillId.current) return;
         const ranked = options.filter(Boolean).sort((a, b) => b.score - a.score);
         setBest(ranked[0] || null);
         setOptions(ranked);
       }
+    } catch {
+      if (id === drillId.current) setFailed(`The planner could not play out “${CHOICES[choice].label.toLowerCase()}” on this terrain. Try another call.`);
     } finally {
-      setBusy(null);
+      if (id === drillId.current) setBusy(null);
     }
   };
 
@@ -305,7 +317,7 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
             <div className={`rounded-2xl border p-4 ${TONES[S.tone].ring}`}>
               <div className="text-[11px] uppercase tracking-wider text-zinc-400">{log.length ? 'Still outside. What next?' : 'The alarm sounds'}</div>
               <p className="mt-1 text-white font-medium">
-                {log.length ? last.story : `${S.title} ${result.here.km.toFixed(1)} km from base. You have ${hm(result.remainingH)} of life support left. What do you do?`}
+                {log.length ? last.story : `${S.title} ${result.here.km.toFixed(1)} km into the walk. You have ${hm(result.remainingH)} of life support left. What do you do?`}
               </p>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
@@ -331,6 +343,7 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
                 );
               })}
             </div>
+            {failed && <p className="text-xs text-rose-300">{failed}</p>}
           </>
         ) : (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4">
@@ -386,7 +399,7 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
                 </div>
               </div>
             )}
-            <button onClick={() => { setState(start); setLog([]); setEnding(null); setBest(null); setOptions([]); }} className="self-start flex items-center gap-2 rounded-xl bg-white text-black font-semibold px-4 py-2.5 text-sm hover:bg-zinc-200 cursor-pointer">
+            <button onClick={reset} className="self-start flex items-center gap-2 rounded-xl bg-white text-black font-semibold px-4 py-2.5 text-sm hover:bg-zinc-200 cursor-pointer">
               <RotateCcw className="w-4 h-4" />Try a different call
             </button>
           </motion.div>
@@ -397,7 +410,7 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
       {/* Assumptions behind every choice */}
       <div className="lg:col-span-12">
         <p className="text-[11px] text-zinc-500 leading-relaxed">
-          Walking uses the planner’s energy model; waiting uses the suit’s resting load ({EVA_ASSUMPTIONS.restingPowerW} W). Rover: {DECISION_ASSUMPTIONS.roverKmh} km/h (NASA’s pressurised rover concept) plus {DECISION_ASSUMPTIONS.roverPrepMin} min to set off. Caves block an assumed {Math.round(DECISION_ASSUMPTIONS.caveShielding * 100)}% of storm dose.
+          Walking uses the planner’s energy model; waiting uses the suit’s resting load ({EVA_ASSUMPTIONS.restingPowerW} W). Rover: {DECISION_ASSUMPTIONS.roverKmh} km/h (NASA’s pressurised rover concept) plus {DECISION_ASSUMPTIONS.roverPrepMin} min to set off. Caves block an assumed {Math.round(DECISION_ASSUMPTIONS.caveShielding * 100)}% of storm dose. The sample adds to the score only if the crew gets home with the {Math.round(EVA_ASSUMPTIONS.reserveFraction * 100)}% reserve untouched.
         </p>
       </div>
     </div>
@@ -438,7 +451,7 @@ function SurvivalChart({ profile, km, onPick, busy }) {
         <AreaChart data={data} margin={{ top: 18, right: 12, bottom: 0, left: 0 }} onClick={(e) => { if (e?.activePayload?.[0]) onPick(e.activePayload[0].payload.f); }}>
           <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
           <XAxis dataKey="km" type="number" domain={[0, 'dataMax']} tickFormatter={(v) => `${v} km`} stroke="#71717a" fontSize={11} tickLine={false} />
-          <YAxis domain={[min, max]} tickFormatter={(v) => `${v > 0 ? '+' : ''}${v.toFixed(0)} h`} stroke="#71717a" fontSize={11} width={48} tickLine={false} axisLine={false} />
+          <YAxis domain={[min, max]} tickFormatter={(v) => (Math.abs(v) < 1e-9 ? '0 h' : `${v > 0 ? '+' : '−'}${Math.abs(v) < 2 && v % 1 ? Math.abs(v).toFixed(1) : Math.round(Math.abs(v))} h`)} stroke="#71717a" fontSize={11} width={48} tickLine={false} axisLine={false} />
           <ChartTooltip content={({ active, payload, label }) => {
             if (!active || !payload?.length) return null;
             const v = payload[0].payload.spare;
@@ -471,39 +484,47 @@ function ContingencySimulatorPage() {
 
   const myRoute = s.routeGeometry && s.waypoints.length > 1 && s.routeGeometry.signature === routeSignature(s.waypoints) ? s.routeGeometry : null;
   const [source, setSource] = useState(myRoute ? 'mine' : 'jezero-delta');
-  const [planned, setPlanned] = useState({});
-  const [planning, setPlanning] = useState(false);
+  // If "my route" was cleared or changed on the map since it was picked here, fall back to a preset walk
+  const activeSource = source === 'mine' && !myRoute ? 'jezero-delta' : source;
+  const [planned, setPlanned] = useState({}); // preset id -> planned traverse, or { error }
+  const inFlight = useRef(new Set());
   const [scenarioId, setScenarioId] = useState('o2_leak');
   const scenario = SCENARIOS[scenarioId];
   const [values, setValues] = useState(() => Object.fromEntries(Object.values(SCENARIOS).map((x) => [x.id, x.param.def])));
   const value = values[scenarioId];
   const [fraction, setFraction] = useState(0.8);
-  const [result, setResult] = useState(null);
+  const [drillResult, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [profile, setProfile] = useState(null);
+  const [walkProfile, setProfile] = useState(null);
   const [profileBusy, setProfileBusy] = useState(false);
   const [caves, setCaves] = useState([]);
 
-  const pair = AUTONOMOUS_TARGET_PAIRS.find((p) => p.id === source);
+  const pair = AUTONOMOUS_TARGET_PAIRS.find((p) => p.id === activeSource);
+  // Plan each preset walk once. A plan that is still running when you pick another walk is kept, not thrown away.
   useEffect(() => {
-    if (source === 'mine' || !pair || planned[pair.id]) return;
-    let cancelled = false;
-    setPlanning(true);
+    if (activeSource === 'mine' || !pair || planned[pair.id] || inFlight.current.has(pair.id)) return;
+    inFlight.current.add(pair.id);
     generateAutonomousTraverse(pair.origin, pair.destination, { mode: 'safety' })
-      .then((r) => { if (!cancelled) setPlanned((m) => ({ ...m, [pair.id]: r })); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setPlanning(false); });
-    return () => { cancelled = true; };
-  }, [source, pair, planned]);
-  const points = source === 'mine' ? myRoute?.points : planned[source]?.path;
+      .then((r) => setPlanned((m) => ({ ...m, [pair.id]: r })))
+      .catch((err) => setPlanned((m) => ({ ...m, [pair.id]: { error: err?.message || 'No walkable route' } })))
+      .finally(() => inFlight.current.delete(pair.id));
+  }, [activeSource, pair, planned]);
+  const planning = activeSource !== 'mine' && !!pair && !planned[pair.id];
+  const planError = activeSource !== 'mine' ? planned[activeSource]?.error : null;
+  const retryPlan = () => setPlanned((m) => { const n = { ...m }; delete n[activeSource]; return n; });
+  const walk = activeSource === 'mine' ? myRoute?.points : planned[activeSource]?.path;
+  // Drills cover the part of the walk one suit can do out and back; a longer walk is a multi-sol traverse
+  const points = useMemo(() => (walk?.length > 1 ? reachablePart(walk) : null), [walk]);
+  const rest = walk && points && points.length < walk.length ? walk.slice(points.length - 1) : null;
+  const walkKm = useMemo(() => (rest ? alongPath(walk).totalKm : null), [rest, walk]);
   const along = useMemo(() => (points?.length ? alongPath(points) : null), [points]);
+  // Results always belong to the walk they were worked out for: never shown against another walk
+  const result = drillResult?.points === points ? drillResult : null;
+  const profile = walkProfile?.walk === points ? walkProfile : null;
 
   useEffect(() => {
     fetch('/data/caves.json').then((r) => (r.ok ? r.json() : null)).then((d) => setCaves(d?.caves || [])).catch(() => {});
   }, []);
-
-  // A different walk: drop the old walk's result so it is never shown against the new route
-  useEffect(() => { setResult(null); }, [points]);
 
   // The emergency at the chosen point (debounced)
   const runId = useRef(0);
@@ -514,6 +535,7 @@ function ContingencySimulatorPage() {
     const t = setTimeout(() => {
       runDrill({ points, scenarioId, fraction, value, planTraverse, caves })
         .then((r) => { if (id === runId.current) setResult(r); })
+        .catch(() => { if (id === runId.current) setResult(null); })
         .finally(() => { if (id === runId.current) setBusy(false); });
     }, 220);
     return () => clearTimeout(t);
@@ -541,7 +563,7 @@ function ContingencySimulatorPage() {
         };
         const R = 3389500 * (Math.PI / 180);
         const isBlocked = (lat, lon) => blocked.some((z) => Math.hypot((lat - z.lat) * R, (lon - z.lon) * R * Math.cos((lat * Math.PI) / 180)) <= z.radiusM + grid.metersPerPixel * 1.5);
-        setProfile(survivalProfile({ points, along, scenarioId, value, homeCostAt, isBlocked }));
+        setProfile({ walk: points, ...survivalProfile({ points, along, scenarioId, value, homeCostAt, isBlocked }) });
       } catch {
         if (id === profId.current) setProfile(null);
       } finally {
@@ -559,8 +581,8 @@ function ContingencySimulatorPage() {
 
   const practiseOnMap = () => {
     playUiClick?.();
-    if (source !== 'mine' && planned[source]) applyPlannedRoute(planned[source]);
-    s.triggerContingency(scenarioId);
+    if (activeSource !== 'mine' && planned[activeSource]?.path) applyPlannedRoute(planned[activeSource]);
+    s.triggerContingency(scenarioId, value);
     s.setContingencyModalOpen(false);
     if (s.terrainOverlay !== 'return') s.setTerrainOverlay('return');
     s.setActiveTab('map');
@@ -568,7 +590,7 @@ function ContingencySimulatorPage() {
 
   const SIcon = ICONS[scenarioId];
   const T = TONES[scenario.tone];
-  const routeName = source === 'mine' ? 'My planned route' : pair?.name;
+  const routeName = activeSource === 'mine' ? 'My planned route' : pair?.name;
 
   return (
     <div className="relative min-h-screen text-white font-sans -mt-20 sm:-mt-24 -mx-3 sm:-mx-8 lg:-mx-14">
@@ -602,13 +624,13 @@ function ContingencySimulatorPage() {
           <Step n={1} title="Choose the walk" className="lg:col-span-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5 max-h-[300px] overflow-y-auto custom-scrollbar-y pr-1">
               {myRoute && (
-                <button onClick={() => setSource('mine')} className={`text-left rounded-xl border px-3 py-2 cursor-pointer transition-colors ${source === 'mine' ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
+                <button onClick={() => setSource('mine')} className={`text-left rounded-xl border px-3 py-2 cursor-pointer transition-colors ${activeSource === 'mine' ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
                   <div className="text-sm font-semibold">My planned route</div>
                   <div className="text-xs text-zinc-400 truncate">{s.waypoints[0]?.name}</div>
                 </button>
               )}
               {AUTONOMOUS_TARGET_PAIRS.map((p) => (
-                <button key={p.id} onClick={() => setSource(p.id)} className={`text-left rounded-xl border px-3 py-2 cursor-pointer transition-colors ${source === p.id ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
+                <button key={p.id} onClick={() => setSource(p.id)} className={`text-left rounded-xl border px-3 py-2 cursor-pointer transition-colors ${activeSource === p.id ? 'border-[#ff7b4d]/60 bg-[#ff7b4d]/10' : 'border-white/[0.07] hover:bg-white/[0.05]'}`}>
                   <div className="text-sm font-semibold leading-tight truncate">{p.name}</div>
                   <div className="text-xs text-zinc-400 truncate">{p.location}</div>
                 </button>
@@ -638,7 +660,7 @@ function ContingencySimulatorPage() {
               <div>
                 <div className="flex justify-between text-sm"><label htmlFor="hit-at" className="text-zinc-300">Hits at</label><span className="tabular-nums font-semibold">{along ? `${(fraction * along.totalKm).toFixed(1)} km` : '—'}</span></div>
                 <input id="hit-at" type="range" min="0.02" max="1" step="0.01" value={fraction} onChange={(e) => setFraction(Number(e.target.value))} className="mt-2 w-full accent-rose-400 cursor-pointer" />
-                <div className="flex justify-between text-[11px] text-zinc-500"><span>Near base</span><span>Destination{along ? ` · ${along.totalKm.toFixed(1)} km` : ''}</span></div>
+                <div className="flex justify-between text-[11px] text-zinc-500"><span>Near base</span><span>{rest ? 'Farthest for one suit' : 'Destination'}{along ? ` · ${along.totalKm.toFixed(1)} km` : ''}</span></div>
               </div>
               <div>
                 <div className="flex justify-between text-sm gap-2"><label htmlFor="sev" className="text-zinc-300">{scenario.param.label}</label><span className="tabular-nums font-semibold shrink-0">{value}{scenario.param.unit}</span></div>
@@ -653,7 +675,13 @@ function ContingencySimulatorPage() {
         <div className="mt-6 grid lg:grid-cols-12 gap-6 items-start">
           <div className="lg:col-span-7 flex flex-col gap-6">
             <Panel title="The way home, on real NASA imagery" icon={MapIcon} right={(busy || planning) && <span className="flex items-center gap-1.5 text-xs text-zinc-400"><Loader2 className="w-3.5 h-3.5 animate-spin" />{planning ? 'Planning the walk…' : 'Replanning the way home…'}</span>}>
-              {points?.length ? <DrillMap points={points} result={result} /> : <div className="aspect-[4/3] rounded-xl bg-black/40 flex items-center justify-center text-zinc-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Planning the walk on real terrain…</div>}
+              {points?.length ? <DrillMap points={points} rest={rest} result={result} />
+                : planError
+                  ? <div className="aspect-[4/3] rounded-xl bg-black/40 flex flex-col items-center justify-center gap-3 text-sm text-zinc-300 text-center px-6">The walk could not be planned on the terrain ({planError}).<button onClick={retryPlan} className="rounded-lg bg-white text-black font-semibold px-3 py-1.5 text-xs hover:bg-zinc-200 cursor-pointer">Try again</button></div>
+                  : <div className="aspect-[4/3] rounded-xl bg-black/40 flex items-center justify-center text-zinc-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Planning the walk on real terrain…</div>}
+              {rest && walkKm != null && along && (
+                <p className="mt-3 text-xs text-zinc-400">This walk is {walkKm.toFixed(1)} km: longer than one suit can go out and back. The drill covers the first {along.totalKm.toFixed(1)} km, the farthest a crew can walk out and still get back with the {Math.round(EVA_ASSUMPTIONS.reserveFraction * 100)}% reserve kept. The rest is shown dotted.</p>
+              )}
             </Panel>
 
             <Panel title="Where on the walk could you survive it?" icon={Footprints} right={<span className="text-xs text-zinc-400">Tap the chart to move the emergency</span>}>
@@ -724,7 +752,7 @@ function ContingencySimulatorPage() {
                   <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400 flex items-center gap-1"><Footprints className="w-3.5 h-3.5" />Walked so far</dt><dd className="font-semibold tabular-nums">{result.here.km.toFixed(1)} km · {hm(result.here.timeS / 3600)}</dd></div>
                   <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400 flex items-center gap-1"><Home className="w-3.5 h-3.5" />Way home</dt><dd className="font-semibold tabular-nums">{result.returnKm.toFixed(1)} km · {hm(result.returnH)}</dd></div>
                   {scenarioId === 'rockfall' && result.detourKm != null && (
-                    <div className="col-span-2 rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400">Detour around the rockfall</dt><dd className="font-semibold tabular-nums">+{result.detourKm.toFixed(1)} km</dd></div>
+                    <div className="col-span-2 rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><dt className="text-xs text-zinc-400">Detour around the rockfall</dt><dd className="font-semibold tabular-nums">{result.detourKm < 0.05 ? 'None: the slide is off the fastest way home' : `+${result.detourKm.toFixed(1)} km`}</dd></div>
                   )}
                   {scenarioId === 'dust_storm' && (
                     <div className="col-span-2 rounded-xl bg-white/[0.04] border border-white/[0.07] p-3">

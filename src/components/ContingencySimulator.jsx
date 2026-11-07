@@ -2,45 +2,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, ShieldAlert, Wind, HeartPulse, RotateCcw, ArrowRight, X } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
+import { SCENARIOS, severityLabel } from '../utils/drills';
 
+// Same scenarios and wording as the Drills page, at their default settings
 const SCENARIO_BUTTONS = [
-  {
-    type: 'spe',
-    number: '01',
-    title: 'Solar Flare (SPE)',
-    icon: ShieldAlert,
-    tag: 'RAD CRITICAL',
-    desc: 'Coronal particle surge, 14.5 mSv/hr. Immediate underground shelter required.',
-    accent: '#f43f5e',
-  },
-  {
-    type: 'dust_storm',
-    number: '02',
-    title: 'Dust Storm Inflow',
-    icon: Wind,
-    tag: 'TAU > 2.8',
-    desc: 'Vis < 40m, 28 m/s turbulent winds. Solar array opacity drop 85%.',
-    accent: '#f59e0b',
-  },
-  {
-    type: 'o2_leak',
-    number: '03',
-    title: 'Suit O₂ Regulator Anomaly',
-    icon: HeartPulse,
-    tag: 'LIFE SUPPORT',
-    desc: 'Secondary tank decay, walkback margin cut 60%. Abort to Hab airlock.',
-    accent: '#ef4444',
-  },
-  {
-    type: 'rockfall',
-    number: '04',
-    title: 'Talus Rim Rockfall',
-    icon: AlertTriangle,
-    tag: 'SLOPE > 28°',
-    desc: 'Crater pass impassable, boulder field blocking primary return corridor.',
-    accent: '#f97316',
-  },
-];
+  { type: 'spe', number: '01', icon: ShieldAlert, accent: '#f43f5e' },
+  { type: 'dust_storm', number: '02', icon: Wind, accent: '#f59e0b' },
+  { type: 'o2_leak', number: '03', icon: HeartPulse, accent: '#ef4444' },
+  { type: 'rockfall', number: '04', icon: AlertTriangle, accent: '#f97316' },
+].map((b) => {
+  const S = SCENARIOS[b.type];
+  return { ...b, title: S.title, tag: severityLabel(b.type, S.param.def), desc: S.blurb };
+});
 
 /** The "contingency active" alert. Inside the map's dock it flows with the other cards; elsewhere it floats top-right. */
 export function ContingencyAlert({ className = '' }) {
@@ -208,7 +181,6 @@ export default function ContingencySimulator() {
                           Active Anomaly Diagnostics: {contingencyDetails.title}
                         </h4>
                       </div>
-                      <span className="text-[10px] font-mono text-zinc-400">PROTOCOL: {contingencyDetails.protocolCode || 'NASA-ECLSS-04'}</span>
                     </div>
 
                     <div className="text-xs text-zinc-300 font-light leading-relaxed">
@@ -217,16 +189,16 @@ export default function ContingencySimulator() {
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2 font-mono text-xs">
                       <div className="p-3 bg-black/40 border border-white/[0.06] rounded-sm">
-                        <div className="text-[9px] text-zinc-400 uppercase tracking-widest">Walkback Margin</div>
-                        <div className="text-sm font-bold text-rose-400 mt-1">{contingencyDetails.walkbackImpact || '-45%'}</div>
+                        <div className="text-[9px] text-zinc-400 uppercase tracking-widest">Setting</div>
+                        <div className="text-sm font-bold text-white mt-1">{contingencyDetails.setting}</div>
                       </div>
                       <div className="p-3 bg-black/40 border border-white/[0.06] rounded-sm">
-                        <div className="text-[9px] text-zinc-400 uppercase tracking-widest">Time to Intercept</div>
-                        <div className="text-sm font-bold text-amber-400 mt-1">{contingencyDetails.timeToImpact || '18 MIN'}</div>
+                        <div className="text-[9px] text-zinc-400 uppercase tracking-widest">Walk-home reach</div>
+                        <div className={`text-sm font-bold mt-1 ${contingencyDetails.o2MarginMultiplier < 1 ? 'text-rose-400' : 'text-emerald-300'}`}>{Math.round(contingencyDetails.o2MarginMultiplier * 100)}% of normal</div>
                       </div>
                       <div className="p-3 bg-black/40 border border-white/[0.06] rounded-sm col-span-2 sm:col-span-1">
-                        <div className="text-[9px] text-zinc-400 uppercase tracking-widest">Severity Tier</div>
-                        <div className="text-sm font-bold text-white mt-1">CLASS 4 ANOMALY</div>
+                        <div className="text-[9px] text-zinc-400 uppercase tracking-widest">Severity</div>
+                        <div className="text-sm font-bold text-amber-300 mt-1">{contingencyDetails.badge}</div>
                       </div>
                     </div>
 
