@@ -401,7 +401,7 @@ export default function RoutePlanner() {
           {waypoints && waypoints.length > 0 && <DaylightCard lat={waypoints[0].lat} />}
 
           {/* Waypoints List (Vertical Scrollable) */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 space-y-2 pr-1 custom-scrollbar-y">
+          <div className="max-h-56 overflow-y-auto overflow-x-hidden min-h-0 space-y-2 pr-1 custom-scrollbar-y">
             <AnimatePresence>
               {(!waypoints || waypoints.length === 0) ? (
                 <motion.div

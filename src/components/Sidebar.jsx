@@ -81,9 +81,9 @@ function Sidebar() {
       animate={{ width: sidebarOpen ? openWidth : 56 }}
       transition={{ type: 'spring', stiffness: 420, damping: 40, mass: 0.8 }}
       aria-label="Map panel"
-      className="relative z-30 flex flex-col h-max max-h-full rounded-2xl border border-white/[0.09] bg-[#0B0D12]/90 backdrop-blur-xl shrink-0 shadow-[0_18px_50px_rgba(0,0,0,0.5)] will-change-[width]"
+      className="relative z-30 flex flex-col h-full max-h-full rounded-2xl border border-white/[0.09] bg-[#0B0D12]/90 backdrop-blur-xl shrink-0 shadow-[0_18px_50px_rgba(0,0,0,0.5)] will-change-[width] overflow-hidden"
     >
-      <div className="flex flex-col min-h-0 max-h-full overflow-hidden rounded-2xl">
+      <div className="flex flex-col min-h-0 h-full max-h-full overflow-hidden rounded-2xl">
         {sidebarOpen ? (
           <>
             {/* Header: what you are looking at, and an always-visible way to put the panel away */}
@@ -106,8 +106,8 @@ function Sidebar() {
             </div>
 
             {/* Tabs: icon over label, so no name is ever cut off */}
-            <div className="shrink-0 px-3 pb-3" style={{ width: openWidth }} role="tablist" aria-label="Panel sections">
-              <div className="grid grid-cols-5 gap-1 rounded-xl bg-black/30 p-1">
+            <div className="shrink-0 px-3 pb-3 overflow-x-auto custom-scrollbar-x" style={{ width: openWidth }} role="tablist" aria-label="Panel sections">
+              <div className="grid grid-cols-5 min-w-[280px] gap-1 rounded-xl bg-black/30 p-1">
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
                   const isActive = sidebarTab === tab.id;
@@ -135,7 +135,7 @@ function Sidebar() {
 
             <div className="h-px bg-white/[0.07] shrink-0" />
 
-            <div className="mw-side flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar-y rounded-b-2xl" style={{ width: openWidth }}>
+            <div className="mw-side flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar-y rounded-b-2xl overscroll-contain" style={{ width: openWidth }}>
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={sidebarTab}
@@ -151,30 +151,31 @@ function Sidebar() {
             </div>
           </>
         ) : (
-          /* Collapsed rail: one tap on an icon opens that section */
-          <div className="flex flex-col items-center gap-1 p-1.5">
+          /* Collapsed rail: scrollable icon strip */
+          <div className="flex flex-col items-center gap-1 p-1.5 overflow-y-auto overflow-x-hidden custom-scrollbar-y max-h-full min-h-0">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
               title="Open panel"
               aria-label="Open panel"
             >
               <PanelLeftOpen className="w-[18px] h-[18px]" />
             </button>
-            <div className="hidden sm:block w-6 h-px bg-white/10 my-0.5" />
+            <div className="w-6 h-px bg-white/10 my-0.5 shrink-0" />
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
                   onClick={() => {
-                  setSidebarTab(tab.id);
-                  if (tab.id === 'route') {
-                    useMapStore.getState().setRoutePlanOpen(true);
-                    useMapStore.getState().setDockMin('route-plan', false);
-                  }
-                }}
-                  className="hidden sm:flex w-10 h-10 rounded-xl items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                    setSidebarTab(tab.id);
+                    setSidebarOpen(true);
+                    if (tab.id === 'route') {
+                      useMapStore.getState().setRoutePlanOpen(true);
+                      useMapStore.getState().setDockMin('route-plan', false);
+                    }
+                  }}
+                  className="flex w-10 h-10 rounded-xl items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
                   title={tab.title}
                   aria-label={tab.title}
                 >
