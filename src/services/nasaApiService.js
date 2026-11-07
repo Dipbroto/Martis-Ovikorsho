@@ -3,7 +3,7 @@ const NASA_IMAGE_API = 'https://images-api.nasa.gov';
 
 // Results are kept for a day (in memory and in localStorage), so opening the gallery or going back to a
 // category is instant, and a search that was already made never waits on NASA again.
-const CACHE_PREFIX = 'marswalk-nasa-v2:';
+const CACHE_PREFIX = 'marswalk-nasa-v3:';
 const CACHE_TTL_MS = 24 * 3600e3;
 const PAGE_SIZE = 40;
 const memory = new Map();
@@ -77,28 +77,28 @@ export const fetchMarsImagery = async (query = 'Mars Perseverance', page = 1, { 
       // Cards and the first view of the preview use the small size: sharp enough, and a fraction of the bytes
       const thumbnailUrl = small || thumb || medium || fallback || '';
 
+      // Only what the library record says: it has no sol, location, instrument or resolution for its images
       return {
         id: itemData.nasa_id || `img-${Date.now()}-${index}`,
-        title: itemData.title || 'Unknown Observation',
-        description: itemData.description || 'No description available from PDS.',
+        nasaId: itemData.nasa_id || null,
+        title: itemData.title || 'Untitled image',
+        // Some library captions carry HTML links and line breaks: keep the text only
+        description: (itemData.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || 'No description in the NASA Image and Video Library.',
         thumbnailUrl,
         imageUrl,
-        camera: itemData.center || 'NASA PDS',
-        instrument: itemData.keywords && itemData.keywords.length > 0 ? itemData.keywords[0] : 'Remote Sensing',
-        mission: 'NASA Collection',
-        target: 'Martian Surface',
-        sol: null, // The NASA Image Library has no Martian sol; only the Earth date below is real
-        earthDate: itemData.date_created ? itemData.date_created.split('T')[0] : 'Unknown Date',
-        type: query.toLowerCase().includes('orbiter') || query.toLowerCase().includes('hirise') ? 'ORBITAL' : 'SURFACE',
+        instrument: null,
+        mission: 'NASA Image Library',
+        target: null,
+        sol: null,
+        earthDate: itemData.date_created ? itemData.date_created.split('T')[0] : null,
+        dateKind: 'dated',
         category: 'NASA_API',
-        tags: itemData.keywords || ['mars', 'space'],
-        // The library doesn't georeference its images, so don't invent a location
+        tags: itemData.keywords || [],
         lat: null,
         lon: null,
-        elevation: null,
-        ls: null,
-        credit: 'NASA/JPL-Caltech/PDS',
-        resolution: 'N/A',
+        coordsNote: null,
+        resolution: null,
+        credit: itemData.photographer || itemData.secondary_creator || (itemData.center ? `NASA ${itemData.center}` : 'NASA'),
       };
     }).filter((img) => img.thumbnailUrl); // Only return items that actually have an image
 

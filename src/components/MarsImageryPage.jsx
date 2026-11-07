@@ -4,15 +4,24 @@ import useMapStore from '../store/useMapStore';
 import { marsAudio } from '../utils/audioSynthesizer';
 import { marsImages } from '../data/marsImages';
 import { fetchMarsImagery, getCachedImagery } from '../services/nasaApiService';
+import { lsFromDate } from '../utils/marsSolar';
 import AppleCardCarousel from '@/components/ui/carousel-08';
 
 const EXTENDED_CATEGORIES = [
-  { id: 'all', label: 'ALL OBSERVATIONS', query: 'Jezero Crater Mars' },
-  { id: 'rover', label: 'ROVER MASTCAM-Z', query: 'Mars Perseverance Mastcam-Z Rover' },
-  { id: 'hirise', label: 'ORBITAL HIRISE', query: 'Mars HiRISE Reconnaissance Orbiter' },
-  { id: 'panorama', label: 'PANORAMAS', query: 'Mars Panorama Mosaic Surface' },
-  { id: 'atmosphere', label: 'ATMOSPHERE & ICE', query: 'Mars Atmosphere Sunset Polar Ice' }
+  { id: 'all', label: 'ALL', query: 'Jezero Crater Mars' },
+  { id: 'rover', label: 'ROVERS & LANDERS', query: 'Mars Perseverance Mastcam-Z Rover' },
+  { id: 'hirise', label: 'FROM ORBIT', query: 'Mars HiRISE Reconnaissance Orbiter' },
+  { id: 'panorama', label: 'PANORAMAS', query: 'Mars panorama' },
+  // The library matches every word, so one long query finds nothing: ask for each subject on its own
+  { id: 'atmosphere', label: 'ATMOSPHERE & ICE', query: ['Mars dust storm', 'Mars clouds', 'Mars polar ice'] }
 ];
+
+const DATE_KIND = { taken: 'Taken', released: 'Released', dated: 'Dated' };
+const COORDS_NOTE = { caption: 'from the NASA caption', site: 'landing site', approx: 'approximate area' };
+const dateText = (img) => (img.earthDate ? `${DATE_KIND[img.dateKind] || 'Dated'} ${img.earthDate}` : 'Date not given');
+// Solar longitude only for the day an image was taken; a release date says nothing about the season on Mars
+const lsText = (img) => (img.dateKind === 'taken' && img.earthDate ? `${lsFromDate(new Date(`${img.earthDate}T12:00:00Z`)).toFixed(1)}° Ls` : '—');
+const recordUrl = (img) => (img.nasaId ? `https://images.nasa.gov/details/${img.nasaId}` : img.imageUrl);
 
 /** Shows the small version at once (it is already in the card), and fades the larger one in when it arrives. */
 function ProgressiveImage({ preview, full, alt, zoomed, onClick, style }) {
@@ -58,7 +67,7 @@ function MarsImageryPage() {
   useEffect(() => {
     const controller = new AbortController();
     const activeCatObj = EXTENDED_CATEGORIES.find((c) => c.id === activeCategory);
-    const query = searchQuery.trim() ? searchQuery.trim() : (activeCatObj ? activeCatObj.query : 'Jezero Crater Mars');
+    const queries = searchQuery.trim() ? [searchQuery.trim()] : [].concat(activeCatObj ? activeCatObj.query : 'Jezero Crater Mars');
 
     // The curated images that match the category and the search, then the library's results after them
     const merge = (nasaItems) => {
@@ -79,20 +88,23 @@ function MarsImageryPage() {
         }
         if (matchesCat && matchesQuery) merged.set(img.id, img);
       });
-      (nasaItems || []).forEach((item) => { if (!merged.has(item.id)) merged.set(item.id, item); });
+      // The library also returns the curated images themselves: keep the curated copy, which has the full caption
+      const curatedIds = new Set(marsImages.map((img) => img.nasaId));
+      (nasaItems || []).forEach((item) => { if (!merged.has(item.id) && !curatedIds.has(item.id)) merged.set(item.id, item); });
       const list = Array.from(merged.values());
       setAllImages(list);
       if (list.length > 0) setInspectingImage((prev) => (prev && list.some((i) => i.id === prev.id) ? prev : list[0]));
     };
 
-    const cached = getCachedImagery(query);
-    if (cached) merge(cached.items);
-    if (cached?.fresh) { setIsLoading(false); return () => controller.abort(); }
+    const hits = queries.map((q) => getCachedImagery(q));
+    const cached = hits.every(Boolean) ? hits.flatMap((h) => h.items) : null;
+    if (cached) merge(cached);
+    if (hits.every((h) => h?.fresh)) { setIsLoading(false); return () => controller.abort(); }
 
     setIsLoading(!cached);
     const timeoutId = setTimeout(() => {
-      fetchMarsImagery(query, 1, { signal: controller.signal })
-        .then((items) => { merge(items); setIsLoading(false); })
+      Promise.all(queries.map((q) => fetchMarsImagery(q, 1, { signal: controller.signal })))
+        .then((lists) => { merge(lists.flat()); setIsLoading(false); })
         .catch((err) => {
           if (err?.name === 'AbortError') return;
           if (!cached) merge([]);
@@ -105,9 +117,10 @@ function MarsImageryPage() {
 
   // Map to Apple Card Carousel format
   const carouselCards = useMemo(() => allImages.map(img => {
-    let catBadge = img.category || img.mission || 'NASA PDS';
-    if (catBadge === 'rover') catBadge = 'ROVER MASTCAM';
-    else if (catBadge === 'hirise') catBadge = 'ORBITAL HIRISE';
+    let catBadge = img.category || img.mission || 'NASA';
+    if (catBadge === 'rover') catBadge = 'ROVER & LANDER';
+    else if (catBadge === 'hirise') catBadge = 'FROM ORBIT';
+    else if (catBadge === 'NASA_API') catBadge = 'NASA LIBRARY';
     else if (catBadge === 'atmosphere') catBadge = 'ATMOSPHERE';
     else if (catBadge === 'ice') catBadge = 'POLAR ICE';
 
@@ -117,7 +130,7 @@ function MarsImageryPage() {
       title: img.title,
       src: img.thumbnailUrl || img.imageUrl,
       alt: img.title,
-      date: img.sol ? `SOL ${img.sol}` : (img.earthDate || 'PDS ARCHIVE'),
+      date: img.sol ? `SOL ${img.sol}` : (img.earthDate || ''),
       coordinates: typeof img.lat === 'number' && typeof img.lon === 'number' 
         ? `${img.lat.toFixed(2)}°, ${img.lon.toFixed(2)}°` 
         : undefined,
@@ -161,10 +174,10 @@ function MarsImageryPage() {
           </div>
           <div className="h-3 w-px bg-white/20 hidden sm:block" />
           <h1 className="text-base sm:text-lg font-bold tracking-tight text-white font-sans truncate">
-            NASA HiRISE & Rover Raw Imagery Catalog
+            NASA Mars Image Gallery
           </h1>
           <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 hidden sm:inline-block">
-            {allImages.length} OBSERVATIONS AVAILABLE
+            {allImages.length} IMAGES
           </span>
         </div>
 
@@ -195,7 +208,7 @@ function MarsImageryPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search NASA PDS archives..."
+              placeholder="Search NASA's image library…"
               className="w-full bg-[#07090e]/90 border border-white/10 rounded pl-7 pr-2.5 py-1 text-[11px] text-white placeholder-zinc-500 font-mono focus:outline-none focus:border-white/40"
             />
           </div>
@@ -209,10 +222,10 @@ function MarsImageryPage() {
         <div className="flex items-center justify-between px-1.5 mb-1">
           <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-zinc-300">
             <Camera className="w-3 h-3 text-[#ff8c69]" />
-            <span>OBSERVATION STREAM ({carouselCards.length} RECORDS)</span>
+            <span>IMAGES ({carouselCards.length})</span>
             {isLoading && (
               <span className="flex items-center gap-1 text-[9px] text-zinc-400 animate-pulse">
-                <Loader2 className="w-2.5 h-2.5 animate-spin text-[#ff8c69]" /> Syncing PDS...
+                <Loader2 className="w-2.5 h-2.5 animate-spin text-[#ff8c69]" /> Searching NASA’s library…
               </span>
             )}
           </div>
@@ -224,11 +237,11 @@ function MarsImageryPage() {
         {carouselCards.length === 0 && isLoading ? (
           <div className="flex flex-col items-center justify-center py-10 text-zinc-400">
             <Loader2 className="w-6 h-6 animate-spin text-[#ff8c69] mb-2" />
-            <p className="font-mono text-[11px] tracking-wider uppercase animate-pulse">Querying NASA PDS & JPL Archives...</p>
+            <p className="font-mono text-[11px] tracking-wider uppercase animate-pulse">Searching the NASA Image and Video Library…</p>
           </div>
         ) : carouselCards.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-zinc-500 font-mono text-xs">
-            No observation records matched "{searchQuery}".
+            {searchQuery.trim() ? <>No images matched “{searchQuery.trim()}”.</> : 'No images in this category right now: NASA’s library could not be reached.'}
           </div>
         ) : (
           <AppleCardCarousel
@@ -295,34 +308,31 @@ function MarsImageryPage() {
                   </div>
                 </div>
 
-                {/* Telemetry Metric Bar Below Image */}
+                {/* What the NASA record says about the image; a dash where it says nothing */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
                   <div className="p-2 rounded bg-black/40 border border-white/[0.06]">
                     <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">Coordinates</span>
                     <span className="font-bold text-white text-[11px] truncate block">
-                      {typeof inspectingImage.lat === 'number' && typeof inspectingImage.lon === 'number' 
-                        ? `${inspectingImage.lat.toFixed(4)}°, ${inspectingImage.lon.toFixed(4)}°` 
-                        : 'Orbit Pass'}
+                      {typeof inspectingImage.lat === 'number' && typeof inspectingImage.lon === 'number'
+                        ? `${inspectingImage.lat.toFixed(2)}°, ${inspectingImage.lon.toFixed(2)}°`
+                        : '—'}
                     </span>
+                    {COORDS_NOTE[inspectingImage.coordsNote] && <span className="text-[9px] text-zinc-500 block truncate">{COORDS_NOTE[inspectingImage.coordsNote]}</span>}
                   </div>
                   <div className="p-2 rounded bg-black/40 border border-white/[0.06]">
-                    <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">Elevation (MOLA)</span>
-                    <span className="font-bold text-white text-[11px] truncate block">
-                      {typeof inspectingImage.elevation === 'number' 
-                        ? `${inspectingImage.elevation.toLocaleString()} m` 
-                        : `${inspectingImage.elevation || 0} m`}
-                    </span>
+                    <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">Date</span>
+                    <span className="font-bold text-white text-[11px] truncate block">{dateText(inspectingImage)}</span>
                   </div>
                   <div className="p-2 rounded bg-black/40 border border-white/[0.06]">
                     <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">Solar Longitude</span>
-                    <span className="font-bold text-[#ff8c69] text-[11px] truncate block">
-                      {inspectingImage.ls || '120.0'}° Ls
+                    <span className="font-bold text-[#ff8c69] text-[11px] truncate block" title="Mars season on the day the image was taken">
+                      {lsText(inspectingImage)}
                     </span>
                   </div>
                   <div className="p-2 rounded bg-black/40 border border-white/[0.06]">
                     <span className="text-[9px] text-zinc-400 uppercase tracking-widest block mb-0.5">Resolution</span>
                     <span className="font-bold text-zinc-200 text-[11px] truncate block">
-                      {inspectingImage.resolution || 'Sub-meter'}
+                      {inspectingImage.resolution || '—'}
                     </span>
                   </div>
                 </div>
@@ -337,12 +347,14 @@ function MarsImageryPage() {
                     <span className="text-[#ff8c69] font-bold px-2 py-0.5 rounded bg-[#ff8c69]/10 border border-[#ff8c69]/20 truncate max-w-[200px]">
                       {inspectingImage.mission}
                     </span>
-                    <span className="text-zinc-300 px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.08] truncate max-w-[180px]">
-                      {inspectingImage.instrument}
-                    </span>
-                    <span className="text-zinc-400 px-2 py-0.5 rounded bg-white/[0.03]">
-                      {inspectingImage.sol ? `SOL ${inspectingImage.sol}` : (inspectingImage.earthDate || 'PDS PASS')}
-                    </span>
+                    {inspectingImage.instrument && (
+                      <span className="text-zinc-300 px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.08] truncate max-w-[220px]">
+                        {inspectingImage.instrument}
+                      </span>
+                    )}
+                    {inspectingImage.sol != null && (
+                      <span className="text-zinc-400 px-2 py-0.5 rounded bg-white/[0.03]">SOL {inspectingImage.sol}</span>
+                    )}
                   </div>
 
                   {/* Title */}
@@ -397,13 +409,13 @@ function MarsImageryPage() {
                     </button>
 
                     <a
-                      href={inspectingImage.imageUrl}
+                      href={recordUrl(inspectingImage)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="border border-white/10 hover:border-white/30 text-zinc-400 hover:text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider rounded transition-all flex items-center justify-center gap-1 shrink-0"
                     >
                       <ExternalLink className="w-3 h-3" />
-                      <span>RAW</span>
+                      <span>NASA RECORD</span>
                     </a>
                   </div>
                 </div>

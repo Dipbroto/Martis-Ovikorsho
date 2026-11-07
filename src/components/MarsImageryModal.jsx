@@ -151,13 +151,13 @@ export default function MarsImageryModal() {
               <div className="w-full h-[40vh] md:h-auto md:w-1/2 lg:w-5/12 md:border-r border-b md:border-b-0 border-white/[0.06] overflow-y-auto p-4 sm:p-5 space-y-3 custom-scrollbar shrink-0 bg-[#020306]/60">
                 <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-zinc-400 px-1 mb-2">
                   <span>FOUND {filteredImages.length} OBSERVATIONS</span>
-                  <span className="text-zinc-500">PDS / NASA ARCHIVES</span>
+                  <span className="text-zinc-500">NASA IMAGE LIBRARY</span>
                 </div>
 
                 {isLoading ? (
                   <div className="flex flex-col items-center justify-center py-24 text-zinc-400">
                     <Loader2 className="w-8 h-8 animate-spin text-[#ff8c69] mb-4" />
-                    <p className="font-mono text-xs tracking-wider uppercase animate-pulse">Syncing NASA PDS Archives...</p>
+                    <p className="font-mono text-xs tracking-wider uppercase animate-pulse">Searching NASA's image library…</p>
                   </div>
                 ) : filteredImages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-24 text-zinc-500 font-mono text-xs">
@@ -209,7 +209,7 @@ export default function MarsImageryModal() {
 
                           <div className="text-[9px] font-mono text-zinc-500 flex items-center gap-1 mt-1">
                             <MapPin className="w-2.5 h-2.5 text-[#ff8c69]" />
-                            <span>{hasCoords(img) ? `${img.lat.toFixed(2)}°, ${img.lon.toFixed(2)}°` : 'Location n/a'} · {img.resolution}</span>
+                            <span>{hasCoords(img) ? `${img.lat.toFixed(2)}°, ${img.lon.toFixed(2)}°` : 'Location n/a'}{img.resolution ? ` · ${img.resolution}` : ''}</span>
                           </div>
                         </div>
                       </div>
