@@ -132,10 +132,10 @@ export default function GuidedPlannerModal() {
                             <button
                               key={key}
                               onClick={() => setMode(key)}
-                              className={`p-3 rounded-lg border text-center transition-all ${mode === key ? 'border-emerald-400/70 bg-emerald-950/40' : 'border-white/10 bg-white/[0.03] hover:border-white/30'}`}
+                              className={`min-w-0 p-3 rounded-lg border text-center transition-all ${mode === key ? 'border-emerald-400/70 bg-emerald-950/40' : 'border-white/10 bg-white/[0.03] hover:border-white/30'}`}
                             >
                               <Icon className="w-4 h-4 mx-auto mb-1 text-emerald-300" />
-                              <div className="text-sm font-semibold">{m.label}</div>
+                              <div className="text-sm font-semibold leading-tight break-words">{m.label}</div>
                               <div className="text-xs text-zinc-400">{m.detail}</div>
                             </button>
                           );

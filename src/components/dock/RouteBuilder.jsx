@@ -155,14 +155,15 @@ export default function RouteBuilder() {
 
       <div>
         <div className="text-xs font-medium text-zinc-300 mb-1.5">What matters most?</div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5" role="radiogroup" aria-label="Planning style">
+        {/* The dock is a narrow card at every screen size: two columns, so the longer labels fit */}
+        <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Planning style">
           {Object.entries(ROUTING_MODES).map(([key, m]) => {
             const Icon = MODE_ICON[key];
             const on = mode === key;
             return (
-              <button key={key} role="radio" aria-checked={on} onClick={() => setDraft({ mode: key })} className={`rounded-xl border px-2 py-2 text-center transition-colors cursor-pointer ${on ? 'border-emerald-400/60 bg-emerald-500/15' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.07]'}`}>
+              <button key={key} role="radio" aria-checked={on} onClick={() => setDraft({ mode: key })} className={`min-w-0 rounded-xl border px-2 py-2 text-center transition-colors cursor-pointer ${on ? 'border-emerald-400/60 bg-emerald-500/15' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.07]'}`}>
                 <Icon className={`w-4 h-4 mx-auto ${on ? 'text-emerald-300' : 'text-zinc-400'}`} />
-                <span className="block text-xs font-semibold text-white mt-1">{m.label}</span>
+                <span className="block text-xs font-semibold text-white mt-1 leading-tight break-words">{m.label}</span>
                 <span className="block text-[10px] text-zinc-400 leading-tight mt-0.5">{m.detail}</span>
               </button>
             );
