@@ -5,9 +5,10 @@ const GEMINI_MODEL = "gemini-2.5-flash";
 // Number of most recent chat messages forwarded to the model as context
 const MAX_CONTEXT_TURNS = 50;
 
-// If VITE_GEMINI_API_KEY is configured (e.g. in development or in Vercel environment variables),
-// calls go directly to Gemini. Otherwise, calls route through the Supabase edge function proxy.
-const DIRECT_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || undefined;
+// Only `vite dev` talks to Gemini directly with VITE_GEMINI_API_KEY. Vite writes every VITE_ variable into
+// the bundle as plain text, so a production build must never read it: there, calls always go through the
+// Supabase edge function proxy, which keeps the key server-side.
+const DIRECT_API_KEY = import.meta.env.DEV ? (import.meta.env.VITE_GEMINI_API_KEY || undefined) : undefined;
 
 export const isAiConfigured = Boolean(DIRECT_API_KEY) || isSupabaseConfigured;
 

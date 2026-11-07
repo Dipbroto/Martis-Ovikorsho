@@ -349,9 +349,14 @@ drop policy if exists "Users can send friend requests" on public.friendships;
 create policy "Users can send friend requests" on public.friendships 
   for insert with check (auth.uid() = user_id);
 
+-- Only the person a request was sent to can answer it (accept / decline / block): the sender cannot
+-- accept their own request, and nobody can move a friendship to someone else. Only the status changes.
 drop policy if exists "Users can update their friendship status" on public.friendships;
-create policy "Users can update their friendship status" on public.friendships 
-  for update using (auth.uid() = friend_id or auth.uid() = user_id);
+drop policy if exists "Recipients can answer friend requests" on public.friendships;
+create policy "Recipients can answer friend requests" on public.friendships
+  for update using (auth.uid() = friend_id) with check (auth.uid() = friend_id);
+revoke update on public.friendships from anon, authenticated;
+grant update (status, updated_at) on public.friendships to authenticated;
 
 drop policy if exists "Users can delete their friendships" on public.friendships;
 create policy "Users can delete their friendships" on public.friendships 
@@ -364,13 +369,26 @@ drop policy if exists "Users can read their direct messages" on public.direct_me
 create policy "Users can read their direct messages" on public.direct_messages 
   for select using (auth.uid() = sender_id or auth.uid() = receiver_id);
 
+-- Messages go only to accepted crewmates, sent as yourself
 drop policy if exists "Users can insert direct messages as sender" on public.direct_messages;
-create policy "Users can insert direct messages as sender" on public.direct_messages 
-  for insert with check (auth.uid() = sender_id);
+create policy "Users can insert direct messages as sender" on public.direct_messages
+  for insert with check (
+    auth.uid() = sender_id
+    and exists (
+      select 1 from public.friendships f
+      where f.status = 'accepted'
+        and ((f.user_id = sender_id and f.friend_id = receiver_id) or (f.user_id = receiver_id and f.friend_id = sender_id))
+    )
+  );
 
+-- The recipient may only mark a message as read: the text and the sender cannot be changed
 drop policy if exists "Recipients can update read_at" on public.direct_messages;
-create policy "Recipients can update read_at" on public.direct_messages 
-  for update using (auth.uid() = receiver_id);
+create policy "Recipients can update read_at" on public.direct_messages
+  for update using (auth.uid() = receiver_id) with check (auth.uid() = receiver_id);
+revoke update on public.direct_messages from anon, authenticated;
+grant update (read_at) on public.direct_messages to authenticated;
+alter table public.direct_messages drop constraint if exists direct_messages_content_length;
+alter table public.direct_messages add constraint direct_messages_content_length check (char_length(content) <= 4000) not valid;
 
 -- ENABLE REALTIME REPLICATION FOR INSTANT CHAT & REQUESTS
 do $$
