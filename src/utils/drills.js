@@ -204,23 +204,33 @@ export function survivalProfile({ points, along, scenarioId, value, homeCostAt, 
   return { points: out, noReturnKm };
 }
 
-/** What the crew should do, given a drill result. */
+/** What the crew should do, given a drill result. Weighs the same options as Mission Control's call. */
 export function recommendation(r) {
   if (!r || r.error) return 'Stay put, report your position and wait for the rover: there is no walkable way home from here.';
   const id = r.scenario.id;
+  const rover = r.rover;
   if (!r.makesIt) {
     if (id === 'spe' && r.cave && r.cave.hours < r.returnH && r.cave.hours <= r.remainingH) return `Do not walk home. Head for the cave ${r.cave.km.toFixed(1)} km away and call the rover to you.`;
-    return 'Do not start the walk home alone. Stop, conserve oxygen and call the rover to come to you.';
+    if (rover?.makesIt) return `Do not walk home: the suit would run out. Rest to save oxygen and call the rover: it reaches you in ${fmtH(rover.h)}, with ${fmtH(rover.leftH)} of life support to spare.`;
+    return 'Neither walking home nor waiting for the rover fits the life support left. Stop, conserve oxygen, call the rover and head for the nearest shelter.';
   }
   if (id === 'spe') {
-    if (r.cave && r.cave.dose < r.doseHome * 0.6) return `Shelter in the cave ${r.cave.km.toFixed(1)} km away: about ${Math.round(r.cave.dose)} mSv instead of ${Math.round(r.doseHome)} mSv walking home.`;
+    // Dose depends on time outside: pick the quickest way under cover
+    const roverDose = rover?.makesIt ? rover.dose : Infinity;
+    if (r.cave && r.cave.dose < Math.min(r.doseHome, roverDose) * 0.6) return `Shelter in the cave ${r.cave.km.toFixed(1)} km away: about ${Math.round(r.cave.dose)} mSv instead of ${Math.round(r.doseHome)} mSv walking home.`;
+    if (roverDose < r.doseHome * 0.8) return `Stay put and call the rover: it reaches you in ${fmtH(rover.h)}, about ${Math.round(roverDose)} mSv against ${Math.round(r.doseHome)} mSv walking home.`;
     return 'Walk straight home by the fastest route; drop anything that slows you down.';
   }
-  if (id === 'dust_storm') return 'Tether up and follow your recorded track home. The habitat should switch to storm power now.';
+  // Resting uses less oxygen than walking: if the rover gets there with clearly more to spare, wait for it
+  const waitForRover = rover?.makesIt && rover.leftH > r.leftH + 0.25;
+  const roverCall = waitForRover ? `Rest and call the rover: it reaches you in ${fmtH(rover.h)} with ${fmtH(rover.leftH)} of life support to spare, against ${fmtH(r.leftH)} walking home.` : null;
+  if (id === 'dust_storm') return roverCall ? `${roverCall} The habitat should switch to storm power now.` : 'Tether up and follow your recorded track home. The habitat should switch to storm power now.';
   if (id === 'rockfall') {
+    if (roverCall) return `${roverCall} Stay off fresh slopes.`;
     if (r.detourKm != null && r.detourKm < 0.05) return 'The slide is not on the fastest way home: walk back by that route and stay off fresh slopes.';
     return `Take the new route around the slide (${r.detourKm != null ? `+${r.detourKm.toFixed(1)} km` : 'a detour'}). Stay off fresh slopes.`;
   }
+  if (roverCall) return `${roverCall} Report pressure every 10 minutes.`;
   return r.marginShare < 0.12 ? 'Turn back immediately on the planned route and report pressure every 10 minutes.' : 'Turn back now on the planned route; there is enough oxygen if you keep moving.';
 }
 
@@ -260,6 +270,17 @@ export async function runDrill({ points, scenarioId, fraction, value, planTraver
     makesIt: leftJ >= 0,
     marginShare: leftJ / total,
     notes,
+  };
+
+  // The rover option as the decision drill plays it: it drives out along the way home while the crew rests
+  const roverS = DECISION_ASSUMPTIONS.roverPrepMin * 60
+    + (result.returnKm / (DECISION_ASSUMPTIONS.roverKmh * (scenarioId === 'dust_storm' ? stormPaceShare(value) : 1))) * H;
+  const roverJ = EVA_ASSUMPTIONS.restingPowerW * roverS;
+  result.rover = {
+    h: roverS / H,
+    leftH: energyToHours(Math.max(0, remaining - roverJ)),
+    makesIt: roverJ <= remaining,
+    dose: scenarioId === 'spe' ? value * (roverS / H) : 0,
   };
 
   if (scenarioId === 'rockfall') {

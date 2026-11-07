@@ -247,6 +247,8 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
   const lifeShare = Math.max(0, state.remainingJ / total);
   const last = log[log.length - 1];
   const caveNear = scenarioId === 'spe' || scenarioId === 'dust_storm' ? nearestCave(start, caves) : null;
+  // A cave farther than the suit can walk on what is left (straight line, level ground) is no option
+  const caveInReach = caveNear && caveNear.km <= DECISION_ASSUMPTIONS.roverRangeKm && caveNear.km / EVA_ASSUMPTIONS.flatSpeedKmh <= energyToHours(Math.max(0, state.remainingJ));
   const S = SCENARIOS[scenarioId];
 
   return (
@@ -323,7 +325,7 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
             <div className="grid sm:grid-cols-2 gap-3">
               {choicesFor(scenarioId).map((c) => {
                 const C = CHOICES[c];
-                const disabled = !!busy || (c === 'task' && state.sample) || (c === 'cave' && (!caveNear || caveNear.km > DECISION_ASSUMPTIONS.roverRangeKm));
+                const disabled = !!busy || (c === 'task' && state.sample) || (c === 'cave' && !caveInReach);
                 return (
                   <motion.button
                     key={c}
@@ -337,7 +339,10 @@ function DecisionDrill({ points, result, scenarioId, value, caves }) {
                       <span className="font-semibold">{C.label}</span>
                     </div>
                     <p className="mt-2 text-xs text-zinc-400">
-                      {c === 'cave' ? (caveNear ? `${C.hint}. Nearest: ${caveNear.km < 10 ? caveNear.km.toFixed(1) : Math.round(caveNear.km)} km away (USGS catalog).` : 'No cave candidates nearby.') : c === 'task' && state.sample ? 'Already collected.' : C.hint}
+                      {c === 'cave' ? (caveNear ? (() => {
+                        const km = caveNear.km < 10 ? caveNear.km.toFixed(1) : Math.round(caveNear.km);
+                        return caveInReach ? `${C.hint}. Nearest: ${km} km away (USGS catalog).` : `Out of reach: the nearest cave candidate is ${km} km away, farther than the suit can walk.`;
+                      })() : 'No cave candidates nearby.') : c === 'task' && state.sample ? 'Already collected.' : C.hint}
                     </p>
                   </motion.button>
                 );
