@@ -110,7 +110,7 @@ function HomeHero({ onSelectTab }) {
   const contentOpacity = useTransform(scrollYProgress, [0.35, 0.9], [1, 0]);
 
   return (
-    <div ref={scrollRef} className="relative w-full h-screen overflow-y-auto overflow-x-hidden custom-scrollbar bg-[#05070b] text-white selection:bg-[#f16938]/30">
+    <div ref={scrollRef} data-page-scroll className="relative w-full h-screen overflow-y-auto overflow-x-hidden custom-scrollbar bg-[#05070b] text-white selection:bg-[#f16938]/30">
       {/* HERO */}
       <section ref={heroRef} className="relative w-full min-h-[100svh] flex flex-col justify-end overflow-hidden">
         <motion.div className="absolute inset-0 bg-cover bg-center will-change-transform" style={{ backgroundImage: "url('/mars_base_sunset.jpg')", scale: bgScale, y: bgY }} />

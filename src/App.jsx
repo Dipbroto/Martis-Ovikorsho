@@ -57,7 +57,7 @@ const ViewFallback = () => (
 
 // Shared shell for the full-page tabs
 const ScrollPage = ({ children }) => (
-  <div className="w-full h-screen overflow-y-auto overflow-x-hidden relative pt-20 sm:pt-24 px-3 sm:px-8 lg:px-14 custom-scrollbar bg-[#040508]">
+  <div data-page-scroll className="w-full h-screen overflow-y-auto overflow-x-hidden relative pt-20 sm:pt-24 px-3 sm:px-8 lg:px-14 custom-scrollbar bg-[#040508]">
     <ErrorBoundary>
       <Suspense fallback={<ViewFallback />}>{children}</Suspense>
     </ErrorBoundary>

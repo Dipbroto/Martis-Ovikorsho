@@ -40,21 +40,50 @@ export default function TopBar({ onSelectTab }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  // Keep header permanently visible (pinned). Only update glass backdrop styling on scroll.
+  const [scrolledFar, setScrolledFar] = useState(false);
+  const [pointerNearTop, setPointerNearTop] = useState(false);
+  const [scrollingUp, setScrollingUp] = useState(false);
+  const [focusInside, setFocusInside] = useState(false);
+  const lastY = useRef(0);
+  // Every scrolling page hides the bar while you scroll down; scrolling up, or moving the cursor to the top edge,
+  // brings it back. Home also starts clear and turns to glass once it moves.
   useEffect(() => {
-    const onScroll = () => {
-      const y = window.scrollY || document.documentElement.scrollTop || 0;
+    const canHover = window.matchMedia?.('(hover: hover)').matches ?? true;
+    // The Home page scrolls inside its own container (marked data-page-scroll), not the window, and scroll events
+    // don't bubble, so listen in the capture phase and ignore smaller scrolling panels
+    const onScroll = (e) => {
+      const el = e.target;
+      const isPage = el === document || el?.hasAttribute?.('data-page-scroll');
+      if (!isPage) return;
+      const y = el === document ? window.scrollY || document.documentElement.scrollTop || 0 : el.scrollTop;
       setScrolled(y > 24);
+      setScrolledFar(y > 120);
+      if (Math.abs(y - lastY.current) > 6) setScrollingUp(y < lastY.current);
+      lastY.current = y;
     };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    const onPointerMove = (e) => setPointerNearTop(e.clientY <= 80);
+    document.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    if (canHover) window.addEventListener('mousemove', onPointerMove, { passive: true });
+    return () => {
+      document.removeEventListener('scroll', onScroll, { capture: true });
+      window.removeEventListener('mousemove', onPointerMove);
+    };
   }, []);
 
+  // Switching tabs, or the logo / re-clicking a tab rebuilding a page at the top, fires no scroll event, so read
+  // where the page now is. The bar always shows on arrival.
+  const tabRefreshKeys = useMapStore((s) => s.tabRefreshKeys);
   useEffect(() => {
-    setScrolled(false);
-  }, [activeTab]);
+    const page = [...document.querySelectorAll('[data-page-scroll]')].find((el) => el.offsetParent !== null);
+    const y = page ? page.scrollTop : 0;
+    setScrolled(y > 24);
+    setScrolledFar(false);
+    setScrollingUp(false);
+    lastY.current = y;
+  }, [activeTab, tabRefreshKeys]);
 
   const solid = scrolled || activeTab !== 'home' || mobileMenuOpen;
+  const hidden = scrolledFar && !mobileMenuOpen && !pointerNearTop && !scrollingUp && !focusInside;
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -114,12 +143,14 @@ export default function TopBar({ onSelectTab }) {
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-[500] transition-transform duration-300 ease-[cubic-bezier(0.3,0.7,0.2,1)] translate-y-0"
+      className={`fixed top-0 left-0 right-0 z-[500] transition-transform duration-300 ease-[cubic-bezier(0.3,0.7,0.2,1)] ${hidden ? '-translate-y-full' : 'translate-y-0'}`}
+      onFocusCapture={(e) => setFocusInside(e.target.matches?.(':focus-visible') ?? false)} // keyboard users only; a mouse click must not pin it
+      onBlurCapture={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocusInside(false); }}
     >
       <div className="relative w-full">
         {/* Over the hero the bar is nearly invisible; it turns to glass once the page moves or on other pages */}
         <div className={`absolute inset-0 bg-gradient-to-b from-black/60 to-transparent transition-opacity duration-300 ${solid ? 'opacity-0' : 'opacity-100'}`} />
-        <div className={`absolute inset-0 bg-[#06080c]/80 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-opacity duration-300 ${solid ? 'opacity-100' : 'opacity-0'}`} />
+        <div className={`absolute inset-0 ${activeTab === 'home' ? 'bg-[#06080c]/45' : 'bg-[#06080c]/80'} backdrop-blur-xl border-b border-white/[0.08] shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-opacity duration-300 ${solid ? 'opacity-100' : 'opacity-0'}`} />
         <div className="relative max-w-[1700px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
           {/* Brand */}
           <button onClick={handleBrandClick} className="group flex items-center gap-3 shrink-0 cursor-pointer lg:justify-self-start" aria-label="Martis home">
