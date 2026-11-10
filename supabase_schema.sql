@@ -1,5 +1,5 @@
 -- ==============================================================================
--- MARSWALK EXPLORER: SUPABASE SCHEMA (v2 - Full AI Copilot Integration)
+-- MARTIS: SUPABASE SCHEMA (v2 - Full AI Copilot Integration)
 -- Copy and paste this entirely into your Supabase SQL Editor and hit "Run"
 -- ==============================================================================
 

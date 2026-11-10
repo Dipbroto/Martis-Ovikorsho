@@ -52,7 +52,7 @@ SITES = {
 
 
 def fetch(url, start=None, end=None, retries=4):
-    headers = {"User-Agent": "marswalk-dem-builder"}
+    headers = {"User-Agent": "martis-dem-builder"}
     if start is not None:
         headers["Range"] = f"bytes={start}-{end}"
     for attempt in range(retries):

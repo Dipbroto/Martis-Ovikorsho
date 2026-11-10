@@ -8,7 +8,7 @@ const loadingStatuses = [
   'Loading NASA WMTS tile services...',
   'Calibrating MOLA elevation models...',
   'Syncing Mars weather systems...',
-  'Preparing Marswalk route planner...',
+  'Preparing Martis route planner...',
   'Systems ready. Welcome to Mars.'
 ];
 
@@ -81,7 +81,7 @@ export default function LoadingScreen() {
 
             {/* Typography — Space Grotesk + Rajdhani */}
             <h1 className="font-display text-5xl md:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-mars-200 via-mars-400 to-mars-500 tracking-[0.15em] text-shadow-glow mb-3 text-center">
-              MARSWALK EXPLORER
+              MARTIS
             </h1>
             <h2 className="text-space-300 font-mono tracking-[0.25em] uppercase text-xs md:text-sm mb-16">
               NASA Space Apps Challenge 2026

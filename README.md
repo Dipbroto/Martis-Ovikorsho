@@ -1,4 +1,4 @@
-# MarsWalk Explorer
+# Martis
 
 NASA Space Apps Challenge 2026 — a layered, integrated Martian surface map for planning human Marswalks:
 2D/3D cartography, route planning with walkback limits, EVA HUD, science lab, contingency simulator and the

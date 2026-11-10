@@ -628,7 +628,7 @@ function ContingencySimulatorPage() {
             <p className="text-sm font-medium text-[#ffa07f] flex items-center gap-2"><ShieldAlert className="w-4 h-4" />Contingency drills</p>
             <h1 className="mt-2 text-4xl sm:text-6xl font-bold tracking-tight leading-[1.04]">Practise the worst day before it happens.</h1>
             <p className="mt-4 text-lg text-zinc-300 leading-relaxed">
-              Pick a walk and an emergency. MarsWalk replans the way home on the real terrain, shows where on the walk you could still survive it, and drills the crew on what to do.
+              Pick a walk and an emergency. Martis replans the way home on the real terrain, shows where on the walk you could still survive it, and drills the crew on what to do.
             </p>
           </div>
           {/* Live status of the current drill */}
@@ -821,7 +821,7 @@ function ContingencySimulatorPage() {
 
         <p className="mt-6 text-xs text-zinc-500 flex items-start gap-2 max-w-4xl">
           <Info className="w-4 h-4 shrink-0" />
-          The walk home is planned on the same HRSC-MOLA 200 m terrain and walking-energy model as every route in MarsWalk; the survival chart uses a return-cost field over the same terrain. Oxygen loss, storm pace, rockfall size and storm dose rate are assumptions you set; the dust-storm power curve is fitted to Opportunity’s 2018 data.
+          The walk home is planned on the same HRSC-MOLA 200 m terrain and walking-energy model as every route in Martis; the survival chart uses a return-cost field over the same terrain. Oxygen loss, storm pace, rockfall size and storm dose rate are assumptions you set; the dust-storm power curve is fitted to Opportunity’s 2018 data.
         </p>
       </div>
     </div>

@@ -16,7 +16,7 @@ const STEPS = [
   {
     icon: Route,
     title: 'Plan on real terrain',
-    body: 'Tap anywhere in the crater. MarsWalk finds the walk from Perseverance\'s landing site that costs the least effort, and never crosses ground steeper than 20° (red).',
+    body: 'Tap anywhere in the crater. Martis finds the walk from Perseverance\'s landing site that costs the least effort, and never crosses ground steeper than 20° (red).',
   },
   {
     icon: ShieldCheck,
@@ -189,7 +189,7 @@ export default function TerrainDemo() {
           <h2 className="text-3xl sm:text-5xl font-bold tracking-tight leading-[1.05]">Plan a walk in Jezero Crater, right now.</h2>
           <p className="mt-4 text-zinc-300 text-lg leading-relaxed">This is real NASA elevation data at 200 m per pixel, and the same planner the app uses.</p>
 
-          <div className="mt-8 space-y-2.5 hidden lg:block" role="tablist" aria-label="How MarsWalk works">
+          <div className="mt-8 space-y-2.5 hidden lg:block" role="tablist" aria-label="How Martis works">
             {STEPS.map(({ icon: Icon, title, body }, i) => {
               const active = step === i;
               return (
@@ -229,7 +229,7 @@ export default function TerrainDemo() {
           <div className="relative rounded-3xl overflow-hidden border border-white/10 bg-[#0b0d12] shadow-[0_30px_80px_-20px_rgba(242,106,61,0.25)]">
             {/* On phones the steps sit on the map card so the change is visible where you tapped */}
             <div className="lg:hidden p-3 border-b border-white/10">
-              <div className="grid grid-cols-3 gap-1.5" role="tablist" aria-label="How MarsWalk works">
+              <div className="grid grid-cols-3 gap-1.5" role="tablist" aria-label="How Martis works">
                 {STEPS.map(({ icon: Icon, title }, i) => (
                   <button key={title} role="tab" aria-selected={step === i} onClick={() => setStep(i)} className={`flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-xs font-medium transition-colors cursor-pointer ${step === i ? 'bg-[#F26A3D] text-white' : 'bg-white/[0.05] text-zinc-400'}`}>
                     <Icon className="w-4 h-4" />{['Plan', 'Get back', 'Proof'][i]}

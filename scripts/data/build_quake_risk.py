@@ -213,7 +213,7 @@ def main():
         'lines': lines,
     }, open(OUT_FAULTS, 'w'), separators=(',', ':'))
     json.dump({
-        'source': 'Derived in MarsWalk from USGS SIM 3292 tectonic structures and the InSight Marsquake Service catalogue V14',
+        'source': 'Derived in Martis from USGS SIM 3292 tectonic structures and the InSight Marsquake Service catalogue V14',
         'width': W, 'height': H, 'west': -180, 'north': 90, 'cell_deg': 1,
         'cuts': cuts[::-1],  # ascending: moderate, high, very high
         'score': base64.b64encode(raw).decode(),

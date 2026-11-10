@@ -170,7 +170,7 @@ function MarsImageryPage() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-[#ff8c69] font-medium shrink-0">
             <span>✦</span>
-            <span>MARSWALK</span>
+            <span>MARTIS</span>
           </div>
           <div className="h-3 w-px bg-white/20 hidden sm:block" />
           <h1 className="text-base sm:text-lg font-bold tracking-tight text-white font-sans truncate">

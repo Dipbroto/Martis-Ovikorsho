@@ -1,4 +1,4 @@
-# MarsWalk Explorer — Code Review & Improvement Report
+# Martis (formerly MarsWalk Explorer) — Code Review & Improvement Report
 
 _Review date: 2026-10-21 · Branch: `main` (88a02ef)_
 

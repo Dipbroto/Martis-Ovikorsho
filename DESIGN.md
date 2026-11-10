@@ -1,4 +1,4 @@
-# Design System: MarsWalk Explorer (Stitch Edition)
+# Design System: Martis (Stitch Edition)
 
 ## 1. Visual Theme & Atmosphere
 A restrained, high-density aerospace mission control interface built with asymmetric dual-zone hierarchy and perpetual micro-telemetry. The atmosphere is clinical, tactile, and deeply atmospheric—reminiscent of the JPL Mars 2020 Mission Control combined with a modern astronautics flight computer. Deep carbon-zinc canvas, whisper-thin borders, and a single calibrated Mars vermilion accent.

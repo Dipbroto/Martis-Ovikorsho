@@ -59,7 +59,7 @@ export default function FlightPlanModal() {
   const evaEst = planned ? null : estimateRouteEVA(waypoints || []);
   const evaHours = planned?.walkingHours ?? (typeof evaEst === 'object' ? evaEst.totalHours : evaEst);
   const reservePct = Math.round(EVA_ASSUMPTIONS.reserveFraction * 100);
-  // The rules MarsWalk itself plans by (the same numbers the planner and the drills use)
+  // The rules Martis itself plans by (the same numbers the planner and the drills use)
   const RULES = [
     ['Turn-back', `Out and back must fit the usable life support; the last ${reservePct}% is held back as an emergency reserve.`],
     ['Slope', `The planner never walks a step steeper than ${EVA_ASSUMPTIONS.maxSlopeDeg}°.`],
@@ -84,7 +84,7 @@ export default function FlightPlanModal() {
 
   const handleDownloadJSON = () => {
     const flightPackage = {
-      missionTitle: 'MarsWalk EVA plan (NASA Space Apps 2026 project, not an official NASA document)',
+      missionTitle: 'Martis EVA plan (NASA Space Apps 2026 project, not an official NASA document)',
       sol: currentSol,
       generatedAt: new Date().toISOString(),
       weatherConditions: {
@@ -131,7 +131,7 @@ export default function FlightPlanModal() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `MarsWalk_EVA_plan_sol_${currentSol}.json`;
+    a.download = `Martis_EVA_plan_sol_${currentSol}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -175,7 +175,7 @@ export default function FlightPlanModal() {
   };
 
   const handleCopyMarkdown = () => {
-    let md = `# MarsWalk EVA Plan Briefing\n`;
+    let md = `# Martis EVA Plan Briefing\n`;
     md += `_A NASA Space Apps 2026 project; not an official NASA document._ | **Mars Sol Date:** ${currentSol}\n`;
     md += `**Generated:** ${new Date().toISOString()} | **Challenge:** NASA Space Apps Challenge 2026\n\n`;
     
@@ -212,7 +212,7 @@ export default function FlightPlanModal() {
     md += `| Planetary Geodesy | IAU 2000 Mars Constants (R=3389.5km) | [DERIVED] | Spherical Trigonometry |\n`;
     md += `| Radiation & Bioenergetics | MSL RAD Detector & Margaria-Minetti Model | [ML PREDICTED] | NASA SP-2010-3407 & MSL RAD ML |\n\n`;
 
-    md += `## 5. Planning Rules (MarsWalk's own assumptions, not NASA requirements)\n`;
+    md += `## 5. Planning Rules (Martis's own assumptions, not NASA requirements)\n`;
     RULES.forEach(([k, v], i) => { md += `${i + 1}. **${k}:** ${v}\n`; });
     md += `\n`;
 
@@ -251,10 +251,10 @@ export default function FlightPlanModal() {
                 <h2 className="text-sm font-bold text-white tracking-widest uppercase whitespace-nowrap">
                   EVA PLAN & BRIEFING
                 </h2>
-                <ProvenanceBadge type="DERIVED" size="xs" detail="MarsWalk planning tool" />
+                <ProvenanceBadge type="DERIVED" size="xs" detail="Martis planning tool" />
               </div>
               <p className="text-[10px] text-space-400 whitespace-nowrap">
-                MARSWALK PLANNING TOOL • MARS SOL DATE {currentSol} • NOT AN OFFICIAL NASA DOCUMENT
+                MARTIS PLANNING TOOL • MARS SOL DATE {currentSol} • NOT AN OFFICIAL NASA DOCUMENT
               </p>
             </div>
           </div>
@@ -336,7 +336,7 @@ export default function FlightPlanModal() {
           <div className="hidden print:block border-b-2 border-black pb-4 mb-4">
             <div className="flex justify-between items-start">
               <div>
-                <h1 className="text-xl font-bold tracking-widest uppercase">MARSWALK EXPLORER</h1>
+                <h1 className="text-xl font-bold tracking-widest uppercase">MARTIS</h1>
                 <h2 className="text-lg font-semibold mt-1">EVA PLAN BRIEFING</h2>
                 <p className="text-sm font-mono text-gray-700">MARS SOL DATE {currentSol} | NASA SPACE APPS 2026 PROJECT, NOT AN OFFICIAL NASA DOCUMENT</p>
               </div>
@@ -367,7 +367,7 @@ export default function FlightPlanModal() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] text-space-400 uppercase block print:text-gray-600">ESTIMATED DURATION</span>
-                <ProvenanceBadge type="DERIVED" size="xs" detail="MarsWalk walking model" />
+                <ProvenanceBadge type="DERIVED" size="xs" detail="Martis walking model" />
               </div>
               <span className="text-base font-bold text-mars-400 print:text-black">{evaHours.toFixed(1)} hrs</span>
             </div>
@@ -391,9 +391,9 @@ export default function FlightPlanModal() {
             <h3 className="font-bold text-amber-400 flex items-center justify-between text-xs uppercase tracking-wider print:text-black">
               <span className="flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-amber-400 print:text-black" />
-                <span>Planning rules (MarsWalk assumptions)</span>
+                <span>Planning rules (Martis assumptions)</span>
               </span>
-              <ProvenanceBadge type="DERIVED" size="xs" detail="MarsWalk's own planning rules, not NASA flight rules" />
+              <ProvenanceBadge type="DERIVED" size="xs" detail="Martis's own planning rules, not NASA flight rules" />
             </h3>
             <ul className="space-y-1.5 text-[11px] text-space-300 print:text-black">
               {RULES.map(([k, v], i) => (

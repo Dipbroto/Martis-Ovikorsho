@@ -29,7 +29,7 @@ NODATA = 9999.0  # the archive marks bins without data as 9999.999
 
 
 def fetch(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "marswalk-data-builder"}), timeout=120) as r:
+    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "martis-data-builder"}), timeout=120) as r:
         return r.read()
 
 

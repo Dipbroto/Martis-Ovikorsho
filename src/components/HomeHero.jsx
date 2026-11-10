@@ -254,7 +254,7 @@ function HomeHero({ onSelectTab }) {
           <div className="relative p-8 sm:p-14 flex flex-wrap items-center justify-between gap-8">
             <div className="max-w-xl">
               <h2 className="text-3xl sm:text-5xl font-bold tracking-tight leading-tight">Ready to step outside?</h2>
-              <p className="mt-3 text-lg text-zinc-300">Choose a site and a goal. MarsWalk does the rest, and shows you its working.</p>
+              <p className="mt-3 text-lg text-zinc-300">Choose a site and a goal. Martis does the rest, and shows you its working.</p>
             </div>
             <button onClick={() => setGuidedPlannerOpen(true)} className="group flex items-center gap-2 bg-[#F26A3D] hover:bg-[#ff7b4d] text-white px-7 py-4 rounded-xl text-lg font-semibold transition-all active:scale-95 cursor-pointer shadow-[0_20px_50px_-15px_rgba(242,106,61,0.7)]">
               <Compass className="w-5 h-5 transition-transform group-hover:rotate-45" />Plan a Marswalk
@@ -268,7 +268,7 @@ function HomeHero({ onSelectTab }) {
         <div className="max-w-[1500px] mx-auto px-5 sm:px-10 py-10 flex flex-wrap items-start justify-between gap-6">
           <div className="group flex items-center gap-2.5">
             <Logo className="w-6 h-6" />
-            <span className="font-display font-bold tracking-[0.12em] uppercase">MarsWalk</span>
+            <span className="font-display font-bold tracking-[0.12em] uppercase">Martis</span>
           </div>
           <p className="text-sm text-zinc-500 max-w-3xl leading-relaxed">
             Built for the NASA Space Apps Challenge 2026. Terrain, water, cave and rover data come from NASA, USGS and the Planetary Data System. Weather, radiation and the science lab are simulations and are labelled as such.

@@ -3,7 +3,7 @@
   "generated_at": "2026-11-03",
   "weather": {
     "metadata": {
-      "model_name": "MarsWalk Atmospheric & Dust Forecaster (NASA MSL REMS / MEDA)",
+      "model_name": "Martis Atmospheric & Dust Forecaster (NASA MSL REMS / MEDA)",
       "trained_on": "Curiosity REMS in-situ telemetry",
       "samples_count": 4740,
       "feature_count": 21,

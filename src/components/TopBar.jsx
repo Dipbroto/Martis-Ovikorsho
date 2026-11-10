@@ -93,7 +93,7 @@ export default function TopBar({ onSelectTab }) {
 
   const handleBrandClick = () => {
     marsAudio.playUiClick?.();
-    // Clicking on MarsWalk: refresh every page and return to Home
+    // Clicking on Martis: refresh every page and return to Home
     refreshAllTabs();
     window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
     document.querySelectorAll('.overflow-y-auto').forEach((el) => {
@@ -122,9 +122,9 @@ export default function TopBar({ onSelectTab }) {
         <div className={`absolute inset-0 bg-[#06080c]/80 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-opacity duration-300 ${solid ? 'opacity-100' : 'opacity-0'}`} />
         <div className="relative max-w-[1700px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
           {/* Brand */}
-          <button onClick={handleBrandClick} className="group flex items-center gap-2.5 shrink-0 cursor-pointer lg:justify-self-start" aria-label="MarsWalk Explorer home">
-            <Logo className="w-7 h-7" />
-            <span className="text-white font-display font-bold text-lg sm:text-xl tracking-[0.12em] uppercase">MarsWalk</span>
+          <button onClick={handleBrandClick} className="group flex items-center gap-3 shrink-0 cursor-pointer lg:justify-self-start" aria-label="Martis home">
+            <Logo className="w-9 h-9" />
+            <span className="text-white font-display font-bold text-xl sm:text-2xl tracking-[0.12em] uppercase">Martis</span>
           </button>
 
           {/* Navigation: every page, no hidden menu */}

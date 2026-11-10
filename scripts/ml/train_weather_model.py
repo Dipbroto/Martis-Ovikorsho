@@ -224,7 +224,7 @@ def train_models():
 
     model_export = {
         "metadata": {
-            "model_name": "MarsWalk Atmospheric & Dust Forecaster (NASA MSL REMS / MEDA)",
+            "model_name": "Martis Atmospheric & Dust Forecaster (NASA MSL REMS / MEDA)",
             "trained_on": "Curiosity REMS in-situ telemetry",
             "samples_count": total_samples,
             "feature_count": len(feature_names),

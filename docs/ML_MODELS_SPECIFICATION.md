@@ -1,4 +1,4 @@
-# MarsWalk Machine Learning Subsystem Specification
+# Martis Machine Learning Subsystem Specification
 **Architecture, Datasets, Training Pipelines, Uncertainty Quantification, and Edge Inference Runtime**
 
 *Document Version:* 2.4.0  
@@ -20,7 +20,7 @@
 
 ## 1. Executive Summary & Design Philosophy
 
-The MarsWalk platform integrates a comprehensive suite of **8 distinct machine learning model families** comprising **33 individual parametric sub-regressors and classifiers** (and 5 specialized kinematic/stochastic physical operators, totaling **38 mathematical engines**). These models deliver real-time environmental forecasting, geological triage, space radiation dosimetry, terramechanical mobility hazards, seismic ground motion attenuation, and power grid longevity predictions.
+The Martis platform integrates a comprehensive suite of **8 distinct machine learning model families** comprising **33 individual parametric sub-regressors and classifiers** (and 5 specialized kinematic/stochastic physical operators, totaling **38 mathematical engines**). These models deliver real-time environmental forecasting, geological triage, space radiation dosimetry, terramechanical mobility hazards, seismic ground motion attenuation, and power grid longevity predictions.
 
 ```mermaid
 flowchart TD
@@ -472,7 +472,7 @@ function evaluateSoftmax(logits) {
 
 ## 5. UI Integration & Operations Map
 
-Every model family connects to specialized interactive components across the MarsWalk interface:
+Every model family connects to specialized interactive components across the Martis interface:
 
 ```mermaid
 graph TD

@@ -85,7 +85,7 @@ export default function AuthModal() {
                 <ShieldCheck className="w-5 h-5 text-mars-400" />
                 COMMAND AUTHORIZATION
               </h2>
-              <p className="text-space-400 text-xs font-mono mt-1">MarsWalk account (a NASA Space Apps 2026 project)</p>
+              <p className="text-space-400 text-xs font-mono mt-1">Martis account (a NASA Space Apps 2026 project)</p>
             </div>
             <button 
               onClick={() => setAuthModalOpen(false)}

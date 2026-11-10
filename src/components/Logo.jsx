@@ -1,6 +1,6 @@
 import { useId } from 'react';
 
-// MarsWalk mark: Mars crossed by a walked trail, cut out as negative space.
+// Martis mark: Mars crossed by a walked trail, cut out as negative space.
 // The trail draws itself on first render and again when the parent `.group` is hovered.
 export default function Logo({ className = 'w-7 h-7', title }) {
   const maskId = `mw-trail-${useId().replace(/:/g, '')}`;

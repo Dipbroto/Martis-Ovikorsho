@@ -514,7 +514,7 @@ export default function AudioSynthesizerRack() {
             <span>Test NASA Quindar Tone (2525 Hz)</span>
           </button>
 
-          <span className="text-[10px] text-space-500">Marswalk Audio Core v3.0 (NASA Caltech Audio)</span>
+          <span className="text-[10px] text-space-500">Martis Audio Core v3.0 (NASA Caltech Audio)</span>
         </div>
       </motion.div>
     </div>

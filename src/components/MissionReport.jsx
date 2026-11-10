@@ -64,7 +64,7 @@ const MissionReport = () => {
 
   const handleCopySummary = () => {
     const report = `
-=== MARSWALK MISSION BRIEFING ===
+=== MARTIS MISSION BRIEFING ===
 Sol: ${currentSol || 1}
 Waypoints Planned: ${waypoints.length}
 Estimated Distance: ${(waypoints.length * 1.4).toFixed(1)} km

@@ -1,8 +1,8 @@
 {
-  "name": "marswalk-explorer",
+  "name": "martis",
   "private": true,
   "version": "1.0.0",
-  "description": "MarsWalk Explorer — NASA Space Apps Challenge 2026. A layered, integrated Martian surface map for planning human Marswalks.",
+  "description": "Martis — NASA Space Apps Challenge 2026. A layered, integrated Martian surface map for planning human Marswalks.",
   "type": "module",
   "scripts": {
     "dev": "vite",

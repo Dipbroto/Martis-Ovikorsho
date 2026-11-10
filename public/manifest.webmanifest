@@ -1,6 +1,6 @@
 {
-  "name": "MarsWalk Explorer",
-  "short_name": "MarsWalk",
+  "name": "Martis",
+  "short_name": "Martis",
   "description": "Plan survivable Marswalks on real NASA terrain data.",
   "start_url": "/",
   "display": "standalone",
@@ -8,6 +8,6 @@
   "theme_color": "#06080c",
   "icons": [
     { "src": "/mars-favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/marswalk-icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    { "src": "/martis-icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
   ]
 }

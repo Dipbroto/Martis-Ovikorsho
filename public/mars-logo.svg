@@ -11,6 +11,6 @@
   <circle cx="35" cy="45" r="3" fill="#f47050"/>
   <circle cx="50" cy="50" r="2" fill="#ec4c2e"/>
   <circle cx="65" cy="45" r="3" fill="#f47050"/>
-  <text x="100" y="42" font-family="Orbitron, sans-serif" font-weight="700" font-size="24" fill="#ffffff">MARSWALK</text>
+  <text x="100" y="42" font-family="Orbitron, sans-serif" font-weight="700" font-size="24" fill="#ffffff">MARTIS</text>
   <text x="100" y="68" font-family="Orbitron, sans-serif" font-weight="400" font-size="16" fill="#f47050" letter-spacing="8">EXPLORER</text>
 </svg>

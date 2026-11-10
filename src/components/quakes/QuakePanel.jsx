@@ -178,7 +178,7 @@ export default function QuakePanel() {
               <ProvenanceBadge type="ML_SURROGATE" size="xs" detail="PGA ground shaking: surrogate of a hand-calibrated attenuation equation. Hypocenter: S-P travel-time geometry" />
               <ProvenanceBadge type="DERIVED" size="xs" detail="Risk zones: mapped fault length per area, weighted by freshness" />
             </div>
-            <p className="text-[11px] text-zinc-500 leading-snug">The risk zones are a relative index made in MarsWalk from real fault and quake data, not an official hazard map.</p>
+            <p className="text-[11px] text-zinc-500 leading-snug">The risk zones are a relative index made in Martis from real fault and quake data, not an official hazard map.</p>
           </div>
         </div>
       )}

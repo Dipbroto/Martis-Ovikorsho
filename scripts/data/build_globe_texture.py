@@ -23,7 +23,7 @@ COLS, ROWS = 2 ** (Z + 1), 2 ** Z
 
 def fetch(xy):
     x, y = xy
-    req = urllib.request.Request(URL.format(z=Z, x=x, y=y), headers={"User-Agent": "marswalk-data-builder"})
+    req = urllib.request.Request(URL.format(z=Z, x=x, y=y), headers={"User-Agent": "martis-data-builder"})
     for _ in range(3):
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
