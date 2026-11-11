@@ -2,7 +2,7 @@ import { useRef, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Globe, Crosshair, Grid, Shield, Ruler, Play, Pause, ChevronDown, ChevronUp, Check,
-  RotateCcw, Layers, SlidersHorizontal, Volume2, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints, MapPin, Camera, Rocket, Hammer, Cpu, Sprout, FlaskConical,
+  RotateCcw, Layers, SlidersHorizontal, Volume2, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints, MapPin, Camera, Rocket, Hammer, Cpu, Sprout, FlaskConical, Wind,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../store/useMapStore';
@@ -95,6 +95,7 @@ function MapToolbar() {
     undo: st.undo, undoDepth: st.undoDepth,
     terrainOverlay: st.terrainOverlay, setTerrainOverlay: st.setTerrainOverlay,
     showRoverTraverses: st.showRoverTraverses, toggleRoverTraverses: st.toggleRoverTraverses,
+    showDustStormTracks: st.showDustStormTracks, toggleDustStormTracks: st.toggleDustStormTracks,
     showGraticule: st.showGraticule, toggleGraticule: st.toggleGraticule,
     showWalkbackLimits: st.showWalkbackLimits, toggleWalkbackLimits: st.toggleWalkbackLimits,
     isRulerActive: st.isRulerActive, setRulerActive: st.setRulerActive, clearRuler: st.clearRuler,
@@ -123,7 +124,7 @@ function MapToolbar() {
   const hasRoute = s.waypoints.length > 1;
   const activeCheck = CHECKS.find((c) => c.key === s.terrainOverlay);
   const GRS_KEYS = ['ice', 'iron', 'silicon', 'potassium', 'thorium', 'chlorine', 'caves'];
-  const layerActive = GRS_KEYS.includes(s.terrainOverlay) || s.showRoverTraverses;
+  const layerActive = GRS_KEYS.includes(s.terrainOverlay) || s.showRoverTraverses || s.showDustStormTracks;
 
   const atEnd = s.roverProgress >= 0.99;
   const pausedMid = !s.isRoverDriving && s.roverProgress > 0.01 && !atEnd;
@@ -266,6 +267,7 @@ function MapToolbar() {
                   </div>
                   <Item kind="radio" icon={Tent} label="Cave & pit shelters (MGC3)" hint="1,062 candidates from USGS catalog for radiation shield" active={s.terrainOverlay === 'caves'} onSelect={() => { s.setTerrainOverlay('caves'); click(); }} />
                   <Item icon={Route} label="Real rover tracks" hint="Opportunity, Perseverance, Curiosity, Spirit & Sojourner paths (129 km)" active={s.showRoverTraverses} onSelect={() => { s.toggleRoverTraverses(); click(); }} />
+                  <Item icon={Wind} label="Dust storm tracks & footprints" hint="Over 1,000 tracked local, regional & global storms (NASA/PSI MDSTD)" active={s.showDustStormTracks} onSelect={() => { s.toggleDustStormTracks(); click(); }} />
                 </Menu>
 
                 <button

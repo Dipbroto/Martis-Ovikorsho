@@ -21,7 +21,7 @@ const normalizeWaypoint = (w) => {
 const UNDO_KEYS = [
   'waypoints', 'selectedWaypointId', 'routeDraft', 'routePlanOpen', 'routeEditing', 'pickTarget',
   'isPlacingWaypoint', 'isRulerActive', 'rulerPoints', 'isMarkingLocation', 'markedLocation',
-  'selectedPOI', 'terrainOverlay', 'activeLayers', 'showGraticule', 'showWalkbackLimits', 'showRoverTraverses',
+  'selectedPOI', 'terrainOverlay', 'activeLayers', 'showGraticule', 'showWalkbackLimits', 'showRoverTraverses', 'showDustStormTracks',
   'quakeMode', 'faultSelected',
 ];
 // Move the camera, so they are a step too, but undoing flies back to where the map was really looking instead
@@ -92,6 +92,8 @@ const useMapStore = create((set, get) => ({
     showWalkbackLimits: false,
     showGraticule: false,
     showRoverTraverses: false,
+    showDustStormTracks: false,
+    selectedDustStormId: null,
     terrainOverlay: null,
     routeScanOpen: false,
     routeScan: null,
@@ -341,6 +343,14 @@ const useMapStore = create((set, get) => ({
 
   showRoverTraverses: false,
   toggleRoverTraverses: () => set((state) => ({ showRoverTraverses: !state.showRoverTraverses })),
+
+  // NASA / PSI MARS DUST STORM TRACK CATALOG (MDSTD)
+  showDustStormTracks: false,
+  toggleDustStormTracks: () => set((state) => ({ showDustStormTracks: !state.showDustStormTracks })),
+  selectedDustStormId: null,
+  setSelectedDustStormId: (id) => set({ selectedDustStormId: id }),
+  dustStormFilter: { type: 'ALL', marsYear: 'ALL', minTau: 0, query: '' },
+  setDustStormFilter: (filter) => set((state) => ({ dustStormFilter: { ...state.dustStormFilter, ...filter } })),
 
   // Real-terrain survival overlays drawn on the 2D map
   homeHeroVisible: false, // true while the home hero is on screen; the EVA mascot grows to match

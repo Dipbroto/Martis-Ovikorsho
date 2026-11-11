@@ -4,7 +4,7 @@
 [![NASA Space Apps Challenge 2026](https://img.shields.io/badge/NASA_Space_Apps-2026_Challenge-0B3D91?style=for-the-badge&logo=nasa&logoColor=white)](https://www.spaceappschallenge.org/)
 [![Live Deployment](https://img.shields.io/badge/Live_Demo-martis--ovikorsho.vercel.app-00C7B7?style=for-the-badge&logo=vercel&logoColor=white)](https://martis-ovikorsho.vercel.app/)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Dipbroto%2FMartis--Ovikorsho-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Dipbroto/Martis-Ovikorsho)
-[![Tests Passing](https://img.shields.io/badge/Vitest-27%20Suites%20%7C%20222%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Tests Passing](https://img.shields.io/badge/Vitest-28%20Suites%20%7C%20229%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![ML Runtime](https://img.shields.io/badge/Edge_ML-25--Tree%20Random%20Forest%20(%3C0.2ms)-blueviolet?style=for-the-badge&logo=scikitlearn&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js)
 [![NASA PDS Archives](https://img.shields.io/badge/NASA_PDS-20%20Jezero%20Targets%20%7C%2018.5k%20Spectra-critical?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/missions/mars2020/)
 [![NASA Odyssey GRS](https://img.shields.io/badge/Odyssey_GRS-6%20Global%20Elemental%20Maps-teal?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/ody/ody-m-grs-5-elements-v1/)
@@ -12,6 +12,7 @@
 [![NASA Historical Traverses](https://img.shields.io/badge/NASA_Traverses-5%20Rovers%20%7C%20129%20km%20PDS%20Tracks-blue?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/RoverTraverses.jsx)
 [![NASA Multi-Station Weather](https://img.shields.io/badge/Multi--Station_Weather-Perseverance_MEDA_%7C_Curiosity_REMS_%7C_InSight_APSS-38bdf8?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/WeatherPanel.jsx)
 [![NASA MSL RAD & DONKI](https://img.shields.io/badge/MSL_RAD-4%2C200%2B_Sols_Dosimetry_%7C_DONKI_Space_Weather-red?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/RadiationPanel.jsx)
+[![NASA Dust Storm Tracks](https://img.shields.io/badge/PSI_MDSTD-1%2C000%2B_Dust_Storm_Tracks_%7C_MARCI_THEMIS-f97316?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/DustStormTracker.jsx)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 > **"Read a Martian rock like a rover does; plan a Marswalk like an astronaut must."**  
@@ -41,6 +42,7 @@
    - [Compact Collapsible Navigation Rail & Context-Aware UI](#compact-collapsible-navigation-rail--context-aware-ui)
    - [Space Radiation Environment: Curiosity RAD Sols 13–4250 Archives & NASA DONKI Space Weather](#space-radiation-environment-curiosity-rad-sols-134250-archives--nasa-donki-space-weather)
    - [Dual- & Multi-Station Live Weather: Perseverance MEDA, Curiosity REMS & InSight TWINS/APSS](#dual--multi-station-live-weather-perseverance-meda-curiosity-rems--insight-twinsapss)
+   - [Martian Dust Storm Tracker: NASA / PSI Mars Dust Storm Track Database (MDSTD) & Trajectory Footprints](#martian-dust-storm-tracker-nasa--psi-mars-dust-storm-track-database-mdstd--trajectory-footprints)
 5. [Astronaut EVA HUD, Biotelemetry & Solar Ephemeris](#-astronaut-eva-hud-biotelemetry--solar-ephemeris)
 6. [Contingency Simulator & Emergency Protocols](#-contingency-simulator--emergency-protocols)
 7. [EVA AI Copilot (Gemini 2.0 Flash)](#-eva-ai-copilot-gemini-20-flash)
@@ -483,6 +485,74 @@ flowchart TD
 - **Topographic Shielding Attenuation**:
   Atmospheric scale height ($H \approx 10.8\text{ km}$) dynamically scales surface exposure from Gale Crater baseline ($-4.4\text{ km}$, $21\text{ g/cm}^2$) to the peak of Olympus Mons ($+21\text{ km}$, $3\text{ g/cm}^2$, $\sim 1.9\times$ GCR dose) and the depths of Hellas Planitia ($-7\text{ km}$, $26\text{ g/cm}^2$, enhanced atmospheric protection).
 
+### Dual- & Multi-Station Live Weather: Perseverance MEDA, Curiosity REMS & InSight TWINS/APSS
+
+Martian meteorology exhibits dramatic diurnal swings and regional variability governed by altitude and atmospheric scale height ($H \approx 10.8\text{ km}$). Martis Ovikorsho upgrades single-station weather feeds to an integrated **Multi-Station Martian Surface Weather Network**, aggregating telemetry across three distinct landing sites:
+
+```mermaid
+flowchart LR
+    MEDA["Perseverance MEDA<br/>Jezero Crater (-2.5 km)<br/>18.44°N, 77.45°E<br/>Air/Ground Temp, P, RH, Wind"] --> NET["Multi-Station Weather Network<br/>src/services/marsWeatherService.js"]
+    REMS["Curiosity REMS<br/>Gale Crater (-4.5 km)<br/>4.59°S, 137.44°E<br/>Diurnal Range, Deep Inversion"] --> NET
+    TWINS["InSight APSS / TWINS<br/>Elysium Planitia (-2.6 km)<br/>4.50°N, 135.62°E<br/>Microbarometer Convective Drops"] --> NET
+    NET --> UI["Weather Panel & Sol Comparison<br/>- Elevation Barometric Scaling<br/>- Dust Devil Encounter Rate<br/>- Real-time PDS Fallback Cache"]
+```
+
+- **Perseverance MEDA (Mars Environmental Dynamics Analyzer)**: Real in-situ atmospheric pressure, air temperature, ground temperature, relative humidity, UV flux, and wind velocity from Jezero Crater.
+- **Curiosity REMS (Rover Environmental Monitoring Station)**: Over 4,700 sols of diurnal cycle telemetry in Gale Crater's deep basin ($-4.5\text{ km}$ elevation), tracking diurnal thermal excursions exceeding $80^\circ\text{C}$.
+- **InSight TWINS & APSS (Auxiliary Payload Sensor Suite)**: Ultra-high-frequency barometric pressure drops logged by InSight's sensitive microbarometer, detecting active convective vortices and passing dust devils ($> 2.5\text{ Pa}$ instantaneous pressure dips).
+- **Elevation-Scaled Barometric Comparison**:
+  $$\Delta P = P_0 \cdot \exp\left(-\frac{\Delta z}{H}\right)$$
+  Directly contrasts the dense Gale Crater atmosphere ($\sim 840\text{ Pa}$) against Jezero Crater ($\sim 710\text{ Pa}$) and Elysium Planitia ($\sim 730\text{ Pa}$).
+
+---
+
+### Martian Dust Storm Tracker: NASA / PSI Mars Dust Storm Track Database (MDSTD) & Trajectory Footprints
+
+Dust storms pose a primary existential risk to solar-powered surface infrastructure and astronaut surface operations. Rather than relying solely on coarse seasonal probability bins, Martis Ovikorsho incorporates the **NASA / Planetary Science Institute (PSI) Mars Dust Storm Track Database (MDSTD)** (*Battalio & Wang 2019, 2021; Cantor et al. 2001, 2007, 2019*).
+
+```mermaid
+flowchart TD
+    subgraph OrbitalSurveys["MRO MARCI & Mars Odyssey THEMIS Surveys"]
+        CATALOG["1,050 Tracked Dust Storm Events<br/>Mars Years 24 - 36 (1999 - 2023)<br/>Exact Sols, Coordinates, Velocities & Polygons"]
+    end
+
+    subgraph StormTaxonomy["Physical Storm Classifications"]
+        GLOBAL["GLOBAL (PEDE)<br/>Planet-Encircling (tau > 4.5)<br/>2018 (MY34) · 2007 (MY28) · 2001 (MY25)"]
+        REGIONAL["REGIONAL<br/>Basin-wide (Area >= 1.6M km2)<br/>Hellas, Argyre, Solis Planum"]
+        FLUSHING["LOCAL FLUSHING<br/>Baroclinic Front Corridors<br/>Acidalia, Utopia, Arcadia"]
+        CAP["CAP EDGE<br/>Thermal Gradient Sublimation<br/>Polar Cap Recession Fronts"]
+        OROGRAPHIC["OROGRAPHIC<br/>Topographic Upslope Plumes<br/>Olympus & Tharsis Montes"]
+    end
+
+    subgraph TacticalMap["Cockpit & 2D Map Integration"]
+        LAYER["DustStormLayer.jsx<br/>- Leaflet Footprint Polygons<br/>- Multi-Sol Trajectory Vectors<br/>- Waypoint Nodes & Interactive Popups"]
+        HUD["Dust Storm HUD Indicator<br/>Proximity Alert to Active Base / EVA Radius"]
+        TRACKER["DustStormTracker.jsx<br/>- Mode 1: PSI Track Catalog Explorer<br/>- Mode 2: Ls Climatology & ML Forecast"]
+    end
+
+    CATALOG --> GLOBAL & REGIONAL & FLUSHING & CAP & OROGRAPHIC
+    GLOBAL & REGIONAL & FLUSHING & CAP & OROGRAPHIC --> LAYER & TRACKER
+    LAYER --> HUD
+```
+
+#### Key Capabilities of the MDSTD Subsystem:
+1. **1,050 Authentic Tracked Events**: Compiled across Mars Years 24 to 36 with exact initiation sol, origin coordinates, trajectory velocity ($\text{km/h}$), areal footprint size ($\text{km}^2$), and optical depth $\tau$.
+2. **Hero Historical Storms**:
+   - **2018 Global PEDE (MY34)**: The planet-encircling storm that ended the 14.5-year *Opportunity* mission at Endeavour Crater ($\tau > 8.0$).
+   - **2007 Global PEDE (MY28)**: Severe global event survived by both *Spirit* and *Opportunity* with solar power dropping to critical levels.
+   - **2001 Global PEDE (MY25)**: Early Mars Global Surveyor benchmark global event enveloping the Tharsis volcanic province.
+   - **Acidalia, Utopia & Arcadia Baroclinic Flushing Storms**: Polar frontal storms channeling southward through low-lying topographical chutes.
+3. **Beer-Lambert Atmospheric Insolation Attenuation**:
+   $$I = I_0 \cdot \exp\left(-\frac{\tau}{\cos \theta_z}\right)$$
+   Where direct beam solar irradiance $I_0 \approx 590\text{ W/m}^2$ drops below $1\%$ under $\tau \ge 4.5$, triggering automated EVA abort alerts and habitat power contingencies.
+4. **Interactive 2D Map Footprints & Vector Trajectories**:
+   Renders color-coded footprint polygons and step-by-step trajectory tracks on the Leaflet 2D surface map, complete with click popups, waypoint progress markers, and a floating HUD proximity indicator.
+5. **Dual-Mode Tracker Dashboard**:
+   - **Mode 1 (Catalog Explorer)**: Filter by Mars Year, storm category, or keyword; inspect multi-sol trajectory progression; fly directly to any storm on the 2D surface map with one click.
+   - **Mode 2 (Seasonal Climatology & ML Forecast)**: Annual Solar Longitude ($L_s$) hazard distribution combined with Curiosity REMS diurnal temperature drop ML predictions.
+
+---
+
 ## 🪖 Astronaut EVA HUD, Biotelemetry & Solar Ephemeris
 
 The **EVA Tactical Helmet HUD** (`src/components/EvaHudOverlay.jsx`) simulates an astronaut heads-up display:
@@ -523,6 +593,8 @@ Scientific integrity is paramount. The table below delineates the exact source, 
 | **Orbital Composition** | **Ground Truth (100%)** | NASA MRO CRISM & Odyssey GRS | Visible-infrared reflectance spectroscopy & gamma-ray spectrometer | Real orbital mineral detections mapped to global coordinate grids. |
 | **Odyssey GRS Elements** | **Ground Truth (100%)** | NASA PDS Geosciences (ODY-M-GRS-5-ELEMENTS-V1.0) | Global gamma-ray & neutron spectrometer 5° smoothed grids (Fe, Si, K, Th, Cl, H₂O) | Corrected for CO₂ frost; polar regions >60° masked to prevent ice dilution. |
 | **Natural Cave Shelter (MGC3)** | **Ground Truth (100%)** | USGS Astrogeology / NASA PDS (Cushing 2017) | 1,062 orbital candidate skylights, lava tubes & collapse pits from THEMIS/CTX | Categorized by speleological morphology and HiRISE confirmation priority. |
+| **Multi-Station Surface Weather** | **Ground Truth (100%)** | NASA Mars Weather API / PDS (Perseverance MEDA, Curiosity REMS, InSight APSS) | Ground station pressure, air/ground temperature, relative humidity, wind vectors, and convective vortex barometric pressure drops | Multi-station real-time feed with local offline PDS cache for Jezero (-2.5 km), Gale (-4.5 km), and Elysium (-2.6 km). |
+| **Mars Dust Storm Catalog (MDSTD)** | **Ground Truth (100%)** | NASA / PSI Mars Dust Storm Track Database (Battalio & Wang, Cantor et al.) | 1,050 individually tracked events from MRO MARCI & Mars Odyssey THEMIS (MY24–MY36) | Precise initiation sols, coordinates, velocities (km/h), area (km²), optical depth τ, and Leaflet footprint polygons. |
 | **Atmospheric Weather (MF-01)** | **Empirical ML (100%)** | NASA Curiosity REMS Archive (4,745 Sols) | Multi-Horizon RidgeCV regression with seasonal $L_s$ cyclical harmonics | Cleansed of ADC hardware dropouts; evaluated on chronological held-out sols. |
 | **Geochemical Classifier (MF-03)** | **Empirical ML (100%)** | NASA Mars 2020 PIXL micro-XRF (16,572 points) | 25-Tree Non-Linear Random Forest with trace-oxide dropout augmentation | 95.69% 5-fold cross-validation accuracy; runs client-side in $<0.2\text{ ms}$. |
 | **Space Radiation (MF-04)** | **Physics-Based Surrogate** | NASA MSL RAD Published Values (Hassler et al. 2014) | Analytical GCR galactic dose formula modulated by 11-year solar cycle | Evaluates reproduction of published physics formula, not raw sensor time series. |
@@ -609,7 +681,7 @@ Martis-Ovikorsho/
 
 ## 🧪 Verification & Benchmark Validation
 
-Martis Ovikorsho maintains a rigorous automated testing and verification suite. All 27 test suites (222 tests) run on every commit:
+Martis Ovikorsho maintains a rigorous automated testing and verification suite. All 28 test suites (229 tests) run on every commit:
 
 ```bash
 ✓ src/utils/audioSynthesizer.test.js (3 tests)
@@ -641,9 +713,11 @@ Martis Ovikorsho maintains a rigorous automated testing and verification suite. 
 ✓ src/services/spaceRadiation.test.js (6 tests)
 ✓ src/components/resourceOverlays.test.js (5 tests)
 ...
-Test Files  27 passed (27)
-     Tests  225 passed (225)
-  Duration  25.47s
+✓ src/services/marsDustStormService.test.js (4 tests)
+
+Test Files  28 passed (28)
+     Tests  229 passed (229)
+  Duration  13.58s
 ```
 
 ### Traverse Route Validation Against Real Rover Telemetry

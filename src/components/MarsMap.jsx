@@ -10,6 +10,7 @@ import { marsDistance, MARS, lerpLon, lonDelta, splitAtAntimeridian } from '../u
 import CoordinateDisplay, { formatCoord } from './CoordinateDisplay';
 import POIMarkers from './POIMarkers';
 import RoverTraverses from './RoverTraverses';
+import DustStormLayer from './DustStormLayer';
 import { ResourceLayer } from './ResourceOverlays';
 import { TerrainOverlayLayer } from './TerrainOverlay';
 import { routeSignature } from '../store/useMapStore';
@@ -797,6 +798,7 @@ const MarsMap = () => {
   const undo = useMapStore((s) => s.undo);
   const removeWaypoint = useMapStore((s) => s.removeWaypoint);
   const showRoverTraverses = useMapStore((s) => s.showRoverTraverses);
+  const showDustStormTracks = useMapStore((s) => s.showDustStormTracks);
   const routeGeometry = useMapStore((s) => s.routeGeometry);
   const markedLocation = useMapStore((s) => s.markedLocation);
   const clearMarkedLocation = useMapStore((s) => s.clearMarkedLocation);
@@ -939,6 +941,7 @@ const MarsMap = () => {
         </Pane>
 
         {showRoverTraverses && <RoverTraverses />}
+        {showDustStormTracks && <DustStormLayer />}
 
         {/* Martian Planetary Graticule (Latitude & Longitude Grid) */}
         {showGraticule && <Graticule />}
