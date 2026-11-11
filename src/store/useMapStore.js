@@ -454,23 +454,23 @@ const useMapStore = create((set, get) => ({
   })),
 
   // ========================
-  // WEATHER (DUAL-MODE: IN-SITU ROVER DOWNLINK VS SEASONAL PROJECTION)
+  // WEATHER (MULTI-STATION: PERSEVERANCE MEDA, CURIOSITY REMS, INSIGHT TWINS/APSS)
   // ========================
   weatherMode: 'downlink', // 'downlink' | 'projection'
+  activeWeatherStation: 'perseverance', // 'perseverance' | 'curiosity' | 'insight'
   roverWeatherFeed: [],
+  multiStationWeather: null,
   isWeatherFeedLoading: false,
   roverWeatherSelectedSol: null,
   currentSol: initialSol,
   weather: generateWeatherForSol(initialSol),
 
   setWeatherMode: (mode) => set({ weatherMode: mode }),
-  setRoverWeatherSelectedSol: (sol) => set({ roverWeatherSelectedSol: sol }),
-
-  loadRoverWeatherFeed: async () => {
-    set({ isWeatherFeedLoading: true });
+  setActiveWeatherStation: async (stationId) => {
+    set({ activeWeatherStation: stationId, isWeatherFeedLoading: true });
     try {
-      const { fetchLiveRoverWeather } = await import('../services/marsWeatherService');
-      const feed = await fetchLiveRoverWeather();
+      const { fetchStationWeather } = await import('../services/marsWeatherService');
+      const feed = await fetchStationWeather(stationId);
       if (feed && feed.length > 0) {
         set({
           roverWeatherFeed: feed,
@@ -479,6 +479,31 @@ const useMapStore = create((set, get) => ({
         });
       } else {
         set({ isWeatherFeedLoading: false });
+      }
+    } catch {
+      set({ isWeatherFeedLoading: false });
+    }
+  },
+  setRoverWeatherSelectedSol: (sol) => set({ roverWeatherSelectedSol: sol }),
+
+  loadRoverWeatherFeed: async (stationId) => {
+    const targetStation = stationId || get().activeWeatherStation || 'perseverance';
+    set({ isWeatherFeedLoading: true });
+    try {
+      const { fetchStationWeather, fetchMultiStationArchive } = await import('../services/marsWeatherService');
+      const [feed, multiArchive] = await Promise.all([
+        fetchStationWeather(targetStation),
+        fetchMultiStationArchive(),
+      ]);
+      if (feed && feed.length > 0) {
+        set({
+          roverWeatherFeed: feed,
+          multiStationWeather: multiArchive,
+          isWeatherFeedLoading: false,
+          roverWeatherSelectedSol: feed[0]?.sol ?? null,
+        });
+      } else {
+        set({ multiStationWeather: multiArchive, isWeatherFeedLoading: false });
       }
     } catch {
       set({ isWeatherFeedLoading: false });

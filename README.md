@@ -10,6 +10,7 @@
 [![NASA Odyssey GRS](https://img.shields.io/badge/Odyssey_GRS-6%20Global%20Elemental%20Maps-teal?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/ody/ody-m-grs-5-elements-v1/)
 [![NASA MSR Manifest](https://img.shields.io/badge/MSR_Manifest-24%20Sealed%20Tubes%20%7C%20Three%20Forks%20Depot-orange?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/data/nasaSampleManifest.js)
 [![NASA Historical Traverses](https://img.shields.io/badge/NASA_Traverses-5%20Rovers%20%7C%20129%20km%20PDS%20Tracks-blue?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/RoverTraverses.jsx)
+[![NASA Multi-Station Weather](https://img.shields.io/badge/Multi--Station_Weather-Perseverance_MEDA_%7C_Curiosity_REMS_%7C_InSight_APSS-38bdf8?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/WeatherPanel.jsx)
 [![NASA MSL RAD & DONKI](https://img.shields.io/badge/MSL_RAD-4%2C200%2B_Sols_Dosimetry_%7C_DONKI_Space_Weather-red?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/RadiationPanel.jsx)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -39,6 +40,7 @@
    - [Line-of-Sight VHF Comms Horizon](#line-of-sight-vhf-comms-horizon)
    - [Compact Collapsible Navigation Rail & Context-Aware UI](#compact-collapsible-navigation-rail--context-aware-ui)
    - [Space Radiation Environment: Curiosity RAD Sols 13–4250 Archives & NASA DONKI Space Weather](#space-radiation-environment-curiosity-rad-sols-134250-archives--nasa-donki-space-weather)
+   - [Dual- & Multi-Station Live Weather: Perseverance MEDA, Curiosity REMS & InSight TWINS/APSS](#dual--multi-station-live-weather-perseverance-meda-curiosity-rems--insight-twinsapss)
 5. [Astronaut EVA HUD, Biotelemetry & Solar Ephemeris](#-astronaut-eva-hud-biotelemetry--solar-ephemeris)
 6. [Contingency Simulator & Emergency Protocols](#-contingency-simulator--emergency-protocols)
 7. [EVA AI Copilot (Gemini 2.0 Flash)](#-eva-ai-copilot-gemini-20-flash)
@@ -611,7 +613,7 @@ Martis Ovikorsho maintains a rigorous automated testing and verification suite. 
 
 ```bash
 ✓ src/utils/audioSynthesizer.test.js (3 tests)
-✓ src/services/marsWeatherService.test.js (3 tests)
+✓ src/services/marsWeatherService.test.js (6 tests)
 ✓ src/data/nasaSampleManifest.test.js (8 tests)
 ✓ src/data/scienceLab.test.js (8 tests)
 ✓ src/utils/marsSolar.test.js (9 tests)
@@ -640,7 +642,7 @@ Martis Ovikorsho maintains a rigorous automated testing and verification suite. 
 ✓ src/components/resourceOverlays.test.js (5 tests)
 ...
 Test Files  27 passed (27)
-     Tests  222 passed (222)
+     Tests  225 passed (225)
   Duration  25.47s
 ```
 
