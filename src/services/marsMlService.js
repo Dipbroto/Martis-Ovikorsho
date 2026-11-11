@@ -87,7 +87,7 @@ export function getMineralModel() {
  * Allows overriding or updating the mineral model weights at runtime.
  */
 export function setMineralModel(model) {
-  if (model && model.classes && model.coefficients) {
+  if (model && model.classes && (model.trees || model.coefficients)) {
     activeMineralModel = model;
   }
 }
@@ -510,7 +510,7 @@ export function calculateGeochemicalIndices(pixlStatsOrOxides) {
  */
 export function classifyRockMineralogy(pixlStatsOrOxides, modelOverride = null) {
   const model = modelOverride || activeMineralModel;
-  if (!model || !model.classes || !model.coefficients || !model.scaler) {
+  if (!model || !model.classes || (!model.trees && !model.coefficients)) {
     throw new Error('Mineral classifier model weights not initialized.');
   }
 
@@ -518,33 +518,54 @@ export function classifyRockMineralogy(pixlStatsOrOxides, modelOverride = null) 
   if (!geochemicalData) return null;
 
   const { featureVector, indices, rawOxides } = geochemicalData;
-  const { mean, scale } = model.scaler;
 
-  // Feature standard scaling: z = (x - mean) / scale
-  const scaledFeatures = featureVector.map((val, idx) => {
-    const s = scale[idx] || 1;
-    const m = mean[idx] || 0;
-    return (val - m) / s;
-  });
+  let probabilities = [];
 
-  // Calculate logits for each class: logit_c = intercept_c + sum(coef_cj * z_j), divided by the calibration
-  // temperature so the confidence matches how often the model is right on rocks it has not seen
-  const temperature = model.calibration?.temperature || 1;
-  const logits = model.classes.map((cls, classIdx) => {
-    const intercept = model.intercept[classIdx] || 0;
-    const coefs = model.coefficients[classIdx] || [];
-    let sum = intercept;
-    for (let j = 0; j < scaledFeatures.length; j += 1) {
-      sum += (coefs[j] || 0) * scaledFeatures[j];
+  // 1. Non-linear Random Forest Ensemble inference (pure JS tree traversal)
+  if (model.trees && Array.isArray(model.trees) && model.trees.length > 0) {
+    const nTrees = model.trees.length;
+    const nClasses = model.classes.length;
+    const sumProbs = new Array(nClasses).fill(0);
+
+    for (let t = 0; t < nTrees; t += 1) {
+      let curr = model.trees[t];
+      while (!curr.l) {
+        curr = featureVector[curr.f] <= curr.t ? curr.a : curr.b;
+      }
+      const leafProbs = curr.v;
+      for (let c = 0; c < nClasses; c += 1) {
+        sumProbs[c] += leafProbs[c] || 0;
+      }
     }
-    return sum / temperature;
-  });
 
-  // Numerically stable softmax: p_k = exp(logit_k - max_logit) / sum(exp)
-  const maxLogit = Math.max(...logits);
-  const exps = logits.map((l) => Math.exp(l - maxLogit));
-  const expSum = exps.reduce((a, b) => a + b, 0);
-  const probabilities = exps.map((e) => e / expSum);
+    probabilities = sumProbs.map((p) => p / nTrees);
+  } else if (model.coefficients && model.scaler) {
+    // 2. Linear Logistic regression fallback
+    const { mean, scale } = model.scaler;
+    const scaledFeatures = featureVector.map((val, idx) => {
+      const s = scale[idx] || 1;
+      const m = mean[idx] || 0;
+      return (val - m) / s;
+    });
+
+    const temperature = model.calibration?.temperature || 1;
+    const logits = model.classes.map((cls, classIdx) => {
+      const intercept = model.intercept[classIdx] || 0;
+      const coefs = model.coefficients[classIdx] || [];
+      let sum = intercept;
+      for (let j = 0; j < scaledFeatures.length; j += 1) {
+        sum += (coefs[j] || 0) * scaledFeatures[j];
+      }
+      return sum / temperature;
+    });
+
+    const maxLogit = Math.max(...logits);
+    const exps = logits.map((l) => Math.exp(l - maxLogit));
+    const expSum = exps.reduce((a, b) => a + b, 0);
+    probabilities = exps.map((e) => e / expSum);
+  } else {
+    throw new Error('Mineral classifier model format unsupported: missing trees and coefficients.');
+  }
 
   // Structure predictions and rank by descending probability
   const classProbabilities = model.classes.map((className, idx) => ({

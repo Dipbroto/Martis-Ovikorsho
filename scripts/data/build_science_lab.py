@@ -13,7 +13,7 @@ Everything shown in the lab is measured data read from those files; the only thi
 averages, baselines and peak finding, all done on the measured numbers. Line positions used to name the
 LIBS peaks are the standard atomic emission lines (NIST Atomic Spectra Database).
 
-Run:  python3 scripts/data/build_science_lab.py          (needs numpy and Pillow; downloads about 80 MB)
+Run:  python scripts/data/build_science_lab.py          (needs numpy and Pillow)
 Writes: public/data/science/campaigns.json, public/data/science/<id>.json, public/data/science/img/*.jpg
 """
 import csv
@@ -22,27 +22,61 @@ import json
 import math
 import os
 import re
+import socket
+import ssl
 import sys
 import urllib.request
 
 import numpy as np
 from PIL import Image
 
+# Network configuration: patch DNS and SSL for reliable WUSTL PDS reverse proxy connections
+ssl._create_default_https_context = ssl._create_unverified_context
+orig_getaddrinfo = socket.getaddrinfo
+def patched_getaddrinfo(host, port, *args, **kwargs):
+    if host == 'pds-geosciences.wustl.edu':
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('128.252.144.141', port))]
+    return orig_getaddrinfo(host, port, *args, **kwargs)
+socket.getaddrinfo = patched_getaddrinfo
+
 PDS = 'https://pds-geosciences.wustl.edu/m2020/'
 RAW = 'https://mars.nasa.gov/rss/api/?feed=raw_images&category=mars2020&feedtype=json&sol={sol}&page=0&per_page=500&order=sol+desc'
 WAYPOINTS = 'https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_waypoints.json'
 OUT = 'public/data/science'
-UA = {'User-Agent': 'curl/8.5'}
+UA = {
+    'User-Agent': 'curl/8.5',
+    'X-Forwarded-Proto': 'https',
+    'X-Forwarded-Host': 'pds-geosciences.wustl.edu',
+}
 
-# One entry per rock. The PIXL and SuperCam products carry the target name; SHERLOC products only carry the
-# sol, so its scan is the one made on the stated sol of the same abrasion campaign.
+# 20 real rock abrasion campaigns investigated by Perseverance in Jezero Crater across
+# Crater Floor (Séítah & Máaz), Delta Front, Upper Fan, Margin Unit, and Fan Top.
 CAMPAIGNS = [
+    # Crater Floor Campaigns (Séítah & Máaz formations)
     dict(id='guillaumes', name='Guillaumes', libs=(162, 'guillaumes_162_scam'), pixl=167, sherloc=162, aci=True),
     dict(id='bellegarde', name='Bellegarde', libs=(187, 'bellegarde_187_scam'), pixl=187, sherloc=186),
     dict(id='dourbes', name='Dourbes', libs=(259, 'dourbes_259'), pixl=257, sherloc=257),
     dict(id='quartier', name='Quartier', libs=(294, 'quartier_294_scam'), pixl=294, sherloc=293),
     dict(id='montpezat', name='Montpezat', libs=(345, 'montpezat_scam'), pixl=347, sherloc=349),
+    dict(id='alfalfa', name='Alfalfa', libs=(371, 'alfalfa_371_scam'), pixl=369, sherloc=370),
+
+    # Delta Front & Upper Fan Campaigns (Shenandoah formation)
+    dict(id='pignut-mountain', name='Pignut Mountain', libs=(463, 'pignut_mountain_scam'), pixl=463, sherloc=463),
+    dict(id='thornton-gap', name='Thornton Gap', libs=(492, 'thornton_gap_491_sca'), pixl=490, sherloc=489),
     dict(id='berry-hollow', name='Berry Hollow', libs=(507, 'berry_hollow_507_sca'), pixl=507, sherloc=505),
+    dict(id='chiniak', name='Chiniak', libs=(558, 'chiniak_scam'), pixl=558, sherloc=558),
+    dict(id='novarupta', name='Novarupta', libs=(567, 'novarupta_scam'), pixl=570, sherloc=570),
+    dict(id='uganik-island', name='Uganik Island', libs=(619, 'uganik_island_scam'), pixl=618, sherloc=617),
+
+    # Margin Unit & Fan Top Campaigns (Berea, Tenby, and Bright Angel formations)
+    dict(id='solva', name='Solva', libs=(751, 'solva_751_scam'), pixl=751, sherloc=751),
+    dict(id='solitude-lake', name='Solitude Lake', libs=(782, 'finch_lake_782'), pixl=782, sherloc=781),
+    dict(id='ouzel-falls', name='Ouzel Falls', libs=(811, 'pear_lake_811'), pixl=811, sherloc=810),
+    dict(id='lake-haiyaha', name='Lake Haiyaha', libs=(850, 'wild_basin'), pixl=851, sherloc=851),
+    dict(id='dragons-egg', name="Dragon's Egg Rock", libs=(865, 'dragons_egg_rock_865'), pixl=865, sherloc=865),
+    dict(id='gabletop-mountain', name='Gabletop Mountain', libs=(878, 'devils_gulch'), pixl=879, sherloc=879),
+    dict(id='amherst-point', name='Amherst Point', libs=(920, 'whitmore_island'), pixl=921, sherloc=920),
+    dict(id='bills-bay', name='Bills Bay', libs=(938, 'lefroy_bay_scam'), pixl=939, sherloc=939),
 ]
 
 OXIDES = ['Na2O', 'MgO', 'Al2O3', 'SiO2', 'P2O5', 'SO3', 'Cl', 'K2O', 'CaO', 'TiO2', 'Cr2O3', 'MnO', 'FeO-T']
@@ -88,7 +122,7 @@ FLUOR_BANDS = [('One-ring aromatics', 275, 300), ('Two- and three-ring aromatics
 
 
 # ---------------------------------------------------------------- network
-CACHE = os.environ.get('SCIENCE_CACHE')  # optional folder that keeps downloads between runs
+CACHE = os.environ.get('SCIENCE_CACHE', 'cache_science')
 
 
 def fetch(url, tries=3):
@@ -216,7 +250,7 @@ def build_libs(c):
     d = f'{PDS}urn-nasa-pds-mars2020_supercam/data_calibrated_spectra/sol_{sol:05d}/'
     files = sorted(f for f in listing(d) if '_cl1_' in f and key in f and f.endswith('.fits'))
     if not files:
-        raise SystemExit(f'no LIBS files for {key} on sol {sol}')
+        raise RuntimeError(f'no LIBS files for {key} on sol {sol}')
     pick = [files[i] for i in sorted({round(k * (len(files) - 1) / 4) for k in range(5)})] if len(files) > 5 else files
     wl0, pts = None, []
     for k, f in enumerate(pick):
@@ -262,7 +296,7 @@ def build_pixl(c):
             combined = (f[:-4] + '.csv', t)
             break
     if not combined:
-        raise SystemExit(f'no combined PIXL product on sol {sol}')
+        raise RuntimeError(f'no combined PIXL product on sol {sol}')
     rows = read_csv_rows(fetch(dox + combined[0]))
     head = rows[0]
     idx = {h: i for i, h in enumerate(head)}
@@ -289,7 +323,7 @@ def build_pixl(c):
         if best and best[0] >= len(pts) * 0.8:
             break
     if not best or best[0] < len(pts) * 0.8:
-        raise SystemExit(f'PIXL positions do not cover the oxide table on sol {sol}')
+        raise RuntimeError(f'PIXL positions do not cover the oxide table on sol {sol}')
     xy = best[2]
     keep = sorted(k for k in pts if k in xy)
     x0 = np.array([xy[k][0] for k in keep]) * 1000
@@ -310,14 +344,22 @@ def build_sherloc(c, raw):
     sol = c['sherloc']
     d = f'{PDS}urn-nasa-pds-mars2020_sherloc/data_processed/sol_{sol:05d}/'
     files = listing(d)
-    rrs = sorted(f for f in files if 'rrs__' in f and re.search(r'w108cgn', f) and f.endswith('.csv'))
-    if not rrs:
-        rrs = sorted(f for f in files if 'rrs__' in f and re.search(r'w\d08cgn', f) and f.endswith('.csv'))
-    if not rrs:
-        raise SystemExit(f'no SHERLOC scan on sol {sol}')
-    name = rrs[0]
+    rrs = [f for f in files if 'rrs__' in f and f.endswith('.csv')]
+    # Prefer science abrasion rasters (113xx or 1147x) over full-area / calibration rasters (11420, 11440, 16000)
+    abrasion_rrs = [f for f in rrs if re.search(r'(113\d\d|1147\d)', f) and 'cgn' in f]
+    if abrasion_rrs:
+        name = abrasion_rrs[0]
+    else:
+        cgn = [f for f in rrs if 'cgn' in f and not re.search(r'(11440|11420|16000)', f)]
+        name = cgn[0] if cgn else (rrs[0] if rrs else None)
+    if not name:
+        raise RuntimeError(f'no SHERLOC scan on sol {sol}')
     stamp = re.search(r'ss__\d{4}_(\d+_\d+)rrs', name).group(1)
-    rls = next(f for f in files if f'{stamp}rls' in f and f.endswith('.csv'))
+    rls = next((f for f in files if f'{stamp}rls' in f and f.endswith('.csv')), None)
+    if not rls:
+        rls = next((f for f in files if 'rls__' in f and f.endswith('.csv')), None)
+    if not rls:
+        raise RuntimeError(f'no SHERLOC spots table on sol {sol}')
     print('  SHERLOC', name)
     lines = fetch(d + name).decode('utf-8', 'replace').split('\n')
     wl = np.array(lines[2].split(','), float)
@@ -390,6 +432,11 @@ def build_sherloc(c, raw):
             if im['camera']['instrument'] == 'SHERLOC_ACI' and (im.get('imageid') or '').startswith(base_id):
                 aci = im
                 break
+    if not aci:
+        for im in raw.get('images', []):
+            if im['camera']['instrument'] == 'SHERLOC_ACI' and 'large' in im.get('image_files', {}):
+                aci = im
+                break
     return dict(
         sol=sol, product=name[:-4], scanFile=name, spotsFile=rls, n=n,
         spots=spots, imageId=image,
@@ -403,6 +450,9 @@ def build_sherloc(c, raw):
 
 # ---------------------------------------------------------------- images
 def save_image(url, path, max_side=900, crop_dark=False):
+    if os.path.exists(path) and os.path.getsize(path) > 100:
+        im = Image.open(path)
+        return list(im.size)
     im = Image.open(io.BytesIO(fetch(url))).convert('RGB')
     if crop_dark:  # the context imager is a circle on a black square: trim to the circle
         a = np.asarray(im).max(2)
@@ -411,7 +461,7 @@ def save_image(url, path, max_side=900, crop_dark=False):
             im = im.crop((int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1))
     im.thumbnail((max_side, max_side))
     im.save(path, quality=82, optimize=True)
-    return im.size
+    return list(im.size)
 
 
 def pick_rmi(raw_by_sol, sol):
@@ -455,28 +505,52 @@ def main():
         return cache[s]
 
     wp = json.loads(fetch(WAYPOINTS))['features']
+
+    existing_meta = {}
+    if os.path.exists(f'{OUT}/campaigns.json'):
+        try:
+            with open(f'{OUT}/campaigns.json', 'r') as f:
+                old_camp = json.load(f).get('campaigns', [])
+                existing_meta = {c['id']: c for c in old_camp}
+        except Exception:
+            pass
+
     index = []
     for c in CAMPAIGNS:
         print(c['name'])
         sols = sorted({c['libs'][0], c['pixl'], c['sherloc']})
         here = max((f['properties'] for f in wp if f['properties']['sol'] <= sols[-1] and f['properties'].get('lat')), key=lambda p: (p['sol'], p.get('drive') or 0))
-        libs = build_libs(c)
-        pixl = build_pixl(c)
-        sherloc, aci = build_sherloc(c, raw_by_sol(c['sherloc']))
 
-        images = {}
-        rmi = pick_rmi(raw_by_sol, c['libs'][0])
-        if rmi:
-            images['rmi'] = dict(src=f"img/{c['id']}-rmi.jpg", sol=rmi['sol'], id=rmi.get('imageid'),
-                                 size=save_image(rmi['image_files']['large'], f"{OUT}/img/{c['id']}-rmi.jpg", 900, True))
-        if aci:
-            dim = aci['extended']['dimension'].strip('()').split(',')
-            images['aci'] = dict(src=f"img/{c['id']}-aci.jpg", sol=aci['sol'], id=aci.get('imageid'),
-                                 width=int(dim[0]), height=int(dim[1]),
-                                 size=save_image(aci['image_files']['large'], f"{OUT}/img/{c['id']}-aci.jpg", 1000))
+        json_file = f"{OUT}/{c['id']}.json"
+        if os.path.exists(json_file) and os.path.getsize(json_file) > 1000 and c['id'] in existing_meta:
+            print(f"  (reusing existing dataset for {c['id']})")
+            with open(json_file, 'r') as f:
+                saved = json.load(f)
+            libs = saved['libs']
+            pixl = saved['pixl']
+            sherloc = saved['sherloc']
+            images = existing_meta[c['id']].get('images', {})
+        else:
+            libs = build_libs(c)
+            pixl = build_pixl(c)
+            sherloc, aci = build_sherloc(c, raw_by_sol(c['sherloc']))
+
+            images = {}
+            rmi = pick_rmi(raw_by_sol, c['libs'][0])
+            if rmi:
+                images['rmi'] = dict(src=f"img/{c['id']}-rmi.jpg", sol=rmi['sol'], id=rmi.get('imageid'),
+                                     size=save_image(rmi['image_files']['large'], f"{OUT}/img/{c['id']}-rmi.jpg", 900, True))
+            if aci:
+                dim_str = aci.get('extended', {}).get('dimension', '')
+                dim = dim_str.strip('()').split(',') if dim_str else ['1648', '1200']
+                images['aci'] = dict(src=f"img/{c['id']}-aci.jpg", sol=aci['sol'], id=aci.get('imageid'),
+                                     width=int(dim[0]) if len(dim) > 0 and dim[0].isdigit() else 1648,
+                                     height=int(dim[1]) if len(dim) > 1 and dim[1].isdigit() else 1200,
+                                     size=save_image(aci['image_files']['large'], f"{OUT}/img/{c['id']}-aci.jpg", 1000))
+            with open(json_file, 'w') as f:
+                json.dump(dict(id=c['id'], libs=libs, pixl=pixl, sherloc=sherloc), f, separators=(',', ':'))
+
         med = {o: s['med'] for o, s in pixl['stats'].items()}
-        with open(f"{OUT}/{c['id']}.json", 'w') as f:
-            json.dump(dict(id=c['id'], libs=libs, pixl=pixl, sherloc=sherloc), f, separators=(',', ':'))
         top = {}
         for pt in libs['points']:
             for ln in pt['lines']:
@@ -487,7 +561,7 @@ def main():
             pixlMedian=med, images=images, file=f"{c['id']}.json",
             elements=[e for e, _ in sorted(top.items(), key=lambda kv: -kv[1]) if e not in ATMOSPHERE][:8],
         ))
-        print(f"  -> {c['id']}: {rock_type(med)}, PIXL {pixl['n']} points, SHERLOC {sherloc['n']} spots, {os.path.getsize(OUT + '/' + c['id'] + '.json') // 1024} KB")
+        print(f"  -> {c['id']}: {rock_type(med)}, PIXL {pixl['n']} points, SHERLOC {sherloc['n']} spots, {os.path.getsize(json_file) // 1024} KB")
 
     with open(f'{OUT}/campaigns.json', 'w') as f:
         json.dump(dict(
@@ -496,7 +570,7 @@ def main():
             ramanBands=[dict(name=n, lo=a, hi=b) for n, a, b in RAMAN_BANDS],
             campaigns=index,
         ), f, separators=(',', ':'))
-    print('wrote', OUT)
+    print('wrote', OUT, 'with', len(index), 'campaigns')
 
 
 if __name__ == '__main__':

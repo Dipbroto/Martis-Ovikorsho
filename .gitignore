@@ -15,5 +15,6 @@ venv/
 .venv/
 __pycache__/
 *.pyc
+cache_science/
 supabase/.temp/
 !.env.example
