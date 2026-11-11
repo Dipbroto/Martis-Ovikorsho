@@ -4,7 +4,7 @@
 [![NASA Space Apps Challenge 2026](https://img.shields.io/badge/NASA_Space_Apps-2026_Challenge-0B3D91?style=for-the-badge&logo=nasa&logoColor=white)](https://www.spaceappschallenge.org/)
 [![Live Deployment](https://img.shields.io/badge/Live_Demo-martis--ovikorsho.vercel.app-00C7B7?style=for-the-badge&logo=vercel&logoColor=white)](https://martis-ovikorsho.vercel.app/)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Dipbroto%2FMartis--Ovikorsho-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Dipbroto/Martis-Ovikorsho)
-[![Tests Passing](https://img.shields.io/badge/Vitest-28%20Suites%20%7C%20229%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Tests Passing](https://img.shields.io/badge/Vitest-29%20Suites%20%7C%20234%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![ML Runtime](https://img.shields.io/badge/Edge_ML-25--Tree%20Random%20Forest%20(%3C0.2ms)-blueviolet?style=for-the-badge&logo=scikitlearn&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js)
 [![NASA PDS Archives](https://img.shields.io/badge/NASA_PDS-20%20Jezero%20Targets%20%7C%2018.5k%20Spectra-critical?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/missions/mars2020/)
 [![NASA Odyssey GRS](https://img.shields.io/badge/Odyssey_GRS-6%20Global%20Elemental%20Maps-teal?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/ody/ody-m-grs-5-elements-v1/)
@@ -13,6 +13,7 @@
 [![NASA Multi-Station Weather](https://img.shields.io/badge/Multi--Station_Weather-Perseverance_MEDA_%7C_Curiosity_REMS_%7C_InSight_APSS-38bdf8?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/WeatherPanel.jsx)
 [![NASA MSL RAD & DONKI](https://img.shields.io/badge/MSL_RAD-4%2C200%2B_Sols_Dosimetry_%7C_DONKI_Space_Weather-red?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/RadiationPanel.jsx)
 [![NASA Dust Storm Tracks](https://img.shields.io/badge/PSI_MDSTD-1%2C000%2B_Dust_Storm_Tracks_%7C_MARCI_THEMIS-f97316?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/DustStormTracker.jsx)
+[![NASA Rover Photos API](https://img.shields.io/badge/NASA_Rover_Photos-Sol_%26_Camera_Telemetry_%7C_Mastcam--Z_RMI_WATSON-ff8c69?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/MarsImageryPage.jsx)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 > **"Read a Martian rock like a rover does; plan a Marswalk like an astronaut must."**  
@@ -43,6 +44,7 @@
    - [Space Radiation Environment: Curiosity RAD Sols 13–4250 Archives & NASA DONKI Space Weather](#space-radiation-environment-curiosity-rad-sols-134250-archives--nasa-donki-space-weather)
    - [Dual- & Multi-Station Live Weather: Perseverance MEDA, Curiosity REMS & InSight TWINS/APSS](#dual--multi-station-live-weather-perseverance-meda-curiosity-rems--insight-twinsapss)
    - [Martian Dust Storm Tracker: NASA / PSI Mars Dust Storm Track Database (MDSTD) & Trajectory Footprints](#martian-dust-storm-tracker-nasa--psi-mars-dust-storm-track-database-mdstd--trajectory-footprints)
+   - [In-Situ Mars Imagery: NASA Mars Rover Raw Photos API (by Camera & Sol)](#in-situ-mars-imagery-nasa-mars-rover-raw-photos-api-by-camera--sol)
 5. [Astronaut EVA HUD, Biotelemetry & Solar Ephemeris](#-astronaut-eva-hud-biotelemetry--solar-ephemeris)
 6. [Contingency Simulator & Emergency Protocols](#-contingency-simulator--emergency-protocols)
 7. [EVA AI Copilot (Gemini 2.0 Flash)](#-eva-ai-copilot-gemini-20-flash)
@@ -553,6 +555,61 @@ flowchart TD
 
 ---
 
+### In-Situ Mars Imagery: NASA Mars Rover Raw Photos API (by Camera & Sol)
+
+Martis Ovikorsho upgrades Martian imaging from static media library queries to an authentic, instrument-grade **Mars Rover Raw Photos Subsystem** querying live in-situ Engineering & Science Data Records (EDR/RDR) from the NASA JPL Mars Raw Images feed (`mars.nasa.gov/rss/api/?feed=raw_images`).
+
+```mermaid
+flowchart TD
+    subgraph NASA_JPL_Live["NASA JPL In-Situ Raw Image API (mars.nasa.gov)"]
+        PERSEVERANCE["Perseverance (category=mars2020)<br/>Jezero Crater (Sol 0 to 2030+)"]
+        CURIOSITY["Curiosity (category=msl)<br/>Gale Crater (Sol 0 to 4700+)"]
+    end
+
+    subgraph Cameras["Rover Optical Sensor Payload"]
+        MASTCAM["Mastcam-Z / Mastcam<br/>Stereoscopic Zoom & Multispectral Filters (440-1020nm)"]
+        SUPERCAM["SuperCam RMI / ChemCam RMI<br/>Long-Distance Telescopic Micro-Imager (<100 um)"]
+        WATSON["SHERLOC WATSON & ACI<br/>Arm-Mounted Hand Lens & Autofocus Context Imager"]
+        NAVCAM["Navigation & Hazard Cameras<br/>Engineering Stereo Mast & Chassis Hazard Perception"]
+        EDL["Entry, Descent & Landing (EDL)<br/>Parachute, Rover Down-Look, Lander Cameras"]
+    end
+
+    subgraph ClientPipeline["Cockpit Telemetry & Processing Engine (src/services/nasaApiService.js)"]
+        NORM["Telemetry Normalization & HTTPS Enforcement<br/>Filter Names, Wavelengths, Camera Vectors, Drive & Site IDs"]
+        CACHE["Two-Tiered Cache Architecture<br/>In-Memory Session Cache + LocalStorage Offline Persistence"]
+        HERO["Offline Fallback Baseline (hero_rover_photos.json)<br/>88 Authentic High-Res Frames Across 7 Milestone Sols"]
+    end
+
+    subgraph InteractiveUI["Mars Imagery Deck (src/components/MarsImageryPage.jsx)"]
+        DUAL["Dual-Mode Switcher<br/>Mode 1: Rover Raw Cameras | Mode 2: Orbital & Media Library"]
+        STEPPER["Sol Stepper & Hero Presets<br/>-10 / -1 / Direct Sol Input / +1 / +10"]
+        PILLS["Camera Instrument Selectors<br/>Mastcam-Z, SuperCam, WATSON, Hazcam, Navcam"]
+        LIGHTBOX["Full-Res Lightbox & Optical Zoom<br/>1X / 1.5X / 2.2X Magnifier & Fly to Rover Site on 2D Map"]
+    end
+
+    PERSEVERANCE & CURIOSITY --> Cameras --> NORM --> CACHE
+    CACHE -. Offline Fallback .-> HERO
+    CACHE --> DUAL --> STEPPER & PILLS --> LIGHTBOX
+```
+
+#### Key Capabilities of the Raw Imagery Pipeline:
+1. **Direct NASA JPL In-Situ Feed**: Queries the official, rate-limit-free REST API that powers NASA's mission control websites, with coverage extending up to the latest downlinked sol.
+2. **Camera & Optical Filter Telemetry**:
+   - **Mastcam-Z Narrowband Filters**: Captures specific spectral wavelengths (e.g., `ZCAM_R7_880NM_ND5`, `ZCAM_L2_440NM`) designed to detect ferric oxides ($Fe^{3+}$) and hydrated minerals.
+   - **Telescopic Micro-Imagers**: SuperCam Remote Micro-Imager (RMI) resolves sub-millimeter grain textures from tens of meters away.
+   - **Arm-Mounted WATSON (Wide Angle Topographic Sensor for Operations and e-Engineering)**: Microscopic contact imaging of rock targets prior to coring or abrasion.
+3. **Dual-Mode Exploration Experience**:
+   - **Mode 1 (Rover Raw Cameras)**: Filter frames by rover (*Perseverance* at Jezero Crater vs *Curiosity* at Gale Crater), Sol number (interactive -10/-1/+1/+10 stepper or direct Sol input), and instrument payload. Includes quick-select milestone hero sols (Sol 1000 Jezero margin carbonate exploration, Sol 294 Séítah formation, Sol 4086 Gediz Vallis ridge).
+   - **Mode 2 (Orbital & Media Library)**: Retains deep NASA media library search across HiRISE, MRO, and panoramic global mosaics.
+4. **Interactive High-Res Lightbox & Map Synchronization**:
+   - Progressive image loading with smooth optical zoom presets ($1\times, 1.5\times, 2.2\times$).
+   - Displays real frame telemetry: Camera Vector ($[x, y, z]$), optical filter, drive number, site index, UTC timestamp, and direct links to full-resolution EDR raw TIFF/PNG frames.
+   - **"Fly to Rover Site on 2D Map"**: Instantly centers and zooms the Leaflet surface cartography onto the rover's exact landing site (Jezero Crater: $18.44^\circ\text{N}, 77.45^\circ\text{E}$ or Gale Crater: $4.59^\circ\text{S}, 137.44^\circ\text{E}$).
+5. **Robust Zero-API-Key Offline Baseline**:
+   - If network connectivity is limited or third-party gateways fail, Martis Ovikorsho falls back to `public/data/hero_rover_photos.json` (88 authentic, high-res frames with complete telemetry headers), ensuring the platform remains fully functional in air-gapped simulation environments.
+
+---
+
 ## 🪖 Astronaut EVA HUD, Biotelemetry & Solar Ephemeris
 
 The **EVA Tactical Helmet HUD** (`src/components/EvaHudOverlay.jsx`) simulates an astronaut heads-up display:
@@ -595,6 +652,7 @@ Scientific integrity is paramount. The table below delineates the exact source, 
 | **Natural Cave Shelter (MGC3)** | **Ground Truth (100%)** | USGS Astrogeology / NASA PDS (Cushing 2017) | 1,062 orbital candidate skylights, lava tubes & collapse pits from THEMIS/CTX | Categorized by speleological morphology and HiRISE confirmation priority. |
 | **Multi-Station Surface Weather** | **Ground Truth (100%)** | NASA Mars Weather API / PDS (Perseverance MEDA, Curiosity REMS, InSight APSS) | Ground station pressure, air/ground temperature, relative humidity, wind vectors, and convective vortex barometric pressure drops | Multi-station real-time feed with local offline PDS cache for Jezero (-2.5 km), Gale (-4.5 km), and Elysium (-2.6 km). |
 | **Mars Dust Storm Catalog (MDSTD)** | **Ground Truth (100%)** | NASA / PSI Mars Dust Storm Track Database (Battalio & Wang, Cantor et al.) | 1,050 individually tracked events from MRO MARCI & Mars Odyssey THEMIS (MY24–MY36) | Precise initiation sols, coordinates, velocities (km/h), area (km²), optical depth τ, and Leaflet footprint polygons. |
+| **In-Situ Rover Raw Imagery** | **Ground Truth (100%)** | NASA JPL Mars Raw Images Feed (`mars.nasa.gov/rss/api/?feed=raw_images`) | Calibrated EDR/RDR optical frames from Mastcam-Z, SuperCam RMI, WATSON, Navcam, Hazcam with camera filter wavelengths, solar elevation, and drive numbers | Live query by exact sol, rover, and instrument filter with pre-cached 88-frame hero baseline and zero-rate-limit resilience. |
 | **Atmospheric Weather (MF-01)** | **Empirical ML (100%)** | NASA Curiosity REMS Archive (4,745 Sols) | Multi-Horizon RidgeCV regression with seasonal $L_s$ cyclical harmonics | Cleansed of ADC hardware dropouts; evaluated on chronological held-out sols. |
 | **Geochemical Classifier (MF-03)** | **Empirical ML (100%)** | NASA Mars 2020 PIXL micro-XRF (16,572 points) | 25-Tree Non-Linear Random Forest with trace-oxide dropout augmentation | 95.69% 5-fold cross-validation accuracy; runs client-side in $<0.2\text{ ms}$. |
 | **Space Radiation (MF-04)** | **Physics-Based Surrogate** | NASA MSL RAD Published Values (Hassler et al. 2014) | Analytical GCR galactic dose formula modulated by 11-year solar cycle | Evaluates reproduction of published physics formula, not raw sensor time series. |
@@ -681,7 +739,7 @@ Martis-Ovikorsho/
 
 ## 🧪 Verification & Benchmark Validation
 
-Martis Ovikorsho maintains a rigorous automated testing and verification suite. All 28 test suites (229 tests) run on every commit:
+Martis Ovikorsho maintains a rigorous automated testing and verification suite. All 29 test suites (234 tests) run on every commit:
 
 ```bash
 ✓ src/utils/audioSynthesizer.test.js (3 tests)
@@ -714,10 +772,11 @@ Martis Ovikorsho maintains a rigorous automated testing and verification suite. 
 ✓ src/components/resourceOverlays.test.js (5 tests)
 ...
 ✓ src/services/marsDustStormService.test.js (4 tests)
+✓ src/services/nasaApiService.test.js (5 tests)
 
-Test Files  28 passed (28)
-     Tests  229 passed (229)
-  Duration  13.58s
+Test Files  29 passed (29)
+     Tests  234 passed (234)
+  Duration  27.50s
 ```
 
 ### Traverse Route Validation Against Real Rover Telemetry
