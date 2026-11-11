@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CircleMarker, ImageOverlay, Tooltip, useMapEvents } from 'react-leaflet';
-import { Droplets, Tent } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { marsDistance } from '../utils/marsUtils';
 import ProvenanceBadge from './ProvenanceBadge';
+import { RESOURCE_OVERLAYS, ELEMENT_COLOR_RAMPS } from '../data/resourceOverlaysData';
 
-export const RESOURCE_OVERLAYS = {
-  ice: { label: 'WATER', icon: Droplets, title: 'Water in the top metre of soil (Mars Odyssey GRS)' },
-  caves: { label: 'SHELTER', icon: Tent, title: 'Cave and pit candidates usable as natural shelter (USGS catalog)' },
-};
+export { RESOURCE_OVERLAYS, ELEMENT_COLOR_RAMPS };
 
 const TYPE_NAMES = {
   APC: 'Atypical pit crater', sky: 'Skylight into a lava tube', srp: 'Small rimless pit', crk: 'Deep crack or fracture',
@@ -27,46 +24,70 @@ const useJson = (url, enabled) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => {
-    if (!enabled || data) return;
-    fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))).then(setData).catch((e) => setError(e.message));
+    if (!enabled || !url || data) return;
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(setData)
+      .catch((e) => setError(e.message));
   }, [url, enabled, data]);
   return { data, error };
 };
 
-// Blue (dry) -> cyan -> white (wet), drawn at one pixel per 5-degree bin and smoothed by the browser
-function waterImage(h2o) {
+// Generates smoothed PNG overlay from 5x5 degree gridded data
+function generateElementCanvas(dataset, colorRamp) {
+  if (!dataset || !dataset.values || !dataset.cols || !dataset.rows) return null;
   const canvas = document.createElement('canvas');
-  canvas.width = h2o.cols;
-  canvas.height = h2o.rows;
+  canvas.width = dataset.cols;
+  canvas.height = dataset.rows;
   const ctx = canvas.getContext('2d');
-  const img = ctx.createImageData(h2o.cols, h2o.rows);
-  const span = h2o.max - h2o.min || 1;
-  h2o.values.forEach((row, r) => row.forEach((v, c) => {
+  const img = ctx.createImageData(dataset.cols, dataset.rows);
+  const span = dataset.max - dataset.min || 1;
+
+  dataset.values.forEach((row, r) => row.forEach((v, c) => {
     if (v === null) return;
-    const t = (v - h2o.min) / span;
-    img.data.set([Math.round(30 + 200 * t), Math.round(90 + 140 * t), Math.round(190 + 60 * t), 150], (r * h2o.cols + c) * 4);
+    const t = Math.max(0, Math.min(1, (v - dataset.min) / span));
+    const [cr, cg, cb, ca] = colorRamp(t);
+    img.data.set([cr, cg, cb, ca], (r * dataset.cols + c) * 4);
   }));
+
   ctx.putImageData(img, 0, 0);
   return canvas.toDataURL('image/png');
 }
 
-/** Map layer for the water and shelter overlays. */
-// The water bins are ~300 km wide, so at walking scale they would tint the whole screen one colour.
-// The tint fades out as you zoom in; the side panel keeps the value at the base.
-const waterOpacity = (zoom) => (zoom <= 4 ? 1 : zoom >= 7 ? 0 : 1 - (zoom - 4) / 3);
+/** Fade out at high zoom so walking-scale surface isn't tinted solid color */
+const overlayOpacity = (zoom) => (zoom <= 4 ? 1 : zoom >= 7 ? 0 : 1 - (zoom - 4) / 3);
 
+/** Map layer for Odyssey GRS element abundance maps and USGS cave shelters */
 export function ResourceLayer() {
   const mode = useMapStore((s) => s.terrainOverlay);
   const [zoom, setZoom] = useState(null);
   const map = useMapEvents({ zoomend: () => setZoom(map.getZoom()) });
   useEffect(() => setZoom(map.getZoom()), [map]);
-  const { data: h2o } = useJson('/data/h2o.json', mode === 'ice');
-  const { data: caves } = useJson('/data/caves.json', mode === 'caves');
-  const image = useMemo(() => (h2o ? waterImage(h2o) : null), [h2o]);
 
-  if (mode === 'ice' && image) {
-    return <ImageOverlay url={image} bounds={[[h2o.south, h2o.west], [h2o.north, h2o.east]]} pane="terrain-analysis" opacity={waterOpacity(zoom ?? 0)} interactive={false} />;
+  const activeMeta = RESOURCE_OVERLAYS[mode];
+  const isElemental = !!activeMeta && mode !== 'caves';
+
+  const { data: elementData } = useJson(isElemental ? activeMeta.dataFile : null, isElemental);
+  const { data: caves } = useJson('/data/caves.json', mode === 'caves');
+
+  const image = useMemo(() => {
+    if (!isElemental || !elementData) return null;
+    const ramp = ELEMENT_COLOR_RAMPS[mode] || ELEMENT_COLOR_RAMPS.ice;
+    return generateElementCanvas(elementData, ramp);
+  }, [elementData, isElemental, mode]);
+
+  if (isElemental && image && elementData) {
+    return (
+      <ImageOverlay
+        url={image}
+        bounds={[[elementData.south, elementData.west], [elementData.north, elementData.east]]}
+        pane="terrain-analysis"
+        opacity={overlayOpacity(zoom ?? 0)}
+        interactive={false}
+      />
+    );
   }
+
   if (mode === 'caves' && caves) {
     return caves.caves.map((c) => (
       <CircleMarker
@@ -85,79 +106,177 @@ export function ResourceLayer() {
       </CircleMarker>
     ));
   }
+
   return null;
 }
 
-/** Legend plus base-specific readout for the water and shelter overlays. */
+/** Legend, quick-selector, and location-specific ISRU readout */
 export function ResourcePanel() {
   const mode = useMapStore((s) => s.terrainOverlay);
+  const setTerrainOverlay = useMapStore((s) => s.setTerrainOverlay);
   const base = useMapStore((s) => s.waypoints[0]);
   const mapCenter = useMapStore((s) => s.viewCenter || s.mapCenter);
-  const { data: h2o, error: h2oError } = useJson('/data/h2o.json', mode === 'ice');
+
+  const activeMeta = RESOURCE_OVERLAYS[mode];
+  const isElemental = !!activeMeta && mode !== 'caves';
+
+  const { data: elementData, error: elemError } = useJson(isElemental ? activeMeta.dataFile : null, isElemental);
   const { data: caves, error: cavesError } = useJson('/data/caves.json', mode === 'caves');
 
-  if (mode !== 'ice' && mode !== 'caves') return null;
-  const meta = RESOURCE_OVERLAYS[mode];
-  const Icon = meta.icon;
+  if (!activeMeta) return null;
+
+  const Icon = activeMeta.icon;
   const here = base || (mapCenter ? { lat: mapCenter[0], lon: mapCenter[1], name: 'Map centre' } : null);
   const where = base ? base.name || 'base' : 'the map centre';
 
-  let body = <p className="text-space-300 animate-pulse">Loading NASA data...</p>;
+  let body = <p className="text-space-300 animate-pulse text-xs">Loading NASA Odyssey GRS data...</p>;
   let source = null;
-  if ((mode === 'ice' && h2oError) || (mode === 'caves' && cavesError)) {
-    body = <p className="text-rose-300">Data unavailable ({h2oError || cavesError}).</p>;
-  } else if (mode === 'ice' && h2o) {
-    source = h2o.source;
+
+  if ((isElemental && elemError) || (mode === 'caves' && cavesError)) {
+    body = <p className="text-rose-300 text-xs">Data unavailable ({elemError || cavesError}).</p>;
+  } else if (isElemental && elementData) {
+    source = elementData.source;
     const r = here ? Math.floor((90 - here.lat) / 5) : -1;
     const c = here ? Math.floor((here.lon + 180) / 5) : -1;
-    const value = r >= 0 && r < h2o.rows ? h2o.values[r][c] : null;
-    const sigma = value !== null ? h2o.sigma[r][c] : null;
+    const value = r >= 0 && r < elementData.rows ? elementData.values[r][c] : null;
+    const sigma = value !== null && elementData.sigma ? elementData.sigma[r][c] : null;
+
     body = (
-      <div className="space-y-2">
-        <div className="h-2 rounded" style={{ background: 'linear-gradient(90deg, rgb(30,90,190), rgb(230,230,250))' }} />
-        <div className="flex justify-between text-space-400"><span>{h2o.min} wt%</span><span>{h2o.max} wt%</span></div>
-        <p className="text-white">
-          {value !== null
-            ? <>At {where}: <strong>{value} wt% H₂O</strong> (±{sigma}) in the top ~1 m.</>
-            : <>No Odyssey coverage at {where}: the map only spans roughly 60°S–60°N.</>}
-        </p>
-        <p className="text-space-400 leading-relaxed">Includes water bound in minerals. Each bin is ~300 km wide, so use it to compare regions, not to pick a drill site. Polar ice is outside this dataset.</p>
+      <div className="space-y-2.5">
+        <div>
+          <div className="h-2 rounded-full overflow-hidden shadow-inner" style={{ background: activeMeta.gradient }} />
+          <div className="flex justify-between text-[11px] font-mono text-space-400 mt-1">
+            <span>{elementData.min} {activeMeta.unit}</span>
+            <span className="text-space-300 font-semibold">{activeMeta.name}</span>
+            <span>{elementData.max} {activeMeta.unit}</span>
+          </div>
+        </div>
+
+        <div className="p-2 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs">
+          {value !== null ? (
+            <p className="text-white leading-relaxed">
+              At <span className="text-cyber-cyan font-semibold">{where}</span>: <strong className="text-emerald-300 font-mono text-sm">{value} {activeMeta.unit}</strong>
+              {sigma !== null && <span className="text-zinc-400 text-xs ml-1 font-mono">(±{sigma})</span>} in the top ~1 m.
+            </p>
+          ) : (
+            <p className="text-amber-200/90 text-xs leading-relaxed">
+              No GRS data at {where}: polar latitudes outside roughly 60°S–60°N are masked in this product to avoid seasonal CO₂ frost and water ice dilution.
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1.5 text-[11px]">
+          <div className="flex items-start gap-1.5">
+            <span className="text-emerald-400 font-semibold shrink-0">ISRU Utility:</span>
+            <span className="text-zinc-300 leading-snug">{activeMeta.isruSummary}</span>
+          </div>
+          <div className="flex items-start gap-1.5">
+            <span className="text-cyan-400 font-semibold shrink-0">Prospecting:</span>
+            <span className="text-zinc-400 leading-snug">{activeMeta.prospectingHint}</span>
+          </div>
+        </div>
       </div>
     );
   } else if (mode === 'caves' && caves) {
     source = caves.source;
     const withDist = here
       ? caves.caves
-        .map((x) => ({ ...x, km: marsDistance(here.lat, here.lon, x.lat, x.lon) }))
-        .sort((a, b) => a.km - b.km)
+          .map((x) => ({ ...x, km: marsDistance(here.lat, here.lon, x.lat, x.lon) }))
+          .sort((a, b) => a.km - b.km)
       : [];
     const nearest = withDist[0];
     const nearestTop = withDist.find((x) => x.priority === 1);
     body = (
-      <div className="space-y-2">
-        <ul className="space-y-1">
+      <div className="space-y-2.5">
+        <ul className="space-y-1 text-[11px]">
           {[1, 2, 3, 0].map((p) => (
-            <li key={p} className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{ background: PRIORITY[p].color }} />{PRIORITY[p].label}</li>
+            <li key={p} className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PRIORITY[p].color }} />
+              <span className="text-zinc-300">{PRIORITY[p].label}</span>
+            </li>
           ))}
         </ul>
+
         {nearest && (
-          <p className="text-white leading-relaxed">
-            Nearest candidate to {where}: <strong>{nearest.id}</strong> ({TYPE_NAMES[nearest.type] || nearest.type}) at {nearest.km.toFixed(0)} km.
-            {nearestTop && nearestTop.id !== nearest.id ? <> Nearest highest-priority: {nearestTop.id}, {nearestTop.km.toFixed(0)} km.</> : null}
-          </p>
+          <div className="p-2 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs">
+            <p className="text-white leading-relaxed">
+              Nearest candidate to <span className="text-cyber-cyan font-semibold">{where}</span>: <strong className="text-cyan-300 font-mono">{nearest.id}</strong> ({TYPE_NAMES[nearest.type] || nearest.type}) at <span className="font-mono font-semibold text-emerald-300">{nearest.km.toFixed(0)} km</span>.
+              {nearestTop && nearestTop.id !== nearest.id ? <> Nearest top-priority: <span className="text-cyan-300 font-mono">{nearestTop.id}</span> ({nearestTop.km.toFixed(0)} km).</> : null}
+            </p>
+          </div>
         )}
-        <p className="text-space-400 leading-relaxed">Seen from orbit only; about a quarter of top-rated candidates turned out not to be caves. A real shelter would need on-site confirmation.</p>
+
+        <div className="space-y-1 text-[11px]">
+          <div className="flex items-start gap-1.5">
+            <span className="text-emerald-400 font-semibold shrink-0">Shelter Value:</span>
+            <span className="text-zinc-300 leading-snug">{activeMeta.isruSummary}</span>
+          </div>
+          <p className="text-zinc-400 leading-relaxed pt-0.5">
+            Seen from orbit only; ground-truth surveys required before human habitat installation.
+          </p>
+        </div>
       </div>
     );
   }
 
+  const elementalKeys = Object.keys(RESOURCE_OVERLAYS);
+
   return (
-    <div className="shrink-0 bg-[#0B0D12]/95 backdrop-blur-xl p-3.5 rounded-2xl border border-white/10 shadow-[0_16px_44px_rgba(0,0,0,0.5)] text-xs text-space-200 space-y-2">
-      <div className="flex items-center gap-1.5 text-white font-bold text-xs"><Icon className="w-3.5 h-3.5 text-cyber-cyan" />{meta.title}</div>
+    <div className="shrink-0 bg-[#0B0D12]/95 backdrop-blur-xl p-3.5 rounded-2xl border border-white/10 shadow-[0_16px_44px_rgba(0,0,0,0.5)] text-xs text-space-200 space-y-3">
+      {/* Header with Title and Atomic / Identifier Badge */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border border-white/10 shadow-sm"
+            style={{ backgroundColor: `${activeMeta.color}25` }}
+          >
+            <Icon className="w-4 h-4" style={{ color: activeMeta.color }} />
+          </div>
+          <div className="min-w-0">
+            <div className="font-bold text-white text-xs leading-tight truncate">{activeMeta.title}</div>
+            <div className="text-[10px] text-zinc-400 uppercase tracking-wider">{activeMeta.category}</div>
+          </div>
+        </div>
+        <span
+          className="px-2 py-0.5 rounded-md font-mono text-[10px] font-bold shrink-0 border border-white/10 shadow-sm"
+          style={{ color: activeMeta.color, backgroundColor: `${activeMeta.color}15` }}
+        >
+          {activeMeta.symbol}
+        </span>
+      </div>
+
+      {/* Quick Switcher: Toggle between GRS Elements and Caves seamlessly */}
+      <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar-x pb-1 pt-0.5" role="tablist" aria-label="Element Selector">
+        {elementalKeys.map((k) => {
+          const item = RESOURCE_OVERLAYS[k];
+          const active = mode === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setTerrainOverlay(k)}
+              className={`px-2 py-1 rounded-lg text-[10px] font-mono font-medium transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                active
+                  ? 'bg-white/20 text-white font-bold border border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.15)]'
+                  : 'bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-zinc-200 border border-white/[0.05]'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+              <span>{item.symbol}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Dynamic Content */}
       {body}
+
+      {/* Scientific Citation and Provenance */}
       {source && (
-        <div className="pt-1.5 border-t border-white/[0.06] flex items-center justify-between gap-2">
-          <span className="text-space-500 truncate" title={source}>{source}</span>
+        <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 text-[10px]">
+          <span className="text-zinc-500 truncate" title={source}>{source}</span>
           <ProvenanceBadge type="OBSERVED" size="xs" detail="NASA / USGS" />
         </div>
       )}

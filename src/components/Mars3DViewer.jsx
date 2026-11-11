@@ -280,24 +280,27 @@ function RouteOnGlobe({ points, label, crew }) {
   );
 }
 
-function WaterShell({ h2o }) {
+function ElementShell({ data, ramp }) {
   const tex = useMemo(() => {
+    if (!data || !data.values || !data.cols || !data.rows) return null;
     const canvas = document.createElement('canvas');
-    canvas.width = h2o.cols;
-    canvas.height = h2o.rows;
+    canvas.width = data.cols;
+    canvas.height = data.rows;
     const ctx = canvas.getContext('2d');
-    const img = ctx.createImageData(h2o.cols, h2o.rows);
-    const span = h2o.max - h2o.min || 1;
-    h2o.values.forEach((row, r) => row.forEach((v, c) => {
+    const img = ctx.createImageData(data.cols, data.rows);
+    const span = data.max - data.min || 1;
+    data.values.forEach((row, r) => row.forEach((v, c) => {
       if (v === null) return;
-      const t = (v - h2o.min) / span;
-      img.data.set([56, 189, 248, Math.round(40 + 170 * t)], (r * h2o.cols + c) * 4);
+      const t = Math.max(0, Math.min(1, (v - data.min) / span));
+      const rgb = ramp ? ramp(t) : [56, 189, 248];
+      img.data.set([rgb[0], rgb[1], rgb[2], Math.round(40 + 170 * t)], (r * data.cols + c) * 4);
     }));
     ctx.putImageData(img, 0, 0);
     const t = new THREE.CanvasTexture(canvas);
     t.magFilter = THREE.LinearFilter;
     return t;
-  }, [h2o]);
+  }, [data, ramp]);
+  if (!tex) return null;
   return (
     <mesh>
       <sphereGeometry args={[R * 1.002, 96, 64]} />
@@ -305,6 +308,24 @@ function WaterShell({ h2o }) {
     </mesh>
   );
 }
+
+const ELEMENT_3D_RAMPS = {
+  ice: (t) => [Math.round(40 + 180 * t), Math.round(140 + 100 * t), 248],
+  iron: (t) => [Math.round(180 + 75 * t), Math.round(30 + 50 * t), 20],
+  silicon: (t) => [Math.round(200 + 55 * t), Math.round(140 + 90 * t), 20],
+  potassium: (t) => [Math.round(140 + 70 * t), 40, Math.round(200 + 55 * t)],
+  thorium: (t) => [20, Math.round(180 + 75 * t), Math.round(120 + 80 * t)],
+  chlorine: (t) => [Math.round(120 + 80 * t), Math.round(190 + 65 * t), 30],
+};
+
+const ELEMENT_3D_FILES = {
+  ice: '/data/h2o.json',
+  iron: '/data/fe.json',
+  silicon: '/data/si.json',
+  potassium: '/data/k.json',
+  thorium: '/data/th.json',
+  chlorine: '/data/cl.json',
+};
 
 function CavePoints({ caves }) {
   const geometry = useMemo(() => {
@@ -580,8 +601,12 @@ function Mars3DViewer() {
   const ls = useMemo(() => lsFromDate(now), [now]);
   const dustSeason = ls >= DUST_SEASON_LS[0] && ls < DUST_SEASON_LS[1];
 
-  const h2o = useJson('/data/h2o.json', layers.water);
-  const caves = useJson('/data/caves.json', layers.caves);
+  const terrainOverlay = useMapStore((s) => s.terrainOverlay);
+  const activeElemKey = ELEMENT_3D_FILES[terrainOverlay] ? terrainOverlay : (layers.water ? 'ice' : null);
+  const activeElemFile = activeElemKey ? ELEMENT_3D_FILES[activeElemKey] : null;
+  const activeElemRamp = activeElemKey ? ELEMENT_3D_RAMPS[activeElemKey] : null;
+  const elemResourceData = useJson(activeElemFile, !!activeElemFile);
+  const caves = useJson('/data/caves.json', layers.caves || terrainOverlay === 'caves');
 
   // The route as drawn on the globe: the planner's full path when there is one
   const route = useMemo(() => {
@@ -725,8 +750,8 @@ function Mars3DViewer() {
         {layers.storms && <DustStorms lightDir={lightDir} />}
         {layers.orbiters && <Orbiters />}
         {layers.grid && <Graticule />}
-        {layers.water && h2o && <WaterShell h2o={h2o} />}
-        {layers.caves && caves && <CavePoints caves={caves.caves} />}
+        {elemResourceData && activeElemRamp && <ElementShell data={elemResourceData} ramp={activeElemRamp} />}
+        {(layers.caves || terrainOverlay === 'caves') && caves && <CavePoints caves={caves.caves} />}
         {layers.sites && landingSites.map((site) => (
           <SiteMarker key={site.id} site={site} onSelect={selectSite} selected={selectedSite?.id === site.id} />
         ))}

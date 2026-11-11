@@ -2,7 +2,7 @@ import { useRef, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Globe, Crosshair, Grid, Shield, Ruler, Play, Pause, ChevronDown, ChevronUp, Check,
-  RotateCcw, Layers, SlidersHorizontal, Volume2, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints, MapPin, Camera, Rocket,
+  RotateCcw, Layers, SlidersHorizontal, Volume2, FileText, ShieldAlert, Droplets, Tent, Route, Mountain, Undo2, Radio, Radar, Glasses, Activity, Footprints, MapPin, Camera, Rocket, Hammer, Cpu, Sprout, FlaskConical,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import useMapStore from '../store/useMapStore';
@@ -122,7 +122,8 @@ function MapToolbar() {
   const ensure2d = () => { if (s.viewMode === '3d') s.setViewMode('2d'); };
   const hasRoute = s.waypoints.length > 1;
   const activeCheck = CHECKS.find((c) => c.key === s.terrainOverlay);
-  const layerActive = s.terrainOverlay === 'ice' || s.terrainOverlay === 'caves' || s.showRoverTraverses;
+  const GRS_KEYS = ['ice', 'iron', 'silicon', 'potassium', 'thorium', 'chlorine', 'caves'];
+  const layerActive = GRS_KEYS.includes(s.terrainOverlay) || s.showRoverTraverses;
 
   const atEnd = s.roverProgress >= 0.99;
   const pausedMid = !s.isRoverDriving && s.roverProgress > 0.01 && !atEnd;
@@ -250,8 +251,20 @@ function MapToolbar() {
                 </div>
 
                 <Menu label="Layers" icon={Layers} badge={layerActive}>
-                  <Item kind="radio" icon={Droplets} label="Water in the soil" hint="Odyssey GRS water map, low and mid latitudes" active={s.terrainOverlay === 'ice'} onSelect={() => { s.setTerrainOverlay('ice'); click(); }} />
-                  <Item kind="radio" icon={Tent} label="Cave and pit shelters" hint="1,062 candidates from the USGS catalog" active={s.terrainOverlay === 'caves'} onSelect={() => { s.setTerrainOverlay('caves'); click(); }} />
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
+                    Odyssey GRS Elements (ISRU)
+                  </div>
+                  <Item kind="radio" icon={Droplets} label="Water in the soil (H₂O)" hint="Water-equivalent hydrogen wt% for hydration & fuel" active={s.terrainOverlay === 'ice'} onSelect={() => { s.setTerrainOverlay('ice'); click(); }} />
+                  <Item kind="radio" icon={Hammer} label="Iron Abundance (Fe)" hint="Elemental iron wt% for structural steel metallurgy" active={s.terrainOverlay === 'iron'} onSelect={() => { s.setTerrainOverlay('iron'); click(); }} />
+                  <Item kind="radio" icon={Cpu} label="Silicon Abundance (Si)" hint="Elemental silicon wt% for solar cells & silicate glass" active={s.terrainOverlay === 'silicon'} onSelect={() => { s.setTerrainOverlay('silicon'); click(); }} />
+                  <Item kind="radio" icon={Sprout} label="Potassium Abundance (K)" hint="Potassium wt% for greenhouse crops & dating" active={s.terrainOverlay === 'potassium'} onSelect={() => { s.setTerrainOverlay('potassium'); click(); }} />
+                  <Item kind="radio" icon={Radio} label="Thorium Concentration (Th)" hint="Thorium actinide ppm for nuclear ISRU power" active={s.terrainOverlay === 'thorium'} onSelect={() => { s.setTerrainOverlay('thorium'); click(); }} />
+                  <Item kind="radio" icon={FlaskConical} label="Chlorine & Perchlorates (Cl)" hint="Chlorine wt% for O₂ extraction & airlock hazards" active={s.terrainOverlay === 'chlorine'} onSelect={() => { s.setTerrainOverlay('chlorine'); click(); }} />
+                  <div className="my-1.5 border-t border-white/10" />
+                  <div className="px-3 pt-1 pb-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
+                    Surface Exploration & Shelter
+                  </div>
+                  <Item kind="radio" icon={Tent} label="Cave & pit shelters (MGC3)" hint="1,062 candidates from USGS catalog for radiation shield" active={s.terrainOverlay === 'caves'} onSelect={() => { s.setTerrainOverlay('caves'); click(); }} />
                   <Item icon={Route} label="Real rover tracks" hint="Where Perseverance and Curiosity actually drove" active={s.showRoverTraverses} onSelect={() => { s.toggleRoverTraverses(); click(); }} />
                 </Menu>
 

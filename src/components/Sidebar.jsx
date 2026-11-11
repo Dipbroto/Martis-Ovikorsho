@@ -90,13 +90,13 @@ function Sidebar() {
       animate={{ width: sidebarOpen ? openWidth : 56 }}
       transition={{ type: 'spring', stiffness: 420, damping: 40, mass: 0.8 }}
       aria-label="Map panel"
-      className="relative z-30 flex flex-col rounded-2xl border border-white/[0.09] bg-[#0B0D12]/90 backdrop-blur-xl shrink-0 shadow-[0_18px_50px_rgba(0,0,0,0.5)] will-change-[width] overflow-hidden"
+      className={`relative z-30 flex flex-col rounded-2xl border border-white/[0.09] bg-[#0B0D12]/90 backdrop-blur-xl shrink-0 shadow-[0_18px_50px_rgba(0,0,0,0.5)] will-change-[width] overflow-hidden transition-[height] duration-300 ${sidebarOpen ? 'h-full' : 'h-auto'}`}
       style={{
-        maxHeight: maxHeightStyle,
-        height: '100%',
+        maxHeight: sidebarOpen ? maxHeightStyle : 'none',
+        height: sidebarOpen ? '100%' : 'auto',
       }}
     >
-      <div className="flex flex-col min-h-0 h-full max-h-full overflow-hidden rounded-2xl" style={{ maxHeight: '100%', height: '100%' }}>
+      <div className={`flex flex-col min-h-0 max-h-full overflow-hidden rounded-2xl ${sidebarOpen ? 'h-full' : 'h-auto'}`} style={{ maxHeight: '100%', height: sidebarOpen ? '100%' : 'auto' }}>
         {sidebarOpen ? (
           <>
             {/* Header: what you are looking at, and an always-visible way to put the panel away */}
@@ -165,7 +165,7 @@ function Sidebar() {
           </>
         ) : (
           /* Collapsed rail: scrollable icon strip */
-          <div className="flex flex-col items-center gap-1 p-1.5 overflow-y-auto overflow-x-hidden custom-scrollbar-y max-h-full min-h-0">
+          <div className="flex flex-col items-center gap-1 p-1.5 shrink-0">
             <button
               onClick={() => setSidebarOpen(true)}
               className="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"

@@ -345,7 +345,7 @@ const useMapStore = create((set, get) => ({
   // Real-terrain survival overlays drawn on the 2D map
   homeHeroVisible: false, // true while the home hero is on screen; the EVA mascot grows to match
   setHomeHeroVisible: (homeHeroVisible) => set({ homeHeroVisible }),
-  terrainOverlay: null, // null | 'slope' | 'return' | 'comms'
+  terrainOverlay: null, // null | 'slope' | 'return' | 'comms' | 'ice' | 'iron' | 'silicon' | 'potassium' | 'thorium' | 'chlorine' | 'caves'
   setTerrainOverlay: (mode) => set((state) => ({ terrainOverlay: state.terrainOverlay === mode ? null : mode, routeScanOpen: false })),
   // Route safety scan (RouteScan.jsx): one panel at a time on the right, so it replaces any overlay panel
   routeScanOpen: false,

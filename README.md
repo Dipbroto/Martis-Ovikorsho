@@ -4,9 +4,10 @@
 [![NASA Space Apps Challenge 2026](https://img.shields.io/badge/NASA_Space_Apps-2026_Challenge-0B3D91?style=for-the-badge&logo=nasa&logoColor=white)](https://www.spaceappschallenge.org/)
 [![Live Deployment](https://img.shields.io/badge/Live_Demo-martis--ovikorsho.vercel.app-00C7B7?style=for-the-badge&logo=vercel&logoColor=white)](https://martis-ovikorsho.vercel.app/)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Dipbroto%2FMartis--Ovikorsho-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Dipbroto/Martis-Ovikorsho)
-[![Tests Passing](https://img.shields.io/badge/Vitest-24%20Suites%20%7C%20207%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Tests Passing](https://img.shields.io/badge/Vitest-25%20Suites%20%7C%20212%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![ML Runtime](https://img.shields.io/badge/Edge_ML-25--Tree%20Random%20Forest%20(%3C0.2ms)-blueviolet?style=for-the-badge&logo=scikitlearn&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js)
 [![NASA PDS Archives](https://img.shields.io/badge/NASA_PDS-20%20Jezero%20Targets%20%7C%2018.5k%20Spectra-critical?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/missions/mars2020/)
+[![NASA Odyssey GRS](https://img.shields.io/badge/Odyssey_GRS-6%20Global%20Elemental%20Maps-teal?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/ody/ody-m-grs-5-elements-v1/)
 [![NASA MSR Manifest](https://img.shields.io/badge/MSR_Manifest-24%20Sealed%20Tubes%20%7C%20Three%20Forks%20Depot-orange?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/data/nasaSampleManifest.js)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -30,8 +31,10 @@
    - [Prebiotic Molecular Matcher](#prebiotic-molecular-matcher)
 4. [2D/3D Multi-Scale Cartography & Tactical Traverse Planning](#-2d3d-multi-scale-cartography--tactical-traverse-planning)
    - [Terrain Elevation Grids & Anti-Meridian Routing](#terrain-elevation-grids--anti-meridian-routing)
+   - [Planetary Resource Overlays: Mars Odyssey GRS Elemental Maps (Fe, Si, K, Th, Cl, H₂O) & ISRU Engine](#planetary-resource-overlays-mars-odyssey-grs-elemental-maps-fe-si-k-th-cl-h2o--isru-engine)
    - [Dynamic Point-of-No-Return (PNR) Walkback Safety Envelopes](#dynamic-point-of-no-return-pnr-walkback-safety-envelopes)
    - [Line-of-Sight VHF Comms Horizon](#line-of-sight-vhf-comms-horizon)
+   - [Compact Collapsible Navigation Rail & Context-Aware UI](#compact-collapsible-navigation-rail--context-aware-ui)
 5. [Astronaut EVA HUD, Biotelemetry & Solar Ephemeris](#-astronaut-eva-hud-biotelemetry--solar-ephemeris)
 6. [Contingency Simulator & Emergency Protocols](#-contingency-simulator--emergency-protocols)
 7. [EVA AI Copilot (Gemini 2.0 Flash)](#-eva-ai-copilot-gemini-20-flash)
@@ -352,6 +355,42 @@ To prevent communication blackouts during EVAs, the terrain engine performs geom
 $$d_{\text{horizon}} = \sqrt{2 R_{\text{Mars}} h_{\text{astronaut}}} + \sqrt{2 R_{\text{Mars}} h_{\text{antenna}}}$$
 Areas where intervening terrain crests break the line of sight are dynamically highlighted with radio shadow warning hatching.
 
+### Planetary Resource Overlays: Mars Odyssey GRS Elemental Maps (Fe, Si, K, Th, Cl, H₂O) & ISRU Engine
+
+Beyond orbital optical imagery and topography, Martis Ovikorsho integrates the official **Mars Odyssey Gamma Ray Spectrometer (GRS)** element concentration archive (*Boynton et al. 2007, NASA PDS Geosciences Node*, `ODY-M-GRS-5-ELEMENTS-V1.0`). Derived from multi-year orbital gamma-ray and neutron flux measurements, the platform provides smoothed global $5^\circ \times 5^\circ$ gridded datasets (~300 km spatial bins) corrected for $\text{CO}_2$ seasonal frost:
+
+```mermaid
+flowchart LR
+    GRS["Mars Odyssey GRS Suite<br/>(Gamma Ray Head + LANL & HEND Neutrons)"] --> PDS["NASA PDS Geosciences Node<br/>5° x 5° Smoothed Regional ASCII (.tab)"]
+    PDS --> PARSER["build_resources.py<br/>Automated Longitude Shift [0..360] -> [-180..+180]"]
+    PARSER --> JSONS["Compact Local JSON Grids (public/data/)<br/>fe.json · si.json · k.json · th.json · cl.json · h2o.json"]
+    JSONS --> REND2D["2D Leaflet ImageOverlay<br/>- Dynamic Calibrated Color Ramps<br/>- Smooth Zoom Fade (Walking Scale Protection)<br/>- Exact Coordinate Bin Reading (r, c) with ±σ"]
+    JSONS --> REND3D["3D WebGL Three.js Globe<br/>- ElementShell Spherical Mesh (R * 1.002)<br/>- Canvas Texture Generation<br/>- Interactive Real-time Layer Switching"]
+    JSONS --> ISRU["ISRU Geochemical Engine<br/>- Steel Metallurgy · Solar Photovoltaics<br/>- Hydroponic NPK · Molten Salt Fuel · O2 Extraction"]
+```
+
+#### Elemental Concentration Manifest & ISRU Applications:
+
+| Element | Symbol | PDS File | Planetary Range | Unit | ISRU Mission Utility & Tactical Prospecting |
+|:---:|:---:|:---:|:---:|:---:|:---|
+| **Iron** | $\text{Fe}$ | `fe_sr_5x5.tab` | $10.63\text{ -- }19.30$ | $\text{wt}\%$ | **Structural Metallurgy**: Primary mineral feedstock for carbothermal regolith smelting, magnetic shielding components, structural steel fabrication, and microwave sintering. Peaks in low-albedo basaltic shield provinces. |
+| **Silicon** | $\text{Si}$ | `si_sr_5x5.tab` | $18.11\text{ -- }22.11$ | $\text{wt}\%$ | **Photovoltaics & Glass**: Feedstock for in-situ semiconductor manufacturing (photovoltaic solar cells), silicone habitat pressure seals, and structural silicate glass/ceramics. Uniformly abundant across silicate crust. |
+| **Potassium** | $\text{K}$ | `k_sr_5x5.tab` | $0.071\text{ -- }0.561$ | $\text{wt}\%$ | **Biosphere Nutrition & Dating**: Naturally radioactive alkali metal (K-40); vital agricultural macronutrient (NPK fertilizer) for closed-loop bio-regenerative life-support greenhouses and K-Ar geochronological terrain dating. |
+| **Thorium** | $\text{Th}$ | `th_sr_5x5.tab` | $0.16\text{ -- }0.95$ | $\text{ppm}$ | **Nuclear ISRU Power**: Radioactive actinide tracer of magmatic crustal differentiation; prime fuel prospect for sub-surface thorium molten salt power reactors (e.g., Kilopower successors). Enriched in high-silica provinces. |
+| **Chlorine** | $\text{Cl}$ | `cl_sr_5x5.tab` | $0.216\text{ -- }0.797$ | $\text{wt}\%$ | **Volatiles & Hazard Warning**: Elemental chlorine (chlorides and magnesium/calcium perchlorates). Chemical reagent for water purification; perchlorate catalytic reduction yields breathable $\text{O}_2$. Flags toxic abrasive dust hazards for EVA airlock protocols. |
+| **Water** | $\text{H}_2\text{O}$ | `h2o_sr_5x5.tab` | $1.65\text{ -- }7.40$ | $\text{wt}\%$ | **Life Support & Propellant**: Weight percent water equivalent hydrogen in the top ~1 m of regolith. Primary feedstock for crew hydration loops, hygiene, and Sabatier electrolysis for $\text{LOX/CH}_4$ ascent rocket propellant. |
+| **Natural Shelter** | $\text{MGC3}$ | `caves.json` | $1,062\text{ sites}$ | Catalog | **Radiation & Micrometeorite Shelters**: Mars Global Cave Candidate Catalog (Cushing 2017, USGS Astrogeology). Basaltic skylights and lava tubes offering $>99\%$ galactic cosmic radiation (GCR) attenuation. |
+
+#### In-Situ Concentration Readout & Uncertainty Engine:
+When an elemental overlay is selected, the **Resource Panel** in the Map Dock calculates the exact 5° grid cell corresponding to the astronaut base (Waypoint 0) or current map crosshair:
+$$r = \left\lfloor \frac{90 - \text{lat}}{5} \right\rfloor, \quad c = \left\lfloor \frac{\text{lon} + 180}{5} \right\rfloor$$
+The readout provides the measured abundance, one-sigma uncertainty ($\pm\sigma$), relative regional quartile rating, and an alert if polar latitudes ($|\text{lat}| > 60^\circ$) are masked in the PDS product to prevent seasonal carbon dioxide frost bias.
+
+### Compact Collapsible Navigation Rail & Context-Aware UI
+To maximize map situational awareness and eliminate visual clutter:
+- **Content-Hugging Collapsed Rail**: When closed, the left sidebar hugs its 6 icon buttons tightly (`h-auto`, ~278 px tall, floating unobtrusively on the left margin), keeping the vast majority of the Martian terrain completely visible without tall empty background pillars.
+- **Auto-Expanding Viewport Envelope**: Clicking any navigation icon or the drawer toggle smoothly expands the sidebar in both width (to 380 px) and height (to `100%` of the viewport envelope), providing complete vertical scrolling for the active instrument deck.
+
 ---
 
 ## 🪖 Astronaut EVA HUD, Biotelemetry & Solar Ephemeris
@@ -392,6 +431,8 @@ Scientific integrity is paramount. The table below delineates the exact source, 
 | **Rock Campaigns (20 Rocks)** | **Ground Truth (100%)** | NASA PDS Geosciences Node (Mars 2020 Perseverance) | Micro-XRF elemental rasters (PIXL), LIBS laser spectra (SuperCam), Raman bands (SHERLOC) | Exact coordinates, sol dates, and rock classifications from NASA PDS archives. |
 | **MSR Sample Manifest (24 Tubes)** | **Ground Truth (100%)** | NASA PDS / Mars 2020 Initial Reports & Dossier | Physical rock core stratigraphy, mass, and Three Forks depot placement logs | Authentic serial numbers (`M2020-00164-02`..`M2020-01180-27`), core lengths (mm), and masses (g). |
 | **Orbital Composition** | **Ground Truth (100%)** | NASA MRO CRISM & Odyssey GRS | Visible-infrared reflectance spectroscopy & gamma-ray spectrometer | Real orbital mineral detections mapped to global coordinate grids. |
+| **Odyssey GRS Elements** | **Ground Truth (100%)** | NASA PDS Geosciences (ODY-M-GRS-5-ELEMENTS-V1.0) | Global gamma-ray & neutron spectrometer 5° smoothed grids (Fe, Si, K, Th, Cl, H₂O) | Corrected for CO₂ frost; polar regions >60° masked to prevent ice dilution. |
+| **Natural Cave Shelter (MGC3)** | **Ground Truth (100%)** | USGS Astrogeology / NASA PDS (Cushing 2017) | 1,062 orbital candidate skylights, lava tubes & collapse pits from THEMIS/CTX | Categorized by speleological morphology and HiRISE confirmation priority. |
 | **Atmospheric Weather (MF-01)** | **Empirical ML (100%)** | NASA Curiosity REMS Archive (4,745 Sols) | Multi-Horizon RidgeCV regression with seasonal $L_s$ cyclical harmonics | Cleansed of ADC hardware dropouts; evaluated on chronological held-out sols. |
 | **Geochemical Classifier (MF-03)** | **Empirical ML (100%)** | NASA Mars 2020 PIXL micro-XRF (16,572 points) | 25-Tree Non-Linear Random Forest with trace-oxide dropout augmentation | 95.69% 5-fold cross-validation accuracy; runs client-side in $<0.2\text{ ms}$. |
 | **Space Radiation (MF-04)** | **Physics-Based Surrogate** | NASA MSL RAD Published Values (Hassler et al. 2014) | Analytical GCR galactic dose formula modulated by 11-year solar cycle | Evaluates reproduction of published physics formula, not raw sensor time series. |
@@ -506,9 +547,11 @@ Martis Ovikorsho maintains a rigorous automated testing and verification suite. 
 ✓ src/utils/marsSkyTransit.test.js (1 test)
 ✓ src/terrain/validation.test.js (6 tests)
 
-Test Files  24 passed (24)
-     Tests  207 passed (207)
-  Duration  14.25s
+✓ src/components/resourceOverlays.test.js (5 tests)
+...
+Test Files  25 passed (25)
+     Tests  212 passed (212)
+  Duration  25.47s
 ```
 
 ### Traverse Route Validation Against Real Rover Telemetry

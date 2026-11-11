@@ -66,6 +66,7 @@ const ScrollPage = ({ children }) => (
 
 function App() {
   const toolbarCollapsed = useMapStore(s => s.toolbarCollapsed);
+  const sidebarOpen = useMapStore(s => s.sidebarOpen);
   const viewMode = useMapStore(s => s.viewMode);
   const showLoadingScreen = useMapStore(s => s.showLoadingScreen);
   const activeTab = useMapStore(s => s.activeTab);
@@ -238,14 +239,14 @@ function App() {
 
               {/* FIXED LEFT SIDEBAR */}
               <div
-                className={`fixed left-3 z-[400] pointer-events-none flex flex-col items-start transition-[top,bottom] duration-300 ${toolbarCollapsed ? 'top-[132px]' : 'top-[172px] sm:top-[150px]'} ${bottomPanelOpen ? 'bottom-[318px] sm:bottom-6' : 'bottom-6'}`}
+                className={`fixed left-3 z-[400] pointer-events-none flex flex-col items-start transition-[top,bottom] duration-300 ${toolbarCollapsed ? 'top-[132px]' : 'top-[172px] sm:top-[150px]'} ${sidebarOpen ? (bottomPanelOpen ? 'bottom-[318px] sm:bottom-6' : 'bottom-6') : ''}`}
                 style={{
                   maxHeight: `calc(100dvh - ${toolbarCollapsed ? 140 : 160}px - ${bottomPanelOpen ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 325 : 36) : 36}px)`,
                 }}
               >
                 <div
-                  className="pointer-events-auto flex flex-col min-h-0 h-full max-h-full"
-                  style={{ maxHeight: '100%', height: '100%' }}
+                  className={`pointer-events-auto flex flex-col min-h-0 max-h-full transition-all duration-300 ${sidebarOpen ? 'h-full' : 'h-auto'}`}
+                  style={{ maxHeight: '100%' }}
                 >
                   <ErrorBoundary>
                     <Suspense fallback={null}>
