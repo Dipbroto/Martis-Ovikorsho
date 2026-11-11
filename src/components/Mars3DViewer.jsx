@@ -98,13 +98,31 @@ function useMolaNormalMap(enabled) {
   return tex;
 }
 
+const JSON_3D_CACHE = new Map();
+
 const useJson = (url, enabled) => {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => (url && JSON_3D_CACHE.has(url) ? JSON_3D_CACHE.get(url) : null));
+
   useEffect(() => {
-    if (!enabled || data) return;
-    fetch(url).then((r) => (r.ok ? r.json() : null)).then(setData).catch(() => {});
-  }, [url, enabled, data]);
-  return data;
+    if (!enabled || !url) return;
+    if (JSON_3D_CACHE.has(url)) {
+      setData(JSON_3D_CACHE.get(url));
+      return;
+    }
+    let active = true;
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json) JSON_3D_CACHE.set(url, json);
+        if (active) setData(json);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [url, enabled]);
+
+  return url && JSON_3D_CACHE.has(url) ? JSON_3D_CACHE.get(url) : data;
 };
 
 // ---------- scene pieces ----------

@@ -20,17 +20,42 @@ const PRIORITY = {
   3: { label: 'Ambiguous: most will not be caves', color: '#a78bfa' },
 };
 
+const JSON_CACHE = new Map();
+
 const useJson = (url, enabled) => {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => (url && JSON_CACHE.has(url) ? JSON_CACHE.get(url) : null));
   const [error, setError] = useState(null);
+
   useEffect(() => {
-    if (!enabled || !url || data) return;
+    if (!enabled || !url) return;
+
+    if (JSON_CACHE.has(url)) {
+      setData(JSON_CACHE.get(url));
+      setError(null);
+      return;
+    }
+
+    let active = true;
     fetch(url)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then(setData)
-      .catch((e) => setError(e.message));
-  }, [url, enabled, data]);
-  return { data, error };
+      .then((json) => {
+        JSON_CACHE.set(url, json);
+        if (active) {
+          setData(json);
+          setError(null);
+        }
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [url, enabled]);
+
+  const currentData = url && JSON_CACHE.has(url) ? JSON_CACHE.get(url) : data;
+  return { data: currentData, error };
 };
 
 // Generates smoothed PNG overlay from 5x5 degree gridded data

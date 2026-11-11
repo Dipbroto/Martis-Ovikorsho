@@ -118,6 +118,31 @@ describe('Planetary Resource Overlays & Odyssey GRS Elemental Maps', () => {
     expect(h2o.min).toBeGreaterThanOrEqual(1.0);
     expect(h2o.max).toBeLessThanOrEqual(10.0);
     expect(h2o.unit).toBe('wt%');
+
+    // Jezero Crater coordinates (lat: 18.38, lon: 77.58) -> r=14, c=51
+    const r = Math.floor((90 - 18.38) / 5);
+    const c = Math.floor((77.58 + 180) / 5);
+    expect(r).toBe(14);
+    expect(c).toBe(51);
+
+    // Each element MUST have distinct, non-identical empirical readouts at Jezero Crater
+    const jezeroH2O = h2o.values[r][c];
+    const jezeroFe = fe.values[r][c];
+    const jezeroSi = si.values[r][c];
+    const jezeroK = k.values[r][c];
+    const jezeroTh = th.values[r][c];
+    const jezeroCl = cl.values[r][c];
+
+    expect(jezeroH2O).toBe(3.53);
+    expect(jezeroFe).toBe(16.62);
+    expect(jezeroSi).toBe(20.61);
+    expect(jezeroK).toBe(0.316);
+    expect(jezeroTh).toBe(0.6);
+    expect(jezeroCl).toBe(0.389);
+
+    const values = [jezeroH2O, jezeroFe, jezeroSi, jezeroK, jezeroTh, jezeroCl];
+    const uniqueValues = new Set(values);
+    expect(uniqueValues.size).toBe(values.length);
   });
 
   it('validates the USGS Mars Cave Candidate Catalog (MGC3) data structure', () => {
