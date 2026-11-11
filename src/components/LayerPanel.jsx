@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import useMapStore from '../store/useMapStore';
 import { marsLayers, LAYER_CATEGORIES } from '../data/marsLayers';
 import { RESOURCE_OVERLAYS } from './ResourceOverlays';
+import { ROVER_TRAVERSE_META } from './RoverTraverses';
 
 // Layers are grouped by the category labels defined in the layer data
 const CATEGORY_LIST = Object.values(LAYER_CATEGORIES);
@@ -265,9 +266,83 @@ const LayerCategory = ({ name, layers }) => {
   );
 };
 
+
+const RoverTraverseCategory = () => {
+  const [isOpen, setIsOpen] = useState(true);
+  const [showInfo, setShowInfo] = useState(false);
+  const showRoverTraverses = useMapStore((s) => s.showRoverTraverses);
+  const toggleRoverTraverses = useMapStore((s) => s.toggleRoverTraverses);
+  const flyToCoordinate = useMapStore((s) => s.flyToCoordinate);
+  const rovers = Object.values(ROVER_TRAVERSE_META);
+
+  return (
+    <section>
+      <div className={`rounded-xl border transition-colors ${showRoverTraverses ? 'border-[#38bdf8]/35 bg-[#38bdf8]/[0.06]' : 'border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04]'}`}>
+        <div className="flex items-center gap-2 pr-2">
+          <button
+            onClick={toggleRoverTraverses}
+            role="switch"
+            aria-checked={showRoverTraverses}
+            className="flex-1 min-w-0 flex items-center gap-3 text-left pl-3 py-2.5 cursor-pointer"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium text-white leading-snug">Real Rover Tracks (NASA 129 km)</span>
+              <span className="block text-xs text-zinc-400 leading-snug mt-0.5">Opportunity, Percy, Curiosity, Spirit, Sojourner</span>
+            </span>
+            <Switch on={showRoverTraverses} />
+          </button>
+          <button
+            onClick={() => setShowInfo((v) => !v)}
+            aria-expanded={showInfo}
+            aria-label="About rover traverses"
+            title="About rover traverses"
+            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0 cursor-pointer ${showInfo ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-white hover:bg-white/10'}`}
+          >
+            <Info className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <AnimatePresence initial={false}>
+          {showInfo && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+              <div className="mx-3 mb-3 rounded-lg bg-black/30 p-3 text-xs text-zinc-300 leading-relaxed space-y-2 border border-white/5">
+                <div className="text-zinc-400 font-medium">NASA High-Precision Ground-Truth Traverses:</div>
+                <div className="space-y-1 text-[11px]">
+                  {rovers.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between gap-2 py-0.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: r.color }} />
+                        <span className="text-white font-medium truncate">{r.shortName}</span>
+                        <span className="text-zinc-500 text-[10px]">({r.location})</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-mono text-zinc-300">{r.distanceKm >= 1 ? `${r.distanceKm} km` : `${(r.distanceKm * 1000).toFixed(0)} m`}</span>
+                        <button
+                          onClick={() => flyToCoordinate(r.center[0], r.center[1], r.zoom)}
+                          className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white text-[10px] font-medium transition-colors cursor-pointer"
+                        >
+                          Fly to
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="pt-1.5 border-t border-white/5 text-[10px] text-zinc-500">
+                  Sources: NASA/JPL MMGIS, PDS Geosciences Node Analyst's Notebook
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </section>
+  );
+};
+
 const LayerPanel = () => (
   <div className="flex flex-col gap-4">
     <ResourceCategory />
+    <RoverTraverseCategory />
     {CATEGORY_LIST.map((category) => {
       const layers = marsLayers.filter((l) => l.category === category);
       return layers.length ? <LayerCategory key={category} name={category} layers={layers} /> : null;

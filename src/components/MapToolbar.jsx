@@ -265,7 +265,7 @@ function MapToolbar() {
                     Surface Exploration & Shelter
                   </div>
                   <Item kind="radio" icon={Tent} label="Cave & pit shelters (MGC3)" hint="1,062 candidates from USGS catalog for radiation shield" active={s.terrainOverlay === 'caves'} onSelect={() => { s.setTerrainOverlay('caves'); click(); }} />
-                  <Item icon={Route} label="Real rover tracks" hint="Where Perseverance and Curiosity actually drove" active={s.showRoverTraverses} onSelect={() => { s.toggleRoverTraverses(); click(); }} />
+                  <Item icon={Route} label="Real rover tracks" hint="Opportunity, Perseverance, Curiosity, Spirit & Sojourner paths (129 km)" active={s.showRoverTraverses} onSelect={() => { s.toggleRoverTraverses(); click(); }} />
                 </Menu>
 
                 <button

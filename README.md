@@ -4,11 +4,12 @@
 [![NASA Space Apps Challenge 2026](https://img.shields.io/badge/NASA_Space_Apps-2026_Challenge-0B3D91?style=for-the-badge&logo=nasa&logoColor=white)](https://www.spaceappschallenge.org/)
 [![Live Deployment](https://img.shields.io/badge/Live_Demo-martis--ovikorsho.vercel.app-00C7B7?style=for-the-badge&logo=vercel&logoColor=white)](https://martis-ovikorsho.vercel.app/)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Dipbroto%2FMartis--Ovikorsho-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Dipbroto/Martis-Ovikorsho)
-[![Tests Passing](https://img.shields.io/badge/Vitest-25%20Suites%20%7C%20212%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Tests Passing](https://img.shields.io/badge/Vitest-26%20Suites%20%7C%20216%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![ML Runtime](https://img.shields.io/badge/Edge_ML-25--Tree%20Random%20Forest%20(%3C0.2ms)-blueviolet?style=for-the-badge&logo=scikitlearn&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js)
 [![NASA PDS Archives](https://img.shields.io/badge/NASA_PDS-20%20Jezero%20Targets%20%7C%2018.5k%20Spectra-critical?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/missions/mars2020/)
 [![NASA Odyssey GRS](https://img.shields.io/badge/Odyssey_GRS-6%20Global%20Elemental%20Maps-teal?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/ody/ody-m-grs-5-elements-v1/)
 [![NASA MSR Manifest](https://img.shields.io/badge/MSR_Manifest-24%20Sealed%20Tubes%20%7C%20Three%20Forks%20Depot-orange?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/data/nasaSampleManifest.js)
+[![NASA Historical Traverses](https://img.shields.io/badge/NASA_Traverses-5%20Rovers%20%7C%20129%20km%20PDS%20Tracks-blue?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/RoverTraverses.jsx)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 > **"Read a Martian rock like a rover does; plan a Marswalk like an astronaut must."**  
@@ -32,6 +33,7 @@
 4. [2D/3D Multi-Scale Cartography & Tactical Traverse Planning](#-2d3d-multi-scale-cartography--tactical-traverse-planning)
    - [Terrain Elevation Grids & Anti-Meridian Routing](#terrain-elevation-grids--anti-meridian-routing)
    - [Planetary Resource Overlays: Mars Odyssey GRS Elemental Maps (Fe, Si, K, Th, Cl, H₂O) & ISRU Engine](#planetary-resource-overlays-mars-odyssey-grs-elemental-maps-fe-si-k-th-cl-h2o--isru-engine)
+   - [Historical Rover Traverses: All 5 NASA Surface Missions (128.98 km PDS Tracks)](#historical-rover-traverses-all-5-nasa-surface-missions-12898-km-pds-tracks)
    - [Dynamic Point-of-No-Return (PNR) Walkback Safety Envelopes](#dynamic-point-of-no-return-pnr-walkback-safety-envelopes)
    - [Line-of-Sight VHF Comms Horizon](#line-of-sight-vhf-comms-horizon)
    - [Compact Collapsible Navigation Rail & Context-Aware UI](#compact-collapsible-navigation-rail--context-aware-ui)
@@ -340,6 +342,42 @@ flowchart TD
   - Global Mars Global Surveyor **MOLA 4 px/degree topographic grid** providing planetary coverage.
 - **Anti-Meridian Coordinate Wrapping**: The A* pathfinder automatically resolves geodesic wraparound across the Martian $180^\circ$ longitude seam, preventing false hemispheric circumnavigations.
 
+### Historical Rover Traverses: All 5 NASA Surface Missions (128.98 km PDS Tracks)
+
+Beyond astronaut EVA paths, Martis Ovikorsho renders the complete, authentic ground-truth coordinate logs for **all 5 NASA robotic planetary rovers** that have navigated the surface of Mars. Sourced directly from the **NASA Planetary Data System (PDS) Cartography Node**, NASA/JPL MMGIS, and Washington University in St. Louis (WUSTL) Analyst's Notebooks:
+
+```mermaid
+flowchart TD
+    subgraph Archives["NASA PDS Cartography & WUSTL Analyst's Notebook"]
+        M20["Perseverance (M20)<br/>42.71 km · Jezero Crater"]
+        MSL["Curiosity (MSL)<br/>33.28 km · Gale Crater"]
+        MERB["Opportunity (MER-B)<br/>45.16 km · Meridiani Planum"]
+        MERA["Spirit (MER-A)<br/>7.73 km · Gusev Crater"]
+        MPF["Sojourner (Pathfinder)<br/>0.10 km · Ares Vallis"]
+    end
+
+    Archives --> BUILD["scripts/data/build_traverses.py<br/>Planetocentric Longitude Shift [0..360] -> [-180..+180]<br/>Calibrated Step Downsampling (128.98 km Total)"]
+    BUILD --> JSON["public/data/traverses.json (119 KB)"]
+    JSON --> VIZ["RoverTraverses.jsx (Leaflet Layers)"]
+    VIZ --> L1["Dual-Stroke Polylines with Mission Casings"]
+    VIZ --> L2["Touchdown & Final/Active Position Markers"]
+    VIZ --> L3["MapDock Navigator with 1-Click FlyTo Coordinates"]
+    VIZ --> L4["LayerPanel Mission Filter & Distance Hierarchy"]
+```
+
+#### Ground-Truth NASA Surface Fleet Odometry:
+| Rover Mission | Landing Site | Hero Basin | Traverse Odometry | Waypoints | PDS / MMGIS Provenance Citation |
+|:---|:---|:---|:---:|:---:|:---|
+| **Opportunity (MER-B)** | Meridiani Planum | Eagle, Endurance, Victoria & Endeavour Craters | **45.16 km** | 2,164 pts | NASA PDS Analyst's Notebook / azmth MER-B archive. Longest off-world drive in human history. |
+| **Perseverance (M20)** | Jezero Crater | Crater Floor, Séítah, Delta Front & Margin | **42.71 km** | 1,774 pts | NASA/JPL MMGIS Mars 2020 high-precision coordinate logs (15m calibrated sampling). |
+| **Curiosity (MSL)** | Gale Crater | Yellowknife Bay, Murray Buttes, Mt. Sharp | **33.28 km** | 1,330 pts | NASA/JPL MMGIS MSL traverse logging through the sulfate-bearing unit. |
+| **Spirit (MER-A)** | Gusev Crater | Columbia Hills, Husband Hill & Home Plate | **7.73 km** | 430 pts | NASA PDS Geosciences MER-A traverse archives; Gusev Crater basalt & silica ascent. |
+| **Sojourner (Pathfinder)**| Ares Vallis | Rock Garden & Yogi Rock | **0.10 km** | 127 pts | NASA PDS Cartography Node 1997 Ares Vallis landing ellipse & rover APXS track. |
+| **TOTAL SURFACE ODOMETRY** | *5 Planetary Basins* | *All NASA Rovers* | **128.98 km** | **5,825 pts** | *Complete authentic record of human planetary exploration.* |
+
+- **Dual-Stroke Mission Rendering**: Every track features an outer `#05070a` contrast casing with official mission color accents (`#38bdf8` Perseverance, `#fb923c` Curiosity, `#c084fc` Opportunity, `#facc15` Spirit, `#f43f5e` Sojourner).
+- **1-Click Dock Navigator**: The `RoverTraversePanel` in the Map Dock lets operators toggle individual missions or jump the camera directly to any rover's touchdown landing site or current/final resting coordinate.
+
 ### Dynamic Point-of-No-Return (PNR) Walkback Safety Envelopes
 Safe planetary surface exploration requires constant knowledge of the **Point-of-No-Return (PNR)**: the physical geographic boundary beyond which an astronaut cannot return to the lander/habitat before life-support consumables are exhausted.
 
@@ -519,7 +557,7 @@ Martis-Ovikorsho/
 
 ## 🧪 Verification & Benchmark Validation
 
-Martis Ovikorsho maintains a rigorous automated testing and verification suite. All 23 test suites (199 tests) run on every commit:
+Martis Ovikorsho maintains a rigorous automated testing and verification suite. All 26 test suites (216 tests) run on every commit:
 
 ```bash
 ✓ src/utils/audioSynthesizer.test.js (3 tests)
@@ -547,10 +585,11 @@ Martis Ovikorsho maintains a rigorous automated testing and verification suite. 
 ✓ src/utils/marsSkyTransit.test.js (1 test)
 ✓ src/terrain/validation.test.js (6 tests)
 
+✓ src/components/roverTraverses.test.js (4 tests)
 ✓ src/components/resourceOverlays.test.js (5 tests)
 ...
-Test Files  25 passed (25)
-     Tests  212 passed (212)
+Test Files  26 passed (26)
+     Tests  216 passed (216)
   Duration  25.47s
 ```
 

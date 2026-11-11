@@ -634,41 +634,63 @@ export default function FlightPlanModal() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className={`grid gap-3 ${(collectedSamples || []).length === 1 ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
                 {(collectedSamples || []).map((s, idx) => {
                   const isCore = s.notes?.includes('[MSR CORE');
                   return (
                     <div
                       key={s.id || idx}
-                      className={`p-2.5 rounded-lg border flex flex-col justify-between gap-1.5 print:bg-white print:border-gray-400 print:text-black ${
+                      className={`p-3.5 rounded-xl border flex flex-col justify-between gap-3 print:bg-white print:border-gray-400 print:text-black ${
                         isCore
                           ? 'bg-gradient-to-r from-emerald-950/30 via-space-900/60 to-black/60 border-emerald-500/40 shadow-sm shadow-emerald-500/10'
                           : 'bg-space-900/50 border-space-800'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-white text-[11px] block print:text-black">{s.name}</span>
-                            {isCore && (
-                              <span className="text-[9px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/40 flex items-center gap-1">
-                                <Dna className="w-2.5 h-2.5" />
-                                55mm CORE
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-space-400 print:text-gray-600 block mt-0.5">
-                            {s.rockType} • Sol {s.sol} • Tube #{s.tubeNumber || idx + 1}
-                          </span>
+                      {/* Top Header Row: Specimen Name, Core Pill, Status Badge */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-bold text-white text-sm tracking-wide print:text-black">{s.name}</span>
+                          {isCore && (
+                            <span className="text-[9px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/40 flex items-center gap-1 shrink-0">
+                              <Dna className="w-2.5 h-2.5" />
+                              55mm CORE
+                            </span>
+                          )}
                         </div>
-                        <span className="text-[10px] font-bold text-green-400 bg-green-950/60 px-2 py-0.5 rounded border border-green-500/30 shrink-0 print:text-black print:border-black">
+                        <span className="text-[10px] font-bold font-mono text-emerald-400 bg-emerald-950/60 px-2.5 py-0.5 rounded-md border border-emerald-500/30 shrink-0 print:text-black print:border-black whitespace-nowrap">
                           {s.status}
                         </span>
                       </div>
+
+                      {/* Middle Metadata Chips: Rock Type, Sol, Tube ID */}
+                      <div className="flex items-center gap-2 text-[11px] text-zinc-300 flex-wrap">
+                        {s.rockType && (
+                          <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-zinc-300">
+                            {s.rockType}
+                          </span>
+                        )}
+                        {s.sol != null && (
+                          <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-zinc-300 font-mono">
+                            Sol {s.sol}
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 rounded-md bg-cyan-950/50 border border-cyan-500/30 text-cyan-300 font-mono font-semibold">
+                          Tube #{s.tubeNumber || idx + 1}
+                        </span>
+                        {s.formation && (
+                          <span className="text-zinc-400 text-[10px] italic">
+                            {s.formation}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Triage / Dossier Rationale: Full text with clean typography, no clamp or cutoff */}
                       {s.notes && (
-                        <p className="text-[10px] text-zinc-400 font-mono leading-tight bg-black/40 p-1.5 rounded border border-white/5 line-clamp-2">
-                          {s.notes}
-                        </p>
+                        <div className="bg-black/60 p-2.5 rounded-lg border border-white/10">
+                          <p className="text-[11px] text-zinc-300 font-mono leading-relaxed break-words select-text">
+                            {s.notes}
+                          </p>
+                        </div>
                       )}
                     </div>
                   );

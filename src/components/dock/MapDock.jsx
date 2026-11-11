@@ -7,6 +7,7 @@ import { ContingencyAlert } from '../ContingencySimulator';
 import { TerrainOverlayPanel } from '../TerrainOverlay';
 import { ResourcePanel } from '../ResourceOverlays';
 import { RouteScanPanel } from '../RouteScan';
+import { RoverTraversePanel } from '../RoverTraverses';
 import QuakePanel from '../quakes/QuakePanel';
 import MapWelcome from '../MapWelcome';
 
@@ -42,6 +43,7 @@ export default function MapDock() {
           <TerrainOverlayPanel />
           <ResourcePanel />
           <RouteScanPanel />
+          <RoverTraversePanel />
         </>
       )}
     </div>
