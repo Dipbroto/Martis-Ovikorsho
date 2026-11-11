@@ -18,6 +18,8 @@ import SubsurfaceCoreDrillDeck from './science/SubsurfaceCoreDrillDeck';
 import IsruPlasmaForgeDeck from './science/IsruPlasmaForgeDeck';
 import PlanetaryDiscoveryScanner from './science/PlanetaryDiscoveryScanner';
 import PaleoHydrologyDeck from './science/PaleoHydrologyDeck';
+import MsrSampleManifestDeck from './science/MsrSampleManifestDeck';
+
 
 const INSTRUMENTS = [
   { id: 'supercam', deck: 'DECK 1', label: 'SuperCam', what: 'Laser spectroscopy', icon: Zap, tone: 'from-orange-500/25' },
@@ -25,7 +27,7 @@ const INSTRUMENTS = [
   { id: 'sherloc', deck: 'DECK 3', label: 'SHERLOC', what: 'UV Raman and glow', icon: Sparkles, tone: 'from-violet-500/25' },
   { id: 'core', deck: 'DECK 4', label: 'Core Drill (55mm)', what: 'Subsurface astrobiology', icon: Dna, tone: 'from-emerald-500/25' },
   { id: 'isru', deck: 'DECK 5', label: 'ISRU Forge', what: 'Plasma synthesis', icon: Flame, tone: 'from-amber-500/25' },
-  { id: 'msr', deck: 'DECK 6', label: 'Sample cache', what: 'Seal and store', icon: Database, tone: 'from-cyan-500/25' },
+  { id: 'msr', deck: 'DECK 6', label: 'Sample Cache', what: 'NASA MSR Manifest & Dossier', icon: Database, tone: 'from-cyan-500/25' },
 ];
 
 // Lets the browser skip layout and paint of a panel while it is off screen; the size is a placeholder
@@ -362,126 +364,7 @@ function ScienceLabPage() {
 
                 {/* SAMPLE CACHE */}
                 {activeInstrument === 'msr' && (
-                  <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-                    <Panel
-                      title="Seal a sample"
-                      icon={Database}
-                      className="xl:col-span-2"
-                      right={
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
-                          DECK 6 · SAMPLE CACHE
-                        </span>
-                      }
-                    >
-                      <p className="text-sm text-zinc-300">Core <span className="text-white font-medium">{target.name}</span> into tube #{tubesUsed + 1}.</p>
-                      <label htmlFor="tube-notes" className="block text-xs text-zinc-400 mt-4 mb-1.5">Field notes</label>
-                      <textarea id="tube-notes" rows={3} value={customTubeNotes} onChange={(e) => setCustomTubeNotes(e.target.value)} placeholder="Why this rock matters…" className="w-full rounded-xl bg-black/50 border border-white/10 px-3 py-2 text-sm placeholder-zinc-500 focus:outline-none focus:border-white/40" />
-                      <button onClick={() => handleCacheSample()} disabled={isSealingTube || cachedSuccess || tubesFull} className="mt-3 w-full rounded-xl bg-white text-black font-semibold py-3 text-sm hover:bg-zinc-200 transition disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2">
-                        {cachedSuccess ? <><CheckCircle2 className="w-4 h-4 text-emerald-600" />Sealed and logged</> : isSealingTube ? <><Loader2 className="w-4 h-4 animate-spin" />Sealing…</> : 'Seal the tube'}
-                      </button>
-                      {cacheError && <p className="mt-2 text-xs text-amber-300">{cacheError}</p>}
-                    </Panel>
-                    <Panel
-                      title="Tube rack"
-                      icon={CheckCircle2}
-                      className="xl:col-span-3"
-                      right={
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              playUiClick?.();
-                              setFlightPlanOpen(true);
-                            }}
-                            className="text-xs text-cyan-300 hover:text-white flex items-center gap-1 transition px-2.5 py-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 cursor-pointer font-mono"
-                            title="Open official NASA Mars Sample Return (MSR) Flight Dispatch Manifest"
-                          >
-                            <FileText className="w-3 h-3 text-cyan-400" />
-                            <span>MSR Flight Manifest</span>
-                          </button>
-                          <span className="text-xs text-zinc-500 font-mono">{tubesUsed} / {TOTAL_TUBES} used</span>
-                          {safeSamples.length > 0 && (
-                            <button
-                              onClick={() => {
-                                playUiClick?.();
-                                handleClearAllSamples();
-                              }}
-                              className="text-xs text-zinc-400 hover:text-rose-300 flex items-center gap-1 transition px-2 py-0.5 rounded-lg border border-white/10 hover:border-rose-500/30 hover:bg-rose-500/10 cursor-pointer"
-                              title="Empty all sample tubes"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                              <span>Clear all</span>
-                            </button>
-                          )}
-                        </div>
-                      }
-                    >
-                      <div className="grid grid-cols-[repeat(19,minmax(0,1fr))] gap-1">
-                        {Array.from({ length: TOTAL_TUBES }, (_, i) => (
-                          <span
-                            key={i}
-                            title={safeSamples[i]?.name ? `Tube #${i + 1}: ${safeSamples[i].name} (${safeSamples[i].rockType || 'Core'})` : `Empty tube #${i + 1}`}
-                            className={`h-9 rounded-full border transition-all ${
-                              i < tubesUsed
-                                ? 'bg-gradient-to-b from-[#ffb08f] to-[#c2410c] border-[#ffb08f]/60 shadow-sm shadow-[#ffb08f]/20'
-                                : 'bg-white/[0.04] border-white/10'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <div className="mt-4 space-y-2 max-h-64 overflow-y-auto overscroll-contain custom-scrollbar-y pr-1">
-                        {safeSamples.length === 0 ? (
-                          <div className="p-6 text-center rounded-xl border border-dashed border-white/10 bg-white/[0.01]">
-                            <p className="text-sm text-zinc-400 font-medium">No samples sealed yet.</p>
-                            <p className="text-xs text-zinc-500 mt-1">All {TOTAL_TUBES} sample tubes are empty and ready for caching.</p>
-                          </div>
-                        ) : (
-                          safeSamples.map((s, idx) => (
-                            <div
-                              key={s.id || idx}
-                              className="group flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] border border-white/[0.07] hover:border-white/20 p-3 text-sm transition-all"
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="w-6 h-6 rounded-full bg-gradient-to-b from-[#ffb08f] to-[#c2410c] border border-[#ffb08f]/60 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm">
-                                  {idx + 1}
-                                </span>
-                                <span className="min-w-0">
-                                  <span className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-medium truncate text-white">{s.name}</span>
-                                    {s.notes?.includes('[MSR CORE') && (
-                                      <span className="text-[9px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/40 flex items-center gap-1">
-                                        <Dna className="w-2.5 h-2.5" />
-                                        55mm CORE
-                                      </span>
-                                    )}
-                                  </span>
-                                  <span className="block text-xs text-zinc-400 truncate">
-                                    {s.rockType}{s.notes ? ` · ${s.notes}` : ''}
-                                  </span>
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-xs text-emerald-300 font-mono font-medium px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-500/30">
-                                  {s.status || 'SEALED IN CACHE'}
-                                </span>
-                                <button
-                                  onClick={() => {
-                                    playUiClick?.();
-                                    handleRemoveSample(s.id || idx);
-                                  }}
-                                  className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-300 hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all cursor-pointer"
-                                  title={`Unseal and remove Tube #${idx + 1} (${s.name})`}
-                                  aria-label={`Remove sample tube for ${s.name}`}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </Panel>
-                  </div>
+                  <MsrSampleManifestDeck target={target} data={data} lab={lab} />
                 )}
               </div>
 

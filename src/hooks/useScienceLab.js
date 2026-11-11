@@ -7,8 +7,10 @@ import { generateScienceReport } from '../services/aiService';
 import { supabase } from '../lib/supabase';
 import { fetchProfile } from '../services/profileService';
 
+import { NASA_MSR_MANIFEST, TOTAL_MSR_TUBES, getMsrManifestStats } from '../data/nasaSampleManifest';
+
 const SHOT_MS = 110;
-export const TOTAL_TUBES = 38; // Perseverance carries 43 tubes; 38 are for samples
+export const TOTAL_TUBES = TOTAL_MSR_TUBES; // Perseverance carries 43 tubes; 38 are for samples
 
 // Discovered rocks are saved as the inputs that rebuild them (a few bytes each), not as their spectra (~400 kB each)
 const FRONTIER_KEY = 'mars_frontier_rocks';
@@ -304,6 +306,36 @@ export default function useScienceLab() {
     if (sample) deleteLogs([sample]);
   }, [removeSample]);
 
+  const handleImportNasaManifest = useCallback(() => {
+    const formatted = NASA_MSR_MANIFEST.map((t) => ({
+      id: `nasa-${t.serialId}`,
+      tubeNumber: t.tubeNumber,
+      serialId: t.serialId,
+      nasaHardwareId: t.nasaHardwareId,
+      name: t.name,
+      target: t.target,
+      formation: t.formation,
+      rockType: t.sampleType,
+      sampleType: t.sampleType,
+      lithology: t.lithology,
+      coreLengthMm: t.coreLengthMm,
+      coreMassG: t.coreMassG,
+      depotLocation: t.depotLocation,
+      status: t.status,
+      sol: t.sol,
+      earthDate: t.earthDate,
+      lat: t.lat,
+      lon: t.lon,
+      notes: `${t.formation} · ${t.lithology} · [MSR CORE ${t.coreLengthMm}mm, ${t.coreMassG}g]`,
+      isNasaOfficial: true,
+      significance: t.significance,
+      minerals: t.minerals,
+      organics: t.organics,
+      pdsUrl: t.pdsUrl,
+    }));
+    useMapStore.setState({ collectedSamples: formatted });
+  }, []);
+
   const handleClearAllSamples = useCallback(() => {
     deleteLogs(useMapStore.getState().collectedSamples || []);
     if (clearSamples) {
@@ -325,7 +357,12 @@ export default function useScienceLab() {
 
     const typed = typeof notesOverride === 'string' && notesOverride ? notesOverride : customTubeNotes;
     const notes = typed || `${target.name}, ${target.province || 'Jezero crater'} (${formatLatLon(target.lat, target.lon)})`;
-    const tubeNumber = safeSamples.length + 1;
+    const occupiedTubeNumbers = new Set(safeSamples.map((s) => s.tubeNumber).filter(Boolean));
+    let nextTubeNumber = 1;
+    while (occupiedTubeNumbers.has(nextTubeNumber) && nextTubeNumber <= TOTAL_TUBES) {
+      nextTubeNumber++;
+    }
+    const tubeNumber = nextTubeNumber <= TOTAL_TUBES ? nextTubeNumber : safeSamples.length + 1;
     const sampleId = `${Date.now()}`;
     const sealed = target;
     const minerals = analysis?.minerals.join(', ') || null;
@@ -334,11 +371,21 @@ export default function useScienceLab() {
       addSample({
         id: sampleId,
         tubeNumber,
+        serialId: `EVA-COR-${sol}-${String(tubeNumber).padStart(2, '0')}`,
+        nasaHardwareId: `ST20-${String(tubeNumber).padStart(3, '0')}`,
         name: sealed.name,
+        target: sealed.name,
+        formation: sealed.province || 'Jezero Crater Exploration',
         rockType: sealed.rockType,
+        sampleType: sealed.rockType?.toLowerCase().includes('sedimentary') ? 'Sedimentary Rock Core' : 'Igneous Rock Core',
+        lithology: sealed.rockType,
+        coreLengthMm: 55.0,
+        coreMassG: 9.8,
+        depotLocation: 'Onboard Rover Belly Cache',
         status: 'SEALED IN CACHE',
         sol,
         notes,
+        isUserCollected: true,
       });
 
       // Signed-in crews also log the sample to their profile (the database counts it)
@@ -378,7 +425,7 @@ export default function useScienceLab() {
     oxide, setOxide, pixlPick, setPixlPick, sherlocMetric, setSherlocMetric, sherlocSpot, setSherlocSpot,
     isAiAnalyzing, aiReport, setAiReport, runAiAnalysis,
     cachedSuccess, customTubeNotes, setCustomTubeNotes, isSealingTube, cacheError, handleCacheSample, tubesFull,
-    handleRemoveSample, handleClearAllSamples,
+    handleRemoveSample, handleClearAllSamples, handleImportNasaManifest, nasaManifest: NASA_MSR_MANIFEST,
     collectedSamples, safeSamples, paleoPh, setPaleoPh,
     famousSites, discoverRockAt, removeDiscoveredRock, isDiscovering,
   };

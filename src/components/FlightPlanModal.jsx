@@ -1,3 +1,4 @@
+import { NASA_MSR_MANIFEST } from '../data/nasaSampleManifest';
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Printer, Download, ShieldCheck, Copy, Check } from 'lucide-react';
@@ -594,8 +595,43 @@ export default function FlightPlanModal() {
               </div>
             </h3>
             {(collectedSamples || []).length === 0 ? (
-              <div className="text-[11px] text-space-400 italic p-3 bg-space-900/30 rounded-lg border border-space-800/60 text-center">
-                No sealed sample tubes currently in custody. Use the In-Situ Science Lab 55mm Core Drill to extract and cache astrobiology samples.
+              <div className="text-[11px] text-space-400 p-4 bg-space-900/40 rounded-xl border border-space-800/60 text-center space-y-2.5">
+                <p className="italic">No custom sample tubes currently in custody.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    marsAudio.playUiClick?.();
+                    const formatted = NASA_MSR_MANIFEST.map((t) => ({
+                      id: `nasa-${t.serialId}`,
+                      tubeNumber: t.tubeNumber,
+                      serialId: t.serialId,
+                      nasaHardwareId: t.nasaHardwareId,
+                      name: t.name,
+                      target: t.target,
+                      formation: t.formation,
+                      rockType: t.sampleType,
+                      sampleType: t.sampleType,
+                      lithology: t.lithology,
+                      coreLengthMm: t.coreLengthMm,
+                      coreMassG: t.coreMassG,
+                      depotLocation: t.depotLocation,
+                      status: t.status,
+                      sol: t.sol,
+                      earthDate: t.earthDate,
+                      lat: t.lat,
+                      lon: t.lon,
+                      notes: `${t.formation} · ${t.lithology} · [MSR CORE ${t.coreLengthMm}mm, ${t.coreMassG}g]`,
+                      isNasaOfficial: true,
+                      significance: t.significance,
+                      pdsUrl: t.pdsUrl,
+                    }));
+                    useMapStore.setState({ collectedSamples: formatted });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-mono text-xs transition cursor-pointer"
+                >
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  <span>Load NASA Mars 2020 Ground Truth Manifest (24 Tubes)</span>
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

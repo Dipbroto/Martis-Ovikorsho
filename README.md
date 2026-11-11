@@ -4,9 +4,10 @@
 [![NASA Space Apps Challenge 2026](https://img.shields.io/badge/NASA_Space_Apps-2026_Challenge-0B3D91?style=for-the-badge&logo=nasa&logoColor=white)](https://www.spaceappschallenge.org/)
 [![Live Deployment](https://img.shields.io/badge/Live_Demo-martis--ovikorsho.vercel.app-00C7B7?style=for-the-badge&logo=vercel&logoColor=white)](https://martis-ovikorsho.vercel.app/)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Dipbroto%2FMartis--Ovikorsho-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Dipbroto/Martis-Ovikorsho)
-[![Tests Passing](https://img.shields.io/badge/Vitest-23%20Suites%20%7C%20199%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Tests Passing](https://img.shields.io/badge/Vitest-24%20Suites%20%7C%20207%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![ML Runtime](https://img.shields.io/badge/Edge_ML-25--Tree%20Random%20Forest%20(%3C0.2ms)-blueviolet?style=for-the-badge&logo=scikitlearn&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js)
 [![NASA PDS Archives](https://img.shields.io/badge/NASA_PDS-20%20Jezero%20Targets%20%7C%2018.5k%20Spectra-critical?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/missions/mars2020/)
+[![NASA MSR Manifest](https://img.shields.io/badge/MSR_Manifest-24%20Sealed%20Tubes%20%7C%20Three%20Forks%20Depot-orange?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/data/nasaSampleManifest.js)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 > **"Read a Martian rock like a rover does; plan a Marswalk like an astronaut must."**  
@@ -20,6 +21,7 @@
 2. [Interactive In-Situ Science Lab (20 Empirical NASA Campaigns)](#-interactive-in-situ-science-lab-20-empirical-nasa-campaigns)
    - [The 20-Rock Empirical Manifest](#the-20-rock-empirical-manifest)
    - [The 6 Scientific Instrument Decks](#the-6-scientific-instrument-decks)
+   - [Official NASA Mars Sample Return (MSR) Cache Manifest & Dossier](#-official-nasa-mars-sample-return-msr-cache-manifest--dossier)
    - [Anywhere-on-Mars Hyperspectral Scanner](#anywhere-on-mars-hyperspectral-scanner)
 3. [Machine Learning Subsystem (8 Model Families)](#-machine-learning-subsystem-8-model-families)
    - [Master Model Inventory](#master-model-inventory)
@@ -121,8 +123,8 @@ flowchart LR
         D2["Deck 2: PIXL Micro-XRF<br/>Sub-mm Spatial Geochemistry"]
         D3["Deck 3: SHERLOC Deep-UV<br/>Raman & Native Fluorescence"]
         D4["Deck 4: Core Drill 55mm<br/>Stratigraphy & Redox Profiling"]
-        D5["Deck 5: AEGIS Triage<br/>Bayesian Active Learning"]
-        D6["Deck 6: ISRU Plasma Forge<br/>Regolith In-Situ Metallurgy"]
+        D5["Deck 5: ISRU Plasma Forge<br/>Regolith In-Situ Metallurgy"]
+        D6["Deck 6: NASA MSR Cache Manifest<br/>24 Real Sealed Tubes · 38 Slots"]
     end
 ```
 
@@ -152,16 +154,54 @@ flowchart LR
   $$\text{BPP}(z) = \left( 1 - \frac{\text{Fe}^{3+}}{\text{Fe}_{\text{total}}} \right) \cdot \exp\left(-\frac{R_{\text{GCR}}}{R_0}\right) \cdot \left[1 + \beta \log_{10}(1 + z)\right]$$
 - **MSR Return Tube Manifest**: Serialized sample logging tracking sealed cache status across the 38 Mars Sample Return (MSR) titanium tubes.
 
-#### 🎯 Deck 5: AEGIS Bayesian Active Learning Triage
-- **Autonomous Target Acquisition**: Mimics the on-rover AEGIS (Autonomous Exploration for Gathering Increased Science) targeting system.
-- **Multi-Objective Utility**: Balances epistemic exploration (Shannon entropy) against scientific exploitation (biosignature potential):
-  $$U(x) = \lambda \cdot H(p) + (1 - \lambda) \cdot \mathcal{S}_{\text{astrobiology}}(x), \quad H(p) = -\sum_{k=1}^K p_k \log_2 p_k$$
-
-#### 🔥 Deck 6: High-Energy Plasma ISRU Materials Forge
+#### 🔥 Deck 5: High-Energy Plasma ISRU Materials Forge
 - **Thermochemical Reduction**: Evaluates in-situ resource utilization (ISRU) feasibility via thermal vacuum carbothermal reduction and plasma arc electrolysis.
 - **Stoichiometric Yields**: Calculates structural basaltic Fe-Ti alloy tensile yield, molten quartz solar shielding coverplates, oxygen liberation per metric ton of regolith, and methalox propellant synthesis balance.
 
+#### 🗄️ Deck 6: Official NASA Mars Sample Return (MSR) Cache Manifest & Dossier
+- **Authentic PDS Digital Twin**: Models the complete 43-tube inventory (5 witness contamination control blanks + 38 sample tubes) deployed on NASA's *Perseverance* rover.
+- **24 Real Sealed Sample Tubes on Mars**:
+  - **10 Tubes at Three Forks Surface Depot**: The first sample depot in human history, deposited between Dec 2022 and Jan 2023 on the delta floor (*Roubion, Montdenier, Coulettes, Malay, Atsah, Skyland, Bearwallow, Mageik, Crosswind Lake, Amalik Witness Blank*).
+  - **14 Prime Cores in Onboard Rover Belly Cache**: Active return payload (*Montagnac, Salette, Robine, Ha'ahóni, Swift Run, Hazeltop, Shuyak, Kukaklek, Athene Mountain, Otis Peak, Pelican Point, Bunsen Peak, Silver Lake, Cheyava Falls*).
+  - **14 Available Open Slots**: Open slots (Tubes #25–38) ready for live in-situ coring during astronaut EVAs.
+- **Sample Dossier Inspector**: Instant access to official NASA hardware serial numbers (`serialId` e.g., `M2020-00190-03` / `ST20-003`), exact millimeter core lengths, mass in grams, taphonomic context, and SHERLOC deep-UV organic detections, linked directly to the NASA PDS Geosciences Node.
+
+*(Note: The Science Lab also incorporates dedicated full-page analytical suites below the instrument decks: the In-Situ ML Mineral Classifier, the AEGIS Bayesian Active Learning Triage Radar, and the Ancient Water PaleoHydrology Engine).*
+
 ---
+
+
+---
+
+### 📦 Official NASA Mars Sample Return (MSR) Cache Manifest & Dossier
+
+| Tube # | Serial ID | Hardware ID | Sample Name | Target Outcrop | Geological Formation | Sol | Length (mm) | Mass (g) | Depot Disposition | Astrobiology & Mission Context |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **01** | `M2020-00164-02` | `ST20-002` | **Roubion** | Roubion | Máaz Formation | 164 | 0.0 | 0.1 | 🟠 Three Forks Depot | Atmospheric gas baseline; volatile isotope ratio calibration ($^{13}\text{C}/^{12}\text{C}, ^{18}\text{O}/^{16}\text{O}$). |
+| **02** | `M2020-00190-03` | `ST20-003` | **Montdenier** | Rochette | Lower Máaz (Artuby Ridge) | 194 | 59.8 | 10.2 | 🟠 Three Forks Depot | Vesicular pyroxene-plagioclase basalt; primary crater floor crystallization age anchor. |
+| **03** | `M2020-00196-04` | `ST20-004` | **Montagnac** | Rochette | Lower Máaz (Artuby Ridge) | 196 | 61.4 | 10.4 | 🟢 Onboard Belly Cache | Paired twin of Montdenier; fresh volcanic flow with olivine phenocrysts. |
+| **04** | `M2020-00262-05` | `ST20-005` | **Salette** | Brac | South Séítah Formation | 262 | 32.8 | 6.4 | 🟢 Onboard Belly Cache | Cumulate olivine grains ($Fo_{55-65}$) with poikilitic pyroxene and carbonate cements. |
+| **05** | `M2020-00271-06` | `ST20-006` | **Coulettes** | Brac | South Séítah Formation | 271 | 33.0 | 6.5 | 🟠 Three Forks Depot | Paired twin of Salette; ultramafic cumulate surface backup. |
+| **06** | `M2020-00295-07` | `ST20-007` | **Robine** | Issole | South Séítah Formation | 295 | 30.8 | 5.8 | 🟢 Onboard Belly Cache | Olivine cumulate laced with aqueous sulfate veins; multi-stage alteration record. |
+| **07** | `M2020-00337-08` | `ST20-008` | **Malay** | Issole | South Séítah Formation | 337 | 30.7 | 5.8 | 🟠 Three Forks Depot | First sample dropped at Three Forks depot on Sol 653 (Dec 21, 2022). |
+| **08** | `M2020-00371-09` | `ST20-009` | **Ha'ahóni** | Sid | Upper Máaz Formation | 371 | 65.5 | 11.5 | 🟢 Onboard Belly Cache | Basaltic trachyandesite; upper crater floor volcanic capping sequence. |
+| **09** | `M2020-00377-10` | `ST20-010` | **Atsah** | Sid | Upper Máaz Formation | 377 | 60.1 | 10.5 | 🟠 Three Forks Depot | Paired twin of Ha'ahóni; coherent volcanic rock. |
+| **10** | `M2020-00490-11` | `ST20-011` | **Swift Run** | Skinner Ridge | Shenandoah (Hawksbill Gap) | 490 | 66.9 | 11.8 | 🟢 Onboard Belly Cache | **FIRST SEDIMENTARY ROCK CORED ON MARS**: Fluvial delta sandstone rich in smectite clay. |
+| **11** | `M2020-00495-12` | `ST20-012` | **Skyland** | Skinner Ridge | Shenandoah (Hawksbill Gap) | 495 | 58.5 | 10.3 | 🟠 Three Forks Depot | Paired twin of Swift Run; cross-bedded river sandstone. |
+| **12** | `M2020-00509-14` | `ST20-014` | **Hazeltop** | Wildcat Ridge | Shenandoah (Hogwallow Flats) | 509 | 59.7 | 10.1 | 🟢 Onboard Belly Cache | **HIGHEST ORGANICS CONCENTRATION**: Fine-grained mudstone with intense PAH fluorescence. |
+| **13** | `M2020-00516-15` | `ST20-015` | **Bearwallow** | Wildcat Ridge | Shenandoah (Hogwallow Flats) | 516 | 62.4 | 10.6 | 🟠 Three Forks Depot | Paired twin of Hazeltop; evaporite-rich sulfate mudstone. |
+| **14** | `M2020-00575-16` | `ST20-016` | **Shuyak** | Amalik | Shenandoah (Delta Front) | 575 | 55.5 | 9.4 | 🟢 Onboard Belly Cache | Laminated deltaic siltstone; optimal low-energy lacustrine taphonomic preservation. |
+| **15** | `M2020-00579-17` | `ST20-017` | **Mageik** | Amalik | Shenandoah (Delta Front) | 579 | 73.6 | 12.9 | 🟠 Three Forks Depot | **LONGEST CORE ON MARS (73.6 mm)**: Continuous sedimentary column. |
+| **16** | `M2020-00623-19` | `ST20-019` | **Kukaklek** | Hidden Harbor | Shenandoah (Delta Front) | 623 | 49.7 | 8.7 | 🟢 Onboard Belly Cache | Polyhydrated sulfate siltstone recording shifting lake brine chemistry. |
+| **17** | `M2020-00634-20` | `ST20-020` | **Athene Mountain** | Observation Mtn | Delta Front Megaripple | 634 | 54.0 | 11.0 | 🟢 Onboard Belly Cache | Bulk aeolian regolith integrating regional impact ejecta and volcanic ash. |
+| **18** | `M2020-00639-21` | `ST20-021` | **Crosswind Lake** | Observation Mtn | Delta Front Megaripple | 639 | 53.0 | 10.8 | 🟠 Three Forks Depot | Surface backup cache for modern Martian regolith and space weathering. |
+| **19** | `M2020-00684-22` | `WT-02` | **Amalik Witness** | Three Forks Region | Control Blank | 684 | 0.0 | 0.0 | 🟠 Three Forks Depot | Terrestrial contamination control blank verifying authenticity of returned biosignatures. |
+| **20** | `M2020-00822-23` | `ST20-023` | **Otis Peak** | Emerald Lake | Tenby Formation (Delta Top) | 822 | 65.0 | 11.4 | 🟢 Onboard Belly Cache | **FIRST CONGLOMERATE CORED**: High-energy river pebbles from crater rim. |
+| **21** | `M2020-00884-24` | `ST20-024` | **Pelican Point** | Bills Bay | Upper Fan Formation | 884 | 62.0 | 10.8 | 🟢 Onboard Belly Cache | Cross-bedded upper fan sandstone marking transition to crater margin carbonates. |
+| **22** | `M2020-01050-25` | `ST20-025` | **Bunsen Peak** | Comet Geyser | Margin Unit | 1050 | 60.5 | 10.5 | 🟢 Onboard Belly Cache | Hydrothermal silica-carbonate breccia (>30% carbonate); ancient hot spring/shoreline. |
+| **23** | `M2020-01065-26` | `ST20-026` | **Silver Lake** | Bunsen Peak | Margin Unit | 1065 | 58.0 | 10.1 | 🟢 Onboard Belly Cache | Carbonate precipitate dating ancient Martian atmospheric carbon sequestration. |
+| **24** | `M2020-01180-27` | `ST20-027` | **Cheyava Falls** | Cheyava Falls | Bright Angel (Neretva Vallis) | 1180 | 63.0 | 10.9 | 🟢 Onboard Belly Cache | **PRIME BIOSIGNATURE CANDIDATE**: Iron-phosphate reduction halos ("leopard spots"). |
+| **25–38** | `ST20-028..043` | `ST20-028..043` | *Available Slots* | In-Situ Targets | Belly Carousel | Active | — | — | ⚪ Open for Coring | 14 unsealed titanium tubes available for in-situ drilling during astronaut EVAs. |
 
 ### Anywhere-on-Mars Hyperspectral Scanner
 In addition to the 20 primary Jezero campaigns, the Science Lab includes an **Orbital-to-Ground Hyperspectral Inversion Engine**. Operators can click anywhere across the global 2D map or select 7 distinct Martian geological provinces (*Gale Crater, Valles Marineris, Olympus Mons, Jezero Delta, Meridiani Planum, Nili Fossae, Utopia Planitia*) to invert MRO CRISM and Odyssey GRS orbital spectra into predicted lithology, hydrated mineral abundance, and paleo-pH.
@@ -350,6 +390,7 @@ Scientific integrity is paramount. The table below delineates the exact source, 
 |---|---|---|---|---|
 | **Topographic Cartography** | **Ground Truth (100%)** | USGS Astrogeology / DLR HRSC / NASA MGS MOLA | Radar altimetry & stereo photogrammetry (200m/px & 4 px/deg) | Validated against actual Perseverance and Curiosity traverse odometry. |
 | **Rock Campaigns (20 Rocks)** | **Ground Truth (100%)** | NASA PDS Geosciences Node (Mars 2020 Perseverance) | Micro-XRF elemental rasters (PIXL), LIBS laser spectra (SuperCam), Raman bands (SHERLOC) | Exact coordinates, sol dates, and rock classifications from NASA PDS archives. |
+| **MSR Sample Manifest (24 Tubes)** | **Ground Truth (100%)** | NASA PDS / Mars 2020 Initial Reports & Dossier | Physical rock core stratigraphy, mass, and Three Forks depot placement logs | Authentic serial numbers (`M2020-00164-02`..`M2020-01180-27`), core lengths (mm), and masses (g). |
 | **Orbital Composition** | **Ground Truth (100%)** | NASA MRO CRISM & Odyssey GRS | Visible-infrared reflectance spectroscopy & gamma-ray spectrometer | Real orbital mineral detections mapped to global coordinate grids. |
 | **Atmospheric Weather (MF-01)** | **Empirical ML (100%)** | NASA Curiosity REMS Archive (4,745 Sols) | Multi-Horizon RidgeCV regression with seasonal $L_s$ cyclical harmonics | Cleansed of ADC hardware dropouts; evaluated on chronological held-out sols. |
 | **Geochemical Classifier (MF-03)** | **Empirical ML (100%)** | NASA Mars 2020 PIXL micro-XRF (16,572 points) | 25-Tree Non-Linear Random Forest with trace-oxide dropout augmentation | 95.69% 5-fold cross-validation accuracy; runs client-side in $<0.2\text{ ms}$. |
@@ -400,8 +441,11 @@ Martis-Ovikorsho/
 ├── src/
 │   ├── components/            # React UI components (Map, Globe, HUD, Lab, Simulator, Copilot)
 │   │   ├── ScienceLabPage.jsx # In-situ Science Lab interface (6 interactive instrument decks)
+│   │   ├── science/MsrSampleManifestDeck.jsx # 38-Tube MSR Carousel & NASA Dossier Deck
 │   │   ├── EvaHudOverlay.jsx  # Astronaut tactical helmet HUD & real-time biotelemetry
 │   │   └── MapView.jsx        # Leaflet 2D tactical surface map & WebGL 3D globe toggle
+│   ├── data/
+│   │   └── nasaSampleManifest.js # NASA MSR Manifest (24 sealed tubes, Three Forks logs)
 │   ├── services/
 │   │   ├── marsMlService.js   # Zero-dependency JS recursive tree traversal & ML inference engine
 │   │   ├── geminiService.js   # Gemini 2.0 Flash integration with tool calling
@@ -439,6 +483,7 @@ Martis Ovikorsho maintains a rigorous automated testing and verification suite. 
 ```bash
 ✓ src/utils/audioSynthesizer.test.js (3 tests)
 ✓ src/services/marsWeatherService.test.js (3 tests)
+✓ src/data/nasaSampleManifest.test.js (8 tests)
 ✓ src/data/scienceLab.test.js (8 tests)
 ✓ src/utils/marsSolar.test.js (9 tests)
 ✓ src/utils/marsSky.test.js (9 tests)
@@ -461,9 +506,9 @@ Martis Ovikorsho maintains a rigorous automated testing and verification suite. 
 ✓ src/utils/marsSkyTransit.test.js (1 test)
 ✓ src/terrain/validation.test.js (6 tests)
 
-Test Files  23 passed (23)
-     Tests  199 passed (199)
-  Duration  12.15s
+Test Files  24 passed (24)
+     Tests  207 passed (207)
+  Duration  14.25s
 ```
 
 ### Traverse Route Validation Against Real Rover Telemetry
