@@ -11,6 +11,7 @@ import { MARS_LANDMARKS } from '../data/marsLandmarks';
 // already-included point (e.g. Jezero as both a landing site and a crater) are skipped so they
 // don't get double weight in the interpolation.
 const ELEVATION_REFS = MARS_LANDMARKS.reduce((refs, lm) => {
+  if (typeof lm.elevation !== 'number' || !Number.isFinite(lm.elevation)) return refs;
   const isDuplicate = refs.some((r) => marsDistance(r.lat, r.lon, lm.lat, lm.lon) < 5);
   if (!isDuplicate) refs.push({ lat: lm.lat, lon: lm.lon, elev: lm.elevation, name: lm.name });
   return refs;
@@ -30,6 +31,7 @@ function interpolateLandmarks(lat, lon) {
     weightSum += weight;
     elevSum += weight * ref.elev;
   }
+  if (!weightSum || !Number.isFinite(elevSum)) return 0;
   return elevSum / weightSum;
 }
 
@@ -47,8 +49,9 @@ export function getElevationInfo(lat, lon) {
       metersPerPixel: dem.grid.metersPerPixel,
     };
   }
+  const interp = interpolateLandmarks(lat, lon);
   return {
-    elevation: Math.round(interpolateLandmarks(lat, lon)),
+    elevation: Math.round(Number.isFinite(interp) ? interp : 0),
     kind: 'model',
     source: 'Interpolated from landmark elevations (terrain grid not loaded)',
     metersPerPixel: null,

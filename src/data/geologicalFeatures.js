@@ -1,143 +1,60 @@
-// Major Geological Features of Mars
-export const geologicalFeatures = [
-  {
-    id: 'olympus-mons',
-    name: 'Olympus Mons',
-    type: 'volcano',
-    lat: 18.65,
-    lon: -133.8,
-    elevation: 21229,
-    diameter: 624,
-    description: 'The tallest known volcano and mountain in the solar system. 21.2 km high and 624 km across — nearly the size of France. Its caldera has six nested collapse craters.',
-    science: 'Shield volcano formed by persistent hotspot volcanism. Some lava flows on its flanks are only a few million years old. Lava tubes may provide radiation shelter for future habitats.',
-    category: 'Tharsis Volcanoes',
-    icon: '🌋',
-    color: '#ef4444',
-    image: 'https://images-assets.nasa.gov/image/PIA10020/PIA10020~small.jpg',
-  },
-  {
-    id: 'valles-marineris',
-    name: 'Valles Marineris',
-    type: 'canyon',
-    lat: -14.0,
-    lon: -59.2,
-    elevation: -5000,
-    diameter: 4000,
-    description: 'The largest canyon system in the solar system: 4,000 km long, 200 km wide, and up to 7 km deep. It would stretch across the entire United States.',
-    science: 'Formed by tectonic rifting associated with the Tharsis bulge. Contains layered sedimentary deposits suggesting ancient lakes. Water-carved side channels indicate past water flow.',
-    category: 'Canyons',
-    icon: '🏜️',
-    color: '#f97316',
-    image: 'https://images-assets.nasa.gov/image/PIA14564/PIA14564~medium.jpg',
-  },
-  {
-    id: 'jezero-crater',
-    name: 'Jezero Crater',
-    type: 'crater',
-    lat: 18.38,
-    lon: 77.58,
-    elevation: -2600,
-    diameter: 45,
-    description: 'A 45 km impact crater that once held a lake fed by river channels. Contains a well-preserved river delta — one of the best places to search for ancient biosignatures.',
-    science: 'Clay minerals (smectite) in the delta indicate prolonged water-rock interaction. Carbonate deposits along the crater rim may preserve microbial fossils. Perseverance is actively exploring here.',
-    category: 'Impact Craters',
-    icon: '🔬',
-    color: '#22c55e',
-    image: 'https://images-assets.nasa.gov/image/PIA26252/PIA26252~medium.jpg',
-  },
-  {
-    id: 'gale-crater',
-    name: 'Gale Crater',
-    type: 'crater',
-    lat: -5.4,
-    lon: 137.8,
-    elevation: -4500,
-    diameter: 154,
-    description: 'A 154 km crater containing Mount Sharp (Aeolis Mons), a 5.5 km central mound of layered sediments. Curiosity has been climbing it since 2014.',
-    science: 'Layers in Mount Sharp record billions of years of Martian climate history. Curiosity found ancient streambeds, organic molecules, and methane variations suggesting geological or biological processes.',
-    category: 'Impact Craters',
-    icon: '🏔️',
-    color: '#3b82f6',
-    image: 'https://images-assets.nasa.gov/image/PIA15292/PIA15292~medium.jpg',
-  },
-  {
-    id: 'hellas-basin',
-    name: 'Hellas Planitia',
-    type: 'basin',
-    lat: -42.4,
-    lon: 70.5,
-    elevation: -7152,
-    diameter: 2300,
-    description: 'The deepest and one of the largest impact basins in the solar system. 7.2 km below the datum with the highest atmospheric pressure on Mars (over 1,155 Pa).',
-    science: 'High atmospheric pressure means liquid water could potentially be stable on the surface during warm periods. Contains glacial features and possible ancient lake deposits.',
-    category: 'Impact Basins',
-    icon: '🕳️',
-    color: '#6366f1',
-    image: 'https://images-assets.nasa.gov/image/PIA21570/PIA21570~medium.jpg',
-  },
-  {
-    id: 'elysium-mons',
-    name: 'Elysium Mons',
-    type: 'volcano',
-    lat: 25.0,
-    lon: 147.2,
-    elevation: 14127,
-    diameter: 240,
-    description: 'The principal volcano in Elysium Planitia, rising 12.6 km above the surrounding plains. Has an unusual conical shape compared to the flatter Tharsis shield volcanoes.',
-    science: 'A stratovolcano-like shield with steep slopes. InSight landed about 1,400 km to the south-west.',
-    category: 'Elysium Province',
-    icon: '🌋',
-    color: '#ef4444',
-    image: 'https://images-assets.nasa.gov/image/PIA24959/PIA24959~medium.jpg',
-  },
-  {
-    id: 'korolev-crater',
-    name: 'Korolev Crater',
-    type: 'crater',
-    lat: 73.0,
-    lon: 165.0,
-    elevation: -3900,
-    diameter: 81.4,
-    description: 'A northern impact crater filled with a permanent, 1.8 km thick dome of pure water ice. A natural cold trap prevents the ice from sublimating.',
-    science: 'Contains ~2,200 km³ of water ice — about as much as Great Bear Lake in Canada. Key resource target for future Martian settlements and ISRU propellant production.',
-    category: 'Polar Regions',
-    icon: '❄️',
-    color: '#06b6d4',
-    image: 'https://images-assets.nasa.gov/image/PIA05608/PIA05608~orig.jpg',
-  },
-  {
-    id: 'victoria-crater',
-    name: 'Victoria Crater',
-    type: 'crater',
-    lat: -2.05,
-    lon: -5.50,
-    elevation: -1400,
-    diameter: 0.8,
-    description: 'An 800-meter impact crater in Meridiani Planum explored by the Opportunity rover for 22 months. Its scalloped rim reveals exposed sulfate bedrock.',
-    science: 'HiRISE imaged Opportunity at the crater rim. Exposed rock layers proved water was present over extensive geological epochs.',
-    category: 'Impact Craters',
-    icon: '🔍',
-    color: '#eab308',
-    image: 'https://images-assets.nasa.gov/image/PIA08812/PIA08812~small.jpg',
-  },
-  {
-    id: 'north-polar-cap',
-    name: 'Planum Boreum (North Pole)',
-    type: 'polar',
-    lat: 88.0,
-    lon: 0.0,
-    elevation: -2755,
-    diameter: 1000,
-    description: 'Mars\'s northern polar ice cap, consisting of permanent water ice layered with dust. Surrounded by the vast sand dune sea of Olympia Undae.',
-    science: 'Layered ice deposits preserve a record of Mars\'s climate cycles over millions of years, driven by changes in orbital obliquity (Milankovitch cycles).',
-    category: 'Polar Regions',
-    icon: '🧊',
-    color: '#00FFCC',
-    image: 'https://images-assets.nasa.gov/image/PIA10651/PIA10651~small.jpg',
-  }
-];
+/**
+ * USGS / IAU Gazetteer of Planetary Nomenclature — Mars Feature Catalog
+ * 
+ * Source: USGS Astrogeology Science Center & International Astronomical Union (IAU)
+ * Working Group for Planetary System Nomenclature (WGPSN).
+ * 
+ * Official structured catalog of 2,055 IAU-approved Martian craters, montes,
+ * chasmata, fossae, valles, planitiae, and chaos terrains with exact center
+ * coordinates, diameters, official approval dates, USGS quadrangles, and etymological origins.
+ */
 
-export const getGeologicalFeatureById = (id) => geologicalFeatures.find(f => f.id === id);
-export const getFeaturesByType = (type) => geologicalFeatures.filter(f => f.type === type);
-export const getFeaturesByCategory = (cat) => geologicalFeatures.filter(f => f.category === cat);
+import nomenclatureData from './marsNomenclatureCatalog.json';
+
+export const catalogMetadata = {
+  catalogVersion: nomenclatureData.catalogVersion || '2026.1',
+  source: nomenclatureData.source || 'USGS Astrogeology / IAU Gazetteer of Planetary Nomenclature',
+  attribution: nomenclatureData.attribution || 'USGS Planetary Names / IAU Working Group for Planetary System Nomenclature (WGPSN)',
+  totalFeatures: nomenclatureData.totalFeatures || nomenclatureData.features?.length || 2055,
+  generated: nomenclatureData.generated,
+};
+
+export const geologicalFeatures = nomenclatureData.features || [];
+
+/** Find a geological feature by its unique slug ID */
+export const getGeologicalFeatureById = (id) => geologicalFeatures.find((f) => f.id === id);
+
+/** Find features by normalized type ('crater', 'volcano', 'canyon', 'fossa', 'plain', 'chaos', 'polar', 'albedo') */
+export const getFeaturesByType = (type) => geologicalFeatures.filter((f) => f.type === type);
+
+/** Find features by category name */
+export const getFeaturesByCategory = (cat) => geologicalFeatures.filter((f) => f.category === cat);
+
+/** Find features by USGS quadrangle code or name (e.g. 'mc19' or 'Margaritifer Sinus') */
+export const getFeaturesByQuad = (quad) => {
+  if (!quad) return [];
+  const q = quad.toLowerCase();
+  return geologicalFeatures.filter(
+    (f) => (f.quadCode && f.quadCode.toLowerCase() === q) || (f.quadName && f.quadName.toLowerCase().includes(q))
+  );
+};
+
+/** Search features by name, clean name, etymological origin, or quadrangle */
+export const searchFeatures = (query) => {
+  if (!query || !query.trim()) return geologicalFeatures;
+  const q = query.trim().toLowerCase();
+  return geologicalFeatures.filter(
+    (f) =>
+      (f.name && f.name.toLowerCase().includes(q)) ||
+      (f.cleanName && f.cleanName.toLowerCase().includes(q)) ||
+      (f.origin && f.origin.toLowerCase().includes(q)) ||
+      (f.quadName && f.quadName.toLowerCase().includes(q)) ||
+      (f.category && f.category.toLowerCase().includes(q))
+  );
+};
+
+/** Get major landmark features above a given diameter (default: 100 km) or hero status */
+export const getMajorLandmarks = (minDiameter = 100) =>
+  geologicalFeatures.filter((f) => f.isHero || (f.diameter || 0) >= minDiameter);
+
 export default geologicalFeatures;

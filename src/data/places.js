@@ -8,26 +8,41 @@ const near = (a, b) => Math.abs(a.lat - b.lat) < 0.02 && Math.abs(a.lon - b.lon)
 
 function build() {
   const out = [];
+  const names = new Set();
+  const grid = new Map();
+  const key = (lat, lon) => `${Math.floor(lat)}:${Math.floor(lon)}`;
+
   const add = (p) => {
     if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return;
-    if (out.some((o) => o.name === p.name || near(o, p))) return;
+    if (names.has(p.name)) return;
+    const k = key(p.lat, p.lon);
+    const cell = grid.get(k);
+    if (cell && cell.some((o) => near(o, p))) return;
+
+    names.add(p.name);
+    if (!cell) grid.set(k, [p]);
+    else cell.push(p);
     out.push(p);
   };
+
   landingSites.forEach((s) => add({
     id: `site-${s.id}`, kind: 'site', name: s.name, sub: `${s.location} · ${s.agency}`,
     lat: s.lat, lon: s.lon, elevation: s.elevation, image: s.image, description: s.description,
     mission: s.mission, agency: s.agency, status: s.status, landingDate: s.landingDate,
     rover: /rover|sojourner/i.test(s.name),
   }));
+
   geologicalFeatures.forEach((f) => add({
     id: `feature-${f.id}`, kind: 'feature', name: f.name, sub: f.category || f.type,
     lat: f.lat, lon: f.lon, elevation: f.elevation, image: f.image,
     description: f.description || f.scienceDescription, featureType: f.type,
   }));
+
   AUTONOMOUS_TARGET_PAIRS.forEach((pair) => {
     add({ id: `${pair.id}-start`, kind: 'base', name: pair.origin.name, sub: pair.location, lat: pair.origin.lat, lon: pair.origin.lon, elevation: pair.origin.elevation });
     add({ id: `${pair.id}-end`, kind: 'target', name: pair.destination.name, sub: pair.location, lat: pair.destination.lat, lon: pair.destination.lon, elevation: pair.destination.elevation });
   });
+
   return out;
 }
 

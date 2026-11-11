@@ -1,5 +1,5 @@
-import React from 'react';
-import { Marker, CircleMarker, Tooltip } from 'react-leaflet';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Marker, CircleMarker, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import useMapStore from '../store/useMapStore';
 import { landingSites } from '../data/landingSites';
@@ -36,26 +36,65 @@ const createSpacecraftIcon = (site) => {
   return icon;
 };
 
-const getFeatureColor = (type) => {
+const getFeatureColor = (type, fallbackColor) => {
+  if (fallbackColor) return fallbackColor;
   switch (type) {
     case 'crater': return '#f47050';
-    case 'mountain': return '#8b5cf6';
-    case 'valley': return '#3b82f6';
+    case 'mountain':
     case 'volcano': return '#ef4444';
-    case 'plain': return '#eab308';
+    case 'valley':
+    case 'canyon': return '#f97316';
+    case 'fossa': return '#eab308';
+    case 'plain': return '#3b82f6';
+    case 'chaos': return '#a855f7';
     case 'polar': return '#06b6d4';
+    case 'albedo': return '#64748b';
     default: return '#10b981';
   }
 };
 
-const POI_GLOBE_DIST = 2.18; // how close the split-view globe flies to a selected place, as for a site picked on the globe
+const POI_GLOBE_DIST = 2.18; // how close the split-view globe flies to a selected place
 
 const POIMarkers = () => {
+  const map = useMap();
   const poiFilters = useMapStore((s) => s.poiFilters);
+  const selectedPOI = useMapStore((s) => s.selectedPOI);
   const setSelectedPOI = useMapStore((s) => s.setSelectedPOI);
   const setGlobeFocus = useMapStore((s) => s.setGlobeFocus);
   const pickTarget = useMapStore((s) => s.pickTarget);
   const pickPoint = useMapStore((s) => s.pickPoint);
+
+  const [zoom, setZoom] = useState(() => (map ? map.getZoom() : 3));
+
+  useEffect(() => {
+    if (!map) return;
+    const handleZoom = () => setZoom(map.getZoom());
+    map.on('zoomend', handleZoom);
+    return () => map.off('zoomend', handleZoom);
+  }, [map]);
+
+  // Level-of-Detail (LOD) filter for the 2,055 IAU gazetteer features:
+  // - When showGeologicalFeatures is OFF, NO gazetteer dots appear (unless a single feature is actively selected).
+  // - When showGeologicalFeatures is ON:
+  //   - Low zoom (<=3): Major planetary landmarks (diameter >= 100 km).
+  //   - Medium zoom (4-5): Regional features (diameter >= 35 km).
+  //   - High zoom (>=6): All named surface features.
+  const visibleFeatures = useMemo(() => {
+    if (!poiFilters.showGeologicalFeatures) {
+      if (selectedPOI && (selectedPOI.poiType === 'feature' || selectedPOI.poiType === 'geologicalFeature')) {
+        const selected = geologicalFeatures.find((f) => f.id === selectedPOI.id || f.name === selectedPOI.name);
+        return selected ? [selected] : [];
+      }
+      return [];
+    }
+    return geologicalFeatures.filter((feature) => {
+      if (selectedPOI && (selectedPOI.id === feature.id || selectedPOI.name === feature.name)) return true;
+      if (feature.isHero) return true;
+      if (zoom <= 3) return (feature.diameter || 0) >= 100;
+      if (zoom <= 5) return (feature.diameter || 0) >= 35;
+      return true;
+    });
+  }, [poiFilters.showGeologicalFeatures, zoom, selectedPOI]);
 
   return (
     <>
@@ -77,29 +116,38 @@ const POIMarkers = () => {
         </Marker>
       ))}
 
-      {poiFilters.showGeologicalFeatures && geologicalFeatures.map((feature) => (
-        <CircleMarker
-          key={`feature-${feature.id}`}
-          center={[feature.lat, feature.lon]}
-          radius={7}
-          bubblingMouseEvents={false}
-          pathOptions={{ 
-            color: getFeatureColor(feature.type), 
-            fillColor: getFeatureColor(feature.type), 
-            fillOpacity: 0.85,
-            weight: 2
-          }}
-          eventHandlers={{
-            click: () => {
-              setGlobeFocus(feature.lat, feature.lon, POI_GLOBE_DIST);
-              if (pickTarget) pickPoint({ name: feature.name, lat: feature.lat, lon: feature.lon, elevation: feature.elevation });
-              else setSelectedPOI({ ...feature, poiType: 'feature' });
-            },
-          }}
-        >
-          <Tooltip direction="top" offset={[0, -8]} className="route-end-label">{feature.name}</Tooltip>
-        </CircleMarker>
-      ))}
+      {visibleFeatures.map((feature) => {
+        const color = getFeatureColor(feature.type, feature.color);
+        const radius = feature.isHero
+          ? 7
+          : Math.min(8, Math.max(3.5, Math.round(Math.log10(Math.max(1, feature.diameter || 10)) * 2.8)));
+
+        return (
+          <CircleMarker
+            key={`feature-${feature.id}`}
+            center={[feature.lat, feature.lon]}
+            radius={radius}
+            bubblingMouseEvents={false}
+            pathOptions={{ 
+              color: color, 
+              fillColor: color, 
+              fillOpacity: 0.85,
+              weight: feature.isHero ? 2.5 : 1.5
+            }}
+            eventHandlers={{
+              click: () => {
+                setGlobeFocus(feature.lat, feature.lon, POI_GLOBE_DIST);
+                if (pickTarget) pickPoint({ name: feature.name, lat: feature.lat, lon: feature.lon, elevation: feature.elevation });
+                else setSelectedPOI({ ...feature, poiType: 'feature' });
+              },
+            }}
+          >
+            <Tooltip direction="top" offset={[0, -8]} className="route-end-label">
+              {feature.name} {feature.diameter ? `(${feature.diameter} km)` : ''}
+            </Tooltip>
+          </CircleMarker>
+        );
+      })}
     </>
   );
 };

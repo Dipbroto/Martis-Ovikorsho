@@ -267,6 +267,94 @@ const LayerCategory = ({ name, layers }) => {
 };
 
 
+const GAZETTEER_HIGHLIGHTS = [
+  { name: 'Olympus Mons', lat: 18.65, lon: -133.8, zoom: 4, label: 'Volcano · 21.2 km high' },
+  { name: 'Valles Marineris', lat: -13.9, lon: -59.2, zoom: 4, label: 'Grand Canyon of Mars · 4,000 km' },
+  { name: 'Gale Crater', lat: -5.4, lon: 137.8, zoom: 7, label: 'Curiosity site · Mt Sharp' },
+  { name: 'Jezero Crater', lat: 18.38, lon: 77.58, zoom: 7, label: 'Perseverance site · Ancient delta' },
+  { name: 'Hellas Planitia', lat: -42.5, lon: 70.5, zoom: 4, label: 'Deepest basin · -7.2 km' },
+];
+
+const GazetteerCategory = () => {
+  const [showInfo, setShowInfo] = useState(false);
+  const showGeologicalFeatures = useMapStore((s) => !!s.poiFilters?.showGeologicalFeatures);
+  const togglePOIFilter = useMapStore((s) => s.togglePOIFilter);
+  const flyToCoordinate = useMapStore((s) => s.flyToCoordinate);
+
+  return (
+    <section>
+      <div className={`rounded-xl border transition-colors ${showGeologicalFeatures ? 'border-amber-500/35 bg-amber-500/[0.06]' : 'border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04]'}`}>
+        <div className="flex items-center gap-2 pr-2">
+          <button
+            onClick={() => togglePOIFilter('showGeologicalFeatures')}
+            role="switch"
+            aria-checked={showGeologicalFeatures}
+            className="flex-1 min-w-0 flex items-center gap-3 text-left pl-3 py-2.5 cursor-pointer"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium text-white leading-snug">Detailed Site View (IAU 2,055 Sites)</span>
+              <span className="block text-xs text-zinc-400 leading-snug mt-0.5">Approved Craters, Montes, Valles, Chasmata & Plains</span>
+            </span>
+            <Switch on={showGeologicalFeatures} />
+          </button>
+          <button
+            onClick={() => setShowInfo((v) => !v)}
+            aria-expanded={showInfo}
+            aria-label="About planetary gazetteer"
+            title="About planetary gazetteer"
+            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0 cursor-pointer ${showInfo ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-white hover:bg-white/10'}`}
+          >
+            <Info className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <AnimatePresence initial={false}>
+          {showInfo && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+              <div className="mx-3 mb-3 rounded-lg bg-black/30 p-3 text-xs text-zinc-300 leading-relaxed space-y-2 border border-white/5">
+                <div className="text-zinc-300 leading-normal">
+                  Official USGS Astrogeology & IAU catalog of 2,055 approved Martian features with authentic MOLA MEGDR topographic elevations, morphological classifications, diameters, and IAU approval dates.
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono text-zinc-300">
+                  <div className="bg-white/5 p-1.5 rounded border border-white/5"><span className="text-amber-400 font-bold">1,243</span> Impact Craters</div>
+                  <div className="bg-white/5 p-1.5 rounded border border-white/5"><span className="text-amber-400 font-bold">121</span> Montes & Tholi</div>
+                  <div className="bg-white/5 p-1.5 rounded border border-white/5"><span className="text-amber-400 font-bold">198</span> Valles & Chasmata</div>
+                  <div className="bg-white/5 p-1.5 rounded border border-white/5"><span className="text-amber-400 font-bold">221</span> Fossae & Catenae</div>
+                  <div className="bg-white/5 p-1.5 rounded border border-white/5"><span className="text-amber-400 font-bold">189</span> Planitiae & Dorsa</div>
+                  <div className="bg-white/5 p-1.5 rounded border border-white/5"><span className="text-amber-400 font-bold">83</span> Chaos & Polar Sites</div>
+                </div>
+                <div className="space-y-1 pt-1.5 border-t border-white/5">
+                  <div className="text-zinc-400 font-medium text-[11px]">Quick-Fly Landmark Features:</div>
+                  <div className="space-y-1 text-[11px]">
+                    {GAZETTEER_HIGHLIGHTS.map((site) => (
+                      <div key={site.name} className="flex items-center justify-between gap-2 py-0.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                          <span className="text-white font-medium truncate">{site.name}</span>
+                          <span className="text-zinc-500 text-[10px]">({site.label})</span>
+                        </div>
+                        <button
+                          onClick={() => flyToCoordinate(site.lat, site.lon, site.zoom)}
+                          className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white text-[10px] font-medium transition-colors cursor-pointer shrink-0"
+                        >
+                          Fly to
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="pt-1.5 border-t border-white/5 text-[10px] text-zinc-500">
+                  Sources: USGS Astrogeology Science Center · IAU WGPSN · NASA MOLA MEGDR DEM (4 px/deg)
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </section>
+  );
+};
+
 const RoverTraverseCategory = () => {
   const [isOpen, setIsOpen] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
@@ -341,8 +429,9 @@ const RoverTraverseCategory = () => {
 
 const LayerPanel = () => (
   <div className="flex flex-col gap-4">
-    <ResourceCategory />
+    <GazetteerCategory />
     <RoverTraverseCategory />
+    <ResourceCategory />
     {CATEGORY_LIST.map((category) => {
       const layers = marsLayers.filter((l) => l.category === category);
       return layers.length ? <LayerCategory key={category} name={category} layers={layers} /> : null;

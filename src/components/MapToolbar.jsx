@@ -96,6 +96,7 @@ function MapToolbar() {
     terrainOverlay: st.terrainOverlay, setTerrainOverlay: st.setTerrainOverlay,
     showRoverTraverses: st.showRoverTraverses, toggleRoverTraverses: st.toggleRoverTraverses,
     showDustStormTracks: st.showDustStormTracks, toggleDustStormTracks: st.toggleDustStormTracks,
+    showGeologicalFeatures: st.showGeologicalFeatures, toggleGeologicalFeatures: st.toggleGeologicalFeatures,
     showGraticule: st.showGraticule, toggleGraticule: st.toggleGraticule,
     showWalkbackLimits: st.showWalkbackLimits, toggleWalkbackLimits: st.toggleWalkbackLimits,
     isRulerActive: st.isRulerActive, setRulerActive: st.setRulerActive, clearRuler: st.clearRuler,
@@ -124,7 +125,7 @@ function MapToolbar() {
   const hasRoute = s.waypoints.length > 1;
   const activeCheck = CHECKS.find((c) => c.key === s.terrainOverlay);
   const GRS_KEYS = ['ice', 'iron', 'silicon', 'potassium', 'thorium', 'chlorine', 'caves'];
-  const layerActive = GRS_KEYS.includes(s.terrainOverlay) || s.showRoverTraverses || s.showDustStormTracks;
+  const layerActive = GRS_KEYS.includes(s.terrainOverlay) || s.showRoverTraverses || s.showDustStormTracks || s.showGeologicalFeatures;
 
   const atEnd = s.roverProgress >= 0.99;
   const pausedMid = !s.isRoverDriving && s.roverProgress > 0.01 && !atEnd;
@@ -265,6 +266,7 @@ function MapToolbar() {
                   <div className="px-3 pt-1 pb-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
                     Surface Exploration & Shelter
                   </div>
+                  <Item icon={MapPin} label="Detailed site view (IAU 2,055 Sites)" hint="Approved craters, montes, valles, chasmata & plains (USGS/IAU)" active={s.showGeologicalFeatures} onSelect={() => { s.toggleGeologicalFeatures(); click(); }} />
                   <Item kind="radio" icon={Tent} label="Cave & pit shelters (MGC3)" hint="1,062 candidates from USGS catalog for radiation shield" active={s.terrainOverlay === 'caves'} onSelect={() => { s.setTerrainOverlay('caves'); click(); }} />
                   <Item icon={Route} label="Real rover tracks" hint="Opportunity, Perseverance, Curiosity, Spirit & Sojourner paths (129 km)" active={s.showRoverTraverses} onSelect={() => { s.toggleRoverTraverses(); click(); }} />
                   <Item icon={Wind} label="Dust storm tracks & footprints" hint="Over 1,000 tracked local, regional & global storms (NASA/PSI MDSTD)" active={s.showDustStormTracks} onSelect={() => { s.toggleDustStormTracks(); click(); }} />

@@ -178,4 +178,29 @@ describe('sample tube management in science lab', () => {
     store().consumeMaterial('tiFeAlloyKg', 50.0);
     expect(store().isruInventory.tiFeAlloyKg).toBe(0);
   });
+
+  it('defaults detailed site view (geological features) to false and allows toggling via layer options', () => {
+    store().resetMapToDefault();
+    expect(store().showGeologicalFeatures).toBe(false);
+    expect(store().poiFilters.showGeologicalFeatures).toBe(false);
+
+    // Toggle ON via layer switch
+    store().togglePOIFilter('showGeologicalFeatures');
+    expect(store().showGeologicalFeatures).toBe(true);
+    expect(store().poiFilters.showGeologicalFeatures).toBe(true);
+
+    // Toggle OFF via layer switch
+    store().togglePOIFilter('showGeologicalFeatures');
+    expect(store().showGeologicalFeatures).toBe(false);
+    expect(store().poiFilters.showGeologicalFeatures).toBe(false);
+
+    // Also supports toggleGeologicalFeatures
+    store().toggleGeologicalFeatures();
+    expect(store().showGeologicalFeatures).toBe(true);
+    expect(store().poiFilters.showGeologicalFeatures).toBe(true);
+
+    store().resetMapToDefault();
+    expect(store().showGeologicalFeatures).toBe(false);
+    expect(store().poiFilters.showGeologicalFeatures).toBe(false);
+  });
 });

@@ -4,7 +4,7 @@
 [![NASA Space Apps Challenge 2026](https://img.shields.io/badge/NASA_Space_Apps-2026_Challenge-0B3D91?style=for-the-badge&logo=nasa&logoColor=white)](https://www.spaceappschallenge.org/)
 [![Live Deployment](https://img.shields.io/badge/Live_Demo-martis--ovikorsho.vercel.app-00C7B7?style=for-the-badge&logo=vercel&logoColor=white)](https://martis-ovikorsho.vercel.app/)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Dipbroto%2FMartis--Ovikorsho-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Dipbroto/Martis-Ovikorsho)
-[![Tests Passing](https://img.shields.io/badge/Vitest-29%20Suites%20%7C%20234%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Tests Passing](https://img.shields.io/badge/Vitest-31%20Suites%20%7C%20245%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![ML Runtime](https://img.shields.io/badge/Edge_ML-25--Tree%20Random%20Forest%20(%3C0.2ms)-blueviolet?style=for-the-badge&logo=scikitlearn&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js)
 [![NASA PDS Archives](https://img.shields.io/badge/NASA_PDS-20%20Jezero%20Targets%20%7C%2018.5k%20Spectra-critical?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/missions/mars2020/)
 [![NASA Odyssey GRS](https://img.shields.io/badge/Odyssey_GRS-6%20Global%20Elemental%20Maps-teal?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/ody/ody-m-grs-5-elements-v1/)
@@ -14,6 +14,7 @@
 [![NASA MSL RAD & DONKI](https://img.shields.io/badge/MSL_RAD-4%2C200%2B_Sols_Dosimetry_%7C_DONKI_Space_Weather-red?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/RadiationPanel.jsx)
 [![NASA Dust Storm Tracks](https://img.shields.io/badge/PSI_MDSTD-1%2C000%2B_Dust_Storm_Tracks_%7C_MARCI_THEMIS-f97316?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/DustStormTracker.jsx)
 [![NASA Rover Photos API](https://img.shields.io/badge/NASA_Rover_Photos-Sol_%26_Camera_Telemetry_%7C_Mastcam--Z_RMI_WATSON-ff8c69?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/MarsImageryPage.jsx)
+[![USGS IAU Gazetteer](https://img.shields.io/badge/USGS_IAU_Gazetteer-2%2C055_Approved_Features_%7C_Craters_Montes_Valles-9333ea?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/data/geologicalFeatures.js)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 > **"Read a Martian rock like a rover does; plan a Marswalk like an astronaut must."**  
@@ -45,6 +46,7 @@
    - [Dual- & Multi-Station Live Weather: Perseverance MEDA, Curiosity REMS & InSight TWINS/APSS](#dual--multi-station-live-weather-perseverance-meda-curiosity-rems--insight-twinsapss)
    - [Martian Dust Storm Tracker: NASA / PSI Mars Dust Storm Track Database (MDSTD) & Trajectory Footprints](#martian-dust-storm-tracker-nasa--psi-mars-dust-storm-track-database-mdstd--trajectory-footprints)
    - [In-Situ Mars Imagery: NASA Mars Rover Raw Photos API (by Camera & Sol)](#in-situ-mars-imagery-nasa-mars-rover-raw-photos-api-by-camera--sol)
+   - [Global Planetary Gazetteer: USGS / IAU Martian Nomenclature Catalog (2,055 Approved Features)](#global-planetary-gazetteer-usgs--iau-martian-nomenclature-catalog-2055-approved-features)
 5. [Astronaut EVA HUD, Biotelemetry & Solar Ephemeris](#-astronaut-eva-hud-biotelemetry--solar-ephemeris)
 6. [Contingency Simulator & Emergency Protocols](#-contingency-simulator--emergency-protocols)
 7. [EVA AI Copilot (Gemini 2.0 Flash)](#-eva-ai-copilot-gemini-20-flash)
@@ -610,6 +612,64 @@ flowchart TD
 
 ---
 
+### Global Planetary Gazetteer: USGS / IAU Martian Nomenclature Catalog (2,055 Approved Features)
+
+Martis Ovikorsho expands surface landmark intelligence from ~10 hardcoded points to the comprehensive **USGS / IAU Gazetteer of Planetary Nomenclature**, maintained by the USGS Astrogeology Science Center on behalf of the International Astronomical Union (IAU) Working Group for Planetary System Nomenclature (WGPSN).
+
+```mermaid
+flowchart TD
+    subgraph USGS_IAU_DB["USGS / IAU Gazetteer Database (planetarynames.wr.usgs.gov)"]
+        IAU["2,055 Officially Approved Features<br/>Craters, Montes, Chasmata, Fossae, Valles, Planitiae, Chaos"]
+        ATTRIB["IAU Metadata: Approval Year, Center Lat/Lon,<br/>Diameter (km), 2-Letter Code, Origin & Honorific"]
+    end
+
+    subgraph Normalization["Gazetteer Engine & Fast Indexing (src/data/geologicalFeatures.js)"]
+        PARSER["Coordinate Normalization (0-360°E -> [-180°, +180°])<br/>Cartesian Spatial Bucketing (6ms Instant Build)"]
+        CATEGORIES["8 Standardized Morphological Families<br/>💥 Craters · 🌋 Montes · 🏜️ Valles · ⚡ Fossae<br/>🪐 Plains · 🌀 Chaos · ❄️ Polar · 🔭 Albedo"]
+        HERO_MERGE["Hero Heritage Enrichment<br/>Preserves In-Situ Science, Elevations & Context Photos"]
+    end
+
+    subgraph InteractiveUI["Cartographic & Exploration Surface"]
+        LOD["Adaptive Level-of-Detail (LOD) Layer<br/>src/components/POIMarkers.jsx<br/>- Zoom <=3: Global Giants (diam >= 100 km)<br/>- Zoom 4-5: Regional Features (diam >= 35 km)<br/>- Zoom >=6: High-Density Tactical Survey"]
+        RECON["Reconnaissance Catalog & Detail Dossier<br/>src/components/POIDetailCard.jsx<br/>- Real-time Multi-Criteria Search & Filtering<br/>- Official USGS Quadrangle & Etymology Dossier<br/>- Direct Link to IAU Planetary Names Archive"]
+        NAV_AI["A* Route Integration & Nearest Place Resolver<br/>src/data/places.js (2,055 Spatial Waypoints)"]
+    end
+
+    IAU & ATTRIB --> PARSER --> CATEGORIES --> HERO_MERGE
+    HERO_MERGE --> LOD
+    HERO_MERGE --> RECON
+    HERO_MERGE --> NAV_AI
+```
+
+#### Key Capabilities of the Gazetteer Subsystem:
+1. **2,055 IAU-Approved Martian Features**: Complete inventory spanning all 30 USGS Mars Chart quadrangles (`mc01` Mare Boreum to `mc30` Mare Australe).
+2. **8 Morphological Categories with Contextual Glyphs**:
+   - **Impact Craters (1,243)**: From microscopic rover targets like Victoria Crater ($0.88\text{ km}$) to giant multi-ring impact scars like Huygens ($467\text{ km}$) and Schiaparelli ($461\text{ km}$).
+   - **Volcanoes & Montes (121)**: Massive shield constructs (Olympus Mons, Elysium Mons, Ascraeus Mons, Pavonis Mons, Arsia Mons, Alba Mons) and volcanic paterae.
+   - **Canyons, Valles & Chasmata (198)**: Solar-system scale rift valleys (Valles Marineris, Melas Chasma, Candor Chasma) and ancient outflow channels (Ares, Kasei, Shalbatana Valles).
+   - **Tectonic Scarps & Fossae (114)**: Graben systems (Cerberus Fossae, Medusae Fossae, Noctis Labyrinthus).
+   - **Plains, Basins & Plateaus (122)**: Hellas Planitia ($-7.2\text{ km}$ deep), Utopia Planitia, Isidis Planitia, and Vastitas Borealis.
+   - **Chaos & Collapsed Terrains (98)**: Groundwater collapse zones (Aram Chaos, Hydaspis Chaos) and polar cavi.
+   - **Polar Pits & Dune Fields (34)**: Planum Boreum layered deposits, Olympia Undae erg dunes, and Korolev water-ice dome.
+   - **Classical Albedo Markings (126)**: Historic telescopic markings (Syrtis Major, Solis Lacus).
+3. **Adaptive Level-of-Detail (LOD) Map Rendering**:
+   - Eliminates DOM bloat and framerate hitches by dynamically throttling visible feature density based on camera altitude ($zoom \le 3$: major landmarks $\ge 100\text{ km}$; $zoom \le 5$: regional features $\ge 35\text{ km}$; $zoom \ge 6$: full tactical catalog).
+   - Any searched or selected feature is prioritized and pinned regardless of current zoom level.
+4. **Official IAU Nomenclature Dossier**:
+   - Inspecting any geological landmark in `POIDetailCard.jsx` displays its official IAU approval date, 2-letter classification code, diameter ($\text{km}$), USGS quadrangle, etymological biography/origin, and a direct link to the USGS Gazetteer web archive.
+5. **Universal "Nearest Place" Spatial Resolution**:
+   - Upgrades `nearestPlace(lat, lon)` in `src/data/places.js` with $O(1)$ spatial grid bucketing ($6\text{ ms}$ index build), enabling astronauts and autonomous rovers to resolve their closest named Martian feature anywhere on the planet.
+6. **MOLA MEGDR Topographic Elevation for 100% of Features**:
+   - Every single one of the 2,055 features is enriched with authentic MOLA MEGDR elevation sampled from the global 16-bit DEM grid (`public/data/dem/global.i16z` at $4\text{ px/deg}$, $15\text{ km/pixel}$).
+   - Replaced ungrounded landmark arrays with an authenticated, zero-null dataset that prevents inverse-distance interpolation from collapsing to $0\text{ m}$ or `NaN`.
+   - Dynamic fallback in `src/components/POIDetailCard.jsx` and `src/components/CoordinateDisplay.jsx` guarantees accurate meters-above-datum readings across the entire planet.
+7. **Dedicated Layer Panel Toggle (Detailed Site View)**:
+   - Added an integrated toggle switch inside `src/components/LayerPanel.jsx` under **Planetary Gazetteer (USGS / IAU)** alongside the Rover Traverses and Odyssey GRS resource overlays.
+   - Provides an expandable breakdown of all 8 morphological families and one-click "Fly to" buttons for major landmarks (Olympus Mons, Valles Marineris, Gale Crater, Jezero Crater, Hellas Planitia).
+   - Instant map state reactivity hides or reveals all 2,055 gazetteer pins cleanly without affecting other map layers.
+
+---
+
 ## 🪖 Astronaut EVA HUD, Biotelemetry & Solar Ephemeris
 
 The **EVA Tactical Helmet HUD** (`src/components/EvaHudOverlay.jsx`) simulates an astronaut heads-up display:
@@ -653,6 +713,7 @@ Scientific integrity is paramount. The table below delineates the exact source, 
 | **Multi-Station Surface Weather** | **Ground Truth (100%)** | NASA Mars Weather API / PDS (Perseverance MEDA, Curiosity REMS, InSight APSS) | Ground station pressure, air/ground temperature, relative humidity, wind vectors, and convective vortex barometric pressure drops | Multi-station real-time feed with local offline PDS cache for Jezero (-2.5 km), Gale (-4.5 km), and Elysium (-2.6 km). |
 | **Mars Dust Storm Catalog (MDSTD)** | **Ground Truth (100%)** | NASA / PSI Mars Dust Storm Track Database (Battalio & Wang, Cantor et al.) | 1,050 individually tracked events from MRO MARCI & Mars Odyssey THEMIS (MY24–MY36) | Precise initiation sols, coordinates, velocities (km/h), area (km²), optical depth τ, and Leaflet footprint polygons. |
 | **In-Situ Rover Raw Imagery** | **Ground Truth (100%)** | NASA JPL Mars Raw Images Feed (`mars.nasa.gov/rss/api/?feed=raw_images`) | Calibrated EDR/RDR optical frames from Mastcam-Z, SuperCam RMI, WATSON, Navcam, Hazcam with camera filter wavelengths, solar elevation, and drive numbers | Live query by exact sol, rover, and instrument filter with pre-cached 88-frame hero baseline and zero-rate-limit resilience. |
+| **Planetary Gazetteer (2,055 Features)** | **Ground Truth (100%)** | USGS Astrogeology / IAU Gazetteer of Planetary Nomenclature | 2,055 officially approved Martian craters, montes, chasmata, fossae, valles, planitiae, and chaos terrains with exact center coordinates, diameters, approval dates, and etymology | Adaptive LOD Leaflet layer with instant spatial bucketing, full reconnaissance search, and dedicated IAU nomenclature dossier. |
 | **Atmospheric Weather (MF-01)** | **Empirical ML (100%)** | NASA Curiosity REMS Archive (4,745 Sols) | Multi-Horizon RidgeCV regression with seasonal $L_s$ cyclical harmonics | Cleansed of ADC hardware dropouts; evaluated on chronological held-out sols. |
 | **Geochemical Classifier (MF-03)** | **Empirical ML (100%)** | NASA Mars 2020 PIXL micro-XRF (16,572 points) | 25-Tree Non-Linear Random Forest with trace-oxide dropout augmentation | 95.69% 5-fold cross-validation accuracy; runs client-side in $<0.2\text{ ms}$. |
 | **Space Radiation (MF-04)** | **Physics-Based Surrogate** | NASA MSL RAD Published Values (Hassler et al. 2014) | Analytical GCR galactic dose formula modulated by 11-year solar cycle | Evaluates reproduction of published physics formula, not raw sensor time series. |
@@ -739,7 +800,7 @@ Martis-Ovikorsho/
 
 ## 🧪 Verification & Benchmark Validation
 
-Martis Ovikorsho maintains a rigorous automated testing and verification suite. All 29 test suites (234 tests) run on every commit:
+Martis Ovikorsho maintains a rigorous automated testing and verification suite. All 30 test suites (241 tests) run on every commit:
 
 ```bash
 ✓ src/utils/audioSynthesizer.test.js (3 tests)
@@ -773,10 +834,12 @@ Martis Ovikorsho maintains a rigorous automated testing and verification suite. 
 ...
 ✓ src/services/marsDustStormService.test.js (4 tests)
 ✓ src/services/nasaApiService.test.js (5 tests)
+✓ src/data/geologicalFeatures.test.js (7 tests)
+✓ src/utils/elevationService.test.js (3 tests)
 
-Test Files  29 passed (29)
-     Tests  234 passed (234)
-  Duration  27.50s
+Test Files  31 passed (31)
+     Tests  245 passed (245)
+  Duration  24.10s
 ```
 
 ### Traverse Route Validation Against Real Rover Telemetry

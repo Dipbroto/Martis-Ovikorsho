@@ -21,7 +21,7 @@ const normalizeWaypoint = (w) => {
 const UNDO_KEYS = [
   'waypoints', 'selectedWaypointId', 'routeDraft', 'routePlanOpen', 'routeEditing', 'pickTarget',
   'isPlacingWaypoint', 'isRulerActive', 'rulerPoints', 'isMarkingLocation', 'markedLocation',
-  'selectedPOI', 'terrainOverlay', 'activeLayers', 'showGraticule', 'showWalkbackLimits', 'showRoverTraverses', 'showDustStormTracks',
+  'selectedPOI', 'terrainOverlay', 'activeLayers', 'showGraticule', 'showWalkbackLimits', 'showRoverTraverses', 'showDustStormTracks', 'showGeologicalFeatures',
   'quakeMode', 'faultSelected',
 ];
 // Move the camera, so they are a step too, but undoing flies back to where the map was really looking instead
@@ -93,6 +93,13 @@ const useMapStore = create((set, get) => ({
     showGraticule: false,
     showRoverTraverses: false,
     showDustStormTracks: false,
+    showGeologicalFeatures: false,
+    poiFilters: {
+      showLandingSites: true,
+      showGeologicalFeatures: false,
+      showScienceTargets: true,
+      featureTypes: [],
+    },
     selectedDustStormId: null,
     terrainOverlay: null,
     routeScanOpen: false,
@@ -347,6 +354,16 @@ const useMapStore = create((set, get) => ({
   // NASA / PSI MARS DUST STORM TRACK CATALOG (MDSTD)
   showDustStormTracks: false,
   toggleDustStormTracks: () => set((state) => ({ showDustStormTracks: !state.showDustStormTracks })),
+
+  // USGS / IAU PLANETARY GAZETTEER (DETAILED SITE VIEW) - OFF by default
+  showGeologicalFeatures: false,
+  toggleGeologicalFeatures: () => set((state) => {
+    const nextVal = !state.showGeologicalFeatures;
+    return {
+      showGeologicalFeatures: nextVal,
+      poiFilters: { ...state.poiFilters, showGeologicalFeatures: nextVal }
+    };
+  }),
   selectedDustStormId: null,
   setSelectedDustStormId: (id) => set({ selectedDustStormId: id }),
   dustStormFilter: { type: 'ALL', marsYear: 'ALL', minTau: 0, query: '' },
@@ -453,15 +470,19 @@ const useMapStore = create((set, get) => ({
   selectedPOI: null,
   poiFilters: {
     showLandingSites: true,
-    showGeologicalFeatures: true,
+    showGeologicalFeatures: false, // OFF by default: only appears when enabled via Layers option
     showScienceTargets: true,
     featureTypes: [],
   },
   
   setSelectedPOI: (poi) => set((state) => ({ selectedPOI: poi, selectedWaypointId: poi ? null : state.selectedWaypointId })),
-  togglePOIFilter: (key) => set((state) => ({
-    poiFilters: { ...state.poiFilters, [key]: !state.poiFilters[key] }
-  })),
+  togglePOIFilter: (key) => set((state) => {
+    const nextVal = !state.poiFilters[key];
+    return {
+      poiFilters: { ...state.poiFilters, [key]: nextVal },
+      ...(key === 'showGeologicalFeatures' ? { showGeologicalFeatures: nextVal } : {})
+    };
+  }),
 
   // ========================
   // WEATHER (MULTI-STATION: PERSEVERANCE MEDA, CURIOSITY REMS, INSIGHT TWINS/APSS)

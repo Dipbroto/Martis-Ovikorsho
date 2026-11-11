@@ -1,11 +1,24 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MapPin, Navigation, Mountain, Target, FlaskConical, Camera, Search, Compass } from 'lucide-react';
+import {
+  X,
+  MapPin,
+  Navigation,
+  Mountain,
+  Target,
+  FlaskConical,
+  Camera,
+  Search,
+  Compass,
+  ExternalLink,
+  BookOpen
+} from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import { useShallow } from 'zustand/react/shallow';
 import { landingSites } from '../data/landingSites';
 import { geologicalFeatures } from '../data/geologicalFeatures';
 import { marsAudio } from '../utils/audioSynthesizer';
+import { getElevation } from '../utils/elevationService';
 import ProvenanceBadge from './ProvenanceBadge';
 
 const POIDetailCard = () => {
@@ -16,28 +29,56 @@ const POIDetailCard = () => {
     setScienceLabOpen,
     setImageryModalOpen,
     flyToCoordinate
-  } = useMapStore(useShallow((s) => ({ selectedPOI: s.selectedPOI, setSelectedPOI: s.setSelectedPOI, addWaypoint: s.addWaypoint, setScienceLabOpen: s.setScienceLabOpen, setImageryModalOpen: s.setImageryModalOpen, flyToCoordinate: s.flyToCoordinate })));
+  } = useMapStore(useShallow((s) => ({
+    selectedPOI: s.selectedPOI,
+    setSelectedPOI: s.setSelectedPOI,
+    addWaypoint: s.addWaypoint,
+    setScienceLabOpen: s.setScienceLabOpen,
+    setImageryModalOpen: s.setImageryModalOpen,
+    flyToCoordinate: s.flyToCoordinate
+  })));
 
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'landing' | 'geology'
+  const [activeTab, setActiveTab] = useState('all'); 
   const [searchQuery, setSearchQuery] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(60);
 
   // Combined POIs for catalog view
-  const allPOIs = [
+  const allPOIs = useMemo(() => [
     ...landingSites.map(s => ({ ...s, poiType: 'landingSite' })),
     ...geologicalFeatures.map(f => ({ ...f, poiType: 'geologicalFeature' }))
-  ];
+  ], []);
 
-  const filteredPOIs = allPOIs.filter(poi => {
-    const matchesTab = activeTab === 'all' || 
-      (activeTab === 'landing' && poi.poiType === 'landingSite') ||
-      (activeTab === 'geology' && poi.poiType === 'geologicalFeature');
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = !q || 
-      poi.name.toLowerCase().includes(q) || 
-      (poi.location && poi.location.toLowerCase().includes(q)) ||
-      (poi.type && poi.type.toLowerCase().includes(q));
-    return matchesTab && matchesSearch;
-  });
+  useEffect(() => {
+    setDisplayLimit(60);
+  }, [activeTab, searchQuery]);
+
+  const filteredPOIs = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return allPOIs.filter((poi) => {
+      let matchesTab = true;
+      if (activeTab === 'landing') matchesTab = poi.poiType === 'landingSite';
+      else if (activeTab === 'crater') matchesTab = poi.type === 'crater';
+      else if (activeTab === 'volcano') matchesTab = poi.type === 'volcano' || poi.type === 'mountain';
+      else if (activeTab === 'canyon') matchesTab = poi.type === 'canyon' || poi.type === 'valley';
+      else if (activeTab === 'plain') matchesTab = poi.type === 'plain';
+      else if (activeTab === 'fossa') matchesTab = poi.type === 'fossa';
+      else if (activeTab === 'chaos') matchesTab = poi.type === 'chaos' || poi.type === 'polar';
+      else if (activeTab === 'geology') matchesTab = poi.poiType === 'geologicalFeature';
+
+      if (!matchesTab) return false;
+      if (!q) return true;
+
+      return (
+        poi.name.toLowerCase().includes(q) ||
+        (poi.cleanName && poi.cleanName.toLowerCase().includes(q)) ||
+        (poi.location && poi.location.toLowerCase().includes(q)) ||
+        (poi.quadName && poi.quadName.toLowerCase().includes(q)) ||
+        (poi.origin && poi.origin.toLowerCase().includes(q)) ||
+        (poi.type && poi.type.toLowerCase().includes(q)) ||
+        (poi.category && poi.category.toLowerCase().includes(q))
+      );
+    });
+  }, [allPOIs, activeTab, searchQuery]);
 
   const handleSelectPOI = (poi) => {
     marsAudio.playUiClick?.();
@@ -46,6 +87,14 @@ const POIDetailCard = () => {
     flyToCoordinate(poi.lat, lon, 5);
   };
 
+  const poiElevation = useMemo(() => {
+    if (!selectedPOI) return null;
+    if (typeof selectedPOI.elevation === 'number' && Number.isFinite(selectedPOI.elevation)) {
+      return selectedPOI.elevation;
+    }
+    return getElevation(selectedPOI.lat, selectedPOI.lon);
+  }, [selectedPOI]);
+
   const handleNavigate = () => {
     if (!selectedPOI) return;
     const lon = selectedPOI.lon;
@@ -53,7 +102,7 @@ const POIDetailCard = () => {
       id: Date.now().toString(),
       lat: selectedPOI.lat,
       lon: lon,
-      elevation: selectedPOI.elevation || 0,
+      elevation: poiElevation ?? 0,
       name: selectedPOI.name
     });
     marsAudio.playQuindarTone?.(true);
@@ -68,10 +117,10 @@ const POIDetailCard = () => {
           <div className="flex items-center justify-between mb-2">
             <span className="font-display font-bold text-xs tracking-wider text-white uppercase flex items-center gap-1.5">
               <Compass className="w-3.5 h-3.5 text-cyber-cyan" />
-              <span>Martian Reconnaissance Catalog</span>
+              <span>USGS / IAU Planetary Gazetteer</span>
             </span>
             <span className="text-[9px] font-mono text-space-400">
-              {filteredPOIs.length} SITES
+              {filteredPOIs.length.toLocaleString()} OF {allPOIs.length.toLocaleString()}
             </span>
           </div>
 
@@ -82,7 +131,7 @@ const POIDetailCard = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search craters, rovers, volcanoes..."
+              placeholder="Search 2,055 craters, montes, vallis, quads..."
               className="w-full bg-space-900/90 border border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-space-500 font-mono focus:outline-none focus:border-cyber-cyan/50"
             />
           </div>
@@ -97,7 +146,7 @@ const POIDetailCard = () => {
                   : 'text-space-400 hover:text-white bg-space-900/50'
               }`}
             >
-              All ({allPOIs.length})
+              All ({allPOIs.length.toLocaleString()})
             </button>
             <button
               onClick={() => setActiveTab('landing')}
@@ -107,24 +156,74 @@ const POIDetailCard = () => {
                   : 'text-space-400 hover:text-white bg-space-900/50'
               }`}
             >
-              Rovers & Landers
+              Rovers & Landers (16)
             </button>
             <button
-              onClick={() => setActiveTab('geology')}
+              onClick={() => setActiveTab('crater')}
               className={`px-2.5 py-1 rounded-lg transition-all shrink-0 whitespace-nowrap ${
-                activeTab === 'geology'
-                  ? 'bg-mars-500/20 text-mars-300 border border-mars-500/40 font-bold'
+                activeTab === 'crater'
+                  ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40 font-bold'
                   : 'text-space-400 hover:text-white bg-space-900/50'
               }`}
             >
-              Geology & Ice
+              Craters (1,243)
+            </button>
+            <button
+              onClick={() => setActiveTab('volcano')}
+              className={`px-2.5 py-1 rounded-lg transition-all shrink-0 whitespace-nowrap ${
+                activeTab === 'volcano'
+                  ? 'bg-red-500/20 text-red-300 border border-red-500/40 font-bold'
+                  : 'text-space-400 hover:text-white bg-space-900/50'
+              }`}
+            >
+              Montes & Volcanoes (121)
+            </button>
+            <button
+              onClick={() => setActiveTab('canyon')}
+              className={`px-2.5 py-1 rounded-lg transition-all shrink-0 whitespace-nowrap ${
+                activeTab === 'canyon'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold'
+                  : 'text-space-400 hover:text-white bg-space-900/50'
+              }`}
+            >
+              Canyons & Valles (198)
+            </button>
+            <button
+              onClick={() => setActiveTab('plain')}
+              className={`px-2.5 py-1 rounded-lg transition-all shrink-0 whitespace-nowrap ${
+                activeTab === 'plain'
+                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold'
+                  : 'text-space-400 hover:text-white bg-space-900/50'
+              }`}
+            >
+              Plains & Basins (122)
+            </button>
+            <button
+              onClick={() => setActiveTab('fossa')}
+              className={`px-2.5 py-1 rounded-lg transition-all shrink-0 whitespace-nowrap ${
+                activeTab === 'fossa'
+                  ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 font-bold'
+                  : 'text-space-400 hover:text-white bg-space-900/50'
+              }`}
+            >
+              Tectonic Fossae (114)
+            </button>
+            <button
+              onClick={() => setActiveTab('chaos')}
+              className={`px-2.5 py-1 rounded-lg transition-all shrink-0 whitespace-nowrap ${
+                activeTab === 'chaos'
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold'
+                  : 'text-space-400 hover:text-white bg-space-900/50'
+              }`}
+            >
+              Chaos & Polar (98)
             </button>
           </div>
         </div>
 
         {/* Catalog Items List (Vertical Scrollable) */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-2.5 custom-scrollbar-y">
-          {filteredPOIs.map((poi) => (
+          {filteredPOIs.slice(0, displayLimit).map((poi) => (
             <div
               key={poi.id}
               onClick={() => handleSelectPOI(poi)}
@@ -133,8 +232,8 @@ const POIDetailCard = () => {
               {/* Photo Thumbnail */}
               <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-space-900 relative border border-white/10">
                 {poi.image ? (
-                  <img
-                    src={poi.image}
+                  <img 
+                    src={poi.image} 
                     alt={poi.name}
                     referrerPolicy="no-referrer"
                     crossOrigin="anonymous"
@@ -146,7 +245,7 @@ const POIDetailCard = () => {
                     }}
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xl bg-space-900">
+                  <div className="w-full h-full flex items-center justify-center bg-space-900/80 text-xl">
                     {poi.icon || '🪐'}
                   </div>
                 )}
@@ -158,10 +257,10 @@ const POIDetailCard = () => {
                 <div>
                   <div className="flex items-center justify-between gap-1 mb-0.5">
                     <span className="text-[9px] font-mono text-cyber-cyan uppercase truncate font-bold">
-                      {poi.poiType === 'landingSite' ? poi.agency || 'NASA' : poi.category}
+                      {poi.poiType === 'landingSite' ? poi.agency || 'NASA' : (poi.category || poi.typeRaw || 'FEATURE')}
                     </span>
                     <span className="text-[9px] font-mono text-space-400 shrink-0">
-                      {poi.elevation?.toLocaleString()} m
+                      {poi.elevation != null ? `${poi.elevation.toLocaleString()} m` : poi.diameter ? `${poi.diameter} km` : '—'}
                     </span>
                   </div>
                   <h4 className="font-display font-bold text-xs text-white group-hover:text-cyber-cyan transition-colors truncate">
@@ -171,17 +270,38 @@ const POIDetailCard = () => {
 
                 <div className="flex items-center justify-between text-[9px] font-mono text-space-400 mt-1">
                   <span>
-                    {(poi.lat || 0).toFixed(2)}°, {poi.lon.toFixed(2)}°
+                    {(poi.lat || 0).toFixed(2)}°, {(poi.lon || 0).toFixed(2)}°
                   </span>
-                  <span className={`px-1.5 py-0.2 rounded ${
+                  <span className={`px-1.5 py-0.2 rounded truncate max-w-[120px] ${
                     poi.status === 'Active' ? 'text-emerald-400 bg-emerald-500/10' : 'text-space-400'
                   }`}>
-                    {poi.status || poi.type}
+                    {poi.status || (poi.quadName ? `${poi.quadName}` : poi.type)}
                   </span>
                 </div>
               </div>
             </div>
           ))}
+
+          {filteredPOIs.length > displayLimit && (
+            <div className="pt-2 pb-4 flex flex-col items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setDisplayLimit((prev) => prev + 60)}
+                className="px-4 py-1.5 bg-space-900 hover:bg-space-800 text-xs font-mono text-cyber-cyan border border-cyber-cyan/30 rounded-xl transition-all cursor-pointer"
+              >
+                Load More Features (+60)
+              </button>
+              <span className="text-[9px] font-mono text-zinc-500">
+                Showing {displayLimit} of {filteredPOIs.length.toLocaleString()} matching gazetteer entries
+              </span>
+            </div>
+          )}
+
+          {filteredPOIs.length === 0 && (
+            <div className="py-12 text-center text-zinc-500 font-mono text-xs">
+              No Martian features matched "{searchQuery}".
+            </div>
+          )}
         </div>
       </div>
     );
@@ -229,7 +349,7 @@ const POIDetailCard = () => {
                 ? 'bg-blue-600/80 text-white border border-blue-400/40 shadow-neon-blue'
                 : 'bg-mars-500/80 text-white border border-mars-400/40 shadow-neon-mars'
             }`}>
-              {isLandingSite ? 'NASA LANDING SITE' : (selectedPOI.category || 'GEOLOGICAL FEATURE')}
+              {isLandingSite ? 'NASA LANDING SITE' : (selectedPOI.category || 'IAU GAZETTEER FEATURE')}
             </span>
 
             <button 
@@ -246,9 +366,9 @@ const POIDetailCard = () => {
 
           {/* Attribution Watermark */}
           <div className="absolute bottom-2 left-3 z-10 flex items-center gap-1.5">
-            <ProvenanceBadge type="OBSERVED" size="xs" detail="NASA / PDS" />
+            <ProvenanceBadge type="OBSERVED" size="xs" detail={isLandingSite ? 'NASA / PDS' : 'USGS / IAU Gazetteer'} />
             <span className="text-[9px] font-mono text-white/80 drop-shadow">
-              {selectedPOI.agency || 'NASA / JPL-Caltech'}
+              {isLandingSite ? (selectedPOI.agency || 'NASA / JPL-Caltech') : 'USGS Astrogeology'}
             </span>
           </div>
         </div>
@@ -271,9 +391,9 @@ const POIDetailCard = () => {
                 </span>
               )}
             </div>
-            {selectedPOI.location && (
+            {(selectedPOI.location || selectedPOI.quadName) && (
               <p className="text-[11px] font-mono uppercase tracking-wider text-stone-400">
-                REGION // {selectedPOI.location}
+                QUAD // {selectedPOI.quadName || selectedPOI.location} {selectedPOI.quadCode ? `(${selectedPOI.quadCode.toUpperCase()})` : ''}
               </p>
             )}
           </div>
@@ -290,7 +410,7 @@ const POIDetailCard = () => {
                 <MapPin size={11} className="mr-1 text-[#F16938]" /> Coordinates
               </div>
               <div className="text-cyan-300 font-bold tabular-nums">
-                {(selectedPOI.lat || 0).toFixed(4)}°, {selectedPOI.lon.toFixed(4)}°
+                {(selectedPOI.lat || 0).toFixed(4)}°, {(selectedPOI.lon || 0).toFixed(4)}°
               </div>
             </div>
 
@@ -299,10 +419,80 @@ const POIDetailCard = () => {
                 <Mountain size={11} className="mr-1 text-amber-400" /> Elevation
               </div>
               <div className="text-stone-100 font-bold tabular-nums">
-                {selectedPOI.elevation?.toLocaleString()} m
+                {poiElevation != null ? `${poiElevation.toLocaleString()} m` : (selectedPOI.diameter ? `${selectedPOI.diameter} km` : '—')}
               </div>
             </div>
           </div>
+
+          {/* USGS / IAU Official Nomenclature Dossier */}
+          {(selectedPOI.approvalDate || selectedPOI.origin || selectedPOI.diameter != null || selectedPOI.typeRaw) && (
+            <div className="bg-[#0A0D14]/80 p-3 rounded-xl border border-white/[0.08] space-y-2.5 font-mono text-xs">
+              <div className="flex items-center justify-between border-b border-white/[0.08] pb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                  <BookOpen size={12} className="text-amber-400" />
+                  <span>IAU Planetary Nomenclature Dossier</span>
+                </span>
+                {selectedPOI.approvalDate && (
+                  <span className="text-[9px] text-zinc-400 bg-white/[0.04] px-1.5 py-0.5 rounded border border-white/10">
+                    Adopted {selectedPOI.approvalDate}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                {selectedPOI.diameter != null && (
+                  <div className="bg-black/40 p-2 rounded border border-white/5">
+                    <span className="text-zinc-500 block text-[8px] uppercase">Diameter</span>
+                    <span className="text-stone-200 font-bold">{selectedPOI.diameter} km</span>
+                  </div>
+                )}
+                {selectedPOI.typeRaw && (
+                  <div className="bg-black/40 p-2 rounded border border-white/5">
+                    <span className="text-zinc-500 block text-[8px] uppercase">IAU Feature Type</span>
+                    <span className="text-stone-200 font-bold truncate block">{selectedPOI.typeRaw}</span>
+                  </div>
+                )}
+                {selectedPOI.quadName && (
+                  <div className="bg-black/40 p-2 rounded border border-white/5">
+                    <span className="text-zinc-500 block text-[8px] uppercase">USGS Quadrangle</span>
+                    <span className="text-cyan-300 font-bold truncate block">
+                      {selectedPOI.quadCode ? `${selectedPOI.quadCode.toUpperCase()} ` : ''}{selectedPOI.quadName}
+                    </span>
+                  </div>
+                )}
+                {selectedPOI.code && (
+                  <div className="bg-black/40 p-2 rounded border border-white/5">
+                    <span className="text-zinc-500 block text-[8px] uppercase">IAU 2-Letter Code</span>
+                    <span className="text-purple-300 font-bold">{selectedPOI.code}</span>
+                  </div>
+                )}
+              </div>
+
+              {selectedPOI.origin && (
+                <div className="text-[11px] font-sans text-stone-300 leading-relaxed bg-black/30 p-2.5 rounded border border-white/5">
+                  <span className="font-mono text-[9px] text-amber-300/90 uppercase tracking-wider block mb-0.5 font-bold">
+                    Etymological Origin & Honorific:
+                  </span>
+                  <span>{selectedPOI.origin}</span>
+                </div>
+              )}
+
+              {selectedPOI.link && (
+                <div className="pt-1 flex items-center justify-between border-t border-white/5">
+                  <span className="text-[9px] text-zinc-500">Official Gazetteer Archive:</span>
+                  <a
+                    href={selectedPOI.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-cyber-cyan hover:underline flex items-center gap-1 font-mono"
+                  >
+                    <span>USGS Nomenclature Entry</span>
+                    <ExternalLink size={10} />
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Mission Objectives / Science Context */}
           {selectedPOI.objectives && (
