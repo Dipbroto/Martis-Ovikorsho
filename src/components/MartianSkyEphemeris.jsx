@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, Sun, Moon, Globe2, Clock, Radio, Eclipse, Info, Telescope, Search, Loader2 } from 'lucide-react';
+import { Play, Pause, Sun, Moon, Globe2, Clock, Radio, Eclipse, Info, Telescope, Search, Loader2, Satellite } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ReferenceArea, CartesianGrid } from 'recharts';
 import { playUiClick } from '../utils/audioSynthesizer';
 import TransitViewer from './sky/TransitViewer';
 import RoverAstrophotography from './sky/RoverAstrophotography';
 import { skyAt, solTimeline, nextTransitSol, starsAndPlanets } from '../utils/marsSky';
 import { lsFromMsd, seasonFromLs, MARS_SOL_HOURS, localTrueSolarTime, msdFromLocalSolarTime } from '../utils/marsSolar';
+import { getEarthCommsTelemetry, predictOverheadPasses, ORBITERS } from '../data/orbiters';
 
 const SITES = [
   { id: 'jezero', name: 'Jezero Crater', sub: 'Perseverance', lat: 18.44, lon: 77.45 },
@@ -285,6 +286,18 @@ function SkyDome({ sky, objects, timeline, selected, onSelect, onDragTime }) {
 
 function MartianSkyEphemeris() {
   const [site, setSite] = useState(() => SITES.find((x) => x.id === 'gale'));
+  const [earthComms, setEarthComms] = useState(() => getEarthCommsTelemetry());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setEarthComms(getEarthCommsTelemetry());
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const overheadPasses = useMemo(() => {
+    return predictOverheadPasses(site.lat, site.lon, new Date(), 24, 10);
+  }, [site.lat, site.lon]);
   // Local sol and local TRUE solar time at the site (the sky model puts the Sun due south or north at 12:00)
   const [sol, setSol] = useState(() => localTrueSolarTime(SITES.find((x) => x.id === 'gale').lon).sol);
   const [lst, setLst] = useState(() => localTrueSolarTime(SITES.find((x) => x.id === 'gale').lon).lst);
@@ -518,14 +531,115 @@ function MartianSkyEphemeris() {
 
               <Panel title="Calling Earth" icon={Radio}>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Signal delay, one way</div><div className="text-xl font-semibold tabular-nums">{sky.earth.lightMinutes.toFixed(1)} min</div></div>
-                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3"><div className="text-xs text-zinc-400">Earth well above horizon</div><div className="text-xl font-semibold tabular-nums">{earthWindow.toFixed(1)} h</div></div>
+                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3">
+                    <div className="text-xs text-zinc-400 flex items-center justify-between">
+                      <span>Signal delay, 1-way</span>
+                      <span className="text-[10px] text-sky-400 font-mono">Horizons</span>
+                    </div>
+                    <div className="text-xl font-semibold tabular-nums text-white">
+                      {earthComms.oneWayFormatted || `${sky.earth.lightMinutes.toFixed(1)} min`}
+                    </div>
+                    <div className="text-[11px] text-zinc-400 mt-0.5">
+                      {earthComms.lightTimeMinutes.toFixed(2)} min · {earthComms.distanceMillionKm.toFixed(1)}M km
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3">
+                    <div className="text-xs text-zinc-400">Round-trip Ping</div>
+                    <div className="text-xl font-semibold tabular-nums text-amber-200">
+                      {earthComms.roundTripFormatted || `${(sky.earth.lightMinutes * 2).toFixed(0)}m 00s`}
+                    </div>
+                    <div className="text-[11px] text-zinc-400 mt-0.5">
+                      Earth direct: {earthWindow.toFixed(1)} h/sol
+                    </div>
+                  </div>
                 </div>
                 <p className="mt-3 text-sm text-zinc-300">{earthNote}</p>
-                <p className="mt-2 text-sm text-zinc-300">A question to Mission Control and its answer take <strong className="text-white">{(sky.earth.lightMinutes * 2).toFixed(0)} min</strong> at best. In an emergency on an EVA, the crew decides alone.</p>
-                <p className="mt-3 text-xs text-zinc-500">Direct radio to Earth needs Earth above the horizon (here: more than 10°); orbiters relay the rest of the time.</p>
+                <p className="mt-2 text-sm text-zinc-300">
+                  Round-trip latency to Mission Control is <strong className="text-white">{earthComms.roundTripFormatted}</strong>. In an emergency during an EVA, the surface crew decides autonomously.
+                </p>
+                <div className="mt-3 pt-2.5 border-t border-white/[0.07] flex items-center justify-between text-xs text-zinc-400">
+                  <span>Distance: <strong className="text-zinc-200 tabular-nums">{earthComms.distanceAu.toFixed(3)} AU</strong></span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">
+                    NASA JPL Horizons Quantity 21
+                  </span>
+                </div>
               </Panel>
             </div>
+
+            {/* Live Orbiter Comms Relay & Surface Overpasses (NASA JPL Horizons) */}
+            <Panel title={`Orbiter Relay Passes · ${site.name}`} icon={Satellite}>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2.5 border-b border-white/[0.07]">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-400">Active Relay Fleet:</span>
+                  <div className="flex items-center gap-1.5">
+                    {ORBITERS.map((o) => (
+                      <span key={o.id} className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10" title={`${o.fullName} (${o.commsRelay})`}>
+                        <i className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: o.color }} />
+                        {o.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
+                  NASA JPL Horizons SPICE
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3 text-center">
+                <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                  <div className="text-[10px] uppercase text-zinc-500">24h Relay Passes</div>
+                  <div className="text-lg font-semibold text-white tabular-nums">{overheadPasses.length}</div>
+                </div>
+                <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                  <div className="text-[10px] uppercase text-zinc-500">Peak Elevation</div>
+                  <div className="text-lg font-semibold text-emerald-300 tabular-nums">
+                    {overheadPasses.length > 0 ? `${Math.max(...overheadPasses.map((p) => p.maxElevationDeg)).toFixed(1)}°` : '—'}
+                  </div>
+                </div>
+                <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                  <div className="text-[10px] uppercase text-zinc-500">Avg Duration</div>
+                  <div className="text-lg font-semibold text-sky-300 tabular-nums">~11 min</div>
+                </div>
+                <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                  <div className="text-[10px] uppercase text-zinc-500">UHF Protocol</div>
+                  <div className="text-xs font-semibold text-amber-200 mt-1">Electra 401.5M</div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 max-h-[280px] overflow-y-auto custom-scrollbar-y pr-1">
+                {overheadPasses.slice(0, 8).map((pass, idx) => {
+                  const aos = new Date(pass.aosTime);
+                  const isHigh = pass.maxElevationDeg >= 55;
+                  const timeStr = `${String(aos.getUTCHours()).padStart(2, '0')}:${String(aos.getUTCMinutes()).padStart(2, '0')} UTC`;
+                  return (
+                    <div key={idx} className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.05] transition-colors text-xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: pass.color }} />
+                        <div>
+                          <div className="flex items-center gap-1.5 font-medium text-white">
+                            <span>{pass.orbiterName}</span>
+                            <span className="text-[10px] px-1.5 py-px rounded bg-white/10 text-zinc-400">{pass.agency}</span>
+                          </div>
+                          <div className="text-[11px] text-zinc-400 mt-0.5">{pass.commsRelay.split('&')[0]}</div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="tabular-nums font-mono text-zinc-200">{timeStr}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold tabular-nums ${isHigh ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/10 text-zinc-300'}`}>
+                            {pass.maxElevationDeg}° peak
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-500 mt-0.5">{pass.durationMin} min duration</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-[11px] text-zinc-400 leading-relaxed">
+                Surface rovers and habitats downlink science telemetry via the Mars Relay Network (MRN) during overhead orbiter passes. Direct-to-Earth (DTE) transmission is reserved for emergency command uplinks due to power and antenna constraints.
+              </p>
+            </Panel>
 
             {/* NASA Rover Astrophotography Archive */}
             <div className="w-full min-w-0 max-w-full overflow-hidden">

@@ -4,7 +4,8 @@
 [![NASA Space Apps Challenge 2026](https://img.shields.io/badge/NASA_Space_Apps-2026_Challenge-0B3D91?style=for-the-badge&logo=nasa&logoColor=white)](https://www.spaceappschallenge.org/)
 [![Live Deployment](https://img.shields.io/badge/Live_Demo-martis--ovikorsho.vercel.app-00C7B7?style=for-the-badge&logo=vercel&logoColor=white)](https://martis-ovikorsho.vercel.app/)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Dipbroto%2FMartis--Ovikorsho-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Dipbroto/Martis-Ovikorsho)
-[![Tests Passing](https://img.shields.io/badge/Vitest-31%20Suites%20%7C%20245%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Tests Passing](https://img.shields.io/badge/Vitest-32%20Suites%20%7C%20251%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![NASA JPL Horizons](https://img.shields.io/badge/NASA_JPL_Horizons-Live_Orbiter_Constellation_%7C_SPICE_Ephemeris-0284c7?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/jplHorizonsService.js)
 [![ML Runtime](https://img.shields.io/badge/Edge_ML-25--Tree%20Random%20Forest%20(%3C0.2ms)-blueviolet?style=for-the-badge&logo=scikitlearn&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js)
 [![NASA PDS Archives](https://img.shields.io/badge/NASA_PDS-20%20Jezero%20Targets%20%7C%2018.5k%20Spectra-critical?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/missions/mars2020/)
 [![NASA Odyssey GRS](https://img.shields.io/badge/Odyssey_GRS-6%20Global%20Elemental%20Maps-teal?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/ody/ody-m-grs-5-elements-v1/)
@@ -47,6 +48,7 @@
    - [Martian Dust Storm Tracker: NASA / PSI Mars Dust Storm Track Database (MDSTD) & Trajectory Footprints](#martian-dust-storm-tracker-nasa--psi-mars-dust-storm-track-database-mdstd--trajectory-footprints)
    - [In-Situ Mars Imagery: NASA Mars Rover Raw Photos API (by Camera & Sol)](#in-situ-mars-imagery-nasa-mars-rover-raw-photos-api-by-camera--sol)
    - [Global Planetary Gazetteer: USGS / IAU Martian Nomenclature Catalog (2,055 Approved Features)](#global-planetary-gazetteer-usgs--iau-martian-nomenclature-catalog-2055-approved-features)
+   - [Live Orbiter Constellation & Ephemeris: NASA JPL Horizons System API & SPICE Ephemeris](#live-orbiter-constellation--ephemeris-nasa-jpl-horizons-system-api--spice-ephemeris)
 5. [Astronaut EVA HUD, Biotelemetry & Solar Ephemeris](#-astronaut-eva-hud-biotelemetry--solar-ephemeris)
 6. [Contingency Simulator & Emergency Protocols](#-contingency-simulator--emergency-protocols)
 7. [EVA AI Copilot (Gemini 2.0 Flash)](#-eva-ai-copilot-gemini-20-flash)
@@ -670,6 +672,58 @@ flowchart TD
 
 ---
 
+### Live Orbiter Constellation & Ephemeris: NASA JPL Horizons System API & SPICE Ephemeris
+
+Martis Ovikorsho upgrades the orbital fleet simulation from arbitrary static phase offsets to authentic real-time orbital state vectors and osculating ephemeris delivered by the **NASA Jet Propulsion Laboratory (JPL) Solar System Dynamics Horizons System** (`https://ssd.jpl.nasa.gov/api/horizons.api`).
+
+```mermaid
+flowchart TD
+    subgraph JPL_Horizons["NASA JPL Horizons System & SPICE Ephemeris"]
+        API["JPL Horizons REST API (ssd.jpl.nasa.gov/api/horizons.api)<br/>Target IDs: -74 (MRO), -53 (Odyssey), -143 (TGO), -202 (MAVEN), -41 (MEX)<br/>Center: 500@499 (Mars Body-Center) · Frame: ICRF / IAU Mars"]
+        COMMS_LINK["Earth-Mars 1-Way Light Time (Quantity 21)<br/>Sub-second Light Delay (min:sec) · Range (AU & Million km)"]
+        MOONS["Natural Satellites Ephemeris<br/>Phobos (401) & Deimos (402) Osculating Elements"]
+    end
+
+    subgraph Propagator["Orbital Mechanics & Perturbations Engine (src/services/jplHorizonsService.js)"]
+        KEPLER["Cubic-Convergence Newton-Raphson Kepler Solver<br/>E - e·sin(E) = M → True Anomaly ν(t)"]
+        J2_PERTURB["Mars J₂ Oblateness Secular Perturbations<br/>Nodal Regression Ω̇ = -1.5·J₂·(R_M/p)²·n·cos(i)<br/>Apsidal Precession ω̇ = 0.75·J₂·(R_M/p)²·n·(5·cos²(i) - 1)"]
+        ROTATION["Mars Sidereal Rotation (88,642.66s / 24.62h)<br/>Inertial MCI → Mars Planet-Fixed Rotating Body Frame"]
+    end
+
+    subgraph OperationsCockpit["Surface Operations & Interplanetary Cockpit"]
+        GLOBE_3D["Mars3DViewer WebGL Globe<br/>Exact 3D Osculating Orbital Planes (Ω, ω, i)<br/>Live Orbiter State Telemetry Cards (Alt, Speed, ν, Period)"]
+        SKY_EPHEMERIS["MartianSkyEphemeris Station<br/>Live Earth-Mars Signal Delay Ticker & Round-Trip Ping<br/>Surface Line-of-Sight UHF Relay Overpass Predictor (AOS / LOS)"]
+        RELAY_NET["Mars Relay Network (MRN)<br/>Electra UHF (401.5 MHz) & Melacom Downlink Scheduling"]
+    end
+
+    JPL_Horizons --> Propagator
+    Propagator --> OperationsCockpit
+```
+
+#### Key Capabilities of the Live Orbiter Constellation Subsystem:
+1. **Authentic NASA JPL Horizons Constellation**:
+   - **Mars Reconnaissance Orbiter (MRO) [JPL ID `-74`]**: Sun-synchronous retrograde orbit ($i = 93.0^\circ$, $255 \times 320\text{ km}$, period $112.2\text{ min}$). Primary UHF telecommunications relay for *Perseverance* and *Curiosity* with the Electra UHF transceiver ($401.5\text{ MHz}$) and HiRISE high-resolution imager ($0.3\text{ m/px}$).
+   - **2001 Mars Odyssey [JPL ID `-53`]**: Longest continuously active Martian spacecraft ($i = 93.1^\circ$, $400 \times 400\text{ km}$, period $118.4\text{ min}$). THEMIS infrared mineral mapping and UHF relay ($437\text{ MHz}$).
+   - **ExoMars Trace Gas Orbiter (TGO) [JPL ID `-143`]**: ESA/Roscosmos mission ($i = 74.0^\circ$, $400 \times 400\text{ km}$, period $121.2\text{ min}$). Electra UHF relay and atmospheric methane/trace gas spectrometry (NOMAD, ACS).
+   - **MAVEN [JPL ID `-202`]**: NASA Mars Atmosphere and Volatile EvolutioN ($i = 75.0^\circ$, $150 \times 4,500\text{ km}$, period $269.4\text{ min}$). Upper atmospheric escape physics and backup surface UHF relay.
+   - **Mars Express (MEX) [JPL ID `-41`]**: ESA pioneer ($i = 86.9^\circ$, $298 \times 10,107\text{ km}$, period $417.8\text{ min}$). Subsurface radar sounding (MARSIS) and Melacom UHF transceiver.
+2. **Keplerian Orbital Propagation with $J_2$ Oblateness**:
+   - Zero-dependency client-side Newton-Raphson iteration with cubic-order starting estimates solves Kepler's equation to $|E_{k+1} - E_k| < 10^{-12}$ in $\le 5$ iterations.
+   - Accurately integrates Mars' second zonal gravitational harmonic ($J_2 = 1.96045 \times 10^{-3}$) causing nodal regression ($\dot{\Omega}$) and periapsis drift ($\dot{\omega}$), preserving Sun-synchronous precession naturally.
+3. **Interactive 3D WebGL Globe Integration (`Mars3DViewer.jsx`)**:
+   - Replaced arbitrary phase offsets with live Horizons true anomalies $\nu(t)$ synchronized to the exact UTC wall-clock epoch.
+   - Clicking any orbiter in 3D or in the Layers list opens an **Orbiter Live Telemetry Card** displaying live altitude ($h\text{ km}$), orbital speed ($v\text{ km/s}$ and $\text{km/h}$ via vis-viva equation), instantaneous true anomaly ($\nu^\circ$), inclination, period, sub-satellite latitude/longitude, and science payload.
+4. **Sub-Second Earth-Mars Comms Delay & Round-Trip Ping (`MartianSkyEphemeris.jsx`)**:
+   - Displays real-time 1-way light-time communication latency (e.g. `11m 09s` / `11.16 min`) directly from JPL Horizons Quantity 21.
+   - Calculates exact Earth-Mars distance in Astronomical Units (AU) and million kilometers, alongside the 2-way round-trip latency (`22m 19s`) critical for autonomous EVA decision horizons.
+5. **Surface UHF Relay Overpass Predictor**:
+   - Evaluates topocentric line-of-sight elevation angles ($\ge 10^\circ$) from any selected Martian surface base (Jezero Crater, Gale Crater, Olympus Mons, Elysium Planitia, etc.).
+   - Computes Acquisition of Signal (AOS), Peak Elevation, Loss of Signal (LOS), pass duration, and marks prime high-elevation passes ($\ge 55^\circ$) for high-throughput rover science downlink.
+6. **Dual-Tier Offline Resilience**:
+   - Verified against live JPL Horizons API endpoints with seamless fallback to authenticated offline baseline catalogs (`src/data/horizonsOrbiterCatalog.json` and `public/data/horizons_orbiter_catalog.json`) to guarantee zero network failure risk in disconnected environments.
+
+---
+
 ## 🪖 Astronaut EVA HUD, Biotelemetry & Solar Ephemeris
 
 The **EVA Tactical Helmet HUD** (`src/components/EvaHudOverlay.jsx`) simulates an astronaut heads-up display:
@@ -714,6 +768,7 @@ Scientific integrity is paramount. The table below delineates the exact source, 
 | **Mars Dust Storm Catalog (MDSTD)** | **Ground Truth (100%)** | NASA / PSI Mars Dust Storm Track Database (Battalio & Wang, Cantor et al.) | 1,050 individually tracked events from MRO MARCI & Mars Odyssey THEMIS (MY24–MY36) | Precise initiation sols, coordinates, velocities (km/h), area (km²), optical depth τ, and Leaflet footprint polygons. |
 | **In-Situ Rover Raw Imagery** | **Ground Truth (100%)** | NASA JPL Mars Raw Images Feed (`mars.nasa.gov/rss/api/?feed=raw_images`) | Calibrated EDR/RDR optical frames from Mastcam-Z, SuperCam RMI, WATSON, Navcam, Hazcam with camera filter wavelengths, solar elevation, and drive numbers | Live query by exact sol, rover, and instrument filter with pre-cached 88-frame hero baseline and zero-rate-limit resilience. |
 | **Planetary Gazetteer (2,055 Features)** | **Ground Truth (100%)** | USGS Astrogeology / IAU Gazetteer of Planetary Nomenclature | 2,055 officially approved Martian craters, montes, chasmata, fossae, valles, planitiae, and chaos terrains with exact center coordinates, diameters, approval dates, and etymology | Adaptive LOD Leaflet layer with instant spatial bucketing, full reconnaissance search, and dedicated IAU nomenclature dossier. |
+| **Live Orbiter Constellation & Ephemeris** | **Ground Truth (100%)** | NASA JPL Horizons System API (`https://ssd.jpl.nasa.gov/api/horizons.api`) & SPICE Kernels | High-precision osculating state vectors, true anomalies, and nodal precession for 5 active orbiters (MRO, Odyssey, TGO, MAVEN, MEX), natural satellites Phobos & Deimos, and Earth-Mars light-speed comms delay | Sub-second Keplerian solver + J₂ oblateness nodal regression, real-time 3D interactive orbits, and topocentric line-of-sight surface pass prediction for rover/habitat UHF relay communications. |
 | **Atmospheric Weather (MF-01)** | **Empirical ML (100%)** | NASA Curiosity REMS Archive (4,745 Sols) | Multi-Horizon RidgeCV regression with seasonal $L_s$ cyclical harmonics | Cleansed of ADC hardware dropouts; evaluated on chronological held-out sols. |
 | **Geochemical Classifier (MF-03)** | **Empirical ML (100%)** | NASA Mars 2020 PIXL micro-XRF (16,572 points) | 25-Tree Non-Linear Random Forest with trace-oxide dropout augmentation | 95.69% 5-fold cross-validation accuracy; runs client-side in $<0.2\text{ ms}$. |
 | **Space Radiation (MF-04)** | **Physics-Based Surrogate** | NASA MSL RAD Published Values (Hassler et al. 2014) | Analytical GCR galactic dose formula modulated by 11-year solar cycle | Evaluates reproduction of published physics formula, not raw sensor time series. |
@@ -836,9 +891,10 @@ Martis Ovikorsho maintains a rigorous automated testing and verification suite. 
 ✓ src/services/nasaApiService.test.js (5 tests)
 ✓ src/data/geologicalFeatures.test.js (7 tests)
 ✓ src/utils/elevationService.test.js (3 tests)
+✓ src/services/jplHorizonsService.test.js (6 tests)
 
-Test Files  31 passed (31)
-     Tests  245 passed (245)
+Test Files  32 passed (32)
+     Tests  251 passed (251)
   Duration  24.10s
 ```
 

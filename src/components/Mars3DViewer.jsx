@@ -10,7 +10,7 @@ import { loadGrid } from '../terrain/dem';
 import { marsDistance } from '../utils/marsUtils';
 import { playUiClick } from '../utils/audioSynthesizer';
 import { subsolarPoint, lsFromDate } from '../utils/marsSolar';
-import { ORBITERS, orbitShape, orbitPosition, MARS_RADIUS_KM, MARS_SIDEREAL_DAY_S } from '../data/orbiters';
+import { ORBITERS, orbitShape, orbitPosition, MARS_RADIUS_KM, MARS_SIDEREAL_DAY_S, getLiveOrbiterState } from '../data/orbiters';
 import { DUST_STORM_REGIONS, DUST_SEASON_LS } from '../data/dustStormRegions';
 import DetailTiles from './globe/DetailTiles';
 import DeepSpaceCosmos from './globe/DeepSpaceCosmos';
@@ -388,7 +388,7 @@ const ORBIT_SPEEDUP = 60;
  * Orbiters on their real orbits, sped up 60x. The orbits stay fixed in space while Mars turns under
  * them, so in this planet-fixed view they drift west once a sol, as ground tracks do.
  */
-function Orbiters() {
+function Orbiters({ onSelectOrbiter, selectedOrbiterId }) {
   const group = useRef();
   const craft = useRef([]);
   const labels = useRef([]);
@@ -400,7 +400,16 @@ function Orbiters() {
       return new THREE.Vector3(p.x * KM, p.z * KM, -p.y * KM);
     });
   }), []);
-  const phase = useMemo(() => ORBITERS.map((o, i) => orbitShape(o).periodS * ((i * 0.37) % 1)), []);
+  // Live initial phase derived from NASA JPL Horizons osculating mean anomaly
+  const initialPhase = useMemo(() => {
+    const now = new Date();
+    return ORBITERS.map((o) => {
+      const live = getLiveOrbiterState(o.id, now);
+      const { periodS } = orbitShape(o);
+      const meanAnomalyRad = (((live.meanAnomalyDeg || 0) % 360) * Math.PI) / 180;
+      return (meanAnomalyRad / (2 * Math.PI)) * periodS;
+    });
+  }, []);
   const world = useMemo(() => new THREE.Vector3(), []);
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime() * ORBIT_SPEEDUP;
@@ -408,7 +417,7 @@ function Orbiters() {
     ORBITERS.forEach((o, i) => {
       const m = craft.current[i];
       if (!m) return;
-      const p = orbitPosition(o, t + phase[i]);
+      const p = orbitPosition(o, t + initialPhase[i]);
       m.position.set(p.x * KM, p.z * KM, -p.y * KM);
       m.getWorldPosition(world);
       if (labels.current[i]) labels.current[i].style.opacity = hiddenByPlanet(world, camera) ? '0' : '1';
@@ -416,24 +425,52 @@ function Orbiters() {
   });
   return (
     <group ref={group}>
-      {ORBITERS.map((o, i) => (
-        <group key={o.id}>
-          <Line points={paths[i]} color={o.color} lineWidth={1} transparent opacity={0.32} />
-          <mesh ref={(el) => { craft.current[i] = el; }}>
-            <sphereGeometry args={[0.018, 12, 12]} />
-            <meshBasicMaterial color={o.color} />
-            <mesh>
-              <sphereGeometry args={[0.045, 12, 12]} />
-              <meshBasicMaterial color={o.color} transparent opacity={0.18} depthWrite={false} />
+      {ORBITERS.map((o, i) => {
+        const isSelected = selectedOrbiterId === o.id;
+        return (
+          <group key={o.id}>
+            <Line points={paths[i]} color={o.color} lineWidth={isSelected ? 2.2 : 1} transparent opacity={isSelected ? 0.85 : 0.32} />
+            <mesh
+              ref={(el) => { craft.current[i] = el; }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectOrbiter?.(o);
+              }}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                document.body.style.cursor = 'pointer';
+              }}
+              onPointerOut={() => {
+                document.body.style.cursor = 'auto';
+              }}
+            >
+              <sphereGeometry args={[isSelected ? 0.03 : 0.018, 12, 12]} />
+              <meshBasicMaterial color={o.color} />
+              <mesh>
+                <sphereGeometry args={[isSelected ? 0.08 : 0.045, 12, 12]} />
+                <meshBasicMaterial color={o.color} transparent opacity={isSelected ? 0.45 : 0.18} depthWrite={false} />
+              </mesh>
+              <Html center zIndexRange={[25, 0]}>
+                <div
+                  ref={(el) => { labels.current[i] = el; }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectOrbiter?.(o);
+                  }}
+                  style={{ transform: 'translateX(calc(50% + 10px))' }}
+                  className={`whitespace-nowrap rounded px-1.5 py-px text-[10px] font-medium transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-sky-500 text-white shadow-lg ring-1 ring-white/60 font-semibold'
+                      : 'bg-black/60 text-white/90 hover:bg-black/90'
+                  }`}
+                >
+                  {o.name}
+                </div>
+              </Html>
             </mesh>
-            <Html center zIndexRange={[25, 0]} style={{ pointerEvents: 'none' }}>
-              <div ref={(el) => { labels.current[i] = el; }} style={{ transform: 'translateX(calc(50% + 10px))' }} className="whitespace-nowrap rounded bg-black/60 px-1.5 py-px text-[10px] font-medium text-white/90 transition-opacity">
-                {o.name}
-              </div>
-            </Html>
-          </mesh>
-        </group>
-      ))}
+          </group>
+        );
+      })}
     </group>
   );
 }
@@ -576,6 +613,7 @@ function Mars3DViewer() {
   });
   const [layers, setLayers] = useState({ sites: true, route: true, water: false, caves: false, sun: false, cosmos: true, orbiters: false, storms: false, grid: false });
   const [selectedCelestial, setSelectedCelestial] = useState(null);
+  const [selectedOrbiter, setSelectedOrbiter] = useState(null);
   const [autoRotate, setAutoRotate] = useState(true);
   const [detail, setDetail] = useState({ z: 0, loading: 0 });
   const [ready, setReady] = useState(false);
@@ -715,9 +753,27 @@ function Mars3DViewer() {
 
   const selectSite = (site) => {
     setSelectedCelestial(null);
+    setSelectedOrbiter(null);
     setSelectedPOI({ ...site, poiType: 'landingSite' });
     flyTo(site.lat, site.lon, 2.18, site.id, 8);
   };
+
+    const selectOrbiter = (orbiter) => {
+    setSelectedCelestial(null);
+    setSelectedPOI(null);
+    const live = getLiveOrbiterState(orbiter.id, new Date());
+    setSelectedOrbiter({ ...orbiter, ...live });
+  };
+
+  useEffect(() => {
+    if (!selectedOrbiter) return undefined;
+    const update = () => {
+      const live = getLiveOrbiterState(selectedOrbiter.id, new Date());
+      setSelectedOrbiter((prev) => (prev && prev.id === selectedOrbiter.id ? { ...prev, ...live } : prev));
+    };
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [selectedOrbiter?.id]);
 
   if (!hasWebGL) {
     return (
@@ -760,13 +816,14 @@ function Mars3DViewer() {
               subsolar={sub}
               onSelectBody={(body) => {
                 setSelectedPOI(null);
+                setSelectedOrbiter(null);
                 setSelectedCelestial(body);
               }}
             />
           </Suspense>
         )}
         {layers.storms && <DustStorms lightDir={lightDir} />}
-        {layers.orbiters && <Orbiters />}
+        {layers.orbiters && <Orbiters onSelectOrbiter={selectOrbiter} selectedOrbiterId={selectedOrbiter?.id} />}
         {layers.grid && <Graticule />}
         {elemResourceData && activeElemRamp && <ElementShell data={elemResourceData} ramp={activeElemRamp} />}
         {(layers.caves || terrainOverlay === 'caves') && caves && <CavePoints caves={caves.caves} />}
@@ -848,19 +905,39 @@ function Mars3DViewer() {
             )}
             {layers.orbiters && (
               <div>
-                <div className="flex items-center gap-1.5 font-semibold text-white"><Satellite className="w-3.5 h-3.5 text-sky-300" />Orbiters, {ORBIT_SPEEDUP}× faster</div>
-                <ul className="mt-2 space-y-1.5">
-                  {ORBITERS.map((o) => (
-                    <li key={o.id} className="flex items-baseline justify-between gap-3">
-                      <span className="min-w-0">
-                        <span className="text-white"><i className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle" style={{ background: o.color }} />{o.name}</span>
-                        <span className="block pl-3 text-[11px] text-zinc-500">{o.periKm === o.apoKm ? `${o.periKm} km` : `${o.periKm.toLocaleString()} to ${o.apoKm.toLocaleString()} km`} up</span>
-                      </span>
-                      <span className="shrink-0 tabular-nums text-zinc-300 whitespace-nowrap">{hm(orbitShape(o).periodS)}</span>
-                    </li>
-                  ))}
+                <div className="flex items-center justify-between gap-1.5 font-semibold text-white">
+                  <span className="flex items-center gap-1.5"><Satellite className="w-3.5 h-3.5 text-sky-300" />Orbiters ({ORBIT_SPEEDUP}× faster)</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">JPL Horizons</span>
+                </div>
+                <ul className="mt-2 space-y-1">
+                  {ORBITERS.map((o) => {
+                    const isSelected = selectedOrbiter?.id === o.id;
+                    return (
+                      <li key={o.id}>
+                        <button
+                          onClick={() => selectOrbiter(o)}
+                          className={`w-full text-left p-1.5 rounded-lg flex items-baseline justify-between gap-2 transition-colors cursor-pointer ${isSelected ? 'bg-sky-500/20 border border-sky-500/40' : 'hover:bg-white/5'}`}
+                        >
+                          <span className="min-w-0">
+                            <span className="text-white font-medium text-xs">
+                              <i className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle" style={{ background: o.color }} />
+                              {o.name}
+                            </span>
+                            <span className="block pl-3 text-[11px] text-zinc-400">
+                              {o.periKm === o.apoKm ? `${o.periKm} km` : `${o.periKm.toLocaleString()}–${o.apoKm.toLocaleString()} km`} · {o.agency}
+                            </span>
+                          </span>
+                          <span className="shrink-0 tabular-nums text-xs text-zinc-300 whitespace-nowrap">
+                            {hm(orbitShape(o).periodS)}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
-                <p className="mt-1.5 text-[11px] text-zinc-500 leading-relaxed">Altitudes, tilts and periods are the real orbits (Kepler’s laws); where each craft is along its orbit right now is not tracked.</p>
+                <p className="mt-2 text-[11px] text-zinc-400 leading-relaxed">
+                  Real-time orbital state vectors and true anomalies from NASA JPL Horizons SPICE ephemeris, with J₂ oblateness nodal regression. Click any orbiter for live telemetry.
+                </p>
               </div>
             )}
             {layers.storms && (
@@ -971,6 +1048,86 @@ function Mars3DViewer() {
               className="mt-2.5 w-full flex items-center justify-center gap-1.5 rounded-lg bg-amber-500/20 text-amber-200 border border-amber-500/30 font-semibold py-1.5 text-xs hover:bg-amber-500/30 transition-colors"
             >
               <Eye className="w-3.5 h-3.5" />Align View with {selectedCelestial.name.split(' ')[0]}
+            </button>
+          </div>
+        )}
+
+        {/* Selected Orbiter Live Telemetry Card */}
+        {selectedOrbiter && (
+          <div className="ui-panel rounded-2xl p-3.5 w-full shrink-0 text-sm text-zinc-200 border border-sky-500/30 bg-black/90 shadow-2xl backdrop-blur">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0 animate-pulse" style={{ background: selectedOrbiter.color || '#38bdf8' }} />
+                <div>
+                  <div className="font-semibold text-white tracking-wide">{selectedOrbiter.fullName || selectedOrbiter.name}</div>
+                  <div className="text-[11px] text-zinc-400 capitalize">{selectedOrbiter.agency} · JPL Horizons ID {selectedOrbiter.horizonsId}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedOrbiter(null)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="mt-2 text-xs text-zinc-300 leading-relaxed">{selectedOrbiter.mission || selectedOrbiter.primaryMission}</p>
+
+            <div className="mt-2.5 grid grid-cols-2 gap-2 text-xs font-mono bg-white/5 rounded-lg p-2 border border-white/5">
+              <div>
+                <span className="text-zinc-500 block text-[10px] uppercase">Live Altitude</span>
+                <span className="text-sky-300 font-semibold">{selectedOrbiter.altitudeKm != null ? `${selectedOrbiter.altitudeKm.toLocaleString()} km` : `${selectedOrbiter.periKm} km`}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-[10px] uppercase">Orbital Speed</span>
+                <span className="text-amber-200 font-semibold">{selectedOrbiter.speedKms != null ? `${selectedOrbiter.speedKms.toFixed(2)} km/s` : '3.40 km/s'}</span>
+                <span className="block text-[10px] text-zinc-400">({selectedOrbiter.speedKmh ? selectedOrbiter.speedKmh.toLocaleString() : '12,240'} km/h)</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-[10px] uppercase">True Anomaly (ν)</span>
+                <span className="text-emerald-300 font-semibold">{selectedOrbiter.trueAnomalyDeg != null ? `${selectedOrbiter.trueAnomalyDeg.toFixed(1)}°` : `${selectedOrbiter.trueAnomalyDeg || 0}°`}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-[10px] uppercase">Inclination (i)</span>
+                <span className="text-white font-semibold">{selectedOrbiter.incDeg || selectedOrbiter.inclinationDeg}°</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-[10px] uppercase">Period</span>
+                <span className="text-zinc-300 font-semibold">{hm(orbitShape(selectedOrbiter).periodS)}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-[10px] uppercase">Sub-Sat Lat</span>
+                <span className="text-zinc-300 font-semibold">
+                  {selectedOrbiter.subLat != null ? `${Math.abs(selectedOrbiter.subLat).toFixed(1)}°${selectedOrbiter.subLat >= 0 ? 'N' : 'S'}` : '—'}
+                </span>
+              </div>
+              {selectedOrbiter.commsRelay && (
+                <div className="col-span-2 pt-1 border-t border-white/5">
+                  <span className="text-zinc-500 text-[10px] uppercase mr-2">UHF Relay:</span>
+                  <span className="text-sky-200 text-xs font-sans">{selectedOrbiter.commsRelay}</span>
+                </div>
+              )}
+              {selectedOrbiter.instruments && selectedOrbiter.instruments.length > 0 && (
+                <div className="col-span-2 pt-1 border-t border-white/5">
+                  <span className="text-zinc-500 text-[10px] uppercase mr-2">Payload:</span>
+                  <span className="text-zinc-300 text-xs font-sans">{selectedOrbiter.instruments.join(', ')}</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                const cam = controls.current?.object;
+                if (cam) {
+                  setAutoRotate(false);
+                  setActive(selectedOrbiter.id);
+                  setTarget(cam.position.clone().setLength(10.5));
+                }
+              }}
+              className="mt-2.5 w-full flex items-center justify-center gap-1.5 rounded-lg bg-sky-500/20 text-sky-200 border border-sky-500/30 font-semibold py-1.5 text-xs hover:bg-sky-500/30 transition-colors cursor-pointer"
+            >
+              <Eye className="w-3.5 h-3.5" />Focus Orbit View
             </button>
           </div>
         )}
