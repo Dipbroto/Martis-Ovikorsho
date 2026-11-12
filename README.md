@@ -5,18 +5,18 @@
 [![Live Deployment](https://img.shields.io/badge/Live_Demo-martis--ovikorsho.vercel.app-00C7B7?style=for-the-badge&logo=vercel&logoColor=white)](https://martis-ovikorsho.vercel.app/)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Dipbroto%2FMartis--Ovikorsho-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Dipbroto/Martis-Ovikorsho)
 [![Tests Passing](https://img.shields.io/badge/Vitest-33%20Suites%20%7C%20257%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
-[![NASA Solar Array Telemetry](https://img.shields.io/badge/NASA_PDS_Solar-MER_Opportunity_(5%2C352_Sols)_%7C_InSight_(1%2C440_Sols)-f59e0b?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/SolarArrayPowerPanel.jsx)
-[![NASA JPL Horizons](https://img.shields.io/badge/NASA_JPL_Horizons-Live_Orbiter_Constellation_%7C_SPICE_Ephemeris-0284c7?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/jplHorizonsService.js)
-[![ML Runtime](https://img.shields.io/badge/Edge_ML-25--Tree%20Random%20Forest%20(%3C0.2ms)-blueviolet?style=for-the-badge&logo=scikitlearn&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js)
+[![NASA Solar Array Telemetry](https://img.shields.io/badge/NASA_PDS_Solar-MER_Opportunity_(5%2C352_Sols)_%7C_InSight_(1%2C440_Sols)-f59e0b?style=for-the-badge&logo=nasa&logoColor=white)](src/components/SolarArrayPowerPanel.jsx)
+[![NASA JPL Horizons](https://img.shields.io/badge/NASA_JPL_Horizons-Live_Orbiter_Constellation_%7C_SPICE_Ephemeris-0284c7?style=for-the-badge&logo=nasa&logoColor=white)](src/services/jplHorizonsService.js)
+[![ML Runtime](https://img.shields.io/badge/Edge_ML-25--Tree%20Random%20Forest%20(%3C0.2ms)-blueviolet?style=for-the-badge&logo=scikitlearn&logoColor=white)](src/services/marsMlService.js)
 [![NASA PDS Archives](https://img.shields.io/badge/NASA_PDS-20%20Jezero%20Targets%20%7C%2018.5k%20Spectra-critical?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/missions/mars2020/)
 [![NASA Odyssey GRS](https://img.shields.io/badge/Odyssey_GRS-6%20Global%20Elemental%20Maps-teal?style=for-the-badge&logo=nasa&logoColor=white)](https://pds-geosciences.wustl.edu/ody/ody-m-grs-5-elements-v1/)
-[![NASA MSR Manifest](https://img.shields.io/badge/MSR_Manifest-24%20Sealed%20Tubes%20%7C%20Three%20Forks%20Depot-orange?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/data/nasaSampleManifest.js)
-[![NASA Historical Traverses](https://img.shields.io/badge/NASA_Traverses-5%20Rovers%20%7C%20129%20km%20PDS%20Tracks-blue?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/RoverTraverses.jsx)
-[![NASA Multi-Station Weather](https://img.shields.io/badge/Multi--Station_Weather-Perseverance_MEDA_%7C_Curiosity_REMS_%7C_InSight_APSS-38bdf8?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/WeatherPanel.jsx)
-[![NASA MSL RAD & DONKI](https://img.shields.io/badge/MSL_RAD-4%2C200%2B_Sols_Dosimetry_%7C_DONKI_Space_Weather-red?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/RadiationPanel.jsx)
-[![NASA Dust Storm Tracks](https://img.shields.io/badge/PSI_MDSTD-1%2C000%2B_Dust_Storm_Tracks_%7C_MARCI_THEMIS-f97316?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/DustStormTracker.jsx)
-[![NASA Rover Photos API](https://img.shields.io/badge/NASA_Rover_Photos-Sol_%26_Camera_Telemetry_%7C_Mastcam--Z_RMI_WATSON-ff8c69?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/MarsImageryPage.jsx)
-[![USGS IAU Gazetteer](https://img.shields.io/badge/USGS_IAU_Gazetteer-2%2C055_Approved_Features_%7C_Craters_Montes_Valles-9333ea?style=for-the-badge&logo=nasa&logoColor=white)](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/data/geologicalFeatures.js)
+[![NASA MSR Manifest](https://img.shields.io/badge/MSR_Manifest-24%20Sealed%20Tubes%20%7C%20Three%20Forks%20Depot-orange?style=for-the-badge&logo=nasa&logoColor=white)](src/data/nasaSampleManifest.js)
+[![NASA Historical Traverses](https://img.shields.io/badge/NASA_Traverses-5%20Rovers%20%7C%20129%20km%20PDS%20Tracks-blue?style=for-the-badge&logo=nasa&logoColor=white)](src/components/RoverTraverses.jsx)
+[![NASA Multi-Station Weather](https://img.shields.io/badge/Multi--Station_Weather-Perseverance_MEDA_%7C_Curiosity_REMS_%7C_InSight_APSS-38bdf8?style=for-the-badge&logo=nasa&logoColor=white)](src/components/WeatherPanel.jsx)
+[![NASA MSL RAD & DONKI](https://img.shields.io/badge/MSL_RAD-4%2C200%2B_Sols_Dosimetry_%7C_DONKI_Space_Weather-red?style=for-the-badge&logo=nasa&logoColor=white)](src/components/RadiationPanel.jsx)
+[![NASA Dust Storm Tracks](https://img.shields.io/badge/PSI_MDSTD-1%2C000%2B_Dust_Storm_Tracks_%7C_MARCI_THEMIS-f97316?style=for-the-badge&logo=nasa&logoColor=white)](src/components/DustStormTracker.jsx)
+[![NASA Rover Photos API](https://img.shields.io/badge/NASA_Rover_Photos-Sol_%26_Camera_Telemetry_%7C_Mastcam--Z_RMI_WATSON-ff8c69?style=for-the-badge&logo=nasa&logoColor=white)](src/components/MarsImageryPage.jsx)
+[![USGS IAU Gazetteer](https://img.shields.io/badge/USGS_IAU_Gazetteer-2%2C055_Approved_Features_%7C_Craters_Montes_Valles-9333ea?style=for-the-badge&logo=nasa&logoColor=white)](src/data/geologicalFeatures.js)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 > **"Read a Martian rock like a rover does; plan a Marswalk like an astronaut must."**  
@@ -288,7 +288,7 @@ In-situ rover sensors frequently suffer from hardware dropouts where trace volat
 - **25-Tree Random Forest Ensemble**: **95.69% 5-fold cross-validation** | **96.24% training accuracy**.
 
 #### 3. Client-Side Zero-Dependency Recursive Tree Engine
-Rather than importing heavy WebAssembly or ONNX runtimes (which add 3–5 MB of bloat and introduce cross-origin isolation hurdles), we authored a custom **recursive decision tree evaluator** directly inside [`src/services/marsMlService.js`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js):
+Rather than importing heavy WebAssembly or ONNX runtimes (which add 3–5 MB of bloat and introduce cross-origin isolation hurdles), we authored a custom **recursive decision tree evaluator** directly inside [`src/services/marsMlService.js`](src/services/marsMlService.js):
 ```javascript
 // Zero-dependency pure JavaScript recursive decision tree traversal
 function evaluateDecisionTree(node, features) {
@@ -910,13 +910,13 @@ Martis-Ovikorsho/
 - **Parallel Computing**: HTML5 Web Workers for non-blocking terrain A* and radio ray-casting.
 - **Audio Synthesis**: Web Audio API (procedural synthesis of laser ablation and core drill motor hum).
 - **Backend & Security**: Supabase (PostgreSQL with Row Level Security, Edge Functions in Deno).
-- **Testing Harness**: Vitest (23 test suites, 199 unit & integration tests passing with 100% clean exit).
+- **Testing Harness**: Vitest (33 test suites, 257 unit & integration tests passing with 100% clean exit).
 
 ---
 
 ## 🧪 Verification & Benchmark Validation
 
-Martis Ovikorsho maintains a rigorous automated testing and verification suite. All 30 test suites (241 tests) run on every commit:
+Martis Ovikorsho maintains a rigorous automated testing and verification suite. All 33 test suites (257 tests) run on every commit:
 
 ```bash
 ✓ src/utils/audioSynthesizer.test.js (3 tests)
@@ -930,7 +930,7 @@ Martis Ovikorsho maintains a rigorous automated testing and verification suite. 
 ✓ src/terrain/roverModel.test.js (4 tests)
 ✓ src/utils/drills.test.js (11 tests)
 ✓ src/services/crewCommsService.test.js (8 tests)
-✓ src/store/useMapStore.test.js (14 tests)
+✓ src/store/useMapStore.test.js (15 tests)
 ✓ src/components/quakes/quakes.test.js (7 tests)
 ✓ src/utils/libsSpectrum.test.js (5 tests)
 ✓ src/terrain/pathfinding.test.js (17 tests)
@@ -994,6 +994,10 @@ VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 
 # Gemini AI (Optional for local development; in production calls route through gemini-proxy)
 VITE_GEMINI_API_KEY=your-gemini-api-key
+
+# NASA Open API Portal key (api.nasa.gov - grants 1,000 req/hr for DONKI & space weather)
+# Register for a free key at https://api.nasa.gov
+VITE_NASA_API_KEY=your-nasa-api-key
 ```
 
 ### 3. Launch Development Server
@@ -1016,9 +1020,10 @@ npm run build
 
 ## 📜 Mission Credits & Acknowledgments
 
+- **NASA Open API Portal (api.nasa.gov) & DONKI**: Space Weather Database of Notifications, Knowledge, and Information (GSFC Moon to Mars Space Weather Analysis Office).
+- **NASA Jet Propulsion Laboratory (JPL / Caltech)**: Solar System Dynamics (SSD) Horizons System REST API, SPICE ephemeris, Mars Science Laboratory Curiosity REMS environmental data, rover drive logs, and MSR sample architecture.
 - **NASA Planetary Data System (PDS) Geosciences Node**: Mars 2020 Perseverance PIXL, SuperCam, and SHERLOC raw and derived science archives.
-- **NASA Jet Propulsion Laboratory (JPL / Caltech)**: Mars Science Laboratory Curiosity REMS environmental data, rover drive logs, and MSR sample architecture.
-- **USGS Astrogeology Science Center**: HRSC-MOLA Global Blended Digital Elevation Model (200m/px v2).
+- **USGS Astrogeology Science Center**: HRSC-MOLA Global Blended Digital Elevation Model (200m/px v2) and IAU Planetary Nomenclature Gazetteer.
 - **InSight Marsquake Service (MQS) & IPGP**: InSight SEIS Seismic Event Catalog V14.
 - **European Space Agency (ESA)**: Mars Express HRSC orbital stereo imagery.
 - **Google DeepMind**: Gemini 2.0 Flash multimodal language model.

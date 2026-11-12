@@ -4,9 +4,9 @@
 *Document Version:* 2.4.0  
 *Target Release:* NASA Space Apps Challenge 2026  
 *Status:* Complete & Fully Deployed  
-*Primary Engine:* [`src/services/marsMlService.js`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.js)  
-*Master Weights Bundle:* [`public/data/ml/mars_models.json`](file:///c:/Users/dipka/Desktop/Nasa%20Space/public/data/ml/mars_models.json) (44.1 KB)  
-*Pipeline Orchestrator:* [`scripts/ml/train_models.py`](file:///c:/Users/dipka/Desktop/Nasa%20Space/scripts/ml/train_models.py)  
+*Primary Engine:* [`src/services/marsMlService.js`](../src/services/marsMlService.js)  
+*Master Weights Bundle:* [`public/data/ml/mars_models.json`](../public/data/ml/mars_models.json) (44.1 KB)  
+*Pipeline Orchestrator:* [`scripts/ml/train_models.py`](../scripts/ml/train_models.py)  
 
 ---
 
@@ -102,9 +102,9 @@ The table below enumerates all 8 model families, their sub-models, underlying al
 Mars features extreme diurnal temperature variations ($>75^\circ\text{C}$ within a single sol) and large seasonal barometric swings driven by the annual sublimation and condensation of up to $25\%$ of the atmospheric $\text{CO}_2$ mass at the polar ice caps. Safe EVA scheduling requires accurate predictions of thermal minimums (preventing suit heater battery exhaustion) and maximum ground soil temperatures (affecting spacesuit boot sole wear and tire compliance).
 
 #### Dataset & Provenance
-- **Source**: NASA Curiosity Rover Environmental Monitoring Station (REMS) archive ([`public/data/weather/mars_msl_full_feed.json`](file:///c:/Users/dipka/Desktop/Nasa%20Space/public/data/weather/mars_msl_full_feed.json)).
+- **Source**: NASA Curiosity Rover Environmental Monitoring Station (REMS) archive ([`public/data/weather/mars_msl_full_feed.json`](../public/data/weather/mars_msl_full_feed.json)).
 - **Observations**: 4,745 raw sols spanning Gale Crater ($4.5895^\circ\text{S}, 137.4417^\circ\text{E}$) from Sol 1 to Sol 4995.
-- **Preprocessing Pipeline**: Quality-cleansed via [`scripts/ml/prepare_datasets.py`](file:///c:/Users/dipka/Desktop/Nasa%20Space/scripts/ml/prepare_datasets.py) into [`public/data/weather/weather_training_data.csv`](file:///c:/Users/dipka/Desktop/Nasa%20Space/public/data/weather/weather_training_data.csv). Filters out 79 hardware ADC clamp sentinels ($-100^\circ\text{C}, -99^\circ\text{C}, -136^\circ\text{C}$) and performs smooth local linear interpolation across the sol time series.
+- **Preprocessing Pipeline**: Quality-cleansed via [`scripts/ml/prepare_datasets.py`](../scripts/ml/prepare_datasets.py) into [`public/data/weather/weather_training_data.csv`](../public/data/weather/weather_training_data.csv). Filters out 79 hardware ADC clamp sentinels ($-100^\circ\text{C}, -99^\circ\text{C}, -136^\circ\text{C}$) and performs smooth local linear interpolation across the sol time series.
 
 #### Feature Engineering (21 Features)
 1. **Orbital Geometry**:
@@ -412,7 +412,7 @@ $$G_{\text{daily}} = S_{\text{TOA}} \cdot \mu_{\text{eff}} \cdot T_{\text{total}
 
 ### 4.1 Memory Footprint & Unified Model Bundle
 All weights, biases, normalization scalers, and uncertainty bounds are serialized into a single master JSON bundle:
-- **Path**: [`public/data/ml/mars_models.json`](file:///c:/Users/dipka/Desktop/Nasa%20Space/public/data/ml/mars_models.json) (and synced to [`src/data/marsModels.json`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/data/marsModels.json))
+- **Path**: [`public/data/ml/mars_models.json`](../public/data/ml/mars_models.json) (and synced to [`src/data/marsModels.json`](../src/data/marsModels.json))
 - **Bundle Size**: **42.8 KB** (well within the 150 KB engineering budget)
 - **JSON Structure**:
   ```json
@@ -492,22 +492,22 @@ graph TD
     ML -->|"MF-04"| R["RadiationPanel.jsx & EvaHud.jsx<br/>(GCR/SPE Dosimetry & Safe EVA Clock)"]
 ```
 
-1. **Weather Forecast & Storm Warning** ([`src/components/WeatherPanel.jsx`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/WeatherPanel.jsx)):
+1. **Weather Forecast & Storm Warning** ([`src/components/WeatherPanel.jsx`](../src/components/WeatherPanel.jsx)):
    - Renders 3-sol forecast cards with isolated stacked tiles for Air Temp, Ground Soil, and Pressure.
    - Displays real-time dust storm hazard badges (`CRITICAL`, `ELEVATED`, `MODERATE`, `NOMINAL`) with color-coded walkback restrictions.
-2. **Solar Array Degradation & Life Support** ([`src/components/SolarArrayPowerPanel.jsx`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/SolarArrayPowerPanel.jsx)):
+2. **Solar Array Degradation & Life Support** ([`src/components/SolarArrayPowerPanel.jsx`](../src/components/SolarArrayPowerPanel.jsx)):
    - Visualizes 30-sol photovoltaic decay trajectory in a responsive 6-column grid.
    - Compares current habitat array against Opportunity and InSight PDS mission benchmarks.
-3. **Geology & Chemometrics Lab** ([`src/components/ScienceLab.jsx`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/ScienceLab.jsx)):
+3. **Geology & Chemometrics Lab** ([`src/components/ScienceLabPage.jsx`](../src/components/ScienceLabPage.jsx)):
    - Inverts 2,048-channel laser plasma spectra into 9 quantitative oxide weight percentages with error bars.
    - Computes rock class probabilities and flags samples with high Biosignature Preservation Potential ($>75\%$).
-4. **Terramechanics & Traverse Planning** ([`src/components/TerramechanicsPanel.jsx`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/TerramechanicsPanel.jsx), [`src/components/RoutePlanner.jsx`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/RoutePlanner.jsx)):
+4. **Terramechanics & Traverse Planning** ([`src/components/RoutePlanner.jsx`](../src/components/RoutePlanner.jsx)):
    - Evaluates slope and thermal inertia along proposed EVA routes.
    - Flags sand-trap hazards (Purgatory Dune conditions) and injects dynamic Wh/km consumption into the Point-of-No-Return walkback solver.
-5. **Marsquake & Habitat Safety** ([`src/components/MarsquakePanel.jsx`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/MarsquakePanel.jsx)):
+5. **Marsquake & Habitat Safety** ([`src/components/quakes/QuakePanel.jsx`](../src/components/quakes/QuakePanel.jsx)):
    - Inverts single-station waveform arrivals into hypocenter distances and magnitudes.
    - Computes GMPE Peak Ground Acceleration at habitat coordinates and issues structural alert directives.
-6. **Radiation & Biometrics HUD** ([`src/components/RadiationPanel.jsx`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/RadiationPanel.jsx), [`src/components/EvaHud.jsx`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/components/EvaHud.jsx)):
+6. **Radiation & Biometrics HUD** ([`src/components/RadiationPanel.jsx`](../src/components/RadiationPanel.jsx), [`src/components/EVAHelmetHUD.jsx`](../src/components/EVAHelmetHUD.jsx)):
    - Continuously computes instantaneous surface dose rate and decrements remaining safe EVA duration against the $0.50\text{ mSv}$ ceiling.
 
 ---
@@ -515,7 +515,7 @@ graph TD
 ## 6. Verification & Automated Test Suite
 
 All models and inference pipelines are verified via automated Vitest test suites:
-- **Test File**: [`src/services/marsMlService.test.js`](file:///c:/Users/dipka/Desktop/Nasa%20Space/src/services/marsMlService.test.js)
+- **Test File**: [`src/services/marsMlService.test.js`](../src/services/marsMlService.test.js)
 - **Suite Results**: **168 passing tests across 23 test suites** (100% pass rate).
 - **Execution Speed**: Full test suite runs in under **1.8 seconds**.
 - **Zero Build Warnings**: Production Vite build completes cleanly in **~20 seconds** with zero dead-code or missing dependency warnings.
