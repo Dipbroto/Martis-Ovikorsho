@@ -13,6 +13,14 @@ import defaultTerramechanicsModel from '../data/marsTerramechanicsModel.json';
 import defaultLibsModel from '../data/marsLibsModel.json';
 import defaultQuakeModel from '../data/marsQuakeModel.json';
 import defaultSolarDustModel from '../data/marsSolarDustModel.json';
+import {
+  getSolarPowerCatalog,
+  getMissionTelemetry,
+  getSolTelemetry,
+  getCleaningEvents,
+  getSampledTrajectory,
+  getEmpiricalDepositionStats,
+} from './solarPowerService';
 import { marsDistance } from '../utils/marsUtils';
 import { msdFromDate, lsFromMsd, curiositySolFromMsd } from '../utils/marsSolar';
 
@@ -3957,4 +3965,11 @@ export default {
   calculateSubsurfaceDepthProfile,
   ASTROBIOLOGY_BENCHMARK_CLUSTERS,
   projectAstrobiologyLatentManifold,
+  // Solar Power PDS Telemetry
+  getSolarPowerCatalog,
+  getMissionTelemetry,
+  getSolTelemetry,
+  getCleaningEvents,
+  getSampledTrajectory,
+  getEmpiricalDepositionStats,
 };

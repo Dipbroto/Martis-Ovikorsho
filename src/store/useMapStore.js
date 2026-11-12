@@ -701,7 +701,7 @@ const useMapStore = create((set, get) => ({
   sidebarTab: 'guide', // 'guide' | 'layers' | 'route' | 'poi' | 'mission'
   rightSidebarOpen: false,
   bottomPanelOpen: false,
-  bottomPanelTab: 'elevation', // 'elevation' | 'weather' | 'radiation' | 'dust'
+  bottomPanelTab: 'elevation', // 'elevation' | 'weather' | 'radiation' | 'dust' | 'solar'
   showLoadingScreen: false,
   
   setSidebarOpen: (open) => set((state) => ({

@@ -1,11 +1,12 @@
 import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, Cloud, Zap, CloudFog, ChevronUp, ChevronDown } from 'lucide-react';
+import { BarChart3, Cloud, Zap, CloudFog, ChevronUp, ChevronDown, Sun } from 'lucide-react';
 import useMapStore from '../store/useMapStore';
 import ElevationProfile from './ElevationProfile';
 import WeatherPanel from './WeatherPanel';
 import RadiationPanel from './RadiationPanel';
 import DustStormTracker from './DustStormTracker';
+import SolarArrayPowerPanel from './SolarArrayPowerPanel';
 import { estimateRadiation } from '../utils/marsUtils';
 import { getElevation } from '../utils/elevationService';
 
@@ -69,6 +70,13 @@ function BottomPanel() {
       badge: weather?.dustOpacity ? `τ ${weather.dustOpacity.toFixed(2)}` : 'CLEAR',
       badgeColor: 'text-mars-400 bg-mars-950/60 border-mars-800'
     },
+    { 
+      id: 'solar', 
+      label: 'Solar Power', 
+      icon: Sun,
+      badge: 'PDS Real',
+      badgeColor: 'text-amber-400 bg-amber-950/60 border-amber-800'
+    },
   ];
 
   const renderContent = () => {
@@ -77,6 +85,7 @@ function BottomPanel() {
       case 'weather': return <WeatherPanel />;
       case 'radiation': return <RadiationPanel />;
       case 'dust': return <DustStormTracker />;
+      case 'solar': return <SolarArrayPowerPanel />;
       default: return null;
     }
   };

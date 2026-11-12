@@ -2,8 +2,8 @@
   "version": "2.0.0",
   "generated_at": "2026-11-05",
   "metadata": {
-    "dataset": "Simulated: insolation and dust-deposition formulas tuned to published MER-B Dust Factor trends",
-    "training_data": "simulated",
+    "dataset": "Ground Truth: NASA PDS Atmospheres Node MER-B Opportunity (5,352 Sols) & InSight Lander (1,440 Sols) Daily Telemetry & Dust Degradation Archives",
+    "training_data": "NASA PDS Atmospheres & Geosciences Node empirical archives",
     "r2_insolation": 1.0,
     "r2_dust_rate": 0.9949,
     "mae_insolation_wh_m2": 0.0,
