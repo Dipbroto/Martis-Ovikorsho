@@ -277,7 +277,7 @@ export default function SolarArrayPowerPanel() {
             <div className="p-2.5 rounded-xl bg-black/30 border border-white/10">
               <span className="text-[10px] text-zinc-500 uppercase block">Peak Generation</span>
               <span className="text-base font-bold text-emerald-300 tabular-nums">
-                {missionData.peakEnergyWh.toFixed(0)}{' '}
+                {missionData?.peakEnergyWh != null ? missionData.peakEnergyWh.toFixed(0) : '—'}{' '}
                 <span className="text-[11px] text-zinc-400 font-normal font-sans">Wh/sol</span>
               </span>
               <span className="text-[10px] text-zinc-400 block mt-0.5 truncate">
@@ -288,7 +288,7 @@ export default function SolarArrayPowerPanel() {
             <div className="p-2.5 rounded-xl bg-black/30 border border-white/10">
               <span className="text-[10px] text-zinc-500 uppercase block">Survival Floor</span>
               <span className="text-base font-bold text-rose-300 tabular-nums">
-                {missionData.survivalPowerFloorWh.toFixed(0)}{' '}
+                {missionData?.survivalPowerFloorWh != null ? missionData.survivalPowerFloorWh.toFixed(0) : '—'}{' '}
                 <span className="text-[11px] text-zinc-400 font-normal font-sans">Wh/sol</span>
               </span>
               <span className="text-[10px] text-zinc-400 block mt-0.5 truncate">
@@ -362,28 +362,28 @@ export default function SolarArrayPowerPanel() {
               <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.05]">
                 <span className="text-[10px] text-zinc-500 uppercase block">Daily Watt-Hours</span>
                 <span className="text-sm font-bold text-white tabular-nums">
-                  {activeSolRecord.dailyWh.toFixed(1)}{' '}
+                  {activeSolRecord?.dailyWh != null ? activeSolRecord.dailyWh.toFixed(1) : '—'}{' '}
                   <span className="text-[10px] text-zinc-400 font-sans">Wh/sol</span>
                 </span>
                 <span className="text-[10px] text-zinc-400 block mt-0.5">
-                  Clean baseline: {activeSolRecord.cleanDailyWh.toFixed(0)} Wh
+                  Clean baseline: {activeSolRecord?.cleanDailyWh != null ? activeSolRecord.cleanDailyWh.toFixed(0) : '—'} Wh
                 </span>
               </div>
 
               <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.05]">
                 <span className="text-[10px] text-zinc-500 uppercase block">Dust Factor (Df)</span>
                 <span className="text-sm font-bold text-amber-300 tabular-nums">
-                  {activeSolRecord.dustFactor.toFixed(3)}
+                  {activeSolRecord?.dustFactor != null ? activeSolRecord.dustFactor.toFixed(3) : '—'}
                 </span>
                 <span className="text-[10px] text-zinc-400 block mt-0.5">
-                  {(activeSolRecord.dustFactor * 100).toFixed(1)}% transmission
+                  {activeSolRecord?.dustFactor != null ? (activeSolRecord.dustFactor * 100).toFixed(1) : '—'}% transmission
                 </span>
               </div>
 
               <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.05]">
                 <span className="text-[10px] text-zinc-500 uppercase block">Atmospheric Opacity (τ)</span>
-                <span className={`text-sm font-bold tabular-nums ${activeSolRecord.tau > 3.0 ? 'text-rose-400' : activeSolRecord.tau > 1.2 ? 'text-amber-300' : 'text-sky-300'}`}>
-                  {activeSolRecord.tau.toFixed(2)}
+                <span className={`text-sm font-bold tabular-nums ${(activeSolRecord?.tau ?? 0) > 3.0 ? 'text-rose-400' : (activeSolRecord?.tau ?? 0) > 1.2 ? 'text-amber-300' : 'text-sky-300'}`}>
+                  {activeSolRecord?.tau != null ? activeSolRecord.tau.toFixed(2) : '—'}
                 </span>
                 <span className="text-[10px] text-zinc-400 block mt-0.5">
                   Pancam direct solar tau
@@ -393,24 +393,24 @@ export default function SolarArrayPowerPanel() {
               <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.05]">
                 <span className="text-[10px] text-zinc-500 uppercase block">Status &amp; Event</span>
                 <span className="text-xs font-semibold text-white block truncate mt-0.5">
-                  {activeSolRecord.cleaningEvent
-                    ? `Vortex Clean (+${(activeSolRecord.cleaningEvent.deltaDf * 100).toFixed(0)}%)`
-                    : activeSolRecord.counterCleaningEvent
+                  {activeSolRecord?.cleaningEvent
+                    ? `Vortex Clean (+${((activeSolRecord.cleaningEvent.deltaDf ?? 0) * 100).toFixed(0)}%)`
+                    : activeSolRecord?.counterCleaningEvent
                     ? 'Sand Counter-Clean'
-                    : activeSolRecord.storm
+                    : activeSolRecord?.storm
                     ? 'Dust Storm Spike'
-                    : activeSolRecord.dailyWh < missionData.survivalPowerFloorWh
+                    : (activeSolRecord?.dailyWh ?? 0) < (missionData?.survivalPowerFloorWh ?? 0)
                     ? 'Below Survival Floor'
                     : 'Nominal Operations'}
                 </span>
                 <span className="text-[10px] text-zinc-400 block truncate">
-                  {activeSolRecord.storm || 'Clear-sky deposition'}
+                  {activeSolRecord?.storm || 'Clear-sky deposition'}
                 </span>
               </div>
             </div>
 
             {/* Special event details banner if present on inspected sol */}
-            {activeSolRecord.cleaningEvent && (
+            {activeSolRecord?.cleaningEvent && (
               <div className="p-2.5 rounded-lg bg-teal-500/15 border border-teal-400/40 text-xs text-teal-200 flex items-start gap-2">
                 <Wind className="w-4 h-4 shrink-0 text-teal-300 mt-0.5" />
                 <div>
@@ -422,7 +422,7 @@ export default function SolarArrayPowerPanel() {
               </div>
             )}
 
-            {activeSolRecord.counterCleaningEvent && (
+            {activeSolRecord?.counterCleaningEvent && (
               <div className="p-2.5 rounded-lg bg-amber-500/15 border border-amber-400/40 text-xs text-amber-200 flex items-start gap-2">
                 <Sparkles className="w-4 h-4 shrink-0 text-amber-300 mt-0.5" />
                 <div>
@@ -434,13 +434,13 @@ export default function SolarArrayPowerPanel() {
               </div>
             )}
 
-            {activeSolRecord.storm && !activeSolRecord.cleaningEvent && (
+            {activeSolRecord?.storm && !activeSolRecord?.cleaningEvent && (
               <div className="p-2.5 rounded-lg bg-rose-500/15 border border-rose-400/40 text-xs text-rose-200 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
                 <div>
                   <div className="font-semibold text-white">{activeSolRecord.storm}</div>
                   <p className="text-[11px] text-rose-100/90 mt-0.5 leading-relaxed">
-                    Atmospheric optical depth surged to τ={activeSolRecord.tau.toFixed(1)}, severely obscuring solar panels and starving batteries.
+                    Atmospheric optical depth surged to τ={activeSolRecord?.tau != null ? activeSolRecord.tau.toFixed(1) : '—'}, severely obscuring solar panels and starving batteries.
                   </p>
                 </div>
               </div>
@@ -649,10 +649,10 @@ export default function SolarArrayPowerPanel() {
                 <span className="text-amber-300 font-bold">{powerForecast.dustFactorPct}%</span>
               </div>
               <div className="text-xl font-bold text-white mt-1">
-                {powerForecast.dustFactor.toFixed(3)}
+                {powerForecast?.dustFactor != null ? powerForecast.dustFactor.toFixed(3) : '—'}
               </div>
               <div className="text-[10px] text-zinc-400 mt-0.5">
-                PDS Empirical Decay: <span className="text-zinc-200">{(powerForecast.dustDepositionRatePerSol * 1000).toFixed(2)}‰/sol</span>
+                PDS Empirical Decay: <span className="text-zinc-200">{(powerForecast?.dustDepositionRatePerSol != null ? (powerForecast.dustDepositionRatePerSol * 1000).toFixed(2) : '—')}‰/sol</span>
               </div>
             </div>
 
@@ -739,7 +739,7 @@ export default function SolarArrayPowerPanel() {
                       <span className="text-[9px] font-normal text-zinc-400 ml-0.5">kWh</span>
                     </div>
                     <div className={`text-[9px] mt-0.5 font-mono ${isDeficit ? 'text-rose-400 font-semibold' : 'text-zinc-500'}`}>
-                      {(step.dustFactor * 100).toFixed(0)}% Df
+                      {step?.dustFactor != null ? (step.dustFactor * 100).toFixed(0) : '—'}% Df
                     </div>
                   </div>
                 );

@@ -21,7 +21,7 @@ export default function useWalkFeed({ active, progress, telemetry, position, env
     if (!active || !env || progress < 0.003) return;
     const out = [];
     const once = (key, item) => { if (!fired.current.has(key)) { fired.current.add(key); out.push({ id: key, at: progress, ...item }); } };
-    const dist = `${telemetry.distKm.toFixed(1)} km`;
+    const dist = `${telemetry?.distKm != null ? telemetry.distKm.toFixed(1) : '0.0'} km`;
     const wx = `${Math.round(env.temp)} °C, ${env.pressure} Pa, wind ${env.windSpeed} m/s ${env.windDir}`;
 
     once('start', { icon: Footprints, tone: 'info', title: `${rover ? 'Driving off' : 'Setting off'} from ${names.start}`, text: `Local time ${fmtLtst(env.ltst)}, ${env.phase.toLowerCase()} (Sun ${Math.round(env.sunEl)}° up). ${wx}.` });
@@ -34,8 +34,8 @@ export default function useWalkFeed({ active, progress, telemetry, position, env
       }
     });
 
-    if (maxSlope > 6 && telemetry.slope >= maxSlope * 0.85) {
-      once('steep', { icon: Mountain, tone: 'warn', title: `Steepest ground: ${telemetry.slope.toFixed(0)}°`, text: rover ? `The rover slows to ${telemetry.paceKmh.toFixed(1)} km/h on this grade.` : `Pace drops to ${telemetry.paceKmh.toFixed(1)} km/h and the suit works harder here.` });
+    if (maxSlope > 6 && (telemetry?.slope ?? 0) >= maxSlope * 0.85) {
+      once('steep', { icon: Mountain, tone: 'warn', title: `Steepest ground: ${telemetry?.slope != null ? telemetry.slope.toFixed(0) : '0'}°`, text: rover ? `The rover slows to ${telemetry?.paceKmh != null ? telemetry.paceKmh.toFixed(1) : '0.0'} km/h on this grade.` : `Pace drops to ${telemetry?.paceKmh != null ? telemetry.paceKmh.toFixed(1) : '0.0'} km/h and the suit works harder here.` });
     }
     if (env.tau >= 0.8) once('dust', { icon: CloudFog, tone: 'warn', title: 'Dust haze', text: `Dust opacity τ ${env.tau} (${env.dustRisk.toLowerCase()}): less sunlight on the suit panels and shorter sight lines.` });
 
@@ -50,18 +50,18 @@ export default function useWalkFeed({ active, progress, telemetry, position, env
 
     const spare = lifeLeft * 2 - 100;
     if (!rover && spare < 25 && spare >= 0 && progress < 0.99) once('spare-low', { icon: AlertTriangle, tone: 'warn', title: 'Spare life support is running low', text: `Walking back from here would use almost everything that is left (${Math.round(spare)}% spare).` });
-    if (!rover && telemetry.lifeOut && progress < 0.99) once('life-out', { icon: AlertTriangle, tone: 'bad', title: 'Life support used up', text: `The usable life support runs out ${dist} out, ${Math.max(0, (totalKm ?? telemetry.totalKm ?? 0) - telemetry.distKm).toFixed(1)} km short of ${names.end}. Only the emergency reserve is left: stop and call the rover.` });
+    if (!rover && telemetry?.lifeOut && progress < 0.99) once('life-out', { icon: AlertTriangle, tone: 'bad', title: 'Life support used up', text: `The usable life support runs out ${dist} out, ${Math.max(0, (totalKm ?? telemetry?.totalKm ?? 0) - (telemetry?.distKm ?? 0)).toFixed(1)} km short of ${names.end}. Only the emergency reserve is left: stop and call the rover.` });
     if (!rover && spare < 0 && progress < 0.99) once('no-return', { icon: AlertTriangle, tone: 'bad', title: 'Past the point of no return', text: 'There is not enough life support left to walk all the way back on foot from here.' });
 
     // Rover Terramechanics & Battery alerts
-    if (rover && (telemetry.slipPct || 0) >= 30 && progress < 0.99) {
+    if (rover && (telemetry?.slipPct || 0) >= 30 && progress < 0.99) {
       once('rover-high-slip', {
         icon: AlertTriangle,
-        tone: (telemetry.slipPct || 0) >= 45 ? 'bad' : 'warn',
-        title: (telemetry.slipPct || 0) >= 45 ? 'Critical Sand Trap Warning' : 'High Wheel Slip Detected',
-        text: (telemetry.slipPct || 0) >= 45
-          ? `Wheel slip has spiked to ${(telemetry.slipPct || 0).toFixed(0)}% in unconsolidated drift sand. Immediate motor torque limitation active.`
-          : `Wheel slip reached ${(telemetry.slipPct || 0).toFixed(0)}% on loose slope. Traversal pace reduced to maintain traction.`,
+        tone: (telemetry?.slipPct || 0) >= 45 ? 'bad' : 'warn',
+        title: (telemetry?.slipPct || 0) >= 45 ? 'Critical Sand Trap Warning' : 'High Wheel Slip Detected',
+        text: (telemetry?.slipPct || 0) >= 45
+          ? `Wheel slip has spiked to ${(telemetry?.slipPct || 0).toFixed(0)}% in unconsolidated drift sand. Immediate motor torque limitation active.`
+          : `Wheel slip reached ${(telemetry?.slipPct || 0).toFixed(0)}% on loose slope. Traversal pace reduced to maintain traction.`,
       });
     }
 
@@ -70,12 +70,12 @@ export default function useWalkFeed({ active, progress, telemetry, position, env
         icon: Zap,
         tone: lifeLeft <= 15 ? 'bad' : 'warn',
         title: `Rover battery ${Math.round(lifeLeft)}%`,
-        text: `Traverse energy and life-support hotel draw have lowered battery reserve to ${Math.round(lifeLeft)}% (${(telemetry.batteryRemainingKwh ?? +(60 * (lifeLeft / 100)).toFixed(1))} kWh).`,
+        text: `Traverse energy and life-support hotel draw have lowered battery reserve to ${Math.round(lifeLeft)}% (${(telemetry?.batteryRemainingKwh ?? +(60 * (lifeLeft / 100)).toFixed(1))} kWh).`,
       });
     }
 
     // the walk counts as arrived from 99% of the way, so give the route's full length
-    const fullDist = `${(totalKm ?? telemetry.totalKm ?? telemetry.distKm).toFixed(1)} km`;
+    const fullDist = `${(totalKm ?? telemetry?.totalKm ?? telemetry?.distKm ?? 0).toFixed(1)} km`;
     if (progress >= 0.99) once('arrive', { icon: Flag, tone: 'good', title: `Arrived at ${names.end}`, text: rover ? `${fullDist} in ${fmtDuration(telemetry.hours)} by rover.` : `${fullDist} in ${fmtDuration(telemetry.hours)} on foot, with ${Math.round(lifeLeft)}% of the life support left.` });
 
     if (out.length) setItems((prev) => [...out.reverse(), ...prev].slice(0, 9));

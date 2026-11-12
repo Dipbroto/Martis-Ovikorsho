@@ -1,38 +1,69 @@
-import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { supabase, supabaseAnonKey, isSupabaseConfigured } from "../lib/supabase";
 import { MARS_LANDMARKS } from "../data/marsLandmarks";
 
 const GEMINI_MODEL = "gemini-2.5-flash";
 // Number of most recent chat messages forwarded to the model as context
 const MAX_CONTEXT_TURNS = 50;
 
-// Only `vite dev` talks to Gemini directly with VITE_GEMINI_API_KEY. Vite writes every VITE_ variable into
-// the bundle as plain text, so a production build must never read it: there, calls always go through the
-// Supabase edge function proxy, which keeps the key server-side.
-const DIRECT_API_KEY = import.meta.env.DEV ? (import.meta.env.VITE_GEMINI_API_KEY || undefined) : undefined;
+// Direct API Key (if provided in env) or Supabase proxy
+const DIRECT_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || undefined;
 
 export const isAiConfigured = Boolean(DIRECT_API_KEY) || isSupabaseConfigured;
 
 /** Sends a Gemini `generateContent` request body and returns the parsed JSON response. */
 async function generateContent(body) {
+  // 1. Try Direct API Key if provided
   if (DIRECT_API_KEY) {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": DIRECT_API_KEY },
-        body: JSON.stringify(body),
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": DIRECT_API_KEY },
+          body: JSON.stringify(body),
+        }
+      );
+      if (res.ok) {
+        return await res.json();
       }
-    );
-    if (!res.ok) throw new Error(`Gemini request failed (${res.status})`);
-    return res.json();
+      console.warn(`Direct Gemini API failed (${res.status}), trying proxy fallback...`);
+    } catch (err) {
+      console.warn("Direct Gemini API error, trying proxy fallback:", err);
+    }
   }
 
-  const { data, error } = await supabase.functions.invoke("gemini-proxy", {
+  // 2. Try Supabase Edge Function proxy
+  let res = await supabase.functions.invoke("gemini-proxy", {
     body: { model: GEMINI_MODEL, ...body },
   });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error.message || data.error);
-  return data;
+
+  // If failed (e.g. 401 because user's browser session JWT is expired), retry explicitly with public Anon Key
+  if (res.error && supabaseAnonKey) {
+    res = await supabase.functions.invoke("gemini-proxy", {
+      body: { model: GEMINI_MODEL, ...body },
+      headers: {
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+    });
+  }
+
+  if (res.error) {
+    let detailedMessage = res.error.message;
+    try {
+      if (res.error.context) {
+        const errorBody = await res.error.context.json();
+        detailedMessage = errorBody?.error?.message || errorBody?.message || detailedMessage;
+      }
+    } catch {
+      // ignore JSON parse error on error context
+    }
+    throw new Error(detailedMessage || "Edge Function returned a non-2xx status code");
+  }
+
+  if (res.data?.error) {
+    throw new Error(res.data.error.message || res.data.error);
+  }
+  return res.data;
 }
 
 const getParts = (response) => response?.candidates?.[0]?.content?.parts || [];
@@ -498,9 +529,17 @@ CRITICAL OPERATING DIRECTIVES:
 
   try {
     // Format history for the Gemini API
-    let apiHistory = history.slice(-MAX_CONTEXT_TURNS).map(h => ({
+    // 1. Filter out empty, non-string, or previous error messages
+    const validHistory = (history || []).filter(h =>
+      h &&
+      typeof h.text === 'string' &&
+      h.text.trim().length > 0 &&
+      !h.text.startsWith('UPLINK RELAY DEGRADED:')
+    );
+
+    let apiHistory = validHistory.slice(-MAX_CONTEXT_TURNS).map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.text }]
+      parts: [{ text: h.text.trim() }]
     }));
 
     // Filter out leading model messages (Gemini requirement: history must start with user)
@@ -508,10 +547,20 @@ CRITICAL OPERATING DIRECTIVES:
       apiHistory.shift();
     }
 
+    // Merge consecutive turns of the same role (Gemini strictly requires alternating user/model turns)
+    const collapsedHistory = [];
+    for (const turn of apiHistory) {
+      if (collapsedHistory.length > 0 && collapsedHistory[collapsedHistory.length - 1].role === turn.role) {
+        collapsedHistory[collapsedHistory.length - 1].parts[0].text += '\n\n' + turn.parts[0].text;
+      } else {
+        collapsedHistory.push({ ...turn, parts: [{ text: turn.parts[0].text }] });
+      }
+    }
+
     const result = await generateContent({
       systemInstruction: { parts: [{ text: systemInstruction }] },
       tools: ARES_TOOLS,
-      contents: [...apiHistory, { role: "user", parts: [{ text: message }] }],
+      contents: [...collapsedHistory, { role: "user", parts: [{ text: message }] }],
     });
     const calls = getFunctionCalls(result);
 

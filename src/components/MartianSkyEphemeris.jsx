@@ -87,7 +87,7 @@ function SkyDome({ sky, objects, timeline, selected, onSelect, onDragTime }) {
       const segs = [];
       let cur = [];
       for (const p of timeline.samples) {
-        if (p[key] > 0) cur.push(proj(p[key], p.az[key]).map((v) => v.toFixed(1)).join(','));
+        if (p[key] > 0) cur.push(proj(p[key], p.az[key]).map((v) => (typeof v === 'number' && !isNaN(v) ? v.toFixed(1) : '0')).join(','));
         else if (cur.length) { segs.push(cur); cur = []; }
       }
       if (cur.length) segs.push(cur);
@@ -468,9 +468,9 @@ function MartianSkyEphemeris() {
                 {row('sun', sunUp.rises.length || sunUp.sets.length
                   ? <span title="Sunlight arriving at the top of the atmosphere, on a surface facing the Sun">{sky.sun.alt > 0 ? `${Math.round(sky.sun.fluxWm2)} W/m² above the air` : 'Night: no sunlight'}</span>
                   : <span>{timeline.samples.some((p) => p.sun > 0) ? 'Up all sol' : 'Polar night'}</span>)}
-                {row('phobos', site.lat > 70 ? <span>Never rises this far north</span> : <span>{sky.phobos.eclipsed ? "In Mars's shadow" : `${Math.round(sky.phobos.illumination * 100)}% lit`} · {Math.round(sky.phobos.distKm).toLocaleString()} km</span>)}
+                {row('phobos', site.lat > 70 ? <span>Never rises this far north</span> : <span>{sky.phobos.eclipsed ? "In Mars's shadow" : `${Math.round(sky.phobos.illumination * 100)}% lit`} · {sky?.phobos?.distKm != null ? Math.round(sky.phobos.distKm).toLocaleString() : '—'} km</span>)}
                 {row('deimos', <span>{Math.round(sky.deimos.illumination * 100)}% lit · looks like a bright star</span>)}
-                {row('earth', <span>{sky.earth.distAu.toFixed(2)} AU away</span>)}
+                {row('earth', <span>{sky?.earth?.distAu != null ? `${sky.earth.distAu.toFixed(2)} AU away` : '—'}</span>)}
               </div>
               <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 text-xs text-zinc-300">
                 <span className="text-zinc-400">Planets above the horizon: </span>
@@ -656,7 +656,7 @@ function MartianSkyEphemeris() {
                   <p className="text-sm text-zinc-300 mb-3">
                     {t?.happens
                       ? <>This sol Phobos passes in front of the Sun at <strong className="text-white">{fmt(t.lst)}</strong>, for about <strong className="text-white">{Math.round(t.durationS)} s</strong>, covering up to <strong className="text-white">{Math.round(t.maxCover * 100)}%</strong> of it.</>
-                      : <>No transit from here this sol{t ? `: the closest pass is ${t.sepDeg.toFixed(1)}° from the Sun` : ''}. Drag Phobos below to see one.</>}
+                      : <>No transit from here this sol{t?.sepDeg != null ? `: the closest pass is ${t.sepDeg.toFixed(1)}° from the Sun` : ''}. Drag Phobos below to see one.</>}
                   </p>
                   <TransitViewer transit={t} fluxWm2={sky.sun.fluxWm2} siteName={site.name} />
                   <button onClick={findTransit} disabled={search === 'busy'} className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 text-amber-100 py-2.5 text-sm font-medium hover:bg-amber-500/20 transition disabled:opacity-60 cursor-pointer">

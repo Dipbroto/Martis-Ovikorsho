@@ -110,8 +110,10 @@ export default function WalkPanel() {
     }
   };
 
-  const subtitle = metrics ? `${km.toFixed(1)} km · ${fmtDuration(tripHours)} ${rover ? 'by rover' : 'on foot'}` : `${km.toFixed(1)} km, drawn by hand`;
-  const title = arrived ? 'You made it' : lifeOut ? `Stopped ${s.tel.distKm.toFixed(1)} km out: life support used up` : started ? `${driving ? (rover ? 'Driving to' : 'Walking to') : 'Paused on the way to'} ${names.end}` : 'Your route';
+  const kmStr = (km != null && !isNaN(km)) ? km.toFixed(1) : '0.0';
+  const subtitle = metrics ? `${kmStr} km · ${fmtDuration(tripHours)} ${rover ? 'by rover' : 'on foot'}` : `${kmStr} km, drawn by hand`;
+  const telDist = (s.tel?.distKm != null && !isNaN(s.tel.distKm)) ? s.tel.distKm.toFixed(1) : '0.0';
+  const title = arrived ? 'You made it' : lifeOut ? `Stopped ${telDist} km out: life support used up` : started ? `${driving ? (rover ? 'Driving to' : 'Walking to') : 'Paused on the way to'} ${names.end}` : 'Your route';
 
   return (
     <DockCard id="route" title={title} subtitle={subtitle} icon={Footprints} accent="#F26A3D">
@@ -230,8 +232,8 @@ export default function WalkPanel() {
         {started && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
             <div className="mt-3 grid grid-cols-3 gap-1.5">
-              <Tile icon={Footprints} label={rover ? 'On the road' : 'On foot'} value={`T+${fmtClock(s.tel.hours)}`} sub={`${s.tel.distKm.toFixed(1)} of ${km.toFixed(1)} km`} />
-              <Tile icon={Gauge} label={rover ? 'Speed' : 'Pace'} value={`${s.tel.paceKmh.toFixed(1)} km/h`} sub={`slope ${s.tel.slope.toFixed(0)}°`} />
+              <Tile icon={Footprints} label={rover ? 'On the road' : 'On foot'} value={`T+${fmtClock(s.tel?.hours ?? 0)}`} sub={`${(s.tel?.distKm != null && !isNaN(s.tel.distKm)) ? s.tel.distKm.toFixed(1) : '0.0'} of ${kmStr} km`} />
+              <Tile icon={Gauge} label={rover ? 'Speed' : 'Pace'} value={`${(s.tel?.paceKmh != null && !isNaN(s.tel.paceKmh)) ? s.tel.paceKmh.toFixed(1) : '0.0'} km/h`} sub={`slope ${(s.tel?.slope != null && !isNaN(s.tel.slope)) ? s.tel.slope.toFixed(0) : '0'}°`} />
               <Tile icon={Thermometer} label="Height" value={`${Math.round(s.pos?.elevation ?? 0).toLocaleString()} m`} />
             </div>
             {!rover ? (

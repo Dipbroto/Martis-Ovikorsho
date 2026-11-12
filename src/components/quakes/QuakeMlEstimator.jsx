@@ -210,7 +210,9 @@ export default function QuakeMlEstimator() {
           <div className="bg-white/[0.04] p-1.5 rounded-lg">
             <div className="text-[10px] text-zinc-500 font-sans">Coordinates</div>
             <div className="text-xs text-white font-semibold">
-              {Math.abs(inversion.epicenter.lat).toFixed(1)}°{inversion.epicenter.lat >= 0 ? 'N' : 'S'} {Math.abs(inversion.epicenter.lon).toFixed(1)}°{inversion.epicenter.lon >= 0 ? 'E' : 'W'}
+              {inversion?.epicenter?.lat != null && inversion?.epicenter?.lon != null
+                ? `${Math.abs(inversion.epicenter.lat).toFixed(1)}°${inversion.epicenter.lat >= 0 ? 'N' : 'S'} ${Math.abs(inversion.epicenter.lon).toFixed(1)}°${inversion.epicenter.lon >= 0 ? 'E' : 'W'}`
+                : '—'}
             </div>
           </div>
           <div className="bg-white/[0.04] p-1.5 rounded-lg">

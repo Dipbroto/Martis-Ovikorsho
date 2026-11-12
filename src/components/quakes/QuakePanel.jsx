@@ -24,7 +24,7 @@ const Switch = ({ on }) => (
 /** The risk level under the mouse, read live from the same grid the map draws. */
 function HereReadout({ risk }) {
   const cursor = useMapStore((s) => s.cursorPosition);
-  if (!cursor) return <p className="text-xs text-zinc-400">Move the mouse over the map to read the risk level anywhere.</p>;
+  if (!cursor || cursor.lat == null || cursor.lon == null) return <p className="text-xs text-zinc-400">Move the mouse over the map to read the risk level anywhere.</p>;
   const lv = levelOf(scoreAt(risk, cursor.lat, cursor.lon), risk.cuts);
   const L = RISK_LEVELS[lv];
   return (
@@ -32,7 +32,9 @@ function HereReadout({ risk }) {
       <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: swatch(L.rgb) }} />
       <span className="text-zinc-300">Under your cursor:</span>
       <span className="font-semibold text-white">{L.label} risk</span>
-      <span className="ml-auto text-zinc-500 tabular-nums">{Math.abs(cursor.lat).toFixed(1)}°{cursor.lat >= 0 ? 'N' : 'S'} {Math.abs(cursor.lon).toFixed(1)}°{cursor.lon >= 0 ? 'E' : 'W'}</span>
+      <span className="ml-auto text-zinc-500 tabular-nums">
+        {Math.abs(cursor.lat).toFixed(1)}°{cursor.lat >= 0 ? 'N' : 'S'} {Math.abs(cursor.lon).toFixed(1)}°{cursor.lon >= 0 ? 'E' : 'W'}
+      </span>
     </div>
   );
 }
