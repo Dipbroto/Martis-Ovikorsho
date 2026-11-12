@@ -286,7 +286,7 @@ function SkyDome({ sky, objects, timeline, selected, onSelect, onDragTime }) {
 
 function MartianSkyEphemeris() {
   const [site, setSite] = useState(() => SITES.find((x) => x.id === 'gale'));
-  const [earthComms, setEarthComms] = useState(() => getEarthCommsTelemetry());
+  const [earthComms, setEarthComms] = useState(() => getEarthCommsTelemetry() || {});
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -435,7 +435,7 @@ function MartianSkyEphemeris() {
               <div>
                 <div className="text-xs text-zinc-400" title="Local true solar time (the Sun is highest at 12:00). The number is the Mars Sol Date, the sol count used for the whole planet.">Local solar time · Mars Sol Date {sol}</div>
                 <div className="text-4xl font-semibold tabular-nums font-mono">{fmt(lst)}</div>
-                <div className="text-xs text-zinc-400 mt-0.5">{seasonFromLs(ls)} · Ls {ls.toFixed(0)}°</div>
+                <div className="text-xs text-zinc-400 mt-0.5">{seasonFromLs(ls)} · Ls {typeof ls === 'number' && !isNaN(ls) ? ls.toFixed(0) : '0'}°</div>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setPlaying((v) => !v)} className="flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-white text-black font-semibold px-3 py-2 text-sm hover:bg-zinc-200 cursor-pointer">
@@ -537,28 +537,28 @@ function MartianSkyEphemeris() {
                       <span className="text-[10px] text-sky-400 font-mono">Horizons</span>
                     </div>
                     <div className="text-xl font-semibold tabular-nums text-white">
-                      {earthComms.oneWayFormatted || `${sky.earth.lightMinutes.toFixed(1)} min`}
+                      {earthComms?.oneWayFormatted || (sky?.earth?.lightMinutes != null ? `${sky.earth.lightMinutes.toFixed(1)} min` : '—')}
                     </div>
                     <div className="text-[11px] text-zinc-400 mt-0.5">
-                      {earthComms.lightTimeMinutes.toFixed(2)} min · {earthComms.distanceMillionKm.toFixed(1)}M km
+                      {(earthComms?.lightTimeMinutes ?? earthComms?.oneWayLightTimeMin ?? sky?.earth?.lightMinutes)?.toFixed(2) ?? '—'} min · {(earthComms?.distanceMillionKm ?? earthComms?.rangeMillionKm ?? (sky?.earth?.distAu != null ? sky.earth.distAu * 149.6 : null))?.toFixed(1) ?? '—'}M km
                     </div>
                   </div>
                   <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3">
                     <div className="text-xs text-zinc-400">Round-trip Ping</div>
                     <div className="text-xl font-semibold tabular-nums text-amber-200">
-                      {earthComms.roundTripFormatted || `${(sky.earth.lightMinutes * 2).toFixed(0)}m 00s`}
+                      {earthComms?.roundTripFormatted || (sky?.earth?.lightMinutes != null ? `${(sky.earth.lightMinutes * 2).toFixed(0)}m 00s` : '—')}
                     </div>
                     <div className="text-[11px] text-zinc-400 mt-0.5">
-                      Earth direct: {earthWindow.toFixed(1)} h/sol
+                      Earth direct: {earthWindow != null ? earthWindow.toFixed(1) : '—'} h/sol
                     </div>
                   </div>
                 </div>
                 <p className="mt-3 text-sm text-zinc-300">{earthNote}</p>
                 <p className="mt-2 text-sm text-zinc-300">
-                  Round-trip latency to Mission Control is <strong className="text-white">{earthComms.roundTripFormatted}</strong>. In an emergency during an EVA, the surface crew decides autonomously.
+                  Round-trip latency to Mission Control is <strong className="text-white">{earthComms?.roundTripFormatted ?? '—'}</strong>. In an emergency during an EVA, the surface crew decides autonomously.
                 </p>
                 <div className="mt-3 pt-2.5 border-t border-white/[0.07] flex items-center justify-between text-xs text-zinc-400">
-                  <span>Distance: <strong className="text-zinc-200 tabular-nums">{earthComms.distanceAu.toFixed(3)} AU</strong></span>
+                  <span>Distance: <strong className="text-zinc-200 tabular-nums">{(earthComms?.distanceAu ?? earthComms?.rangeAU ?? sky?.earth?.distAu)?.toFixed(3) ?? '—'} AU</strong></span>
                   <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">
                     NASA JPL Horizons Quantity 21
                   </span>
@@ -593,7 +593,7 @@ function MartianSkyEphemeris() {
                 <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                   <div className="text-[10px] uppercase text-zinc-500">Peak Elevation</div>
                   <div className="text-lg font-semibold text-emerald-300 tabular-nums">
-                    {overheadPasses.length > 0 ? `${Math.max(...overheadPasses.map((p) => p.maxElevationDeg)).toFixed(1)}°` : '—'}
+                    {overheadPasses && overheadPasses.length > 0 ? `${Math.max(...overheadPasses.map((p) => p.maxElevationDeg ?? 0)).toFixed(1)}°` : '—'}
                   </div>
                 </div>
                 <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">

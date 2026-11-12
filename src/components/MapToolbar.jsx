@@ -125,7 +125,7 @@ function MapToolbar() {
   const hasRoute = s.waypoints.length > 1;
   const activeCheck = CHECKS.find((c) => c.key === s.terrainOverlay);
   const GRS_KEYS = ['ice', 'iron', 'silicon', 'potassium', 'thorium', 'chlorine', 'caves'];
-  const layerActive = GRS_KEYS.includes(s.terrainOverlay) || s.showRoverTraverses || s.showDustStormTracks || s.showGeologicalFeatures;
+  const layerActive = GRS_KEYS.includes(s.terrainOverlay) || s.showRoverTraverses || s.showDustStormTracks || s.showGeologicalFeatures || s.quakeMode;
 
   const atEnd = s.roverProgress >= 0.99;
   const pausedMid = !s.isRoverDriving && s.roverProgress > 0.01 && !atEnd;
@@ -254,6 +254,15 @@ function MapToolbar() {
 
                 <Menu label="Layers" icon={Layers} badge={layerActive}>
                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
+                    Surface Exploration & Shelter
+                  </div>
+                  <Item icon={MapPin} label="Detailed site view (IAU 2,055 Sites)" hint="Approved craters, montes, valles, chasmata & plains (USGS/IAU)" active={s.showGeologicalFeatures} onSelect={() => { s.toggleGeologicalFeatures(); click(); }} />
+                  <Item kind="radio" icon={Tent} label="Cave & pit shelters (MGC3)" hint="1,062 candidates from USGS catalog for radiation shield" active={s.terrainOverlay === 'caves'} onSelect={() => { s.setTerrainOverlay('caves'); click(); }} />
+                  <Item icon={Route} label="Real rover tracks" hint="Opportunity, Perseverance, Curiosity, Spirit & Sojourner paths (129 km)" active={s.showRoverTraverses} onSelect={() => { s.toggleRoverTraverses(); click(); }} />
+                  <Item icon={Wind} label="Dust storm tracks & footprints" hint="Over 1,000 tracked local, regional & global storms (NASA/PSI MDSTD)" active={s.showDustStormTracks} onSelect={() => { s.toggleDustStormTracks(); click(); }} />
+                  <Item icon={Activity} label="Marsquakes & seismic faults" hint="Fault lines, risk zones and the layers inside Mars" active={s.quakeMode} onSelect={toggleQuakes} />
+                  <div className="my-1.5 border-t border-white/10" />
+                  <div className="px-3 pt-1 pb-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
                     Odyssey GRS Elements (ISRU)
                   </div>
                   <Item kind="radio" icon={Droplets} label="Water in the soil (H₂O)" hint="Water-equivalent hydrogen wt% for hydration & fuel" active={s.terrainOverlay === 'ice'} onSelect={() => { s.setTerrainOverlay('ice'); click(); }} />
@@ -262,25 +271,7 @@ function MapToolbar() {
                   <Item kind="radio" icon={Sprout} label="Potassium Abundance (K)" hint="Potassium wt% for greenhouse crops & dating" active={s.terrainOverlay === 'potassium'} onSelect={() => { s.setTerrainOverlay('potassium'); click(); }} />
                   <Item kind="radio" icon={Radio} label="Thorium Concentration (Th)" hint="Thorium actinide ppm for nuclear ISRU power" active={s.terrainOverlay === 'thorium'} onSelect={() => { s.setTerrainOverlay('thorium'); click(); }} />
                   <Item kind="radio" icon={FlaskConical} label="Chlorine & Perchlorates (Cl)" hint="Chlorine wt% for O₂ extraction & airlock hazards" active={s.terrainOverlay === 'chlorine'} onSelect={() => { s.setTerrainOverlay('chlorine'); click(); }} />
-                  <div className="my-1.5 border-t border-white/10" />
-                  <div className="px-3 pt-1 pb-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
-                    Surface Exploration & Shelter
-                  </div>
-                  <Item icon={MapPin} label="Detailed site view (IAU 2,055 Sites)" hint="Approved craters, montes, valles, chasmata & plains (USGS/IAU)" active={s.showGeologicalFeatures} onSelect={() => { s.toggleGeologicalFeatures(); click(); }} />
-                  <Item kind="radio" icon={Tent} label="Cave & pit shelters (MGC3)" hint="1,062 candidates from USGS catalog for radiation shield" active={s.terrainOverlay === 'caves'} onSelect={() => { s.setTerrainOverlay('caves'); click(); }} />
-                  <Item icon={Route} label="Real rover tracks" hint="Opportunity, Perseverance, Curiosity, Spirit & Sojourner paths (129 km)" active={s.showRoverTraverses} onSelect={() => { s.toggleRoverTraverses(); click(); }} />
-                  <Item icon={Wind} label="Dust storm tracks & footprints" hint="Over 1,000 tracked local, regional & global storms (NASA/PSI MDSTD)" active={s.showDustStormTracks} onSelect={() => { s.toggleDustStormTracks(); click(); }} />
                 </Menu>
-
-                <button
-                  onClick={toggleQuakes}
-                  aria-pressed={s.quakeMode}
-                  title="Marsquakes: fault lines, risk zones and the layers inside Mars"
-                  className={`${toolBtn} ${s.quakeMode ? 'bg-sky-500/20 border-sky-400/60 text-sky-100' : 'bg-white/[0.04] border-white/10 text-zinc-200 hover:bg-white/[0.09]'}`}
-                >
-                  <Activity className="w-4 h-4" />
-                  <span className="hidden md:inline">Marsquakes</span>
-                </button>
               </>
             )}
 

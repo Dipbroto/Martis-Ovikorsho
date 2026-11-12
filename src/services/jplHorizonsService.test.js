@@ -78,6 +78,9 @@ describe('jplHorizonsService (NASA JPL Horizons API & SPICE Ephemeris)', () => {
     expect(comms.oneWayLightTimeMin).toBeLessThan(23);
     expect(comms.roundTripLightTimeMin).toBeCloseTo(comms.oneWayLightTimeMin * 2, 1);
     expect(comms.oneWayFormatted).toMatch(/^\d+m\s\d{2}s$/);
+    expect(comms.distanceAu).toBe(comms.rangeAU);
+    expect(comms.distanceMillionKm).toBe(comms.rangeMillionKm);
+    expect(comms.lightTimeMinutes).toBe(comms.oneWayLightTimeMin);
     expect(comms.provenance).toContain('Horizons');
   });
 

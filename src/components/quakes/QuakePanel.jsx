@@ -67,21 +67,10 @@ function FaultDetail({ f, onClose, onZoom }) {
 export default function QuakePanel() {
   const s = useMapStore(useShallow((st) => ({
     on: st.quakeMode, setOn: st.setQuakeMode, show: st.quakeShow, setShow: st.setQuakeShow,
-    fault: st.faultSelected, setFault: st.setFaultSelected, fitMapTo: st.fitMapTo, fly: st.flyToCoordinate,
+    fault: st.faultSelected, setFault: st.setFaultSelected, fly: st.flyToCoordinate,
   })));
   const { data, error } = useQuakeData(s.on);
   const [howto, setHowto] = useState(() => !readSeen());
-
-  // Whole planet. With the panel open it sits on the left; minimized, the panel shrinks to a small pill and
-  // the map uses the whole screen.
-  const folded = useMapStore((st) => !!st.dockMin.quake);
-  useEffect(() => {
-    if (!s.on) return;
-    const wide = window.innerWidth >= 640;
-    s.fitMapTo([[-62, -180], [62, 180]], wide ? { topLeft: [folded ? 330 : 480, 140], bottomRight: [30, 120] } : undefined);
-    // only when the layer is switched on or the panel is folded or unfolded
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.on, folded]);
 
   if (!s.on) return null;
   const closeHowto = () => { setHowto(false); try { localStorage.setItem(HOWTO_KEY, '1'); } catch { /* ignore */ } };

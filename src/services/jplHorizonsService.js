@@ -232,6 +232,10 @@ export function getEarthCommsTelemetry(date = new Date()) {
     roundTripFormatted: `${Math.floor(oneWayLightMin * 2)}m ${Math.round((oneWayLightMin * 2 - Math.floor(oneWayLightMin * 2)) * 60).toString().padStart(2, '0')}s`,
     epoch: new Date(targetMs).toISOString(),
     provenance: 'NASA JPL Horizons Ephemeris (Quantity 21)',
+    // Direct telemetry aliases for UI components
+    distanceAu: Math.round(currentRangeAu * 10000) / 10000,
+    distanceMillionKm: Math.round((currentRangeKm / 1e6) * 100) / 100,
+    lightTimeMinutes: Math.round(oneWayLightMin * 100) / 100,
   };
 }
 
