@@ -334,7 +334,7 @@ The Science Lab includes a 2D chemical structure renderer and spectral matcher t
 
 ---
 
-## 🗺️ 2D/3D Multi-Scale Cartography & Tactical Traverse Planning
+## 🗺 2D/3D Multi-Scale Cartography & Tactical Traverse Planning
 
 ```mermaid
 flowchart TD
@@ -863,7 +863,7 @@ $$I_{\text{surface}} = I_{\text{TOA}} \cdot \cos(\theta_z) \cdot \exp\left( -\fr
 
 ---
 
-## 🛠️ Technology Stack & System Design
+## 🛠 Technology Stack & System Design
 
 ```
 Martis-Ovikorsho/
