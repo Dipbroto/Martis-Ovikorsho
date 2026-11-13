@@ -1,5 +1,6 @@
-# Martis Ovikorsho 🪐
+# Martis 🪐
 ### Next-Generation Martian Surface Mission Planning, EVA Cartography & In-Situ Astrobiology Laboratory
+*Created by Team Ovikorsho*
 
 [![NASA Space Apps Challenge 2026](https://img.shields.io/badge/NASA_Space_Apps-2026_Challenge-0B3D91?style=for-the-badge&logo=nasa&logoColor=white)](https://www.spaceappschallenge.org/)
 [![Live Deployment](https://img.shields.io/badge/Live_Demo-martis--ovikorsho.vercel.app-00C7B7?style=for-the-badge&logo=vercel&logoColor=white)](https://martis-ovikorsho.vercel.app/)
@@ -20,7 +21,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 > **"Read a Martian rock like a rover does; plan a Marswalk like an astronaut must."**  
-> Martis Ovikorsho is an integrated interplanetary operations cockpit and astrobiology research station. Engineered for future human surface missions and autonomous robotic precursors, the platform combines **high-resolution 2D/3D orbital cartography**, **Bekker-Wong rover terramechanics**, **point-of-no-return astronaut walkback envelopes**, **an authentic 20-campaign In-Situ Science Lab**, and an **8-family machine learning subsystem running zero-latency edge tree ensembles directly in the browser**.
+> Martis is an integrated interplanetary operations cockpit and astrobiology research station. Engineered for future human surface missions and autonomous robotic precursors, the platform combines **high-resolution 2D/3D orbital cartography**, **Bekker-Wong rover terramechanics**, **point-of-no-return astronaut walkback envelopes**, **an authentic 20-campaign In-Situ Science Lab**, and an **8-family machine learning subsystem running zero-latency edge tree ensembles directly in the browser**.
 
 ---
 
@@ -68,7 +69,7 @@
 
 Surface exploration on Mars presents existential challenges: lethal ionizing cosmic radiation, catastrophic dust storms, treacherous slip-inducing regolith slopes, strict life-support oxygen budgets, and finite comms windows. Ground control at NASA JPL operates with communication delays between 4 and 24 minutes each way, meaning **tactical EVA traverse decisions and in-situ astrobiological sample selection must be executed autonomously on Mars**.
 
-Martis Ovikorsho bridges orbital remote sensing with sub-millimeter in-situ contact science:
+Martis bridges orbital remote sensing with sub-millimeter in-situ contact science:
 
 ```mermaid
 flowchart TB
@@ -230,7 +231,7 @@ In addition to the 20 primary Jezero campaigns, the Science Lab includes an **Or
 
 ## 🧠 Machine Learning Subsystem (8 Model Families)
 
-Martis Ovikorsho deploys an advanced **8-family machine learning subsystem** designed specifically for real-time edge execution in mission-critical environments. 
+Martis deploys an advanced **8-family machine learning subsystem** designed specifically for real-time edge execution in mission-critical environments. 
 
 > [!IMPORTANT]
 > **Scientific Honesty & Methodology**: In adherence to NASA's scientific standards, we rigorously distinguish between models trained on **empirical mission telemetry** (REMS, PIXL, SuperCam) and **physics-based surrogates** (RAD, Bekker-Wong, InSight SEIS, Opportunity photovoltaic dust). Model scores for surrogates evaluate fidelity to published physics equations, not unmeasured Martian ground truth.
@@ -359,7 +360,7 @@ flowchart TD
 
 ### Historical Rover Traverses: All 5 NASA Surface Missions (128.98 km PDS Tracks)
 
-Beyond astronaut EVA paths, Martis Ovikorsho renders the complete, authentic ground-truth coordinate logs for **all 5 NASA robotic planetary rovers** that have navigated the surface of Mars. Sourced directly from the **NASA Planetary Data System (PDS) Cartography Node**, NASA/JPL MMGIS, and Washington University in St. Louis (WUSTL) Analyst's Notebooks:
+Beyond astronaut EVA paths, Martis renders the complete, authentic ground-truth coordinate logs for **all 5 NASA robotic planetary rovers** that have navigated the surface of Mars. Sourced directly from the **NASA Planetary Data System (PDS) Cartography Node**, NASA/JPL MMGIS, and Washington University in St. Louis (WUSTL) Analyst's Notebooks:
 
 ```mermaid
 flowchart TD
@@ -410,7 +411,7 @@ Areas where intervening terrain crests break the line of sight are dynamically h
 
 ### Planetary Resource Overlays: Mars Odyssey GRS Elemental Maps (Fe, Si, K, Th, Cl, H₂O) & ISRU Engine
 
-Beyond orbital optical imagery and topography, Martis Ovikorsho integrates the official **Mars Odyssey Gamma Ray Spectrometer (GRS)** element concentration archive (*Boynton et al. 2007, NASA PDS Geosciences Node*, `ODY-M-GRS-5-ELEMENTS-V1.0`). Derived from multi-year orbital gamma-ray and neutron flux measurements, the platform provides smoothed global $5^\circ \times 5^\circ$ gridded datasets (~300 km spatial bins) corrected for $\text{CO}_2$ seasonal frost:
+Beyond orbital optical imagery and topography, Martis integrates the official **Mars Odyssey Gamma Ray Spectrometer (GRS)** element concentration archive (*Boynton et al. 2007, NASA PDS Geosciences Node*, `ODY-M-GRS-5-ELEMENTS-V1.0`). Derived from multi-year orbital gamma-ray and neutron flux measurements, the platform provides smoothed global $5^\circ \times 5^\circ$ gridded datasets (~300 km spatial bins) corrected for $\text{CO}_2$ seasonal frost:
 
 ```mermaid
 flowchart LR
@@ -450,7 +451,7 @@ To maximize map situational awareness and eliminate visual clutter:
 
 Ionizing radiation is an existential hazard for long-duration surface stays on Mars. Unlike Earth, Mars lacks an intrinsic global dipolar magnetosphere, and its thin carbon dioxide atmosphere provides an average column depth of only $\sim 16\text{--}24\text{ g/cm}^2$ (compared to Earth's $1,033\text{ g/cm}^2$). 
 
-Martis Ovikorsho integrates over 4,200 sols of ground-truth dosimetric telemetry directly from the **NASA Planetary Data System (PDS) MSL RAD Archive** (*SwRI / Hassler et al., DOI: 10.17189/1519787*) combined with live space weather alerts from **NASA DONKI** (Space Weather Database Of Notifications, Knowledge, and Information):
+Martis integrates over 4,200 sols of ground-truth dosimetric telemetry directly from the **NASA Planetary Data System (PDS) MSL RAD Archive** (*SwRI / Hassler et al., DOI: 10.17189/1519787*) combined with live space weather alerts from **NASA DONKI** (Space Weather Database Of Notifications, Knowledge, and Information):
 
 ```mermaid
 flowchart TD
@@ -496,7 +497,7 @@ flowchart TD
 
 ### Dual- & Multi-Station Live Weather: Perseverance MEDA, Curiosity REMS & InSight TWINS/APSS
 
-Martian meteorology exhibits dramatic diurnal swings and regional variability governed by altitude and atmospheric scale height ($H \approx 10.8\text{ km}$). Martis Ovikorsho upgrades single-station weather feeds to an integrated **Multi-Station Martian Surface Weather Network**, aggregating telemetry across three distinct landing sites:
+Martian meteorology exhibits dramatic diurnal swings and regional variability governed by altitude and atmospheric scale height ($H \approx 10.8\text{ km}$). Martis upgrades single-station weather feeds to an integrated **Multi-Station Martian Surface Weather Network**, aggregating telemetry across three distinct landing sites:
 
 ```mermaid
 flowchart LR
@@ -517,7 +518,7 @@ flowchart LR
 
 ### Martian Dust Storm Tracker: NASA / PSI Mars Dust Storm Track Database (MDSTD) & Trajectory Footprints
 
-Dust storms pose a primary existential risk to solar-powered surface infrastructure and astronaut surface operations. Rather than relying solely on coarse seasonal probability bins, Martis Ovikorsho incorporates the **NASA / Planetary Science Institute (PSI) Mars Dust Storm Track Database (MDSTD)** (*Battalio & Wang 2019, 2021; Cantor et al. 2001, 2007, 2019*).
+Dust storms pose a primary existential risk to solar-powered surface infrastructure and astronaut surface operations. Rather than relying solely on coarse seasonal probability bins, Martis incorporates the **NASA / Planetary Science Institute (PSI) Mars Dust Storm Track Database (MDSTD)** (*Battalio & Wang 2019, 2021; Cantor et al. 2001, 2007, 2019*).
 
 ```mermaid
 flowchart TD
@@ -564,7 +565,7 @@ flowchart TD
 
 ### In-Situ Mars Imagery: NASA Mars Rover Raw Photos API (by Camera & Sol)
 
-Martis Ovikorsho upgrades Martian imaging from static media library queries to an authentic, instrument-grade **Mars Rover Raw Photos Subsystem** querying live in-situ Engineering & Science Data Records (EDR/RDR) from the NASA JPL Mars Raw Images feed (`mars.nasa.gov/rss/api/?feed=raw_images`).
+Martis upgrades Martian imaging from static media library queries to an authentic, instrument-grade **Mars Rover Raw Photos Subsystem** querying live in-situ Engineering & Science Data Records (EDR/RDR) from the NASA JPL Mars Raw Images feed (`mars.nasa.gov/rss/api/?feed=raw_images`).
 
 ```mermaid
 flowchart TD
@@ -613,13 +614,13 @@ flowchart TD
    - Displays real frame telemetry: Camera Vector ($[x, y, z]$), optical filter, drive number, site index, UTC timestamp, and direct links to full-resolution EDR raw TIFF/PNG frames.
    - **"Fly to Rover Site on 2D Map"**: Instantly centers and zooms the Leaflet surface cartography onto the rover's exact landing site (Jezero Crater: $18.44^\circ\text{N}, 77.45^\circ\text{E}$ or Gale Crater: $4.59^\circ\text{S}, 137.44^\circ\text{E}$).
 5. **Robust Zero-API-Key Offline Baseline**:
-   - If network connectivity is limited or third-party gateways fail, Martis Ovikorsho falls back to `public/data/hero_rover_photos.json` (88 authentic, high-res frames with complete telemetry headers), ensuring the platform remains fully functional in air-gapped simulation environments.
+   - If network connectivity is limited or third-party gateways fail, Martis falls back to `public/data/hero_rover_photos.json` (88 authentic, high-res frames with complete telemetry headers), ensuring the platform remains fully functional in air-gapped simulation environments.
 
 ---
 
 ### Global Planetary Gazetteer: USGS / IAU Martian Nomenclature Catalog (2,055 Approved Features)
 
-Martis Ovikorsho expands surface landmark intelligence from ~10 hardcoded points to the comprehensive **USGS / IAU Gazetteer of Planetary Nomenclature**, maintained by the USGS Astrogeology Science Center on behalf of the International Astronomical Union (IAU) Working Group for Planetary System Nomenclature (WGPSN).
+Martis expands surface landmark intelligence from ~10 hardcoded points to the comprehensive **USGS / IAU Gazetteer of Planetary Nomenclature**, maintained by the USGS Astrogeology Science Center on behalf of the International Astronomical Union (IAU) Working Group for Planetary System Nomenclature (WGPSN).
 
 ```mermaid
 flowchart TD
@@ -677,7 +678,7 @@ flowchart TD
 
 ### Live Orbiter Constellation & Ephemeris: NASA JPL Horizons System API & SPICE Ephemeris
 
-Martis Ovikorsho upgrades the orbital fleet simulation from arbitrary static phase offsets to authentic real-time orbital state vectors and osculating ephemeris delivered by the **NASA Jet Propulsion Laboratory (JPL) Solar System Dynamics Horizons System** (`https://ssd.jpl.nasa.gov/api/horizons.api`).
+Martis upgrades the orbital fleet simulation from arbitrary static phase offsets to authentic real-time orbital state vectors and osculating ephemeris delivered by the **NASA Jet Propulsion Laboratory (JPL) Solar System Dynamics Horizons System** (`https://ssd.jpl.nasa.gov/api/horizons.api`).
 
 ```mermaid
 flowchart TD
@@ -729,7 +730,7 @@ flowchart TD
 
 ### Solar Array Power & Mission Longevity: NASA PDS Telemetry (MER Opportunity 5,352 Sols & InSight 1,440 Sols)
 
-Martis Ovikorsho upgrades the solar array power and dust degradation module from synthetic mathematical surrogates to authentic **NASA Planetary Data System (PDS) Atmospheres Node** daily flight telemetry spanning the entire operational lifetimes of **MER Opportunity** (5,352 Sols, 2004–2019) and the **InSight Lander** (1,440 Sols, 2018–2022).
+Martis upgrades the solar array power and dust degradation module from synthetic mathematical surrogates to authentic **NASA Planetary Data System (PDS) Atmospheres Node** daily flight telemetry spanning the entire operational lifetimes of **MER Opportunity** (5,352 Sols, 2004–2019) and the **InSight Lander** (1,440 Sols, 2018–2022).
 
 ```mermaid
 flowchart TD
@@ -816,7 +817,7 @@ The platform incorporates an intelligent mission copilot powered by **Google Dee
 
 ## 📊 Scientific Data Provenance & Physical Truth Matrix
 
-Scientific integrity is paramount. The table below delineates the exact source, physical basis, and operational limitations of all data within Martis Ovikorsho:
+Scientific integrity is paramount. The table below delineates the exact source, physical basis, and operational limitations of all data within Martis:
 
 | Subsystem Layer | Data Classification | Primary Empirical Source | Underlying Physical / Analytical Basis | Validation & Operational Notes |
 |---|---|---|---|---|
@@ -917,7 +918,7 @@ Martis-Ovikorsho/
 
 ## 🧪 Verification & Benchmark Validation
 
-Martis Ovikorsho maintains a rigorous automated testing and verification suite. All 33 test suites (257 tests) run on every commit:
+Martis maintains a rigorous automated testing and verification suite. All 33 test suites (257 tests) run on every commit:
 
 ```bash
 ✓ src/utils/audioSynthesizer.test.js (3 tests)
@@ -1063,5 +1064,5 @@ In full alignment with the **NASA Space Apps Challenge 2026 AI Ethics & Transpar
 
 <div align="center">
   <sub>Engineered with precision for humanity's journey to the Red Planet. Built for the NASA Space Apps Challenge 2026.</sub><br>
-  <sub><b>Martis Ovikorsho Team · 2026</b></sub>
+  <sub><b>Created by Team Ovikorsho · 2026</b></sub>
 </div>
